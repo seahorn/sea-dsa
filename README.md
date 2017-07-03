@@ -1,5 +1,8 @@
 # sea-dsa: A Heap Analysis for Verification of Low-level C/C++ #
 
+<a href="https://travis-ci.org/seahorn/sea-dsa"><img src="https://travis-ci.org/seahorn/sea-dsa.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-4.8"/></a>
+
+
 `sea-dsa` is a context-, field-, and array-sensitive heap analysis for
 LLVM bitcode inspired
 by [DSA](http://llvm.org/pubs/2003-11-15-DataStructureAnalysisTR.ps).
