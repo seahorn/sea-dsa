@@ -21,11 +21,11 @@ main requirements are:
 
 - C++ compiler supporting c++11
 - Boost >= 1.55
-- LLVM 3.6
+- LLVM 3.8
 
 ## Compilation and Usage ##
 
-### Integration in other C++ projects (most common scenario) ## 
+### Integration in other C++ projects (for users) ## 
 
 `sea-dsa` contains two directories: `include` and `src`. Since
 `sea-dsa` analyzes LLVM bitcode, LLVM header files and libraries must
@@ -37,20 +37,21 @@ project's `CMakeLists.txt`:
 	 include_directories (sea_dsa/include)
 	 add_subdirectory(sea_dsa)
 
-### Stand-alone (less common scenario but useful for developers) ###
+### Standalone (for developers) ###
 
-If you already installed `llvm-3.6` in your machine:
+If you already installed `llvm-3.8` in your machine:
 
     mkdir build && cd build
-	cmake -DCMAKE_INSTALL_PREFIX=__dir__ -DLLVM_DIR=__here_llvm-3.6__/share/llvm/cmake  ..
-    cmake --build . --target install
-
+	cmake -DCMAKE_INSTALL_PREFIX=__dir__ -DLLVM_DIR=__here_llvm-3.8__/share/llvm/cmake  ..
+   	cmake --build . --target install
+	cmake --build . --target test-dsa
+	
 Otherwise:
 
     mkdir build && cd build
 	cmake -DCMAKE_INSTALL_PREFIX=__dir__ ..
     cmake --build . --target install
-
+	cmake --build . --target test-dsa
 
 ## References ## 
 

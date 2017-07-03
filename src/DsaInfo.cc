@@ -1,7 +1,6 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/Target/TargetLibraryInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
@@ -91,7 +90,7 @@ static bool isStaticallyKnown (const DataLayout* dl,
                                const TargetLibraryInfo* tli,
                                const Value* v) {
   uint64_t size;
-  if (getObjectSize (v, size, dl, tli, true)) return (size > 0);
+  if (getObjectSize (v, size, *dl, tli, true)) return (size > 0);
   return false; 
 }
 

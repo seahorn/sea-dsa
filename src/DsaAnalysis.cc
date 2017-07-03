@@ -1,5 +1,5 @@
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Target/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Support/raw_ostream.h"
@@ -19,8 +19,7 @@ DsaCsGlobalAnalysis ("sea-dsa-cs-global",
 
 
 void DsaAnalysis::getAnalysisUsage (AnalysisUsage &AU) const {
-  AU.addRequired<DataLayoutPass> ();
-  AU.addRequired<TargetLibraryInfo> ();
+  AU.addRequired<TargetLibraryInfoWrapperPass> ();
   AU.addRequired<CallGraphWrapperPass> ();
   AU.setPreservesAll ();
 }
@@ -41,8 +40,8 @@ GlobalAnalysis& DsaAnalysis::getDsaAnalysis () {
 }
 
 bool DsaAnalysis::runOnModule (Module &M) {
-  m_dl  = &getAnalysis<DataLayoutPass>().getDataLayout ();
-  m_tli = &getAnalysis<TargetLibraryInfo> ();
+  m_dl  = &M.getDataLayout ();
+  m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
   auto &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
   if (DsaCsGlobalAnalysis)
