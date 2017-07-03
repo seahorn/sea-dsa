@@ -1,0 +1,10 @@
+# find lit. Assume we are using external lit installed from pip
+find_program(LIT_COMMAND lit)
+
+add_lit_testsuite(test-dsa "Regression test for sea dsa"
+  -v
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  PARAMS
+  test_dir=${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS seadsa
+  )
