@@ -42,7 +42,7 @@ install:
   - ls $LZ
 
 script:
-  - cd sea_dsa
+  - cd sea-dsa
   - mkdir -p build
   - cd build
   - mv $LZ/run run
