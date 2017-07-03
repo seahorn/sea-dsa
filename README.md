@@ -1,4 +1,4 @@
-# sea-dsa: A Heap Analysis for Verification of Low-level C/C++ Code #
+# sea-dsa: A Heap Analysis for Verification of Low-level C/C++ #
 
 `sea-dsa` is a context-, field-, and array-sensitive heap analysis for
 LLVM bitcode inspired
@@ -34,7 +34,7 @@ project's `CMakeLists.txt`:
 	 include_directories (sea_dsa/include)
 	 add_subdirectory(sea_dsa)
 
-### Stand-alone (less common scenario but useful for e.g., testing) ###
+### Stand-alone (less common scenario but useful for developers) ###
 
 If you already installed `llvm-3.6` in your machine:
 
