@@ -30,15 +30,15 @@
 
 static llvm::cl::opt<bool>
 normalizeUniqueScalars("sea-dsa-norm-unique-scalar",
-                       llvm::cl::desc("DSA: all callees and callers agree on unique scalars"),
-                       llvm::cl::init (true),
-		       llvm::cl::Hidden);
+      llvm::cl::desc("DSA: all callees and callers agree on unique scalars"),
+      llvm::cl::init (true),
+      llvm::cl::Hidden);
 
 static llvm::cl::opt<bool>
 normalizeAllocaSites("sea-dsa-norm-alloca-sites",
-                     llvm::cl::desc("DSA: all callees and callers agree on allocation sites"),
-                     llvm::cl::init (true),
-		     llvm::cl::Hidden);
+      llvm::cl::desc("DSA: all callees and callers agree on allocation sites"),
+      llvm::cl::init (true),
+      llvm::cl::Hidden);
 
 using namespace llvm;
 
@@ -81,9 +81,12 @@ namespace sea_dsa {
 	errs () << "Started context-insensitive global analysis ... \n");
     
     //ufo::Stats::resume ("CI-DsaAnalysis");
-    
-    m_graph.reset (new Graph (m_dl, m_setFactory));
-    
+
+    if (kind () == FLAT_MEMORY)
+      m_graph.reset (new FlatGraph (m_dl, m_setFactory));
+    else
+      m_graph.reset (new Graph (m_dl, m_setFactory));
+      
     LocalAnalysis la (m_dl, m_tli);
     
     // -- bottom-up inlining of all graphs
@@ -98,11 +101,16 @@ namespace sea_dsa {
 	    if (!fn || fn->isDeclaration () || fn->empty ()) continue;
 	    
 	    // compute local graph
-	    Graph fGraph (m_dl, m_setFactory);
-	    la.runOnFunction (*fn, fGraph);
+	    GraphRef fGraph = nullptr;
+	    if (kind () == FLAT_MEMORY)
+	      fGraph.reset (new FlatGraph (m_dl, m_setFactory));
+	    else	      
+	      fGraph.reset (new Graph (m_dl, m_setFactory));
+	    
+	    la.runOnFunction (*fn, *fGraph);
 	    
 	    m_fns.insert (fn);
-	    m_graph->import(fGraph, true);
+	    m_graph->import(*fGraph, true);
 	  }
 	
         // --- resolve callsites
@@ -159,12 +167,10 @@ namespace sea_dsa {
   { return m_fns.count(&fn) > 0; }
   
   
-  /// LLVM pass
+  /// LLVM passes
   
   ContextInsensitiveGlobal::ContextInsensitiveGlobal () 
-    : DsaGlobalPass (ID), m_ga (nullptr) {
-    //initializeCallGraphWrapperPassPass(*PassRegistry::getPassRegistry());
-  }
+    : DsaGlobalPass (ID), m_ga (nullptr) { }
   
   void ContextInsensitiveGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
   {
@@ -179,10 +185,36 @@ namespace sea_dsa {
     auto &dl = getAnalysis<DataLayoutPass>().getDataLayout ();
     auto &tli = getAnalysis<TargetLibraryInfo> ();
     auto &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
-    
-    m_ga.reset (new ContextInsensitiveGlobalAnalysis (dl, tli, cg, m_setFactory));
+
+    const bool useFlatMemory = false;
+    m_ga.reset (new ContextInsensitiveGlobalAnalysis (dl, tli, cg, m_setFactory,
+						      useFlatMemory));
     return m_ga->runOnModule (M);
   }
+
+  FlatMemoryGlobal::FlatMemoryGlobal () 
+    : DsaGlobalPass (ID), m_ga (nullptr) {}
+  
+  void FlatMemoryGlobal::getAnalysisUsage (AnalysisUsage &AU) const 
+  {
+    AU.addRequired<DataLayoutPass> ();
+    AU.addRequired<TargetLibraryInfo> ();
+    AU.addRequired<CallGraphWrapperPass> ();
+    AU.setPreservesAll ();
+  }
+  
+  bool FlatMemoryGlobal::runOnModule (Module &M)
+  {
+    auto &dl = getAnalysis<DataLayoutPass>().getDataLayout ();
+    auto &tli = getAnalysis<TargetLibraryInfo> ();
+    auto &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
+
+    const bool useFlatMemory = true;
+    m_ga.reset (new ContextInsensitiveGlobalAnalysis (dl, tli, cg, m_setFactory,
+						      useFlatMemory));
+    return m_ga->runOnModule (M);
+  }
+  
   
 } // end namespace sea_dsa
 
@@ -639,13 +671,18 @@ namespace sea_dsa {
 } // end namespace
 
 
+char sea_dsa::FlatMemoryGlobal::ID = 0;
+
 char sea_dsa::ContextInsensitiveGlobal::ID = 0;
 
 char sea_dsa::ContextSensitiveGlobal::ID = 0;
 
+static llvm::RegisterPass<sea_dsa::FlatMemoryGlobal> 
+X ("sea-dsa-flat-global", "Flat memory Dsa analysis");
+
 static llvm::RegisterPass<sea_dsa::ContextInsensitiveGlobal> 
-X ("sea-dsa-ci-global", "Context-insensitive Dsa analysis");
+Y ("sea-dsa-ci-global", "Context-insensitive Dsa analysis");
 
 static llvm::RegisterPass<sea_dsa::ContextSensitiveGlobal> 
-Y ("sea-dsa-cs-global", "Context-sensitive Dsa analysis");
+Z ("sea-dsa-cs-global", "Context-sensitive Dsa analysis");
 

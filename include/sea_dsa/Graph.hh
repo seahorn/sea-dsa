@@ -73,64 +73,69 @@ namespace sea_dsa {
     {bool operator() (const ValueMap::value_type &kv) const;};
     
   public:
-    
-    Graph (const llvm::DataLayout &dl, SetFactory &sf) : m_dl (dl), m_setFactory (sf) {}
-    /// remove all forwarding nodes
-    void compress ();
-    
-    /// remove all dead nodes
-    void remove_dead ();
-    
-    /// -- allocates a new node
-    Node &mkNode ();
-    
-    Node &cloneNode (const Node &n);
-    
-    /// iterate over nodes
-    typedef boost::indirect_iterator<typename NodeVector::const_iterator> const_iterator;
+
+    typedef boost::indirect_iterator<typename NodeVector::const_iterator>
+    const_iterator;
     typedef boost::indirect_iterator<typename NodeVector::iterator> iterator; 
-    const_iterator begin() const;
-    const_iterator end() const;
-    iterator begin();
-    iterator end();
-    
-    /// iterate over scalars
     typedef ValueMap::const_iterator scalar_const_iterator; 
-    scalar_const_iterator scalar_begin() const;
-    scalar_const_iterator scalar_end() const;
-    
     typedef boost::filter_iterator<IsGlobal,
 				   typename ValueMap::const_iterator>
     global_const_iterator;
-    global_const_iterator globals_begin () const;
-    global_const_iterator globals_end () const;
+    typedef ArgumentMap::const_iterator formal_const_iterator; 
+    typedef ReturnMap::const_iterator return_const_iterator; 
+
+    Graph (const llvm::DataLayout &dl, SetFactory &sf)
+      : m_dl (dl), m_setFactory (sf) {}
+    
+    /// remove all forwarding nodes
+    virtual void compress ();
+    
+    /// remove all dead nodes
+    virtual void remove_dead ();
+    
+    /// -- allocates a new node
+    virtual Node &mkNode ();
+    
+    virtual Node &cloneNode (const Node &n);
+    
+    /// iterate over nodes
+    virtual const_iterator begin() const;
+    virtual const_iterator end() const;
+    virtual iterator begin();
+    virtual iterator end();
+    
+    /// iterate over scalars
+    virtual scalar_const_iterator scalar_begin() const;
+    virtual scalar_const_iterator scalar_end() const;
+        
+    virtual global_const_iterator globals_begin () const;
+    virtual global_const_iterator globals_end () const;
     
     /// iterate over formal parameters of functions
-    typedef ArgumentMap::const_iterator formal_const_iterator; 
-    formal_const_iterator formal_begin() const;
-    formal_const_iterator formal_end() const;
+    virtual formal_const_iterator formal_begin() const;
+    virtual formal_const_iterator formal_end() const;
     
     /// iterate over returns of functions
-    typedef ReturnMap::const_iterator return_const_iterator; 
-    return_const_iterator return_begin() const;
-    return_const_iterator return_end() const;
+    virtual return_const_iterator return_begin() const;
+    virtual return_const_iterator return_end() const;
+    
     /// creates a cell for the value or returns existing cell if
     /// present
-    Cell &mkCell (const llvm::Value &v, const Cell &c);
-    Cell &mkRetCell (const llvm::Function &fn, const Cell &c);
+    virtual Cell &mkCell (const llvm::Value &v, const Cell &c);
+    virtual Cell &mkRetCell (const llvm::Function &fn, const Cell &c);
     
     /// return a cell for the value
-    const Cell &getCell (const llvm::Value &v);
+    virtual const Cell &getCell (const llvm::Value &v);
     
     /// return true iff the value has a cel
-    bool hasCell (const llvm::Value &v) const;
+    virtual bool hasCell (const llvm::Value &v) const;
     
-    bool hasRetCell (const llvm::Function &fn) const
+    virtual bool hasRetCell (const llvm::Function &fn) const
     { return m_returns.count (&fn) > 0; }
     
-    Cell &getRetCell (const llvm::Function &fn); 
+    virtual Cell &getRetCell (const llvm::Function &fn); 
     
-    const Cell &getRetCell (const llvm::Function &fn) const; 
+    virtual const Cell &getRetCell (const llvm::Function &fn) const; 
     
     /// compute a map from callee nodes to caller nodes
     // 
@@ -143,10 +148,24 @@ namespace sea_dsa {
     
     /// import the given graph into the current one
     /// copies all nodes from g and unifies all common scalars
-    void import (const Graph &g, bool withFormals = false);
+    virtual void import (const Graph &g, bool withFormals = false);
     
     /// pretty-printer of a graph
-      void write(llvm::raw_ostream&o) const;
+    virtual void write(llvm::raw_ostream&o) const;
+  };
+
+
+  /**
+   *  Graph with one single node
+   **/ 
+  class FlatGraph: public Graph {
+    
+  public:
+    
+    FlatGraph (const llvm::DataLayout &dl, SetFactory &sf):
+      Graph (dl, sf) {}
+    
+    virtual Node &mkNode () override;
   };
   
   /** 
@@ -225,6 +244,7 @@ namespace sea_dsa {
   class Node 
   {
     friend class Graph;
+    friend class FlatGraph;
     friend class Cell;
     
     friend class FunctionalMapper;

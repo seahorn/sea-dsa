@@ -12,12 +12,17 @@
 using namespace sea_dsa;
 using namespace llvm;
 
-static llvm::cl::opt<bool>
-DsaCsGlobalAnalysis ("sea-dsa-cs-global",
-       llvm::cl::desc ("DSA: context-sensitive analysis if enabled, else context-insensitive"),
-       llvm::cl::init (true));
-
-
+static llvm::cl::opt<sea_dsa::GlobalAnalysisKind>
+DsaGlobalAnalysis ("sea-dsa",
+       llvm::cl::desc ("DSA: kind of Dsa analysis"),
+       llvm::cl::values 
+       (clEnumValN (CONTEXT_SENSITIVE  , "cs"   , "Context-sensitive (default)"),
+        clEnumValN (CONTEXT_INSENSITIVE, "ci"   , "Context-insensitive"),
+        clEnumValN (FLAT_MEMORY        , "flat" , "Flat memory"),		
+	clEnumValEnd),
+       llvm::cl::init (CONTEXT_SENSITIVE));
+		   
+		     
 void DsaAnalysis::getAnalysisUsage (AnalysisUsage &AU) const {
   AU.addRequired<DataLayoutPass> ();
   AU.addRequired<TargetLibraryInfo> ();
@@ -45,10 +50,19 @@ bool DsaAnalysis::runOnModule (Module &M) {
   m_tli = &getAnalysis<TargetLibraryInfo> ();
   auto &cg = getAnalysis<CallGraphWrapperPass> ().getCallGraph ();
 
-  if (DsaCsGlobalAnalysis)
-    m_ga.reset (new ContextSensitiveGlobalAnalysis (*m_dl, *m_tli, cg, m_setFactory));
-  else 
-    m_ga.reset (new ContextInsensitiveGlobalAnalysis (*m_dl, *m_tli, cg, m_setFactory));
+  switch (DsaGlobalAnalysis) {
+  case CONTEXT_INSENSITIVE:
+    m_ga.reset (new ContextInsensitiveGlobalAnalysis
+		(*m_dl, *m_tli, cg, m_setFactory, false));
+    break;
+  case FLAT_MEMORY:
+    m_ga.reset (new ContextInsensitiveGlobalAnalysis
+		(*m_dl, *m_tli, cg, m_setFactory, true /* use flat*/));
+    break;
+  default: /* CONTEXT_SENSITIVE */    
+    m_ga.reset (new ContextSensitiveGlobalAnalysis
+		(*m_dl, *m_tli, cg, m_setFactory));
+  }
   
   m_ga->runOnModule (M);
   return false;

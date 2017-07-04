@@ -1128,5 +1128,12 @@ void sea_dsa::Graph::write (raw_ostream&o) const{
   }
 }
 
+sea_dsa::Node& sea_dsa::FlatGraph::mkNode () {
+  if (m_nodes.empty ())
+    m_nodes.push_back (std::unique_ptr<Node> (new Node (*this)));
+  
+  return *m_nodes.back ();
+}
+
 // Initialization of static data
 uint64_t sea_dsa::Node::m_id_factory = 0;

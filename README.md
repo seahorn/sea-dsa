@@ -25,7 +25,7 @@ main requirements are:
 
 ## Compilation and Usage ##
 
-### Integration in other C++ projects (most common scenario) ## 
+### Integration in other C++ projects (for users) ## 
 
 `sea-dsa` contains two directories: `include` and `src`. Since
 `sea-dsa` analyzes LLVM bitcode, LLVM header files and libraries must
@@ -37,7 +37,7 @@ project's `CMakeLists.txt`:
 	 include_directories (sea_dsa/include)
 	 add_subdirectory(sea_dsa)
 
-### Stand-alone (less common scenario but useful for developers) ###
+### Standalone (for developers) ###
 
 If you already installed `llvm-3.6` in your machine:
 
@@ -51,6 +51,10 @@ Otherwise:
 	cmake -DCMAKE_INSTALL_PREFIX=__dir__ ..
     cmake --build . --target install
 
+To run tests:
+
+    export SEADSA=__dir__/bin
+	cmake --build . --target test-dsa
 
 ## References ## 
 
