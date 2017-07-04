@@ -3,5 +3,6 @@
 
 /* Define whether sanity checks are enabled */
 #cmakedefine SANITY_CHECKS ${SANITY_CHECKS}
+#cmakedefine NAME_VALUES ${TopLevel}
 
 #endif
