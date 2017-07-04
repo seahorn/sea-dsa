@@ -12,7 +12,7 @@
 #include <boost/iterator/filter_iterator.hpp>
 #include <boost/bimap.hpp>
 
-/* Gater information for dsa clients */
+/* Precompute queries for dsa clients */
 
 namespace llvm 
 {

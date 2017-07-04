@@ -8,6 +8,7 @@
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Global.hh"
 #include "sea_dsa/DsaAnalysis.hh"
+#include "sea_dsa/Stats.hh"
 
 using namespace sea_dsa;
 using namespace llvm;
@@ -21,7 +22,12 @@ DsaGlobalAnalysis ("sea-dsa",
         clEnumValN (FLAT_MEMORY        , "flat" , "Flat memory"),		
 	clEnumValEnd),
        llvm::cl::init (CONTEXT_SENSITIVE));
-		   
+
+static llvm::cl::opt<bool>
+DsaStats("sea-dsa-stats",
+	llvm::cl::desc("Print stats about Dsa analysis"),
+	llvm::cl::init (false));
+
 		     
 void DsaAnalysis::getAnalysisUsage (AnalysisUsage &AU) const {
   AU.addRequired<DataLayoutPass> ();
@@ -65,6 +71,14 @@ bool DsaAnalysis::runOnModule (Module &M) {
   }
   
   m_ga->runOnModule (M);
+
+  if (DsaStats) {
+    DsaInfo i (*m_dl, *m_tli,getDsaAnalysis ());
+    i.runOnModule (M);
+    DsaPrintStats p (i);
+    p.runOnModule (M);
+  }
+    
   return false;
 }
 
