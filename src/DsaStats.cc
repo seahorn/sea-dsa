@@ -4,6 +4,7 @@
 
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Graph.hh"
+#include "sea_dsa/Stats.hh"
 // #include "ufo/Stats.hh"
 
 namespace sea_dsa {
@@ -13,7 +14,7 @@ namespace sea_dsa {
   typedef DsaInfo::live_nodes_const_range nodes_range;
   typedef DsaInfo::alloc_sites_set alloc_sites_set;
   
-  void printMemAccesses (nodes_range nodes, llvm::raw_ostream &o)  {
+  static void printMemAccesses (nodes_range nodes, llvm::raw_ostream &o)  {
     // Here counters
     unsigned int total_accesses = 0; // count the number of total memory accesses
     
@@ -49,7 +50,7 @@ namespace sea_dsa {
     }
   }
 
-  void printMemTypes (nodes_range nodes, llvm::raw_ostream &o) { 
+  static void printMemTypes (nodes_range nodes, llvm::raw_ostream &o) { 
     // Here counters
     unsigned num_collapses = 0;    // number of collapsed nodes
     unsigned num_typed_nodes = 0;  // number of typed nodes
@@ -75,8 +76,9 @@ namespace sea_dsa {
     // TODO: print all node's types
   }
 
-  void printAllocSites (nodes_range nodes, const alloc_sites_set& alloc_sites,
-			llvm::raw_ostream &o) {
+  static void printAllocSites (nodes_range nodes,
+			       const alloc_sites_set& alloc_sites,
+			       llvm::raw_ostream &o) {
     /// number of nodes without allocation sites
     unsigned num_orphan_nodes = 0;
     /// number of checks belonging to orphan nodes.
@@ -119,13 +121,35 @@ namespace sea_dsa {
     o << "\t" << num_non_singleton << " number of nodes with multi-typed allocation sites\n";
   }
   
+
+  void DsaPrintStats::runOnModule (Module &M)  {
+    
+    unsigned num_of_funcs = 0;
+    for (auto &f: M)  {
+      if (f.isDeclaration () || f.empty ()) continue;
+      num_of_funcs++; 	
+    }
+    
+    // ufo::Stats::uset ("NumOfFunctions", num_of_funcs);
+    
+    auto dsa_nodes = m_dsa.live_nodes ();
+    auto const &dsa_alloc_sites = m_dsa.alloc_sites ();
+    
+    errs() << " ========== Begin SeaHorn Dsa info  ==========\n";
+    printMemAccesses (dsa_nodes, errs());
+    printMemTypes (dsa_nodes, errs());
+    printAllocSites  (dsa_nodes, dsa_alloc_sites, errs());
+    errs() << " ========== End SeaHorn Dsa info  ==========\n";
+    
+  }
   
-  class DsaPrintStats: public ModulePass {
+
+  class DsaPrintStatsPass: public ModulePass {
   public:
     
     static char ID;
     
-    DsaPrintStats (): ModulePass (ID) {}
+    DsaPrintStatsPass (): ModulePass (ID) {}
     
     void getAnalysisUsage (AnalysisUsage &AU) const override {
       AU.addRequired<DsaInfoPass>();
@@ -133,25 +157,8 @@ namespace sea_dsa {
     }
     
     bool runOnModule (Module &M) override {
-      auto &dsa_info = getAnalysis<DsaInfoPass>().getDsaInfo();
-
-      unsigned num_of_funcs = 0;
-      for (auto &f: M)  {
-	if (f.isDeclaration () || f.empty ()) continue;
-	num_of_funcs++; 	
-      }
-    
-      // ufo::Stats::uset ("NumOfFunctions", num_of_funcs);
-      
-      auto dsa_nodes = dsa_info.live_nodes ();
-      auto const &dsa_alloc_sites = dsa_info.alloc_sites ();
-      
-      errs() << " ========== Begin SeaHorn Dsa info  ==========\n";
-      printMemAccesses (dsa_nodes, errs());
-      printMemTypes (dsa_nodes, errs());
-      printAllocSites  (dsa_nodes, dsa_alloc_sites, errs());
-      errs() << " ========== End SeaHorn Dsa info  ==========\n";
-      
+      DsaPrintStats p (getAnalysis<DsaInfoPass>().getDsaInfo());
+      p.runOnModule (M);
       return false;
     }
   
@@ -160,13 +167,13 @@ namespace sea_dsa {
     
   };
 
-  char DsaPrintStats::ID = 0;
+  char DsaPrintStatsPass::ID = 0;
   
   Pass *createDsaPrintStatsPass () {
-    return new DsaPrintStats ();
+    return new DsaPrintStatsPass ();
   }
   
 } // end namespace sea_dsa
 
-static llvm::RegisterPass<sea_dsa::DsaPrintStats> 
+static llvm::RegisterPass<sea_dsa::DsaPrintStatsPass> 
 X ("sea-dsa-stats", "Print stats about memory graphs");

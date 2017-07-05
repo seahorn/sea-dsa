@@ -51,6 +51,10 @@ Otherwise:
     mkdir build && cd build
 	cmake -DCMAKE_INSTALL_PREFIX=__dir__ ..
     cmake --build . --target install
+
+To run tests:
+
+    export SEADSA=__dir__/bin
 	cmake --build . --target test-dsa
 
 ## References ## 

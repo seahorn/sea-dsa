@@ -36,7 +36,7 @@ DefaultDataLayout("-data-layout",
         llvm::cl::init(""), llvm::cl::value_desc("layout-string"));
 
 static llvm::cl::opt<bool> 
-PrintDsaStats ("sea-dsa-stats",
+PrintDsaStats ("dsa-stats",
                llvm::cl::desc ("Print Dsa statistics"), 
                llvm::cl::init(false));
 

@@ -7,6 +7,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
+#include "sea_dsa/config.h"
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/DsaAnalysis.hh"
@@ -28,8 +29,6 @@ using namespace llvm;
  *  This procedure (borrowed from SeaHorn) modifies a module by
  *  assigning names to Value's. It returns true iff a Value is
  *  named. 
- *  WARNING: DsaInfo will always claim that it didn't modify a module
- *  even if nameValues return true.
 */
 static bool nameValues (Module &M) {
   bool change = false;
@@ -495,9 +494,14 @@ bool DsaInfoPass::runOnModule (Module &M) {
   auto &dsa = getAnalysis<DsaAnalysis>();
   m_dsa_info.reset (new DsaInfo (dsa.getDataLayout (), dsa.getTLI(),
 				 dsa.getDsaAnalysis()));
-  nameValues (M);
+
+  bool change = false;
+  #ifdef NAME_VALUES
+  change |= nameValues (M);
+  #endif
+  
   m_dsa_info->runOnModule (M);
-  return false;
+  return change;
 }
 
 DsaInfo& DsaInfoPass::getDsaInfo () {   
