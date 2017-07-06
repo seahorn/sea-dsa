@@ -11,9 +11,9 @@ include (CTest)
 
 # determine if this is top-level or embedded project
 if (PROJECT_NAME STREQUAL CMAKE_PROJECT_NAME)
-  set (TopLevel TRUE)
+  set (TOP_LEVEL TRUE)
 else()
-  set (TopLevel FALSE)
+  set (TOP_LEVEL FALSE)
 endif()
 
 option (BUILD_SEA_DSA_LIBS_SHARED "Build all sea-dsa libraries shared." OFF)
@@ -35,7 +35,7 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 option (SEA_DSA_STATIC_EXE "Static executable." OFF)
 
 ## Boost
-if (TopLevel)
+if (TOP_LEVEL)
   set (CUSTOM_BOOST_ROOT "" CACHE PATH "Path to custom boost installation.")
   if (CUSTOM_BOOST_ROOT)
     set (BOOST_ROOT ${CUSTOM_BOOST_ROOT})
@@ -49,7 +49,7 @@ if (TopLevel)
 endif ()
 
 ## llvm
-if (TopLevel)
+if (TOP_LEVEL)
   include(ExternalProject)
   # if top-level, offer to build llvm
   ExternalProject_Add (llvm
@@ -125,7 +125,7 @@ include_directories(
 add_subdirectory (src)
 
 
-if (TopLevel)
+if (TOP_LEVEL)
   add_subdirectory(tools)
   add_subdirectory(tests)
 endif ()  
@@ -138,6 +138,6 @@ install(DIRECTORY include/sea_dsa DESTINATION include
   PATTERN "CMakeFiles" EXCLUDE
   PATTERN ".svn" EXCLUDE)
 
-if (TopLevel)
+if (TOP_LEVEL)
   install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION .)  
 endif ()
