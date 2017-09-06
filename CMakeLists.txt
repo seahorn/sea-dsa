@@ -12,6 +12,7 @@ include (CTest)
 # determine if this is top-level or embedded project
 if (PROJECT_NAME STREQUAL CMAKE_PROJECT_NAME)
   set (TOP_LEVEL TRUE)
+  set (NAME_VALUES TRUE)
 else()
   set (TOP_LEVEL FALSE)
 endif()
@@ -24,7 +25,6 @@ if (ENABLE_SANITY_CHECKS)
   set (SANITY_CHECKS TRUE)
 else ()
   message (STATUS "Compiling sea-dsa without sanity checks")
-  set (SANITY_CHECKS FALSE)  
 endif()
 
 # Add path for custom modules
