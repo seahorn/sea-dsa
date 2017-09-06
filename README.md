@@ -60,7 +60,7 @@ To run tests:
 ## References ## 
 
 1. "A Context-Sensitive Memory Model for Verification of C/C++
-   Programs" by A. Gurfinkel and J. A. Navas. In SAS'17.
+   Programs" by A. Gurfinkel and J. A. Navas. In SAS'17. [Paper](https://jorgenavas.github.io/papers/sea-dsa-SAS17.pdf) [Slides](sea-dsa-SAS17-slides.pdf)
 
 
 
