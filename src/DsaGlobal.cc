@@ -88,7 +88,13 @@ namespace sea_dsa {
       m_graph.reset (new Graph (m_dl, m_setFactory));
       
     LocalAnalysis la (m_dl, m_tli);
-    
+
+    auto entry = GraphTraits<CallGraph*>::getEntryNode(&m_cg);
+    llvm::errs () << "Number of entry's children="
+       << std::distance(GraphTraits<const CallGraph*>::child_begin(entry),
+                GraphTraits<const CallGraph*>::child_end(entry))
+       << "\n";
+   
     // -- bottom-up inlining of all graphs
     for (auto it = scc_begin (&m_cg); !it.isAtEnd (); ++it)
       {
