@@ -71,7 +71,7 @@ tells `sea-dsa` to collapse the argument's cell.
 
 For instance, consider an external call `foo` defined as follows:
 
-	`extern void* foo(const void*p1, void *p2);`
+	`extern void* foo(const void*p1, void *p2, void *p3);`
 
 Suppose that the returned pointer should be unified to `p2` but not to
 `p1`. In addition, we would like to collapse the cell corresponding to
