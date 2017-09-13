@@ -57,6 +57,38 @@ To run tests:
     export SEADSA=__dir__/bin
 	cmake --build . --target test-dsa
 
+## Dealing with C/C++ library and external calls ##
+
+The pointer semantics of external calls can be defined by writing a
+wrapper that calls any of these two functions (defined in
+`sea_dsa/sea_dsa.h`):
+
+- `extern void sea_dsa_alias(const void *p, ...);`
+- `extern void sea_dsa_collapse(const void *p);`
+
+The first function unifies all argument's cells while the second one
+tells `sea-dsa` to collapse the argument's cell.
+
+For instance, consider an external call `foo` defined as follows:
+
+	`extern void* foo(const void*p1, void *p2);`
+
+Suppose that the returned pointer should be unified to `p2` but not to
+`p1`. In addition, we would like to collapse the cell corresponding to
+`p3`. Then, we can replace the above prototype of `foo` with the
+following definition:
+
+	#include "sea_dsa/sea_dsa.h"
+	void* foo(const void*p1, void *p2, void*p3) {
+		void* r = sea_dsa_new();
+		sea_dsa_alias(r,p2);
+		sea_dsa_collapse(p3);
+		return r;
+	}
+
+where `sea_dsa_new`, `sea_dsa_alias`, and `sea_dsa_collapse` are
+defined in `sea_dsa/sea_dsa.h`.
+
 ## References ## 
 
 1. "A Context-Sensitive Memory Model for Verification of C/C++

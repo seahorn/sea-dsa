@@ -203,6 +203,14 @@ namespace {
     void visitCallSite(CallSite CS);
     // void visitVAStart(CallSite CS);
 
+    static bool isSeaDsaAliasFn(const Function* F) {
+      return (F->getName().equals("sea_dsa_alias"));
+    }
+    
+    static bool isSeaDsaCollapseFn(const Function* F) {
+      return (F->getName().equals("sea_dsa_collapse"));
+    }
+    
   public:
      IntraBlockBuilder (Function &func, sea_dsa::Graph &graph,
                        const DataLayout &dl, const TargetLibraryInfo &tli) :
@@ -610,8 +618,7 @@ namespace {
   void IntraBlockBuilder::visitCallSite (CallSite CS)
   {
     using namespace sea_dsa;
-    if (isSkip (*CS.getInstruction ())) return;
-    
+
     if (llvm::isAllocationFn (CS.getInstruction (), &m_tli, true))
     {
       assert (CS.getInstruction ());
@@ -624,8 +631,40 @@ namespace {
       return;  
     }
 
-    Instruction *inst = CS.getInstruction ();
+    if (const Function *callee = dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts())) {
+      /** 
+	  sea_dsa_alias(p1,...,pn) 
+	  unify the cells of p1,...,pn
+       **/
+      if (isSeaDsaAliasFn(callee)) {
+	std::vector<sea_dsa::Cell> toMerge;
+	unsigned nargs = CS.arg_size();	
+	for (unsigned i=0; i < nargs; ++i) {
+	  if (isSkip(*(CS.getArgument(i)))) continue;
+	  if (!m_graph.hasCell(*(CS.getArgument(i)))) continue;
+	  sea_dsa::Cell c = valueCell(*(CS.getArgument(i)));
+	  if (c.isNull()) continue;
+	  toMerge.push_back(c);
+	}
+	for (unsigned i=1; i<toMerge.size(); ++i)
+	  toMerge[0].unify(toMerge[i]);
+	return;
+      } else if (isSeaDsaCollapseFn(callee)) {
+	/**
+	   sea_dsa_collapse(p)
+	   collapse the node to which p points to
+	 **/
+	if (!isSkip(*(CS.getArgument(0)))) {
+	  if (m_graph.hasCell(*(CS.getArgument(0)))) {
+	    sea_dsa::Cell c = valueCell(*(CS.getArgument(0)));
+	    c.getNode()->collapse(__LINE__);
+	  }
+	}
+	return;
+      }
+    }
     
+    Instruction *inst = CS.getInstruction ();
     if (inst && !isSkip (*inst))
     {
       Cell &c = m_graph.mkCell (*inst, Cell (m_graph.mkNode (), 0));
@@ -929,7 +968,7 @@ namespace sea_dsa {
   bool Local::runOnModule (Module &M)
   {
     m_dl = &M.getDataLayout ();
-    m_tli = &getAnalysis<TargetLibraryInfoWrapperPass> ().getTLI();
+    m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
     
     for (Function &F : M) runOnFunction (F);                
     return false;
