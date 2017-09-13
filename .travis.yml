@@ -24,26 +24,17 @@ install:
   - until sudo apt-get -qq update; do echo retry; done
   - until sudo apt-get -qq install libstdc++5; do echo retry; done
   - until sudo apt-get -qq install g++-5; do echo retry; done
-  - echo "TRAVIS_BUILD_DIR=${TRAVIS_BUILD_DIR}"
-  ### precompiled binaries for LLVM 
-  - export LLVM_ROOT="$TRAVIS_BUILD_DIR/LLVM-3.8.1-Linux"
-  - wget https://ece.uwaterloo.ca/~agurfink/llvm/LLVM-3.8.1-Linux.tar.gz  
-  - tar xf LLVM-3.8.1-Linux.tar.gz
+  ### precompiled binaries for LLVM 3.8  
+  - export LLVM_ROOT="$TRAVIS_BUILD_DIR/LLVM-3.8-Linux"
+  - wget https://jorgenavas.github.io/sw/LLVM-3.8-Linux.tar.gz  
+  - tar xf LLVM-3.8-Linux.tar.gz
   ### BOOST
   - until sudo apt-get -qq install libboost-all-dev; do echo retry; done
-  # - wget --no-verbose --output-document=boost-trunk.tar.bz2 http://sourceforge.net/projects/boost/files/boost/1.63.0/boost_1_63_0.tar.bz2/download
-  # - export BOOST_ROOT="$TRAVIS_BUILD_DIR/boost-trunk"
-  # - export CMAKE_MODULE_PATH="$BOOST_ROOT"
-  # - mkdir -p $BOOST_ROOT
-  # - tar jxf boost-trunk.tar.bz2 --strip-components=1 -C $BOOST_ROOT
-  # - (cd $BOOST_ROOT; ./bootstrap.sh --with-libraries=date_time,filesystem,system,iostreams,regex,python,test)
-  # - (cd $BOOST_ROOT; ./b2 threading=multi --prefix=$BOOST_ROOT -d0 install)
 
 script:
   - mkdir -p build
   - cd build
-  #- /usr/bin/cmake -DBOOST_ROOT=${BOOST_ROOT} -DLLVM_DIR=${LLVM_ROOT}/share/llvm/cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-5 -DCMAKE_PROGRAM_PATH=/usr/bin  -DCMAKE_INSTALL_PREFIX=run ../;
-  - /usr/bin/cmake -DBOOST_ROOT=${BOOST_ROOT} -DLLVM_DIR=${LLVM_ROOT}/share/llvm/cmake -DCMAKE_CXX_COMPILER=g++-5 -DCMAKE_PROGRAM_PATH=/usr/bin  -DCMAKE_INSTALL_PREFIX=run ../;
+  - /usr/bin/cmake -DBOOST_ROOT=${BOOST_ROOT} -DLLVM_DIR=${LLVM_ROOT}/share/llvm/cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-5 -DCMAKE_PROGRAM_PATH=/usr/bin  -DCMAKE_INSTALL_PREFIX=run ../;
   ## XXX: not required since LLVM already found
   #- /usr/bin/cmake --build .
   - /usr/bin/cmake --build . --target install
