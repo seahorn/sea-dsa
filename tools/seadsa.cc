@@ -21,6 +21,7 @@
 #include "llvm/IR/Verifier.h"
 
 #include "sea_dsa/DsaAnalysis.hh"
+#include "sea_dsa/support/Debug.h"
 
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
@@ -49,6 +50,20 @@ static llvm::cl::opt<bool>
 MemViewer("sea-dsa-viewer",
 	  llvm::cl::desc("View memory graph of each function to dot format"),
 	  llvm::cl::init(false));
+
+
+namespace sea_dsa
+{
+  SeaDsaLogOpt loc;
+}
+
+static llvm::cl::opt<sea_dsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string> > 
+LogClOption ("log",
+             llvm::cl::desc ("Enable specified log level"),
+             llvm::cl::location (sea_dsa::loc),
+             llvm::cl::value_desc ("string"),
+             llvm::cl::ValueRequired, llvm::cl::ZeroOrMore);
+
 
 int main(int argc, char **argv) {
 
