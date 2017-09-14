@@ -787,6 +787,7 @@ namespace {
     // non-pointer value only
   }
 
+
   // -- only used as a compare. do not needs DSA node
   bool shouldBeTrackedIntToPtr (const Value& def) {
     // XXX: use_begin will return the same Value def. We need to call
@@ -808,12 +809,16 @@ namespace {
     }
     return true;
   }
-
+  
   void BlockBuilderBase::visitCastIntToPtr (const Value& dest) {
     // -- only used as a compare. do not needs DSA node
     //if (dest.hasOneUse () && isa<CmpInst> (*(dest.use_begin ()))) return;
-    if (!shouldBeTrackedIntToPtr (dest)) return;
-
+    // XXX: we create a new cell for the instruction even if
+    //      "shouldBeTrackedIntToPtr(dest)" returns false to avoid
+    //      breaking assumptions during the analysis of other
+    //      instructions.
+    //if (!shouldBeTrackedIntToPtr (dest)) return;
+    
     sea_dsa::Node &n = m_graph.mkNode ();
     n.setIntToPtr();
     // -- record allocation site
@@ -821,9 +826,12 @@ namespace {
     // -- mark node as an alloca node
     n.setAlloca();
     m_graph.mkCell (dest, sea_dsa::Cell (n, 0));
-    llvm::errs () << "WARNING: " << dest << " is allocating a new cell\n";
+    if (shouldBeTrackedIntToPtr (dest)) {
+      llvm::errs () << "WARNING: " << dest << " is allocating a new cell. "
+		    << "It might be unsound if not flat memory model.\n";
+    }
   }
-
+  
   void IntraBlockBuilder::visitIntToPtrInst (IntToPtrInst &I)
   {
     visitCastIntToPtr (I);
