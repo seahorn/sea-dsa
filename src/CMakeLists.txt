@@ -12,4 +12,5 @@ add_llvm_library (SeaDsaAnalysis
   DsaAnalysis.cc
   DsaPrinter.cc
   Debug.cc
+  NameValues.cc
   )

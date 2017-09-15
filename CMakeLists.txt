@@ -12,7 +12,6 @@ include (CTest)
 # determine if this is top-level or embedded project
 if (PROJECT_NAME STREQUAL CMAKE_PROJECT_NAME)
   set (TOP_LEVEL TRUE)
-  set (NAME_VALUES TRUE)
 else()
   set (TOP_LEVEL FALSE)
 endif()

@@ -13,9 +13,6 @@
 #include "sea_dsa/DsaAnalysis.hh"
 #include "sea_dsa/support/Debug.h"
 
-#include <boost/tokenizer.hpp>
-#include <boost/algorithm/string/predicate.hpp>
-
 static llvm::cl::opt<std::string>
 DsaInfoToFile("sea-dsa-info-to-file",
     llvm::cl::desc ("DSA: dump some Dsa info into a file"),
@@ -24,66 +21,6 @@ DsaInfoToFile("sea-dsa-info-to-file",
 
 using namespace sea_dsa;
 using namespace llvm;
-
-/* 
- *  This procedure (borrowed from SeaHorn) modifies a module by
- *  assigning names to Value's. It returns true iff a Value is
- *  named. 
-*/
-static bool nameValues (Module &M) {
-  bool change = false;
-  for (Module::iterator FI = M.begin (), E = M.end (); FI != E; ++FI) {
-    Function &F = *FI;
-    // -- print to string 
-    std::string funcAsm;
-    raw_string_ostream out (funcAsm);
-    out << F;
-    out.flush ();
-    
-    typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
-    boost::char_separator<char> nl_sep ("\n");
-    boost::char_separator<char> sp_sep (" :\t%@");
-    
-    tokenizer lines (funcAsm, nl_sep);
-    tokenizer::iterator line_iter = lines.begin ();
-    
-    // -- skip function attributes
-    if (boost::starts_with(*line_iter, "; Function Attrs:"))
-      ++line_iter;
-    
-    // -- skip function definition line
-    ++line_iter;
-    
-    for (Function::iterator BI = F.begin (), BE = F.end (); 
-         BI != BE && line_iter != lines.end (); ++BI) {
-      BasicBlock &BB = *BI;
-      
-      if (!BB.hasName ()) {
-        std::string bb_line = *line_iter;
-        tokenizer names (bb_line, sp_sep);
-        std::string bb_name = *names.begin ();
-        if (bb_name == ";") bb_name = "un";
-        BB.setName ("_" + bb_name);
-	change = true;
-      }
-      ++line_iter;
-      
-      for (BasicBlock::iterator II = BB.begin (), IE = BB.end ();
-           II != IE && line_iter != lines.end (); ++II) {
-        Instruction &I = *II;
-        if (!I.hasName () && !(I.getType ()->isVoidTy ())) { 
-          std::string inst_line = *line_iter;
-          tokenizer names (inst_line, sp_sep);
-          std::string inst_name = *names.begin ();
-          I.setName ("_" + inst_name);
-	  change = true;
-	}
-        ++line_iter;
-      }
-    }
-  }
-  return change;
-}
 
 static bool isStaticallyKnown (const DataLayout* dl, 
                                const TargetLibraryInfo* tli,
@@ -486,22 +423,18 @@ const Value* DsaInfo::getAllocValue (unsigned int alloc_site_id) const {
 ////////////////////////////////////////////////////////////
 
 void DsaInfoPass::getAnalysisUsage (AnalysisUsage &AU) const {
-  AU.addRequired<DsaAnalysis> ();
+  AU.addRequired<DsaAnalysis>();
   AU.setPreservesAll ();
 }
 
 bool DsaInfoPass::runOnModule (Module &M) {
+
   auto &dsa = getAnalysis<DsaAnalysis>();
   m_dsa_info.reset (new DsaInfo (dsa.getDataLayout (), dsa.getTLI(),
 				 dsa.getDsaAnalysis()));
 
-  bool change = false;
-  #ifdef NAME_VALUES
-  change |= nameValues (M);
-  #endif
-  
   m_dsa_info->runOnModule (M);
-  return change;
+  return false;
 }
 
 DsaInfo& DsaInfoPass::getDsaInfo () {   
