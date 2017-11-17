@@ -1,6 +1,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/CommandLine.h"
@@ -633,7 +634,7 @@ namespace sea_dsa {
       AU.addRequired<DsaAnalysis> ();          
     }
 
-    const char * getPassName() const override 
+    StringRef getPassName() const override 
     { return "SeaHorn Dsa graph printer"; }
     
   };
@@ -679,7 +680,7 @@ namespace sea_dsa {
       AU.addRequired<DsaAnalysis> ();          
     }
 
-    const char * getPassName() const override 
+    StringRef getPassName() const override 
     { return "SeaHorn Dsa graph viewer"; }
     
   };

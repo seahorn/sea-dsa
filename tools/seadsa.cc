@@ -17,7 +17,6 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/Bitcode/ReaderWriter.h"
 #include "llvm/IR/Verifier.h"
 
 #include "sea_dsa/DsaAnalysis.hh"
@@ -66,18 +65,16 @@ LogClOption ("log",
 
 
 int main(int argc, char **argv) {
-
   llvm::llvm_shutdown_obj shutdown;  // calls llvm_shutdown() on exit
   llvm::cl::ParseCommandLineOptions(argc, argv, "Heap Analysis");
-                                    
 
-  llvm::sys::PrintStackTraceOnErrorSignal();
+  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
   llvm::EnableDebugBuffering = true;
 
   std::error_code error_code;
   llvm::SMDiagnostic err;
-  llvm::LLVMContext &context = llvm::getGlobalContext();
+  llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
   std::unique_ptr<llvm::tool_output_file> asmOutput;
 
@@ -117,7 +114,8 @@ int main(int argc, char **argv) {
   // llvm::initializeIPA (Registry);
   // XXX: porting to 3.8 
   llvm::initializeCallGraphWrapperPassPass(Registry);
-  llvm::initializeCallGraphPrinterPass(Registry);
+  // XXX: porting to 5.0
+  //  llvm::initializeCallGraphPrinterPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
   llvm::initializeGlobalsAAWrapperPassPass(Registry);  

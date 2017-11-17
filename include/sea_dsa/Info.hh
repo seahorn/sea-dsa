@@ -4,6 +4,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
+#include "llvm/ADT/StringRef.h"
 
 #include "boost/container/flat_set.hpp"
 #include <boost/unordered_map.hpp>
@@ -200,7 +201,7 @@ namespace sea_dsa {
     
     bool runOnModule (llvm::Module &M) override;
     
-    const char * getPassName() const override 
+    llvm::StringRef getPassName() const override 
     { return "SeaHorn Dsa Info pass"; }
     
     DsaInfo& getDsaInfo ();

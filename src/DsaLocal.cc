@@ -56,12 +56,12 @@ namespace llvm {
     po_iterator_storage (__BlockedEdges &VSet) : Visited (VSet) {}
     po_iterator_storage (const po_iterator_storage &S) : Visited (S.Visited) {}
     
-    bool insertEdge (const BasicBlock* src, const BasicBlock *dst)
+    bool insertEdge (Optional<const BasicBlock*> src, const BasicBlock *dst)
     {
-      if (!Visited.isBlockedEdge (src, dst))
-        return Visited.insert (dst);
-      
-      return false;
+      // if (src && !Visited.isBlockedEdge (*src, dst))
+      //    return Visited.insert (dst);
+      // return false;
+      return Visited.insert (dst);      
     }
     void finishPostorder (const BasicBlock *bb) {}
   };
@@ -86,7 +86,7 @@ namespace {
   
   std::pair<uint64_t, uint64_t> computeGepOffset (Type *ptrTy, ArrayRef<Value *> Indicies,
                                                   const DataLayout &dl);
-  
+
   template<typename T>
   T gcd(T a, T b)
   {
@@ -410,24 +410,25 @@ namespace {
      a gcd of the variable offset.
    */
   std::pair<uint64_t, uint64_t> computeGepOffset (Type *ptrTy, ArrayRef<Value *> Indicies,
-                                                  const DataLayout &dl)
+						  const DataLayout &dl)
   {
+    assert (ptrTy->isPointerTy ());
+    
     unsigned ptrSz = dl.getPointerSizeInBits ();
     Type *Ty = ptrTy;
-    assert (Ty->isPointerTy ());
     
     // numeric offset
     uint64_t noffset = 0;
 
     // divisor
     uint64_t divisor = 0;
-    
-    generic_gep_type_iterator<Value* const*>
-      TI = gep_type_begin (ptrTy, Indicies);
+
+    Type * srcElemTy = cast<PointerType>(ptrTy)->getElementType();    
+    generic_gep_type_iterator<Value* const*> TI = gep_type_begin (srcElemTy, Indicies);
     for (unsigned CurIDX = 0, EndIDX = Indicies.size (); CurIDX != EndIDX;
          ++CurIDX, ++TI)
     {
-      if (StructType *STy = dyn_cast<StructType> (*TI))
+      if (StructType *STy = TI.getStructTypeOrNull())
       {
         unsigned fieldNo = cast<ConstantInt> (Indicies [CurIDX])->getZExtValue ();
         noffset += dl.getStructLayout (STy)->getElementOffset (fieldNo);
@@ -435,7 +436,12 @@ namespace {
       }
       else
       {
-        Ty = cast<SequentialType> (Ty)->getElementType ();
+  	if (PointerType *ptrTy = dyn_cast<PointerType>(Ty))
+  	  Ty = ptrTy->getElementType();
+  	else if (SequentialType *seqTy = dyn_cast<SequentialType>(Ty))
+  	  Ty = seqTy->getElementType();
+  	assert(Ty && "Type is neither PointerType nor SequentialType");
+	
         uint64_t sz = dl.getTypeStoreSize (Ty);
         if (ConstantInt *ci = dyn_cast<ConstantInt> (Indicies [CurIDX]))
         {
@@ -457,7 +463,7 @@ namespace {
     
     return std::make_pair (noffset, divisor);
   }    
-  
+
   /// Computes offset into an indexed type
   uint64_t computeIndexedOffset (Type *ty, ArrayRef<unsigned> indecies,
                                  const DataLayout &dl)
@@ -473,7 +479,12 @@ namespace {
       }
       else
       {
-        ty = cast<SequentialType> (ty)->getElementType ();
+	if (PointerType *ptrTy = dyn_cast<PointerType>(ty))
+	  ty = ptrTy->getElementType();
+	else if (SequentialType *seqTy = dyn_cast<SequentialType>(ty))
+	  ty = seqTy->getElementType();
+	assert(ty);
+	
         offset += idx * dl.getTypeAllocSize (ty);
       }
     }
@@ -718,15 +729,16 @@ namespace {
     if (!t) return true;
 
     if (t->isPointerTy ()) return false;
-    if (const StructType *sty = dyn_cast<const StructType>(t))
-    {
+    if (const StructType *sty = dyn_cast<const StructType>(t)) {
       for (auto it = sty->element_begin(), end = sty->element_end ();
            it != end; ++it)
         if (!hasNoPointerTy (*it)) return false;
     }
-    else if (const SequentialType *seqty = dyn_cast<const SequentialType> (t))
+    else if (const PointerType *ptrty = dyn_cast<const PointerType> (t)) {
+      return hasNoPointerTy (ptrty->getElementType ());
+    } else if (const SequentialType *seqty = dyn_cast<const SequentialType> (t)) {
       return hasNoPointerTy (seqty->getElementType ());
-    
+    }
     return true;
   }
   void IntraBlockBuilder::visitMemTransferInst (MemTransferInst &I)
@@ -924,8 +936,9 @@ namespace sea_dsa {
 
     IntraBlockBuilder intraBuilder (F, g, m_dl, m_tli);
     InterBlockBuilder interBuilder (F, g, m_dl, m_tli);
-    for (const BasicBlock *bb : bbs)
+    for (const BasicBlock *bb : bbs) {
       intraBuilder.visit (*const_cast<BasicBlock*>(bb));
+    }
     for (const BasicBlock *bb : bbs)
       interBuilder.visit (*const_cast<BasicBlock*>(bb));
 

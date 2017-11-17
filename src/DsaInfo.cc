@@ -26,7 +26,9 @@ static bool isStaticallyKnown (const DataLayout* dl,
                                const TargetLibraryInfo* tli,
                                const Value* v) {
   uint64_t size;
-  if (getObjectSize (v, size, *dl, tli, true)) return (size > 0);
+  ObjectSizeOpts opts;
+  opts.RoundToAlign = true;
+  if (getObjectSize (v, size, *dl, tli, opts)) return (size > 0);
   return false; 
 }
 

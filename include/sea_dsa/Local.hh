@@ -4,7 +4,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
-
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/DenseSet.h"
 
 #include "sea_dsa/Graph.hh"
@@ -51,7 +51,7 @@ namespace sea_dsa {
     
     bool runOnFunction (llvm::Function &F);
     
-    const char * getPassName() const 
+    llvm::StringRef getPassName() const 
     { return "Dsa local pass"; }
     
     bool hasGraph(const llvm::Function& F) const;

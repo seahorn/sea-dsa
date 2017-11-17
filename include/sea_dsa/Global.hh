@@ -4,6 +4,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
+#include "llvm/ADT/StringRef.h"
 
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/BottomUp.hh"
@@ -184,7 +185,7 @@ namespace sea_dsa {
     
     bool runOnModule (llvm::Module &M) override;
     
-    const char * getPassName() const override 
+    llvm::StringRef getPassName() const override 
     { return "Flat memory Dsa pass"; }
     
     GlobalAnalysis& getGlobalAnalysis ()  
@@ -207,7 +208,7 @@ namespace sea_dsa {
     
     bool runOnModule (llvm::Module &M) override;
     
-    const char * getPassName() const override 
+    llvm::StringRef getPassName() const override 
     { return "Context-insensitive Dsa global pass"; }
     
     GlobalAnalysis& getGlobalAnalysis ()  
@@ -230,7 +231,7 @@ namespace sea_dsa {
     
     bool runOnModule (llvm::Module &M) override;
     
-    const char * getPassName() const override 
+    llvm::StringRef getPassName() const override 
     { return "Context sensitive global DSA pass"; }
 
     GlobalAnalysis& getGlobalAnalysis ()  

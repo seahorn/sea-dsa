@@ -21,7 +21,7 @@ main requirements are:
 
 - C++ compiler supporting c++11
 - Boost >= 1.55
-- LLVM 3.8
+- LLVM 5.0
 
 ## Compilation and Usage ##
 
@@ -39,10 +39,10 @@ project's `CMakeLists.txt`:
 
 ### Standalone (for developers) ###
 
-If you already installed `llvm-3.8` in your machine:
+If you already installed `llvm-5.0` in your machine:
 
     mkdir build && cd build
-	cmake -DCMAKE_INSTALL_PREFIX=__dir__ -DLLVM_DIR=__here_llvm-3.8__/share/llvm/cmake  ..
+	cmake -DCMAKE_INSTALL_PREFIX=__dir__ -DLLVM_DIR=__here_llvm-5.0__/share/llvm/cmake  ..
    	cmake --build . --target install
 	cmake --build . --target test-dsa
 	

@@ -5,6 +5,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringRef.h"
 
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/CallSite.hh"
@@ -89,7 +90,7 @@ namespace sea_dsa
     
     bool runOnModule (llvm::Module &M) override;
     
-    const char * getPassName() const override 
+    llvm::StringRef getPassName() const override 
     { return "BottomUp DSA pass"; }
     
     Graph& getGraph (const llvm::Function &F) const;

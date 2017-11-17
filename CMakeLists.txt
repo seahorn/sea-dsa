@@ -52,7 +52,7 @@ if (TOP_LEVEL)
   include(ExternalProject)
   # if top-level, offer to build llvm
   ExternalProject_Add (llvm
-    SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_380/final/
+    SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_500/final/
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/llvm
     INSTALL_DIR ${CMAKE_BINARY_DIR}/run
     CMAKE_ARGS
@@ -71,12 +71,12 @@ if (TOP_LEVEL)
     LOG_CONFIGURE 1
     LOG_BUILD 1
     LOG_INSTALL 1)
-		  
-  find_package (LLVM 3.8.0 CONFIG NO_DEFAULT_PATH)
+
+  find_package (LLVM 5.0.0 CONFIG NO_DEFAULT_PATH)
   if (NOT LLVM_FOUND)
     ExternalProject_Get_Property (llvm INSTALL_DIR)
     set (LLVM_ROOT ${INSTALL_DIR})
-    set (LLVM_DIR ${LLVM_ROOT}/share/llvm/cmake CACHE PATH
+    set (LLVM_DIR ${LLVM_ROOT}/lib/cmake/llvm CACHE PATH    
       "Forced location of LLVM cmake config" FORCE)
     message (WARNING "No llvm found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
     return()

@@ -4,6 +4,7 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
+#include "llvm/ADT/StringRef.h"
 
 namespace sea_dsa {
   struct NameValues : public llvm::ModulePass {
@@ -14,7 +15,7 @@ namespace sea_dsa {
     void getAnalysisUsage (llvm::AnalysisUsage &AU) const {
       AU.setPreservesAll ();
     }
-    virtual const char* getPassName () const {
+    virtual llvm::StringRef getPassName () const {
       return "sea-dsa: names all unnamed values";
     }
   };

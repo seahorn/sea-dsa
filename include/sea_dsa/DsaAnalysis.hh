@@ -4,6 +4,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
+#include "llvm/ADT/StringRef.h"
 
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Global.hh"
@@ -38,7 +39,7 @@ namespace sea_dsa {
     
     bool runOnModule (llvm::Module &M) override;
     
-    const char * getPassName() const 
+    llvm::StringRef getPassName() const 
     { return "SeaHorn Dsa analysis: entry point for all Dsa clients"; }
 
     const llvm::DataLayout& getDataLayout ();

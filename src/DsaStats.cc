@@ -1,6 +1,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/StringRef.h"
 
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Graph.hh"
@@ -162,7 +163,7 @@ namespace sea_dsa {
       return false;
     }
   
-    const char * getPassName() const override 
+    StringRef getPassName() const override 
     { return "Print Stats about SeaHorn Dsa"; }
     
   };

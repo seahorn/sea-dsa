@@ -20,8 +20,7 @@ DsaGlobalAnalysis ("sea-dsa",
        llvm::cl::values 
        (clEnumValN (CONTEXT_SENSITIVE  , "cs"   , "Context-sensitive (default)"),
         clEnumValN (CONTEXT_INSENSITIVE, "ci"   , "Context-insensitive"),
-        clEnumValN (FLAT_MEMORY        , "flat" , "Flat memory"),		
-	clEnumValEnd),
+        clEnumValN (FLAT_MEMORY        , "flat" , "Flat memory")),
        llvm::cl::init (CONTEXT_SENSITIVE));
 
 static llvm::cl::opt<bool>
