@@ -32,7 +32,7 @@ AsmOutputFilename("oll", llvm::cl::desc("Output analyzed bitcode"),
                llvm::cl::init(""), llvm::cl::value_desc("filename"));
 
 static llvm::cl::opt<std::string>
-DefaultDataLayout("-data-layout",
+DefaultDataLayout("data-layout",
         llvm::cl::desc("data layout string to use if not specified by module"),
         llvm::cl::init(""), llvm::cl::value_desc("layout-string"));
 
