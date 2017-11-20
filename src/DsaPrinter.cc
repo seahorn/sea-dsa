@@ -501,11 +501,8 @@ namespace llvm {
       typedef sea_dsa::Graph::scalar_const_iterator scalar_const_iterator;
       typedef sea_dsa::Graph::formal_const_iterator formal_const_iterator;
       typedef sea_dsa::Graph::return_const_iterator return_const_iterator;      
-      typedef sea_dsa::Graph Graph;
       typedef sea_dsa::Node Node;
       
-      const Graph * G = g;
-
       // print edges from scalar (local and global) variables to cells
       { 
 	scalar_const_iterator it = g->scalar_begin();

@@ -39,7 +39,7 @@ namespace sea_dsa {
     
     bool runOnModule (llvm::Module &M) override;
     
-    llvm::StringRef getPassName() const 
+    llvm::StringRef getPassName() const override
     { return "SeaHorn Dsa analysis: entry point for all Dsa clients"; }
 
     const llvm::DataLayout& getDataLayout ();

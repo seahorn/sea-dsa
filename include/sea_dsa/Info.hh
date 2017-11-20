@@ -60,7 +60,7 @@ namespace sea_dsa {
     }
     
     const Node* getNode () const { return m_node; }
-    const unsigned getId () const { return m_id;}
+    unsigned getId () const { return m_id;}
     NodeWrapper& operator++ () { // prefix ++
       m_accesses++;
       return *this;

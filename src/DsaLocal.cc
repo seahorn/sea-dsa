@@ -295,7 +295,7 @@ namespace {
     n.addAllocSite(AI);
     // -- mark node as a stack node
     n.setAlloca();
-    Cell &res = m_graph.mkCell (AI, Cell (n, 0));
+    m_graph.mkCell (AI, Cell (n, 0));
   }
   void IntraBlockBuilder::visitSelectInst(SelectInst &SI)
   {
@@ -414,7 +414,6 @@ namespace {
   {
     assert (ptrTy->isPointerTy ());
     
-    unsigned ptrSz = dl.getPointerSizeInBits ();
     Type *Ty = ptrTy;
     
     // numeric offset
@@ -569,7 +568,7 @@ namespace {
 
     /// JN: I don't understand why we need to create another cell here.
     ///     Should we remove it? 
-    Cell &c = m_graph.mkCell (I, op);
+    m_graph.mkCell (I, op);
 
     // -- update type record
     Value &v = *I.getInsertedValueOperand ();
@@ -638,7 +637,7 @@ namespace {
       n.addAllocSite(*(CS.getInstruction()));
       // -- mark node as a heap node
       n.setHeap();
-      Cell &res = m_graph.mkCell (*CS.getInstruction (), Cell (n, 0));
+      m_graph.mkCell (*CS.getInstruction (), Cell (n, 0));
       return;  
     }
 
@@ -704,7 +703,7 @@ namespace {
 
     
     Value *callee = CS.getCalledValue ()->stripPointerCasts ();
-    if (InlineAsm *inasm = dyn_cast<InlineAsm> (callee))
+    if (isa<InlineAsm> (callee))
     {
       // TODO: handle inline assembly
     }
