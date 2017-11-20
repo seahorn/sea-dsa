@@ -47,11 +47,11 @@ namespace sea_dsa {
     
     void getAnalysisUsage (llvm::AnalysisUsage &AU) const override;
     
-    bool runOnModule (llvm::Module &M) ;
+    bool runOnModule (llvm::Module &M) override;
     
     bool runOnFunction (llvm::Function &F);
     
-    const char * getPassName() const 
+    const char * getPassName() const override 
     { return "Dsa local pass"; }
     
     bool hasGraph(const llvm::Function& F) const;

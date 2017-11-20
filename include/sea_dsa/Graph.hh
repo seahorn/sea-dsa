@@ -91,6 +91,8 @@ namespace sea_dsa {
 
     Graph (const llvm::DataLayout &dl, SetFactory &sf)
       : m_dl (dl), m_setFactory (sf) {}
+
+    virtual ~Graph() {}
     
     /// remove all forwarding nodes
     virtual void compress ();

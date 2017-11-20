@@ -37,6 +37,8 @@ namespace sea_dsa {
   public:
     
     GlobalAnalysis (GlobalAnalysisKind kind): _kind (kind) { }
+
+    virtual ~GlobalAnalysis() { }
     
     GlobalAnalysisKind kind () const { return _kind;}
     
@@ -187,7 +189,7 @@ namespace sea_dsa {
     const char * getPassName() const override 
     { return "Flat memory Dsa pass"; }
     
-    GlobalAnalysis& getGlobalAnalysis ()  
+    GlobalAnalysis& getGlobalAnalysis () override 
     { return *(static_cast<GlobalAnalysis*> (&*m_ga)); } 
   };
   
@@ -210,7 +212,7 @@ namespace sea_dsa {
     const char * getPassName() const override 
     { return "Context-insensitive Dsa global pass"; }
     
-    GlobalAnalysis& getGlobalAnalysis ()  
+    GlobalAnalysis& getGlobalAnalysis () override
     { return *(static_cast<GlobalAnalysis*> (&*m_ga)); } 
     
   };
@@ -233,7 +235,7 @@ namespace sea_dsa {
     const char * getPassName() const override 
     { return "Context sensitive global DSA pass"; }
 
-    GlobalAnalysis& getGlobalAnalysis ()  
+    GlobalAnalysis& getGlobalAnalysis () override 
     { return *(static_cast<GlobalAnalysis*> (&*m_ga)); } 
     
   };
