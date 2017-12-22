@@ -21,8 +21,6 @@ struct RemovePtrToIntStores : public llvm::ModulePass {
   }
 };
 
-llvm::ModulePass *CreateRemovePtrToIntStoresPass();
-
 } // namespace sea_dsa
 
 #endif

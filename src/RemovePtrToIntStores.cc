@@ -1,22 +1,16 @@
 #include "sea_dsa/support/RemovePtrToIntStores.hh"
 
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
 namespace sea_dsa {
-
-llvm::ModulePass *CreateRemovePtrToIntStoresPass() {
-  return new RemovePtrToIntStores();
-}
 
 char RemovePtrToIntStores::ID = 0;
 
@@ -37,83 +31,62 @@ bool RemovePtrToIntStores::runOnFunction(Function &F) {
       F.getName().startswith("verifier."))
     return false;
 
-  F.dump();
-
-  DominatorTree DT(F);
-
   bool Changed = false;
-
-  auto &Ctx = F.getParent()->getContext();
-  auto &TLI = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   auto &DL = F.getParent()->getDataLayout();
+  SmallPtrSet<StoreInst *, 8> StoresToErase;
+  SmallPtrSet<Instruction *, 16> MaybeUnusedInsts;
 
   for (auto &BB : F) {
+    for (auto &I : BB) {
+      auto *SI = dyn_cast<StoreInst>(&I);
+      if (!SI)
+        continue;
 
-    bool RemovedOne;
-    do {
-      RemovedOne = false;
+      auto *P2I = dyn_cast<PtrToIntInst>(SI->getValueOperand());
+      if (!P2I)
+        continue;
 
-      for (auto &I : BB) {
-        auto *SI = dyn_cast<StoreInst>(&I);
-        if (!SI)
-          continue;
+      auto *BC = dyn_cast<BitCastInst>(SI->getPointerOperand());
+      if (!BC)
+        continue;
 
-        auto *P2I = dyn_cast<PtrToIntInst>(SI->getOperand(0));
-        if (!P2I)
-          continue;
+      auto *PtrVal = P2I->getPointerOperand();
+      auto *PtrIntTy = DL.getIntPtrType(PtrVal->getType());
+      if (PtrIntTy != P2I->getType())
+        continue;
 
-        auto *BC = dyn_cast<BitCastInst>(SI->getOperand(1));
-        if (!BC)
-          continue;
+      auto *BCTy = BC->getType();
+      if (!BCTy->isPointerTy() || BCTy->getPointerElementType() != PtrIntTy)
+        continue;
 
-        auto *PtrVal = P2I->getOperand(0);
-        auto *PtrIntTy = DL.getIntPtrType(PtrVal->getType());
-        if (PtrIntTy != P2I->getType())
-          continue;
+      auto *BCVal = BC->getOperand(0);
+      auto *NewStoreDestTy = BCVal->getType();
+      auto *NewStoreValTy = NewStoreDestTy->getPointerElementType();
+      if (!NewStoreValTy->isPointerTy())
+        continue;
 
-        auto *BCTy = BC->getType();
-        if (!BCTy->isPointerTy() || BCTy->getPointerElementType() != PtrIntTy)
-          continue;
+      IRBuilder<> IRB(SI);
+      auto *NewBC = IRB.CreateBitCast(PtrVal, NewStoreValTy);
+      IRB.CreateStore(NewBC, BCVal);
 
-        auto *BCVal = BC->getOperand(0);
-        auto *NewStoreDestTy = BCVal->getType();
-        auto *NewStoreValTy = NewStoreDestTy->getPointerElementType();
-        if (!NewStoreValTy->isPointerTy())
-          continue;
+      // Collect instructions to erase. Deffer that not to invalidate iterators.
+      StoresToErase.insert(SI);
+      MaybeUnusedInsts.insert(P2I);
+      MaybeUnusedInsts.insert(BC);
 
-//        SI->dump();
-//
-//        dbgs() << "\nPtr2Int: ";
-//        P2I->dump();
-//        dbgs() << "\nBC: ";
-//        BC->dump();
-//        dbgs() << "\nPtrVal: ";
-//        PtrVal->dump();
-//        dbgs() << "\nBCVal: ";
-//        BCVal->dump();
-
-        IRBuilder<> IRB(SI);
-        auto *NewBC = IRB.CreateBitCast(PtrVal, NewStoreValTy);
-//        dbgs() << "\nNewBC: ";
-//        NewBC->dump();
-        auto *NewSI = IRB.CreateStore(NewBC, BCVal);
-        (void)NewSI;
-//        dbgs() << "\nNewSI: ";
-//        NewSI->dump();
-
-        SI->eraseFromParent();
-        if (P2I->getNumUses() == 0)
-          P2I->eraseFromParent();
-        if (BC->getNumUses() == 0)
-          BC->eraseFromParent();
-
-        RemovedOne = true;
-        Changed = true;
-        break;
-      }
-
-    } while (RemovedOne);
+      Changed = true;
+    }
   }
+
+  for (auto *SI : StoresToErase)
+    SI->eraseFromParent();
+
+  // Erase unused instructions in any order for simplicity. They may depend on
+  // one another, and the best way to do that would be to sort that by DomTree
+  // DFS In/Out numbers.
+  for (auto *I : MaybeUnusedInsts)
+    if (I->getNumUses() == 0)
+      I->eraseFromParent();
 
   return Changed;
 }
