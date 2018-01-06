@@ -10,7 +10,7 @@
 #include "sea_dsa/DsaAnalysis.hh"
 #include "sea_dsa/Stats.hh"
 #include "sea_dsa/support/NameValues.hh"
-#include "sea_dsa/support/RemovePtrToIntStores.hh"
+#include "sea_dsa/support/RemovePtrToInt.hh"
 
 using namespace sea_dsa;
 using namespace llvm;
@@ -35,7 +35,7 @@ void DsaAnalysis::getAnalysisUsage (AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass> ();
   AU.addRequired<CallGraphWrapperPass> ();
   // XXX: needed if we run later DsaInfo
-  AU.addRequired<RemovePtrToIntStores>();
+  AU.addRequired<RemovePtrToInt>();
   AU.addRequired<NameValues>();
   AU.setPreservesAll ();
 }
