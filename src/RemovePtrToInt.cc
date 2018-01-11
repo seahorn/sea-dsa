@@ -71,8 +71,8 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
   if (!PN)
     return false;
 
-  RPTI_LOG(outs() << F.getName() << ":\n"; I2P->print(outs());
-           PN->print(outs() << "\n"); outs() << "\n");
+  RPTI_LOG(errs() << F.getName() << ":\n"; I2P->print(errs());
+           PN->print(errs() << "\n"); errs() << "\n");
 
   if (NewPhis.count(PN) > 0) {
     IRBuilder<> IRB(I2P);
@@ -80,14 +80,14 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
     I2P->replaceAllUsesWith(IRB.CreateBitCast(NewPhi, I2P->getType()));
     MaybeUnusedInsts.insert(I2P);
 
-    RPTI_LOG(outs() << "\n!!!! Reused new PHI ~~~~~ \n");
+    RPTI_LOG(errs() << "\n!!!! Reused new PHI ~~~~~ \n");
     return true;
   }
 
   if (!llvm::all_of(PN->incoming_values(),
                     [](Value *IVal) { return isa<PtrToIntInst>(IVal); })) {
     RPTI_LOG(
-        outs() << "Not all incoming values are PtrToInstInsts, skipping PHI\n");
+        errs() << "Not all incoming values are PtrToInstInsts, skipping PHI\n");
     return false;
   }
 
@@ -108,7 +108,7 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
 
       IRB.SetInsertPoint(P2I);
       NewPN->addIncoming(IRB.CreateBitCast(Ptr, I2P->getType()), IBB);
-      RPTI_LOG(NewPN->print(outs(), 1));
+      RPTI_LOG(NewPN->print(errs(), 1));
 
       MaybeUnusedInsts.insert(P2I);
     }
@@ -156,7 +156,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       F.getName().startswith("verifier."))
     return false;
 
-  RPTI_LOG(outs() << "\n~~~~~~~ Start of RP2I on " << F.getName()
+  RPTI_LOG(errs() << "\n~~~~~~~ Start of RP2I on " << F.getName()
                   << " ~~~~~ \n");
 
   bool Changed = false;
@@ -207,14 +207,14 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
 
   for (auto *I : OrderedMaybeUnused)
     if (I->getNumUses() == 0) {
-      RPTI_LOG(outs() << "\terasing: " << I->getName() << "\n");
+      RPTI_LOG(errs() << "\terasing: " << I->getName() << "\n");
       I->eraseFromParent();
     } else {
-      RPTI_LOG(outs() << "\t_NOT_ erasing: " << I->getName() << "\n");
+      RPTI_LOG(errs() << "\t_NOT_ erasing: " << I->getName() << "\n");
     }
 
-  RPTI_LOG(outs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
-           outs().flush());
+  RPTI_LOG(errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
+           errs().flush());
 
   return Changed;
 }
