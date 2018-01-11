@@ -7,16 +7,15 @@
 
 namespace sea_dsa {
 
-struct RemovePtrToInt: public llvm::ModulePass {
+struct RemovePtrToInt: public llvm::FunctionPass {
   static char ID;
 
-  RemovePtrToInt() : llvm::ModulePass(ID) {}
+  RemovePtrToInt() : llvm::FunctionPass(ID) {}
 
-  bool runOnModule(llvm::Module &M);
   bool runOnFunction(llvm::Function &F);
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
-  virtual const char *getPassName() const {
+  virtual const char *getPassName() const override {
     return "sea-dsa: remove ptrtoint";
   }
 };

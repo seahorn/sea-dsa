@@ -9,24 +9,15 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
-// #include "avy/AvyDebug.h"
-#include "llvm/Support/Debug.h"
+#include "sea_dsa/support/Debug.h"
 
-#define RPTI_LOG(...) DEBUG_WITH_TYPE("remove-ptrtoint", __VA_ARGS__)
+#define RPTI_LOG(...) LOG("remove-ptrtoint", __VA_ARGS__)
 
 using namespace llvm;
 
 namespace sea_dsa {
 
 char RemovePtrToInt::ID = 0;
-
-bool RemovePtrToInt::runOnModule(llvm::Module &M) {
-  bool Changed = false;
-  for (auto &F : M)
-    Changed |= runOnFunction(F);
-
-  return Changed;
-}
 
 static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
                            SmallPtrSetImpl<StoreInst *> &StoresToErase,
@@ -80,9 +71,8 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
   if (!PN)
     return false;
 
-  RPTI_LOG(dbgs() << F.getName() << ":\n");
-  RPTI_LOG(I2P->dump());
-  RPTI_LOG(PN->dump());
+  RPTI_LOG(outs() << F.getName() << ":\n"; I2P->print(outs());
+           PN->print(outs() << "\n"); outs() << "\n");
 
   if (NewPhis.count(PN) > 0) {
     IRBuilder<> IRB(I2P);
@@ -90,14 +80,14 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
     I2P->replaceAllUsesWith(IRB.CreateBitCast(NewPhi, I2P->getType()));
     MaybeUnusedInsts.insert(I2P);
 
-    RPTI_LOG(dbgs() << "\n!!!! Reused new PHI ~~~~~ \n");
+    RPTI_LOG(outs() << "\n!!!! Reused new PHI ~~~~~ \n");
     return true;
   }
 
   if (!llvm::all_of(PN->incoming_values(),
                     [](Value *IVal) { return isa<PtrToIntInst>(IVal); })) {
     RPTI_LOG(
-        dbgs() << "Not all incoming values are PtrToInstInsts, skipping PHI\n");
+        outs() << "Not all incoming values are PtrToInstInsts, skipping PHI\n");
     return false;
   }
 
@@ -118,7 +108,7 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
 
       IRB.SetInsertPoint(P2I);
       NewPN->addIncoming(IRB.CreateBitCast(Ptr, I2P->getType()), IBB);
-      RPTI_LOG(NewPN->dump());
+      RPTI_LOG(NewPN->print(outs(), 1));
 
       MaybeUnusedInsts.insert(P2I);
     }
@@ -166,14 +156,14 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       F.getName().startswith("verifier."))
     return false;
 
-  RPTI_LOG(dbgs() << "\n~~~~~~~ Start of RP2I on " << F.getName()
+  RPTI_LOG(outs() << "\n~~~~~~~ Start of RP2I on " << F.getName()
                   << " ~~~~~ \n");
 
   bool Changed = false;
   auto &DL = F.getParent()->getDataLayout();
   // Would be better to get the DominatorTreeWrapperPass, but the pass manager
   // crashed when it's required.
-  DominatorTree DT(F);
+  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   SmallPtrSet<StoreInst *, 8> StoresToErase;
   SmallPtrSet<Instruction *, 16> MaybeUnusedInsts;
   SmallDenseMap<PHINode *, PHINode *> NewPhis;
@@ -217,23 +207,22 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
 
   for (auto *I : OrderedMaybeUnused)
     if (I->getNumUses() == 0) {
-      RPTI_LOG(dbgs() << "\terasing: " << I->getName() << "\n");
+      RPTI_LOG(outs() << "\terasing: " << I->getName() << "\n");
       I->eraseFromParent();
     } else {
-      RPTI_LOG(dbgs() << "\t_NOT_ erasing: " << I->getName() << "\n");
+      RPTI_LOG(outs() << "\t_NOT_ erasing: " << I->getName() << "\n");
     }
 
-  RPTI_LOG(dbgs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n");
-  RPTI_LOG(dbgs().flush());
+  RPTI_LOG(outs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
+           outs().flush());
 
   return Changed;
 }
 
 void RemovePtrToInt::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.setPreservesCFG();
+  AU.addRequired<llvm::DominatorTreeWrapperPass>();
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
-
-  // FIXME: Doesn't preserve all, but cannot be scheduled without it...
-  AU.setPreservesAll();
 }
 
 } // namespace sea_dsa
