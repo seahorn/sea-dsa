@@ -18,7 +18,6 @@
 #include "sea_dsa/Local.hh"
 #include "sea_dsa/support/Debug.h"
 
-#include "boost/make_shared.hpp"
 #include "boost/range/algorithm/reverse.hpp"
 
 using namespace llvm;
@@ -873,45 +872,29 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
     interBuilder.visit(*const_cast<BasicBlock *>(bb));
 
   g.compress();
-
   g.remove_dead();
 
+  // clang-format off
   LOG("dsa",
       // --- Sanity check
-      for (
-          auto &kv
-          : boost::make_iterator_range(
-              g.scalar_begin(),
-              g.scalar_end())) if (kv.second->isRead() ||
-                                   kv.second
-                                       ->isModified()) if (kv.second->getNode()
-                                                               ->getAllocSites()
-                                                               .empty()) {
-        errs() << "SCALAR " << *(kv.first) << "\n";
-        errs() << "WARNING: a node has no allocation site\n";
-      } for (auto &kv
-             : boost::make_iterator_range(
-                 g.formal_begin(),
-                 g.formal_end())) if (kv.second->isRead() ||
-                                      kv.second
-                                          ->isModified()) if (kv.second
-                                                                  ->getNode()
-                                                                  ->getAllocSites()
-                                                                  .empty()) {
-        errs() << "FORMAL " << *(kv.first) << "\n";
-        errs() << "WARNING: a node has no allocation site\n";
-      } for (auto &kv
-             : boost::make_iterator_range(
-                 g.return_begin(),
-                 g.return_end())) if (kv.second->isRead() ||
-                                      kv.second
-                                          ->isModified()) if (kv.second
-                                                                  ->getNode()
-                                                                  ->getAllocSites()
-                                                                  .empty()) {
-        errs() << "RETURN " << kv.first->getName() << "\n";
-        errs() << "WARNING: a node has no allocation site\n";
-      });
+      for (auto &kv: llvm::make_range(g.scalar_begin(), g.scalar_end()))
+        if (kv.second->isRead() || kv.second->isModified())
+          if (kv.second->getNode()->getAllocSites().empty()) {
+            errs() << "SCALAR " << *(kv.first) << "\n";
+            errs() << "WARNING: a node has no allocation site\n";
+      } for (auto &kv : llvm::make_range(g.formal_begin(), g.formal_end()))
+        if (kv.second->isRead() || kv.second->isModified())
+          if (kv.second->getNode()->getAllocSites().empty()) {
+            errs() << "FORMAL " << *(kv.first) << "\n";
+            errs() << "WARNING: a node has no allocation site\n";
+      } for (auto &kv: llvm::make_range(g.return_begin(), g.return_end()))
+        if (kv.second->isRead() || kv.second->isModified())
+          if (kv.second->getNode()->getAllocSites().empty()) {
+            errs() << "RETURN " << kv.first->getName() << "\n";
+            errs() << "WARNING: a node has no allocation site\n";
+      }
+  );
+  // clang-format on
 
   LOG("dsa-local-graph",
       errs() << "### Local Dsa graph after " << F.getName() << "\n";
