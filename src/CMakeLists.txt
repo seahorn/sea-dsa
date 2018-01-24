@@ -13,4 +13,5 @@ add_llvm_library (SeaDsaAnalysis
   DsaPrinter.cc
   Debug.cc
   NameValues.cc
+  RemovePtrToInt.cc
   )
