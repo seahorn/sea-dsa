@@ -56,6 +56,7 @@ bool SimulationMapper::insert (const Cell &c1, Cell &c2)
   return insert (*c1.getNode (), *c2.getNode (), o2 - o1);
 }
 
+// Return true iff n1 (at offset 0) is simulated by n2 at offset o
 bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
 {
   // XXX: adjust the offset
@@ -63,7 +64,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
 
   auto &map = m_sim[&n1];
   if (map.count (&n2) > 0)
-  {
+  { // n1 is simulated by n2 at *adjusted* offset 
     if (map.at (&n2) == offset) return true;
     m_sim.clear (); return false;
   }
@@ -91,28 +92,33 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   if (n1.isCollapsed () && !n2.isCollapsed ())
   { m_sim.clear (); return false; }
       
-  // add n2 into the map
+  // At this point, n1 (at offset 0) is simulated by n2 at adjusted
+  // offset. Thus, we add n2 into the map.
   map[&n2] = offset;
 
-  // check children
+  // Check children recursively
   for (auto &kv : n1.links ())
   {
-    Node *n3 = kv.second->getNode ();
-    unsigned off1 = kv.second->getRawOffset ();
-
     unsigned j = n2.isCollapsed () ? 0 : kv.first + offset;
     if (!n2.hasLink (j))      
     { m_sim.clear (); return false; }
+    
+    Node *n3 = kv.second->getNode ();
+    // adjusted offset
+    unsigned off1 = kv.second->getOffset ();
 
     auto &link = n2.getLink (j);
     Node *n4 = link.getNode ();
-    unsigned off2 = link.getRawOffset ();
+    // adjusted offset
+    unsigned off2 = link.getOffset ();
 
+    // Offsets must be adjusted 
     if (off2 < off1 && !n4->isCollapsed ())
     { m_sim.clear (); return false; }
-    
+
+    // Offsets must be adjusted     
     if (!insert (*n3, *n4, off2 - off1))
-    { map.clear (); return false; }
+    { m_sim.clear (); return false; }
   }
   
   return true;
