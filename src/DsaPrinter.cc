@@ -697,7 +697,7 @@ namespace sea_dsa {
 } // end namespace sea_dsa
 
 static llvm::RegisterPass<sea_dsa::DsaPrinter> 
-X ("sea-dsa-printer", "Print memory graphs");
+X ("seadsa-printer", "Print memory graphs");
 
 static llvm::RegisterPass<sea_dsa::DsaViewer> 
-Y ("sea-dsa-viewer", "View memory graphs");
+Y ("seadsa-viewer", "View memory graphs");

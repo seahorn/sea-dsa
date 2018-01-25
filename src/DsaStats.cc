@@ -176,4 +176,4 @@ namespace sea_dsa {
 } // end namespace sea_dsa
 
 static llvm::RegisterPass<sea_dsa::DsaPrintStatsPass> 
-X ("sea-dsa-stats", "Print stats about memory graphs");
+X ("seadsa-stats", "Print stats about memory graphs");

@@ -227,5 +227,7 @@ void RemovePtrToInt::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
 } // namespace sea_dsa
 
-static llvm::RegisterPass<sea_dsa::RemovePtrToInt> X("sea-dsa-remove-ptrtoint",
-                                                     "Removes ptrtoint");
+static llvm::RegisterPass<sea_dsa::RemovePtrToInt>
+X("seadsa-remove-ptrtoint",
+  "Removes ptrtoint");
+  
