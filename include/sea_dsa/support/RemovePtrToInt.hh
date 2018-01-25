@@ -12,7 +12,7 @@ struct RemovePtrToInt: public llvm::FunctionPass {
 
   RemovePtrToInt() : llvm::FunctionPass(ID) {}
 
-  bool runOnFunction(llvm::Function &F);
+  bool runOnFunction(llvm::Function &F) override;
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   virtual llvm::StringRef getPassName() const override {
