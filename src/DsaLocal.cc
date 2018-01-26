@@ -943,4 +943,4 @@ const Graph &Local::getGraph(const Function &F) const {
 char sea_dsa::Local::ID = 0;
 
 static llvm::RegisterPass<sea_dsa::Local>
-    X("sea-dsa-local", "Flow-insensitive, intra-procedural dsa analysis");
+    X("seadsa-local", "Flow-insensitive, intra-procedural dsa analysis");

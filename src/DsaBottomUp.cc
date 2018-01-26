@@ -271,5 +271,5 @@ namespace sea_dsa {
 }
 
 static llvm::RegisterPass<sea_dsa::BottomUp>
-X ("sea-dsa-bu", "Bottom-up DSA pass");
+X ("seadsa-bu", "Bottom-up DSA pass");
 
