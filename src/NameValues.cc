@@ -78,4 +78,4 @@ namespace sea_dsa {
 }
 
 static llvm::RegisterPass<sea_dsa::NameValues>
-X ("sea-dsa-name-values", "Names all unnamed values");
+X ("seadsa-name-values", "Names all unnamed values");

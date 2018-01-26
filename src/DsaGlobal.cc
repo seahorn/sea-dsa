@@ -675,11 +675,11 @@ char sea_dsa::ContextInsensitiveGlobal::ID = 0;
 char sea_dsa::ContextSensitiveGlobal::ID = 0;
 
 static llvm::RegisterPass<sea_dsa::FlatMemoryGlobal> 
-X ("sea-dsa-flat-global", "Flat memory Dsa analysis");
+X ("seadsa-flat-global", "Flat memory Dsa analysis");
 
 static llvm::RegisterPass<sea_dsa::ContextInsensitiveGlobal> 
-Y ("sea-dsa-ci-global", "Context-insensitive Dsa analysis");
+Y ("seadsa-ci-global", "Context-insensitive Dsa analysis");
 
 static llvm::RegisterPass<sea_dsa::ContextSensitiveGlobal> 
-Z ("sea-dsa-cs-global", "Context-sensitive Dsa analysis");
+Z ("seadsa-cs-global", "Context-sensitive Dsa analysis");
 

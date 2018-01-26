@@ -452,5 +452,5 @@ Pass *createDsaInfoPass () {
 char sea_dsa::DsaInfoPass::ID = 0;
 
 static llvm::RegisterPass<sea_dsa::DsaInfoPass> 
-X ("sea-dsa-info", "Gather info about DSA memory graphs");
+X ("seadsa-info", "Gather info about DSA memory graphs");
 
