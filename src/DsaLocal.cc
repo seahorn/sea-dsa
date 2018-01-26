@@ -392,8 +392,9 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
   // divisor
   uint64_t divisor = 0;
 
-  generic_gep_type_iterator<Value *const *> TI =
-      gep_type_begin(ptrTy, Indicies);
+  Type * srcElemTy = cast<PointerType>(ptrTy)->getElementType();    
+   generic_gep_type_iterator<Value* const*> TI = gep_type_begin (srcElemTy, Indicies);
+ 
   for (unsigned CurIDX = 0, EndIDX = Indicies.size(); CurIDX != EndIDX;
        ++CurIDX, ++TI) {
     if (StructType *STy = TI.getStructTypeOrNull()) {
@@ -401,7 +402,12 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
       noffset += dl.getStructLayout(STy)->getElementOffset(fieldNo);
       Ty = STy->getElementType(fieldNo);
     } else {
-      Ty = cast<SequentialType>(Ty)->getElementType();
+      if (PointerType *ptrTy = dyn_cast<PointerType>(Ty))
+	Ty = ptrTy->getElementType();
+      else if (SequentialType *seqTy = dyn_cast<SequentialType>(Ty))
+	Ty = seqTy->getElementType();
+      assert(Ty && "Type is neither PointerType nor SequentialType");
+      
       uint64_t sz = dl.getTypeStoreSize(Ty);
       if (ConstantInt *ci = dyn_cast<ConstantInt>(Indicies[CurIDX])) {
         int64_t arrayIdx = ci->getSExtValue();
@@ -432,7 +438,11 @@ uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
       offset += layout->getElementOffset(idx);
       ty = sty->getElementType(idx);
     } else {
-      ty = cast<SequentialType>(ty)->getElementType();
+      if (PointerType *ptrTy = dyn_cast<PointerType>(ty))
+	ty = ptrTy->getElementType();
+      else if (SequentialType *seqTy = dyn_cast<SequentialType>(ty))
+	ty = seqTy->getElementType();
+      assert(ty && "Type is neither PointerType nor SequentialType");      
       offset += idx * dl.getTypeAllocSize(ty);
     }
   }
