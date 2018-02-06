@@ -175,7 +175,7 @@ void sea_dsa::Node::collapse (int tag)
          errs () << "KILL due to collapse: "
                  << *m_unique_scalar <<"\n";);
 
-  m_unique_scalar = nullptr;
+  setUniqueScalar(nullptr);
   assert (!isForwarding ());
   // if the node is already of smallest size, just mark it
   // collapsed to indicate that it cannot grow or change
@@ -261,7 +261,7 @@ void sea_dsa::Node::pointTo (Node &node, const Offset &offset)
   m_size = 0;
   m_links.clear ();
   m_types.clear ();
-  m_unique_scalar = nullptr;
+  setUniqueScalar(nullptr);
   m_nodeType.reset ();
 }
 
@@ -364,7 +364,8 @@ void sea_dsa::Node::unifyAt (Node &n, unsigned o)
   if (&n == this)
   {
     // -- merging the node into itself at a different offset
-    if (offset > 0) collapse(__LINE__);
+    if (offset > 0)
+      collapse(__LINE__);
     return;
   }
 

@@ -480,8 +480,8 @@ namespace sea_dsa {
     
     bool isUnique () const { return m_unique_scalar; }
     const llvm::Value *getUniqueScalar () const { return m_unique_scalar; }
-    void setUniqueScalar (const llvm::Value *v) 
-    {m_unique_scalar = v; m_has_unique_scalar=true;}
+    void setUniqueScalar (const llvm::Value *v)
+    {m_unique_scalar = v; m_has_unique_scalar=v;}
     bool hasUniqueScalar () const { return m_has_unique_scalar;}
     /// compute a simulation relation between this and n while
     /// propagating unique scalars for all the nodes in the
