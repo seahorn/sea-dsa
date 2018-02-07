@@ -832,7 +832,7 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell (const llvm::Value &u, const Cell &c)
     res.reset (new Cell (c));
     if (res->getRawOffset () == 0 && res->getNode ())
     {
-      if (!(res->getNode ()->hasUniqueScalar ()))
+      if (!(res->getNode ()->hasOnceUniqueScalar ()))
         res->getNode ()->setUniqueScalar (&v);
       else
       {
@@ -847,7 +847,7 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell (const llvm::Value &u, const Cell &c)
 
     if (res->getRawOffset () != 0 && res->getNode ())
     {
-      if (res->getNode()->hasUniqueScalar()) {
+      if (res->getNode()->hasOnceUniqueScalar()) {
         LOG ("unique_scalar",
              errs () << "KILL due to mkCell: "
 	             << "OLD: " << *res->getNode ()->getUniqueScalar () 

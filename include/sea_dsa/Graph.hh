@@ -350,8 +350,10 @@ namespace sea_dsa {
     Graph *m_graph;
     /// node marks
     struct NodeType m_nodeType;
+
     mutable const llvm::Value *m_unique_scalar;
-    bool m_has_unique_scalar;
+    // True if had a unique scalar at some point
+    bool m_has_once_unique_scalar;
     /// When the node is forwarding, the memory cell at which the
     /// node begins in some other memory object
     Cell m_forward;
@@ -393,7 +395,7 @@ namespace sea_dsa {
     uint64_t m_id; // global id for the node
     
     Node (Graph &g) : m_graph (&g), m_unique_scalar (nullptr), 
-		      m_has_unique_scalar (false), m_size (0), m_id (++m_id_factory){}
+		      m_has_once_unique_scalar (false), m_size (0), m_id (++m_id_factory){}
     
     Node (Graph &g, const Node &n, bool copyLinks = false);
     
@@ -481,8 +483,8 @@ namespace sea_dsa {
     bool isUnique () const { return m_unique_scalar; }
     const llvm::Value *getUniqueScalar () const { return m_unique_scalar; }
     void setUniqueScalar (const llvm::Value *v) 
-    {m_unique_scalar = v; m_has_unique_scalar=true;}
-    bool hasUniqueScalar () const { return m_has_unique_scalar;}
+    {m_unique_scalar = v; m_has_once_unique_scalar=true;}
+    bool hasOnceUniqueScalar () const { return m_has_once_unique_scalar;}
     /// compute a simulation relation between this and n while
     /// propagating unique scalars for all the nodes in the
     /// relation. The result can only be one of these four values:
