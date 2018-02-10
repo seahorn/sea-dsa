@@ -847,7 +847,7 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell (const llvm::Value &u, const Cell &c)
 
     if (res->getRawOffset () != 0 && res->getNode ())
     {
-      if (res->getNode()->hasOnceUniqueScalar()) {
+      if (res->getNode()->getUniqueScalar()) {
         LOG ("unique_scalar",
              errs () << "KILL due to mkCell: "
 	             << "OLD: " << *res->getNode ()->getUniqueScalar () 
