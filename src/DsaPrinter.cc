@@ -642,6 +642,16 @@ struct DsaPrinter : public ModulePass {
   }
 };
 
+// Used by Graph::viewGraph() and Node::viewGraph().
+void ShowDsaGraph(Graph& G) {
+  static unsigned I = 0;
+  const std::string Filename = "temp" + std::to_string(I++) + ".mem.dot";
+  const bool Res = writeGraph(&G, Filename);
+  (void)Res;
+  assert(Res && "Could not write graph");
+  DisplayGraph(Filename, /* wait = */ false, GraphProgram::DOT);
+}
+
 struct DsaViewer : public ModulePass {
   static char ID;
   DsaAnalysis *m_dsa;
