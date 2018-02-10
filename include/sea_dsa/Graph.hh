@@ -159,6 +159,10 @@ namespace sea_dsa {
     
     /// pretty-printer of a graph
     virtual void write(llvm::raw_ostream&o) const;
+
+    friend void ShowDsaGraph(Graph& g);
+    /// view the Dsa graph using GraphViz. (For debugging.)
+    void viewGraph() { ShowDsaGraph(*this); }
   };
 
 
@@ -562,6 +566,9 @@ namespace sea_dsa {
     
     /// for gdb
     void dump () const;
+
+    // Shows the Dsa graph using GraphViz. (For debugging.)
+    void viewGraph() { getGraph()->viewGraph(); }
   };
   
   bool Node::isForwarding () const
