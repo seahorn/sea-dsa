@@ -512,6 +512,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     typedef sea_dsa::Graph::formal_const_iterator formal_const_iterator;
     typedef sea_dsa::Graph::return_const_iterator return_const_iterator;
     typedef sea_dsa::Node Node;
+    typedef sea_dsa::Graph::const_iterator node_const_iterator;
 
     // print edges from scalar (local and global) variables to cells
     {
@@ -566,6 +567,19 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         int EdgeDest = getIndex(DestNode, it->second->getOffset());
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     "arrowtail=tee,color=gray63");
+      }
+    }
+
+    // print forwarding edges
+    {
+      for (node_const_iterator it = g->begin(), e = g->end(); it != e; ++it) {
+        const Node &N = *it;
+        if (!N.isForwarding())
+          continue;
+
+        const sea_dsa::Cell &Dest = N.getForwardDest();
+        GW.emitEdge(&N, -1, Dest.getNode(), -1,
+                    "arrowtail=tee,color=dodgerblue1,style=dashed");
       }
     }
   }

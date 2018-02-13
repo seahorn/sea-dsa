@@ -499,6 +499,8 @@ namespace sea_dsa {
     unsigned mergeUniqueScalar (Node &n, Cache &seen);      
     
     inline bool isForwarding () const;
+    inline Cell &getForwardDest ();
+    inline const Cell &getForwardDest () const;
     
     // global id for the node
     uint64_t getId () const { return m_id;}
@@ -573,7 +575,10 @@ namespace sea_dsa {
   
   bool Node::isForwarding () const
   { return !m_forward.isNull (); }
-  
+
+  Cell &Node::getForwardDest() { return m_forward; }
+  const Cell &Node::getForwardDest() const { return m_forward; }
+
   bool Cell::hasLink (unsigned offset) const
   {return m_node && getNode ()->hasLink (m_offset + offset);}
   
