@@ -845,15 +845,16 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell (const llvm::Value &u, const Cell &c)
       }
     }
 
-    if (res->getRawOffset () != 0 && res->getNode ())
+    if (res->getRawOffset () != 0 && res->getNode () &&
+        res->getNode()->hasOnceUniqueScalar())
     {
-      if (res->getNode()->hasOnceUniqueScalar()) {
-        LOG ("unique_scalar",
-             errs () << "KILL due to mkCell: "
-	             << "OLD: " << *res->getNode ()->getUniqueScalar () 
-	             << " NEW: " << v <<"\n";);
-        res->getNode ()->setUniqueScalar (nullptr);
-      }
+      const auto *UniqueScalar = res->getNode()->getUniqueScalar();
+      (void)UniqueScalar;
+      LOG ("unique_scalar",
+           if (UniqueScalar) errs () << "KILL due to mkCell: "
+                                     << "OLD: " << *UniqueScalar
+                                     << " NEW: " << v <<"\n");
+      res->getNode ()->setUniqueScalar (nullptr);
     }
   }
   return *res;
