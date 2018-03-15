@@ -2,10 +2,10 @@
 #define __DSA_GRAPH_HH_
 
 #include "boost/iterator/filter_iterator.hpp"
-#include <boost/container/flat_map.hpp>
-#include <boost/container/flat_set.hpp>
-#include <boost/functional/hash.hpp>
-#include <boost/iterator/indirect_iterator.hpp>
+#include "boost/container/flat_map.hpp"
+#include "boost/container/flat_set.hpp"
+#include "boost/functional/hash.hpp"
+#include "boost/iterator/indirect_iterator.hpp"
 
 // llvm 3.8: forward declarations not enough
 #include "llvm/IR/Argument.h"
@@ -18,11 +18,8 @@
 #include <functional>
 
 namespace llvm {
-class Value;
 class Type;
 class DataLayout;
-class Argument;
-class Function;
 class raw_ostream;
 } // namespace llvm
 
