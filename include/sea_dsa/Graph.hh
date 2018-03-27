@@ -180,20 +180,19 @@ public:
 };
 
 
-
 /**
     A memory cell (or a field). An offset into a memory object.
 */
 class Cell {
   /// memory object
-  mutable Node *m_node;
-  /// offset
-  mutable unsigned m_offset;
-
-  mutable FieldType m_type;
+  mutable Node *m_node = nullptr;
+  /// field offset
+  mutable unsigned m_offset = 0;
+  /// field type
+  mutable FieldType m_type = nullptr;
 
 public:
-  Cell() : m_node(nullptr), m_offset(0) {}
+  Cell() = default;
   Cell(Node *node, unsigned offset) : m_node(node), m_offset(offset) {}
   Cell(Node &node, unsigned offset) : m_node(&node), m_offset(offset) {}
   Cell(const Cell &o, unsigned offset = 0)
@@ -224,6 +223,8 @@ public:
   unsigned getRawOffset() const;
   // for Dsa clients (offset is adjusted based on the node)
   unsigned getOffset() const;
+
+  FieldType getType() const;
 
   void pointTo(Node &n, unsigned offset);
 

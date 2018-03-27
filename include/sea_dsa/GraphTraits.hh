@@ -51,6 +51,10 @@ namespace sea_dsa {
     }
     
     unsigned getOffset() const { return _links_it->first; }
+    const Cell &getCell() const {
+      assert(_links_it->second);
+      return *_links_it->second;
+    }
   };
   
   
