@@ -326,7 +326,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   if (!isSkip(LI)) {
     if (!base.hasLink()) {
       Node &n = m_graph.mkNode();
-      base.setLink(0, Cell(&n, 0));
+      base.setLink(0, Cell(&n, 0, FieldType(LI.getType())));
     }
     m_graph.mkCell(LI, base.getLink());
   }
@@ -487,7 +487,8 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   assert(!m_graph.hasCell(gep));
   sea_dsa::Node *baseNode = base.getNode();
   if (baseNode->isCollapsed()) {
-    m_graph.mkCell(gep, sea_dsa::Cell(baseNode, 0));
+    m_graph.mkCell(gep,
+                   sea_dsa::Cell(baseNode, 0, sea_dsa::FieldType()));
     return;
   }
 
@@ -570,7 +571,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // -- create a new node if there is no link at this offset yet
     if (!in.hasLink()) {
       Node &n = m_graph.mkNode();
-      in.setLink(0, Cell(&n, 0));
+      in.setLink(0, Cell(&n, 0, FieldType(nullptr, true)));
       // -- record allocation site
       n.addAllocSite(I);
       // -- mark node as a stack node
