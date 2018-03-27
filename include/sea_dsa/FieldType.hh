@@ -16,7 +16,8 @@ public:
 
   FieldType() = default;
 
-  FieldType(llvm::Type *Ty, bool IsOpaque = false) : isOpaque(IsOpaque) {
+  explicit FieldType(llvm::Type *Ty, bool IsOpaque = false)
+      : isOpaque(IsOpaque) {
     if (Ty)
       ty = GetFirstPrimitiveTy(Ty);
   }
