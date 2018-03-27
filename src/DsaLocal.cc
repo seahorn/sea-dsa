@@ -16,6 +16,7 @@
 
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Local.hh"
+#include "sea_dsa/TypeUtils.hh"
 #include "sea_dsa/support/Debug.h"
 
 #include "boost/range/algorithm/reverse.hpp"
@@ -694,108 +695,6 @@ static bool hasNoPointerTy(const llvm::Type *t) {
   return true;
 }
 
-struct SubTypeDesc {
-  Type *Ty = nullptr;
-  unsigned Bytes = 0;
-  unsigned Offset = 0;
-
-  SubTypeDesc() = default;
-  SubTypeDesc(Type *Ty_, unsigned Bytes_, unsigned Offset_)
-      : Ty(Ty_), Bytes(Bytes_), Offset(Offset_) {}
-
-  void dump(raw_ostream &OS = llvm::errs()) {
-    OS << "SubTypeDesc:  ";
-    if (Ty)
-      Ty->print(OS);
-    else
-      OS << "nullptr";
-
-    OS << "\n\tbytes:  " << Bytes << "\n\toffset:  " << Offset << "\n";
-  }
-};
-
-class AggregateIterator {
-  const DataLayout *DL;
-  SmallVector<Type *, 8> Worklist;
-  SubTypeDesc Current;
-
-  AggregateIterator(const DataLayout &DL, Type *Ty) : DL(&DL) {
-    Worklist.push_back({Ty});
-  }
-
-public:
-  static AggregateIterator mkBegin(Type *Ty, const DataLayout &DL) {
-    AggregateIterator Res(DL, Ty);
-    Res.doStep();
-    return Res;
-  }
-
-  static AggregateIterator mkEnd(Type *Ty, const DataLayout &DL) {
-    AggregateIterator Res(DL, nullptr);
-    Res.Worklist.clear();
-    return Res;
-  }
-
-  static llvm::iterator_range<AggregateIterator> range(Type *Ty,
-                                                       const DataLayout &DL) {
-    return llvm::make_range(mkBegin(Ty, DL), mkEnd(Ty, DL));
-  }
-
-  AggregateIterator &operator++() {
-    doStep();
-    return *this;
-  }
-
-  SubTypeDesc &operator*() { return Current; }
-  SubTypeDesc *operator->() { return &Current; }
-
-  bool operator!=(const AggregateIterator &Other) const {
-    return Current.Ty != Other.Current.Ty ||
-           Current.Bytes != Other.Current.Bytes || Worklist != Other.Worklist;
-  }
-
-  unsigned sizeInBytes(Type *Ty) const {
-    const auto Bits = DL->getTypeSizeInBits(Ty);
-    assert(Bits >= 8);
-    return Bits / 8;
-  }
-
-private:
-  void doStep() {
-    if (Worklist.empty()) {
-      const auto NewOffset = Current.Offset + Current.Bytes;
-      Current = {nullptr, 0, NewOffset};
-      return;
-    }
-
-    while (!Worklist.empty()) {
-      auto *const Ty = Worklist.pop_back_val();
-
-      if (Ty->isPointerTy() || !isa<CompositeType>(Ty)) {
-        const auto NewOffset = Current.Offset + Current.Bytes;
-        Current = SubTypeDesc{Ty, sizeInBytes(Ty), NewOffset};
-        break;
-      }
-
-      if (Ty->isArrayTy()) {
-        for (size_t i = 0, e = Ty->getArrayNumElements(); i != e; ++i)
-          Worklist.push_back(Ty->getArrayElementType());
-        continue;
-      }
-
-      if (Ty->isVectorTy()) {
-        for (size_t i = 0, e = Ty->getVectorNumElements(); i != e; ++i)
-          Worklist.push_back(Ty->getVectorElementType());
-        continue;
-      }
-
-      assert(Ty->isStructTy());
-      for (auto *SubTy : llvm::reverse(Ty->subtypes()))
-        Worklist.push_back(SubTy);
-    }
-  }
-};
-
 static bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   Value *srcPtr = MI.getSource();
   auto *srcTy = srcPtr->getType()->getPointerElementType();
@@ -824,7 +723,7 @@ static bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   if (knownNoPointersInStructs.count({srcTy, length}) != 0)
     return knownNoPointersInStructs[{srcTy, length}];
 
-  for (auto &subTy : AggregateIterator::range(srcTy, DL)) {
+  for (auto &subTy : sea_dsa::AggregateIterator::range(srcTy, &DL)) {
     if (subTy.Offset >= length)
       break;
 
