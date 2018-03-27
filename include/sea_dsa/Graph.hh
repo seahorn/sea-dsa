@@ -189,11 +189,12 @@ class Cell {
   /// field offset
   mutable unsigned m_offset = 0;
   /// field type
-  mutable FieldType m_type = nullptr;
+  mutable FieldType m_type;
 
 public:
   Cell() = default;
-  Cell(Node *node, unsigned offset) : m_node(node), m_offset(offset) {}
+  Cell(Node *node, unsigned offset/*, FieldType Type */)
+      : m_node(node), m_offset(offset), m_type() {}
   Cell(Node &node, unsigned offset) : m_node(&node), m_offset(offset) {}
   Cell(const Cell &o, unsigned offset = 0)
       : m_node(o.m_node), m_offset(o.m_offset + offset) {}
@@ -217,7 +218,7 @@ public:
   bool isRead() const;
   bool isModified() const;
 
-  bool isNull() const { return m_node == nullptr; }
+  bool isNodeNull() const { return m_node == nullptr; }
   Node *getNode() const;
   // for internal Dsa use (actual offset)
   unsigned getRawOffset() const;
@@ -229,7 +230,7 @@ public:
   void pointTo(Node &n, unsigned offset);
 
   void pointTo(const Cell &c, unsigned offset = 0) {
-    assert(!c.isNull());
+    assert(!c.isNodeNull());
     Node *n = c.getNode();
     pointTo(*n, c.getRawOffset() + offset);
   }
@@ -612,7 +613,7 @@ public:
   void viewGraph() { getGraph()->viewGraph(); }
 };
 
-bool Node::isForwarding() const { return !m_forward.isNull(); }
+bool Node::isForwarding() const { return !m_forward.isNodeNull(); }
 
 Cell &Node::getForwardDest() { return m_forward; }
 const Cell &Node::getForwardDest() const { return m_forward; }
@@ -639,7 +640,7 @@ void Cell::addAccessedType(unsigned offset, const llvm::Type *t) {
 }
 
 void Cell::growSize(unsigned o, const llvm::Type *t) {
-  assert(!isNull());
+  assert(!isNodeNull());
   Node::Offset offset(*getNode(), m_offset + o);
   getNode()->growSize(offset, t);
 }
