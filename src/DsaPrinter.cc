@@ -430,7 +430,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
                                         sea_dsa::Node::iterator I) {
     std::string S;
     llvm::raw_string_ostream O(S);
-    O << I.getOffset() << ", " << I.getCell().getType();
+    O << I.getOffset() << ",\n" << I.getCell().getType();
     return O.str();
   }
 
@@ -515,9 +515,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
       std::string Buff;
       llvm::raw_string_ostream OS(Buff);
       const auto &Ty = C.getType();
-      OS << ",label=\"" << C.getOffset() << ", " << Ty << "\"";
-      if (Ty.isNull())
-        OS << ",fontsize=8";
+      OS << ",label=\"" << C.getOffset() << ", " << Ty << "\",fontsize=8";
 
       return OS.str();
     };

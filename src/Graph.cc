@@ -241,7 +241,7 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
 
   // -- move all the links
   for (auto &kv : m_links) {
-    if (kv.second->isNull())
+    if (kv.second->isNodeNull())
       continue;
     m_forward.addLink(kv.first, *kv.second);
   }
@@ -493,7 +493,8 @@ void sea_dsa::Node::write(raw_ostream &o) const {
       else
         first = false;
       o << kv.first << "->"
-        << "(" << kv.second->getOffset() << "," << kv.second->getNode() << ")";
+        << "(" << kv.second->getOffset() << "," << kv.second->getType() << ","
+        << kv.second->getNode() << ")";
     }
     o << "] ";
     first = true;
@@ -521,11 +522,11 @@ bool sea_dsa::Cell::isRead() const { return getNode()->isRead(); }
 bool sea_dsa::Cell::isModified() const { return getNode()->isModified(); }
 
 void sea_dsa::Cell::unify(Cell &c) {
-  if (isNull()) {
-    assert(!c.isNull());
+  if (isNodeNull()) {
+    assert(!c.isNodeNull());
     Node *n = c.getNode();
     pointTo(*n, c.getRawOffset());
-  } else if (c.isNull())
+  } else if (c.isNodeNull())
     c.unify(*this);
   else {
     Node &n1 = *getNode();
@@ -545,7 +546,7 @@ void sea_dsa::Cell::unify(Cell &c) {
 }
 
 sea_dsa::Node *sea_dsa::Cell::getNode() const {
-  if (isNull())
+  if (isNodeNull())
     return nullptr;
 
   Node *n = m_node->getNode();
@@ -713,7 +714,7 @@ void sea_dsa::Graph::remove_dead() {
   // --- collect all nodes referenced by scalars
   for (auto &kv : m_values) {
     const Cell *C = kv.second.get();
-    if (C->isNull())
+    if (C->isNodeNull())
       continue;
     if (reachable.insert(C->getNode()).second) {
       LOG("dsa-dead", errs() << "\treachable node " << C->getNode() << "\n";);
@@ -723,7 +724,7 @@ void sea_dsa::Graph::remove_dead() {
   // --- collect all nodes referenced by formal parameters
   for (auto &kv : m_formals) {
     const Cell *C = kv.second.get();
-    if (C->isNull())
+    if (C->isNodeNull())
       continue;
     if (reachable.insert(C->getNode()).second) {
       LOG("dsa-dead", errs() << "\treachable node " << C->getNode() << "\n";);
@@ -733,7 +734,7 @@ void sea_dsa::Graph::remove_dead() {
   // --- collect all nodes referenced by return parameters
   for (auto &kv : m_returns) {
     const Cell *C = kv.second.get();
-    if (C->isNull())
+    if (C->isNodeNull())
       continue;
     if (reachable.insert(C->getNode()).second) {
       LOG("dsa-dead", errs() << "\treachable node " << C->getNode() << "\n";);
@@ -746,7 +747,7 @@ void sea_dsa::Graph::remove_dead() {
     auto n = worklist.back();
     worklist.pop_back();
     for (auto &kv : n->links()) {
-      if (kv.second->isNull())
+      if (kv.second->isNodeNull())
         continue;
       auto s = kv.second->getNode();
       if (reachable.insert(s).second) {
@@ -771,7 +772,7 @@ void sea_dsa::Graph::remove_dead() {
 sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   auto &v = *u.stripPointerCasts();
   // Pretend that global values are always present
-  if (isa<GlobalValue>(&v) && c.isNull()) {
+  if (isa<GlobalValue>(&v) && c.isNodeNull()) {
     sea_dsa::Node &n = mkNode();
     n.addAllocSite(v);
     return mkCell(v, Cell(n, 0));
@@ -853,7 +854,7 @@ bool sea_dsa::Graph::hasCell(const llvm::Value &u) const {
 
 void sea_dsa::Cell::write(raw_ostream &o) const {
   getNode();
-  o << "<" << m_offset << ",";
+  o << "<" << m_offset << "," << m_type << ", ";
   m_node->write(o);
   o << ">";
 }
