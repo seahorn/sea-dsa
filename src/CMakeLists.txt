@@ -1,5 +1,6 @@
 add_llvm_library (SeaDsaAnalysis
   Graph.cc
+  FieldType.cc
   DsaLocal.cc
   DsaGlobal.cc
   DsaCallSite.cc
@@ -11,6 +12,7 @@ add_llvm_library (SeaDsaAnalysis
   DsaCallGraph.cc
   DsaAnalysis.cc
   DsaPrinter.cc
+  TypeUtils.cc
   Debug.cc
   NameValues.cc
   RemovePtrToInt.cc
