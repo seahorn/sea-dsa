@@ -269,7 +269,7 @@ public:
 
   /// emitEdge - Output an edge from a simple node into the graph...
   void emitEdge(const void *SrcNodeID, int SrcNodePort, const void *DestNodeID,
-                int DestNodePort, const std::string &Attrs) {
+                int DestNodePort, llvm::Twine Attrs) {
     if (SrcNodePort > 64)
       return; // Eminating from truncated part?
     if (DestNodePort > 64)
@@ -292,8 +292,9 @@ public:
 #endif
     }
 
-    if (!Attrs.empty())
+    if (!Attrs.isTriviallyEmpty())
       O << "[" << Attrs << "]";
+
     O << ";\n";
   }
 
@@ -429,7 +430,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
                                         sea_dsa::Node::iterator I) {
     std::string S;
     llvm::raw_string_ostream O(S);
-    O << I.getOffset();
+    O << I.getOffset() << ", " << I.getCell().getType();
     return O.str();
   }
 
@@ -510,6 +511,17 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     typedef sea_dsa::Node Node;
     typedef sea_dsa::Graph::const_iterator node_const_iterator;
 
+    auto EmitLinkTypeSuffix = [](const sea_dsa::Cell &C) {
+      std::string Buff;
+      llvm::raw_string_ostream OS(Buff);
+      const auto &Ty = C.getType();
+      OS << ",label=\"" << C.getOffset() << ", " << Ty << "\"";
+      if (Ty.isNull())
+        OS << ",fontsize=8";
+
+      return OS.str();
+    };
+
     // print edges from scalar (local and global) variables to cells
     {
       scalar_const_iterator it = g->scalar_begin();
@@ -526,7 +538,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         Node *DestNode = it->second->getNode();
         int EdgeDest = getIndex(DestNode, it->second->getOffset());
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
-                    "arrowtail=tee,color=gray63");
+                    Twine("arrowtail=tee,color=gray63",
+                          EmitLinkTypeSuffix(*it->second)));
       }
     }
 
@@ -544,7 +557,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         Node *DestNode = it->second->getNode();
         int EdgeDest = getIndex(DestNode, it->second->getOffset());
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
-                    "tailclip=false,color=gray63");
+                    Twine("tailclip=false,color=gray63",
+                          EmitLinkTypeSuffix(*it->second)));
       }
     }
 
@@ -562,7 +576,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         Node *DestNode = it->second->getNode();
         int EdgeDest = getIndex(DestNode, it->second->getOffset());
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
-                    "arrowtail=tee,color=gray63");
+                    Twine("arrowtail=tee,color=gray63",
+                          EmitLinkTypeSuffix(*it->second)));
       }
     }
 
