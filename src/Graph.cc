@@ -592,6 +592,13 @@ void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
   }
 }
 
+sea_dsa::FieldType sea_dsa::Cell::getType() const {
+  // -- resolve forwarding
+  getNode();
+  // -- return current field type
+  return m_type;
+}
+
 unsigned sea_dsa::Node::getRawOffset() const {
   if (!isForwarding())
     return 0;
