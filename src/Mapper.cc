@@ -20,8 +20,9 @@ void FunctionalMapper::insert (const Cell &src, const Cell &dst)
 
   // -- offset of the source node in the destination
   unsigned srcNodeOffset = dst.getRawOffset () - src.getRawOffset ();
-  
-  m_nodes.insert (std::make_pair (src.getNode (), Cell (dst.getNode (), srcNodeOffset)));
+
+  // FIXME: Types
+  m_nodes.insert (std::make_pair (src.getNode (), Cell (dst.getNode (), srcNodeOffset, dst.getType())));
   m_cells.insert (std::make_pair (src, dst));
   
   Node::Offset srcOffset (*src.getNode (), src.getRawOffset ());
@@ -139,7 +140,8 @@ bool SimulationMapper::isInjective (bool onlyModified)  const
   for (auto &kv: m_sim) 
     for (auto &c: kv.second) 
     {
-      auto res = inv_sim.insert(Cell(c.first, c.second));
+      // FIXME: Types
+      auto res = inv_sim.insert(Cell(c.first, c.second, FieldType()));
       if (!onlyModified || c.first->isModified()) 
         if (!res.second) return false;
     }
