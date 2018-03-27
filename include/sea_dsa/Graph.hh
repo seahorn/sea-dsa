@@ -15,6 +15,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ImmutableSet.h"
 
+#include "sea_dsa/FieldType.hh"
+
 #include <functional>
 
 namespace llvm {
@@ -177,6 +179,8 @@ public:
   virtual Node &mkNode() override;
 };
 
+
+
 /**
     A memory cell (or a field). An offset into a memory object.
 */
@@ -185,6 +189,8 @@ class Cell {
   mutable Node *m_node;
   /// offset
   mutable unsigned m_offset;
+
+  mutable FieldType m_type;
 
 public:
   Cell() : m_node(nullptr), m_offset(0) {}
