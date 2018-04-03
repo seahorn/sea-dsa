@@ -488,7 +488,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   sea_dsa::Node *baseNode = base.getNode();
   if (baseNode->isCollapsed()) {
     m_graph.mkCell(gep,
-                   sea_dsa::Cell(baseNode, 0, sea_dsa::FieldType()));
+                   sea_dsa::Cell(baseNode, 0, sea_dsa::FieldType::NotImplemented()));
     return;
   }
 
