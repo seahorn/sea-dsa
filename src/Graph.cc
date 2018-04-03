@@ -775,7 +775,7 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   if (isa<GlobalValue>(&v) && c.isNodeNull()) {
     sea_dsa::Node &n = mkNode();
     n.addAllocSite(v);
-    return mkCell(v, Cell(n, 0));
+    return mkCell(v, Cell(n, 0, FieldType(v.getType())));
   }
 
   auto &res =
@@ -938,7 +938,7 @@ void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
     Node &n = C.clone(*kv.second->getNode());
 
     // -- re-create the cell
-    Cell c(n, kv.second->getRawOffset());
+    Cell c(n, kv.second->getRawOffset(), kv.second->getType());
 
     // -- insert value
     Cell &nc = mkCell(*kv.first, Cell());
@@ -950,13 +950,13 @@ void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
   if (withFormals) {
     for (auto &kv : g.m_formals) {
       Node &n = C.clone(*kv.second->getNode());
-      Cell c(n, kv.second->getRawOffset());
+      Cell c(n, kv.second->getRawOffset(), FieldType::NotImplemented());
       Cell &nc = mkCell(*kv.first, Cell());
       nc.unify(c);
     }
     for (auto &kv : g.m_returns) {
       Node &n = C.clone(*kv.second->getNode());
-      Cell c(n, kv.second->getRawOffset());
+      Cell c(n, kv.second->getRawOffset(), FieldType::NotImplemented());
       Cell &nc = mkRetCell(*kv.first, Cell());
       nc.unify(c);
     }
