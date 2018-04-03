@@ -239,7 +239,8 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
       isa<ConstantDataVector>(&v)) {
     // XXX Handle properly
     assert(false);
-    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
+    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0,
+                                  FieldType::NotImplemented()));
   }
 
   // -- special case for aggregate types. Cell creation is handled elsewhere
@@ -272,7 +273,8 @@ void IntraBlockBuilder::visitInstruction(Instruction &I) {
   if (isSkip(I))
     return;
 
-  m_graph.mkCell(I, sea_dsa::Cell(m_graph.mkNode(), 0));
+  m_graph.mkCell(I, sea_dsa::Cell(m_graph.mkNode(), 0,
+                                  sea_dsa::FieldType::NotImplemented()));
 }
 
 void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
@@ -283,7 +285,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   n.addAllocSite(AI);
   // -- mark node as a stack node
   n.setAlloca();
-  m_graph.mkCell(AI, Cell(n, 0));
+  m_graph.mkCell(AI, Cell(n, 0, FieldType::NotImplemented()));
 }
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   using namespace sea_dsa;
@@ -499,7 +501,8 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     n.setArraySize(off.second);
     // result of the gep points into that array at the gep offset
     // plus the offset of the base
-    m_graph.mkCell(gep, sea_dsa::Cell(n, off.first + base.getRawOffset()));
+    m_graph.mkCell(gep, sea_dsa::Cell(n, off.first + base.getRawOffset(),
+                                      sea_dsa::FieldType::NotImplemented()));
     // finally, unify array with the node of the base
     n.unify(*baseNode);
   } else
@@ -525,7 +528,8 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
     // -- mark node as a stack node
     n.setAlloca();
     // -- create a node for the aggregate
-    op = m_graph.mkCell(*I.getAggregateOperand(), Cell(n, 0));
+    op = m_graph.mkCell(*I.getAggregateOperand(),
+                        Cell(n, 0, FieldType::NotImplemented()));
   }
 
   // -- pretend that the instruction points to the aggregate
@@ -556,7 +560,8 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     n.addAllocSite(I);
     // -- mark node as a stack node
     n.setAlloca();
-    op = m_graph.mkCell(*I.getAggregateOperand(), Cell(n, 0));
+    op = m_graph.mkCell(*I.getAggregateOperand(),
+                        Cell(n, 0, FieldType::NotImplemented()));
   }
 
   uint64_t offset = computeIndexedOffset(I.getAggregateOperand()->getType(),
@@ -592,7 +597,9 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     n.addAllocSite(*(CS.getInstruction()));
     // -- mark node as a heap node
     n.setHeap();
-    m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
+
+    m_graph.mkCell(*CS.getInstruction(),
+                   Cell(n, 0, FieldType::NotImplemented()));
     return;
   }
 
@@ -635,7 +642,9 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
 
   Instruction *inst = CS.getInstruction();
   if (inst && !isSkip(*inst)) {
-    Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
+    Cell &c = m_graph.mkCell(*inst,
+                             Cell(m_graph.mkNode(), 0,
+                                  FieldType::NotImplemented()));
     if (Function *callee = CS.getCalledFunction()) {
       if (callee->isDeclaration()) {
         c.getNode()->setExternal();
@@ -824,7 +833,8 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   n.addAllocSite(dest);
   // -- mark node as an alloca node
   n.setAlloca();
-  m_graph.mkCell(dest, sea_dsa::Cell(n, 0));
+  m_graph.mkCell(dest, sea_dsa::Cell(n, 0,
+                                     sea_dsa::FieldType::NotImplemented()));
   if (shouldBeTrackedIntToPtr(dest)) {
     if (!m_graph.isFlat()) {
       llvm::errs() << "WARNING: " << dest << " is allocating a new cell.\n";
@@ -903,7 +913,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
       Node &n = g.mkNode();
-      g.mkCell(a, Cell(n, 0));
+      g.mkCell(a, Cell(n, 0, FieldType::NotImplemented()));
       // -- XXX: hook to record allocation site if F is main
       if (F.getName() == "main")
         n.addAllocSite(a);

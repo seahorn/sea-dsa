@@ -50,7 +50,7 @@ void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs,
   if (g.hasRetCell(callee)) {
     Cell &nc = g.mkCell(*cs.getInstruction(), Cell());
     const Cell &r = g.getRetCell(callee);
-    Cell c(*r.getNode(), r.getRawOffset());
+    Cell c(*r.getNode(), r.getRawOffset(), FieldType::NotImplemented());
     nc.unify(c);
   }
 
@@ -245,7 +245,7 @@ void ContextSensitiveGlobalAnalysis::cloneAndResolveArguments(
   for (auto &kv : boost::make_iterator_range(callerG.globals_begin(),
                                              callerG.globals_end())) {
     Node &n = C.clone(*kv.second->getNode());
-    Cell c(n, kv.second->getRawOffset());
+    Cell c(n, kv.second->getRawOffset(), kv.second->getType());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
     nc.unify(c);
   }
@@ -253,8 +253,10 @@ void ContextSensitiveGlobalAnalysis::cloneAndResolveArguments(
   // clone and unify return
   const Function &callee = *cs.getCallee();
   if (calleeG.hasRetCell(callee) && callerG.hasCell(*cs.getInstruction())) {
-    Node &n = C.clone(*callerG.getCell(*cs.getInstruction()).getNode());
-    Cell c(n, callerG.getCell(*cs.getInstruction()).getRawOffset());
+    auto &inst = *cs.getInstruction();
+    const Cell &csCell = callerG.getCell(inst);
+    Node &n = C.clone(*csCell.getNode());
+    Cell c(n, csCell.getRawOffset(), csCell.getType());
     Cell &nc = calleeG.getRetCell(callee);
     nc.unify(c);
   }
@@ -268,8 +270,9 @@ void ContextSensitiveGlobalAnalysis::cloneAndResolveArguments(
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
     if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
-      Node &n = C.clone(*callerG.getCell(*arg).getNode());
-      Cell c(n, callerG.getCell(*arg).getRawOffset());
+      const Cell &callerCell = callerG.getCell(*arg);
+      Node &n = C.clone(*callerCell.getNode());
+      Cell c(n, callerCell.getRawOffset(), callerCell.getType());
       Cell &nc = calleeG.mkCell(*fml, Cell());
       nc.unify(c);
     }
