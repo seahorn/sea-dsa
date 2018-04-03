@@ -536,8 +536,9 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         Node *DestNode = it->second->getNode();
         int EdgeDest = getIndex(DestNode, it->second->getOffset());
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
-                    Twine("arrowtail=tee,color=gray63",
-                          EmitLinkTypeSuffix(*it->second)));
+                    Twine("arrowtail=tee", EmitLinkTypeSuffix(*it->second)) +
+                          ",color="
+                    + (it->second->getType().isOpaque() ? "purple" : "gray63"));
       }
     }
 
