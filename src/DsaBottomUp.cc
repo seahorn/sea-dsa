@@ -35,7 +35,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   for (auto &kv : boost::make_iterator_range(calleeG.globals_begin(),
                                              calleeG.globals_end())) {
     Node &n = C.clone(*kv.second->getNode());
-    Cell c(n, kv.second->getRawOffset());
+    Cell c(n, kv.second->getRawOffset(), kv.second->getType());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
     nc.unify(c);
   }
@@ -43,8 +43,9 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   // clone and unify return
   const Function &callee = *CS.getCallee();
   if (calleeG.hasRetCell(callee)) {
-    Node &n = C.clone(*calleeG.getRetCell(callee).getNode());
-    Cell c(n, calleeG.getRetCell(callee).getRawOffset());
+    const Cell &ret = calleeG.getRetCell(callee);
+    Node &n = C.clone(*ret.getNode());
+    Cell c(n, ret.getRawOffset(), ret.getType());
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
     nc.unify(c);
   }
@@ -58,8 +59,9 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
     if (calleeG.hasCell(*fml)) {
-      Node &n = C.clone(*calleeG.getCell(*fml).getNode());
-      Cell c(n, calleeG.getCell(*fml).getRawOffset());
+      const Cell &formalC = calleeG.getCell(*fml);
+      Node &n = C.clone(*formalC.getNode());
+      Cell c(n, formalC.getRawOffset(), formalC.getType());
       Cell &nc = callerG.mkCell(*arg, Cell());
       nc.unify(c);
     }
