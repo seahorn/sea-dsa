@@ -14,12 +14,20 @@ class FieldType {
   bool m_isOpaque = false;
   bool m_NOT_IMPLEMENTED = false;
 
-  FieldType() : m_NOT_IMPLEMENTED(true) {}
 public:
-  static FieldType NotImplemented() { return {}; }
+  static FieldType mkOpaque() {
+    FieldType ft{nullptr};
+    ft.m_isOpaque = true;
+    return  ft;
+  }
 
-  explicit FieldType(llvm::Type *Ty, bool IsOpaque = false)
-      : m_isOpaque(IsOpaque) {
+  static FieldType NotImplemented() {
+    FieldType ft{nullptr};
+    ft.m_NOT_IMPLEMENTED = true;
+    return ft;
+  }
+
+  explicit FieldType(llvm::Type *Ty) {
     if (Ty)
       m_ty = GetFirstPrimitiveTy(Ty);
   }
@@ -40,7 +48,7 @@ public:
     assert(!isOpaque());
     assert(!isNull());
     auto *PtrTy = llvm::PointerType::get(m_ty, 0);
-    return FieldType{PtrTy, false};
+    return FieldType{PtrTy};
   }
 
   FieldType elemOf() const {
@@ -49,7 +57,7 @@ public:
     assert(isPointer());
 
     auto *NewTy = m_ty->getPointerElementType();
-    return FieldType{NewTy, false};
+    return FieldType{NewTy};
   }
 
   void dump(llvm::raw_ostream &OS = llvm::errs()) const {
