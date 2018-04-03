@@ -10,55 +10,65 @@ namespace sea_dsa {
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
 
 class FieldType {
-public:
-  llvm::Type *ty = nullptr;
-  bool isOpaque = false;
+  llvm::Type *m_ty = nullptr;
+  bool m_isOpaque = false;
+  bool m_NOT_IMPLEMENTED = false;
 
-  FieldType() = default;
+  FieldType() : m_NOT_IMPLEMENTED(true) {}
+public:
+  static FieldType NotImplemented() { return {}; }
 
   explicit FieldType(llvm::Type *Ty, bool IsOpaque = false)
-      : isOpaque(IsOpaque) {
+      : m_isOpaque(IsOpaque) {
     if (Ty)
-      ty = GetFirstPrimitiveTy(Ty);
+      m_ty = GetFirstPrimitiveTy(Ty);
   }
 
   FieldType(const FieldType &) = default;
   FieldType &operator=(const FieldType &) = default;
 
-  bool isData() const { return !ty->isPointerTy(); }
-  bool isPointer() const { return ty->isPointerTy(); }
-  bool isNull() const { return !ty; }
+  bool isData() const { return !m_ty->isPointerTy(); }
+  bool isPointer() const { return m_ty->isPointerTy(); }
+  bool isNull() const { return !m_ty; }
+  bool isOpaque() const { return m_isOpaque; }
 
   bool operator==(const FieldType &RHS) const {
-    return ty == RHS.ty && isOpaque == RHS.isOpaque;
+    return m_ty == RHS.m_ty && m_isOpaque == RHS.m_isOpaque;
   }
 
   FieldType ptrOf() const {
-    assert(!isOpaque);
-    auto *PtrTy = llvm::PointerType::get(ty, 0);
+    assert(!isOpaque());
+    assert(!isNull());
+    auto *PtrTy = llvm::PointerType::get(m_ty, 0);
     return FieldType{PtrTy, false};
   }
 
   FieldType elemOf() const {
-    assert(!isOpaque);
+    assert(!isOpaque());
+    assert(!isNull());
     assert(isPointer());
 
-    auto *NewTy = ty->getPointerElementType();
+    auto *NewTy = m_ty->getPointerElementType();
     return FieldType{NewTy, false};
   }
 
   void dump(llvm::raw_ostream &OS = llvm::errs()) const {
-    if (isOpaque) {
+    if (m_NOT_IMPLEMENTED) {
+      OS << "TODO";
+      return;
+    }
+
+    if (isOpaque()) {
       OS << "opaque";
       return;
     }
 
-    if (!ty) {
+    if (isNull()) {
       OS << "null";
       return;
     }
 
-    ty->print(OS, false);
+    m_ty->print(OS, false);
   }
 
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
