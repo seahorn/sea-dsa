@@ -189,7 +189,7 @@ class Cell {
   /// field offset
   mutable unsigned m_offset = 0;
   /// field type
-  FieldType m_type = FieldType::NotImplemented();
+  FieldType m_type = FieldType(nullptr);
 
 public:
   Cell() = default;
