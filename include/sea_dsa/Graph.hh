@@ -195,14 +195,11 @@ public:
   Cell() = default;
   Cell(Node *node, unsigned offset, FieldType Type)
       : m_node(node), m_offset(offset), m_type(Type) {}
-  Cell(Node &node, unsigned offset) : m_node(&node), m_offset(offset) {}
+  Cell(Node &node, unsigned offset, FieldType Type)
+      : m_node(&node), m_offset(offset), m_type(Type) {}
   Cell(const Cell &o, unsigned offset = 0)
       : m_node(o.m_node), m_offset(o.m_offset + offset) {}
-  Cell &operator=(const Cell &o) {
-    m_node = o.m_node;
-    m_offset = o.m_offset;
-    return *this;
-  }
+  Cell &operator=(const Cell &o) = default;
 
   bool operator==(const Cell &o) const {
     return m_node == o.m_node && m_offset == o.m_offset;
