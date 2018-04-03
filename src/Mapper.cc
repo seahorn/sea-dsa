@@ -141,7 +141,8 @@ bool SimulationMapper::isInjective (bool onlyModified)  const
     for (auto &c: kv.second) 
     {
       // FIXME: Types
-      auto res = inv_sim.insert(Cell(c.first, c.second, FieldType()));
+      auto res = inv_sim.insert(Cell(c.first, c.second,
+                                     FieldType::NotImplemented()));
       if (!onlyModified || c.first->isModified()) 
         if (!res.second) return false;
     }

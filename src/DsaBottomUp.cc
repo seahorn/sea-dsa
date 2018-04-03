@@ -110,7 +110,8 @@ bool BottomUpAnalysis::checkAllNodesAreMapped(const Function &fn, Graph &fnG,
   reachableNodes(fn, fnG, reach, retReach);
   for (const Node *n : reach) {
 
-    Cell callerC = sm.get(Cell(const_cast<Node *>(n), 0, FieldType()));
+    Cell callerC = sm.get(Cell(const_cast<Node *>(n), 0,
+                               FieldType::NotImplemented()));
     if (callerC.isNodeNull()) {
       errs() << "ERROR: callee node " << *n
              << " not mapped to a caller node.\n";
