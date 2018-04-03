@@ -282,7 +282,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   n.addAllocSite(AI);
   // -- mark node as a stack node
   n.setAlloca();
-  m_graph.mkCell(AI, Cell(n, 0, FieldType::NotImplemented()));
+  m_graph.mkCell(AI, Cell(n, 0, FieldType::mkOpaque()));
 }
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   using namespace sea_dsa;
@@ -584,7 +584,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // -- create a new node if there is no link at this offset yet
     if (!in.hasLink()) {
       Node &n = m_graph.mkNode();
-      in.setLink(0, Cell(&n, 0, FieldType(nullptr, true)));
+      in.setLink(0, Cell(&n, 0, FieldType::mkOpaque()));
       // -- record allocation site
       n.addAllocSite(I);
       // -- mark node as a stack node
