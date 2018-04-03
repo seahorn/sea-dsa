@@ -299,7 +299,7 @@ void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   thenC.unify(elseC);
 
   // -- create result cell
-  m_graph.mkCell(SI, Cell(thenC, 0));
+  m_graph.mkCell(SI, Cell(thenC, 0, FieldType::NotImplemented()));
 }
 
 void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
@@ -506,7 +506,8 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     // finally, unify array with the node of the base
     n.unify(*baseNode);
   } else
-    m_graph.mkCell(gep, sea_dsa::Cell(base, off.first));
+    m_graph.mkCell(gep, sea_dsa::Cell(base, off.first,
+                                      sea_dsa::FieldType::NotImplemented()));
 }
 
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
@@ -538,7 +539,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   // -- update type record
   Value &v = *I.getInsertedValueOperand();
   uint64_t offset = computeIndexedOffset(I.getType(), I.getIndices(), m_dl);
-  Cell out(op, offset);
+  Cell out(op, offset, FieldType::NotImplemented());
   out.growSize(0, v.getType());
   out.addAccessedType(0, v.getType());
   out.setModified();
@@ -566,7 +567,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
 
   uint64_t offset = computeIndexedOffset(I.getAggregateOperand()->getType(),
                                          I.getIndices(), m_dl);
-  Cell in(op, offset);
+  Cell in(op, offset, FieldType::NotImplemented());
 
   // -- update type record
   in.addAccessedType(0, I.getType());
