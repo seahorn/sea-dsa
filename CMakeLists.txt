@@ -6,9 +6,6 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR )
     "In-source builds are not allowed. Please clean your source tree and try again.")
 endif()
 
-enable_testing()
-include (CTest)
-
 # determine if this is top-level or embedded project
 if (PROJECT_NAME STREQUAL CMAKE_PROJECT_NAME)
   set (TOP_LEVEL TRUE)
@@ -126,8 +123,9 @@ configure_file(include/sea_dsa/config.h.cmake
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_BINARY_DIR}/include)
-add_subdirectory (src)
+add_subdirectory(src)
 
+add_subdirectory(units)
 
 if (TOP_LEVEL)
   add_subdirectory(tools)

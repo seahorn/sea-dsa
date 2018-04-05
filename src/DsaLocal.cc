@@ -689,8 +689,156 @@ static bool hasNoPointerTy(const llvm::Type *t) {
 
   return true;
 }
-void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
 
+struct SubTypeDesc {
+  Type *Ty = nullptr;
+  unsigned Bytes = 0;
+  unsigned Offset = 0;
+
+  SubTypeDesc() = default;
+  SubTypeDesc(Type *Ty_, unsigned Bytes_, unsigned Offset_)
+      : Ty(Ty_), Bytes(Bytes_), Offset(Offset_) {}
+
+  void dump(raw_ostream &OS = llvm::errs()) {
+    OS << "SubTypeDesc:  ";
+    if (Ty)
+      Ty->print(OS);
+    else
+      OS << "nullptr";
+
+    OS << "\n\tbytes:  " << Bytes << "\n\toffset:  " << Offset << "\n";
+  }
+};
+
+class AggregateIterator {
+  const DataLayout *DL;
+  SmallVector<Type *, 8> Worklist;
+  SubTypeDesc Current;
+
+  AggregateIterator(const DataLayout &DL, Type *Ty) : DL(&DL) {
+    Worklist.push_back({Ty});
+  }
+
+public:
+  static AggregateIterator mkBegin(Type *Ty, const DataLayout &DL) {
+    AggregateIterator Res(DL, Ty);
+    Res.doStep();
+    return Res;
+  }
+
+  static AggregateIterator mkEnd(Type *Ty, const DataLayout &DL) {
+    AggregateIterator Res(DL, nullptr);
+    Res.Worklist.clear();
+    return Res;
+  }
+
+  static llvm::iterator_range<AggregateIterator> range(Type *Ty,
+                                                       const DataLayout &DL) {
+    return llvm::make_range(mkBegin(Ty, DL), mkEnd(Ty, DL));
+  }
+
+  AggregateIterator &operator++() {
+    doStep();
+    return *this;
+  }
+
+  SubTypeDesc &operator*() { return Current; }
+  SubTypeDesc *operator->() { return &Current; }
+
+  bool operator!=(const AggregateIterator &Other) const {
+    return Current.Ty != Other.Current.Ty ||
+           Current.Bytes != Other.Current.Bytes || Worklist != Other.Worklist;
+  }
+
+  unsigned sizeInBytes(Type *Ty) const {
+    const auto Bits = DL->getTypeSizeInBits(Ty);
+    assert(Bits >= 8);
+    return Bits / 8;
+  }
+
+private:
+  void doStep() {
+    if (Worklist.empty()) {
+      const auto NewOffset = Current.Offset + Current.Bytes;
+      Current = {nullptr, 0, NewOffset};
+      return;
+    }
+
+    while (!Worklist.empty()) {
+      auto *const Ty = Worklist.pop_back_val();
+
+      if (Ty->isPointerTy() || !isa<CompositeType>(Ty)) {
+        const auto NewOffset = Current.Offset + Current.Bytes;
+        Current = SubTypeDesc{Ty, sizeInBytes(Ty), NewOffset};
+        break;
+      }
+
+      if (Ty->isArrayTy()) {
+        for (size_t i = 0, e = Ty->getArrayNumElements(); i != e; ++i)
+          Worklist.push_back(Ty->getArrayElementType());
+        continue;
+      }
+
+      if (Ty->isVectorTy()) {
+        for (size_t i = 0, e = Ty->getVectorNumElements(); i != e; ++i)
+          Worklist.push_back(Ty->getVectorElementType());
+        continue;
+      }
+
+      assert(Ty->isStructTy());
+      for (auto *SubTy : llvm::reverse(Ty->subtypes()))
+        Worklist.push_back(SubTy);
+    }
+  }
+};
+
+static bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
+  Value *srcPtr = MI.getSource();
+  auto *srcTy = srcPtr->getType()->getPointerElementType();
+
+  ConstantInt *rawLength = dyn_cast<ConstantInt>(MI.getLength());
+  if (!rawLength)
+    return false;
+
+  const uint64_t length = rawLength->getZExtValue();
+  LOG("dsa", errs() << "MemTransfer length:\t" << length << "\n");
+
+  // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
+  // This can occur when someone tries to transfer int the middle of a struct.
+  if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
+    errs() << "WARNING: MemTransfer past object size!\n"
+           << "\tTransfer:  ";
+    MI.print(errs());
+    errs() << "\n\tLength:  " << length
+           << "\n\tType size:  " << (DL.getTypeSizeInBits(srcTy) / 8) << "\n";
+    return false;
+  }
+
+  static SmallDenseMap<std::pair<Type *, unsigned>, bool, 16>
+      knownNoPointersInStructs;
+
+  if (knownNoPointersInStructs.count({srcTy, length}) != 0)
+    return knownNoPointersInStructs[{srcTy, length}];
+
+  for (auto &subTy : AggregateIterator::range(srcTy, DL)) {
+    if (subTy.Offset >= length)
+      break;
+
+    if (subTy.Ty->isPointerTy()) {
+      LOG("dsa", errs() << "Found ptr member "; subTy.Ty->print(errs());
+          errs() << "\n\tin "; srcTy->print(errs());
+          errs() << "\n\tMemTransfer transfers pointers!\n");
+
+      knownNoPointersInStructs[{srcTy, length}] = false;
+      return false;
+    }
+  }
+
+  knownNoPointersInStructs[{srcTy, length}] = true;
+  return true;
+}
+
+void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   // -- skip copy NULL
   if (isNullConstant(*I.getSource()))
     return;
@@ -723,24 +871,21 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   sea_dsa::Cell sourceCell = valueCell(*I.getSource());
   sea_dsa::Cell destCell = m_graph.mkCell(*I.getDest(), sea_dsa::Cell());
 
-  assert(I.getSource()->getType()->isPointerTy());
-
-  if (TrustTypes && sourceCell.getNode()->links().size() == 0 &&
-      hasNoPointerTy(
-          cast<PointerType>(I.getSource()->getType())->getElementType())) {
+  if (TrustTypes &&
+      ((sourceCell.getNode()->links().size() == 0 &&
+        hasNoPointerTy(I.getSource()->getType()->getPointerElementType())) ||
+       transfersNoPointers(I, m_dl))) {
     /* do nothing */
     // no pointers are copied from source to dest, so there is no
     // need to unify them
-  } else
+  } else {
     destCell.unify(sourceCell);
+  }
 
   sourceCell.setRead();
   destCell.setModified();
 
   // TODO: can also update size of dest and source using I.getLength ()
-
-  // TODO: handle special case when memcpy is used to move
-  // non-pointer value only
 }
 
 // -- only used as a compare. do not needs DSA node
