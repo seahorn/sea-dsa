@@ -14,8 +14,14 @@
 #include "sea_dsa/support/Debug.h"
 
 static llvm::cl::opt<std::string>
-DsaInfoToFile("sea-dsa-info-to-file",
-    llvm::cl::desc ("DSA: dump some Dsa info into a file"),
+DsaToCsv("sea-dsa-to-csv",
+    llvm::cl::desc ("DSA: print pairs of allocation site and Dsa node into a CSV file"),
+    llvm::cl::init (""),
+    llvm::cl::Hidden);
+
+static llvm::cl::opt<std::string>
+AllocasToFile("sea-dsa-allocas-to-file",
+    llvm::cl::desc ("DSA: print allocation sites into a file"),
     llvm::cl::init (""),
     llvm::cl::Hidden);
 
@@ -171,9 +177,9 @@ void DsaInfo::assignAllocSiteId () {
     }
   }
   
-  // --- write to a file all pairs (alloc site, node id)
-  if (DsaInfoToFile != "") {
-    std::string filename (DsaInfoToFile);
+  // --- write to a CSV file all pairs (alloc site, node id)
+  if (DsaToCsv != "") {
+    std::string filename (DsaToCsv);
     std::error_code EC;
     raw_fd_ostream file (filename, EC, sys::fs::F_Text);
     file << "alloc_site,ds_node\n";
@@ -183,20 +189,27 @@ void DsaInfo::assignAllocSiteId () {
     file.close();
   }
 
-  // --- print for each allocation site the set of nodes
-  LOG("sea-dsa-info-alloc-sites",
-       for (auto &kv: alloc_to_nodes_map) {
-         errs () << "\t  [Alloc site Id " << kv.second.first << " DSNode Ids {";
-         bool first = true;
-         for (typename NodeWrapperSet::iterator it = kv.second.second.begin(),
-                  et = kv.second.second.end(); it != et; ) {
-           if (!first) errs() << ",";
-           else first = false;
-           errs () << it->getId ();
-           ++it;
-         }
-         errs () << "}]  " << *(kv.first) << "\n";
-       });
+  // --- write all allocation sites to a file
+  if (AllocasToFile != "") {
+    std::string filename (AllocasToFile);
+    std::error_code EC;
+    raw_fd_ostream file (filename, EC, sys::fs::F_Text);
+    for (auto &kv: alloc_to_nodes_map) {
+      file << "Alloc site Id " << kv.second.first << "\n";
+      file << *(kv.first) << "\n";
+      file << "Dsa Node Ids {";
+      bool first = true;
+      for (typename NodeWrapperSet::iterator it = kv.second.second.begin(),
+	     et = kv.second.second.end(); it != et; ) {
+	if (!first) file << ",";
+	else first = false;
+	file << it->getId ();
+	++it;
+      }
+      file << "}  " << *(kv.first) << "\n";
+      file << "=========================================\n";
+    }
+  }
 
   // // --- print for each node the types of its allocation sites
   // LOG("sea-dsa-info-alloc-types",
