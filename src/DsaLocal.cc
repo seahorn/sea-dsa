@@ -223,6 +223,8 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   if (m_graph.hasCell(v)) {
     Cell &c = m_graph.mkCell(v, Cell());
     assert(!c.isNodeNull());
+    errs() << "Already has cell: ";
+    c.dump();
     return c;
   }
 
@@ -325,9 +327,17 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   if (!isSkip(LI)) {
     if (!base.hasLink()) {
       Node &n = m_graph.mkNode();
+      LI.dump();
+      errs() << "Doesn't have the link!\n";
       base.setLink(0, Cell(&n, 0, FieldType(LI.getType())));
     }
-    m_graph.mkCell(LI, base.getLink());
+    LI.dump();
+
+    const Cell &baseC = base.getLink();
+    Cell dest(baseC.getNode(), baseC.getRawOffset(), baseC.getType().elemOf());
+    errs() << "Already has the link!\n";
+    dest.dump();
+    m_graph.mkCell(LI, dest);
   }
 
   // handle first-class structs by pretending pointers to them are loaded
@@ -359,17 +369,21 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
 
   base.setModified();
 
+  Value *ValOp = SI.getValueOperand();
   // XXX: potentially it is enough to update size only at this point
-  base.growSize(0, SI.getValueOperand()->getType());
-  base.addAccessedType(0, SI.getValueOperand()->getType());
+  base.growSize(0, ValOp->getType());
+  base.addAccessedType(0, ValOp->getType());
 
-  if (!isSkip(*SI.getValueOperand())) {
-    Cell val = valueCell(*SI.getValueOperand());
-    if (BlockBuilderBase::isNullConstant(*SI.getValueOperand())) {
+  if (!isSkip(*ValOp)) {
+    Cell val = valueCell(*ValOp);
+    if (BlockBuilderBase::isNullConstant(*ValOp)) {
       // TODO: mark link as possibly pointing to null
     } else {
       assert(!val.isNodeNull());
-      base.addLink(0, val);
+      // val.getType() can be an opaque type, so we cannot use it to get
+      // a ptr type.
+      Cell dest(val.getNode(), val.getRawOffset(), FieldType(ValOp->getType()));
+      base.addLink(0, dest);
     }
   }
 }
@@ -921,7 +935,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
       Node &n = g.mkNode();
-      g.mkCell(a, Cell(n, 0, FieldType::NotImplemented()));
+      g.mkCell(a, Cell(n, 0, FieldType(a.getType()).elemOf()));
       // -- XXX: hook to record allocation site if F is main
       if (F.getName() == "main")
         n.addAllocSite(a);
