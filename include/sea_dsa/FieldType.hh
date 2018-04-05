@@ -32,8 +32,15 @@ public:
       m_ty = GetFirstPrimitiveTy(Ty);
   }
 
-  FieldType(const FieldType &) = default;
+  FieldType(const FieldType &ft)
+      : m_ty(ft.m_ty), m_isOpaque(ft.m_isOpaque),
+        m_NOT_IMPLEMENTED(ft.m_NOT_IMPLEMENTED) {
+    llvm::errs() << "cpy\n";
+  }
   FieldType &operator=(const FieldType &) = default;
+
+  FieldType(FieldType &&) = default;
+  FieldType &operator=(FieldType &&) = default;
 
   bool isData() const { return !m_ty->isPointerTy(); }
   bool isPointer() const { return m_ty->isPointerTy(); }
