@@ -83,7 +83,10 @@ public:
       return;
     }
 
-    m_ty->print(OS, false);
+    if (m_ty->isStructTy())
+      OS << '%' << m_ty->getStructName();
+    else
+      m_ty->print(OS, false);
   }
 
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
