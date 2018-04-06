@@ -528,8 +528,9 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     // finally, unify array with the node of the base
     n.unify(*baseNode);
   } else
-    m_graph.mkCell(gep, sea_dsa::Cell(base, off.first,
-                                      sea_dsa::FieldType::NotImplemented()));
+    m_graph.mkCell(gep,
+                   sea_dsa::Cell(base, off.first,
+                                 sea_dsa::FieldType(gep.getType()).elemOf()));
 }
 
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
