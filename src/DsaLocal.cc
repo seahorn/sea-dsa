@@ -278,7 +278,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   n.addAllocSite(AI);
   // -- mark node as a stack node
   n.setAlloca();
-  Cell &res = m_graph.mkCell(AI, Cell(n, 0));
+  m_graph.mkCell(AI, Cell(n, 0));
 }
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   using namespace sea_dsa;
@@ -385,7 +385,6 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
 std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
                                                ArrayRef<Value *> Indicies,
                                                const DataLayout &dl) {
-  unsigned ptrSz = dl.getPointerSizeInBits();
   Type *Ty = ptrTy;
   assert(Ty->isPointerTy());
 
@@ -582,7 +581,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     n.addAllocSite(*(CS.getInstruction()));
     // -- mark node as a heap node
     n.setHeap();
-    Cell &res = m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
+    m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
     return;
   }
 
@@ -649,10 +648,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   }
 
   Value *callee = CS.getCalledValue()->stripPointerCasts();
-  if (InlineAsm *inasm = dyn_cast<InlineAsm>(callee)) {
-    // TODO: handle inline assembly
-  }
-
+  // TODO: handle inline assembly
   // TODO: handle variable argument functions
 }
 

@@ -961,7 +961,6 @@ void sea_dsa::Graph::write(raw_ostream &o) const {
   typedef std::set<const llvm::Value *> ValSet;
   typedef std::set<const llvm::Argument *> ArgSet;
   typedef std::set<const llvm::Function *> FuncSet;
-  typedef std::set<const Node *> NodeSet;
 
   typedef DenseMap<const Cell *, ValSet> CellValMap;
   typedef DenseMap<const Cell *, ArgSet> CellArgMap;
