@@ -345,7 +345,8 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 
   // handle first-class structs by pretending pointers to them are loaded
   if (isa<StructType>(LI.getType())) {
-    Cell dest(base.getNode(), base.getRawOffset());
+    Cell dest(base.getNode(), base.getRawOffset(),
+              FieldType(LI.getType()).ptrOf());
     m_graph.mkCell(LI, dest);
   }
 }
