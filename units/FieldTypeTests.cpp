@@ -78,7 +78,7 @@ TEST_CASE("FirstPrimT.LL_reverse") {
   LLVMContext C;
   auto *St = StructType::create(C, "LL2");
   St->setBody({St->getPointerTo(0), GetIntPtr(C)->getPointerTo(0)});
-  CHECK(sea_dsa::GetFirstPrimitiveTy(St) == St->getPointerTo(0));
+  CHECK(sea_dsa::GetFirstPrimitiveTy(St) == St);
 }
 
 TEST_CASE("FirstPrimT.Nested") {

@@ -616,7 +616,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     n.setHeap();
 
     m_graph.mkCell(*CS.getInstruction(),
-                   Cell(n, 0, FieldType::NotImplemented()));
+                   Cell(n, 0, FieldType::mkOpaque()));
     return;
   }
 
@@ -659,9 +659,8 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
 
   Instruction *inst = CS.getInstruction();
   if (inst && !isSkip(*inst)) {
-    Cell &c = m_graph.mkCell(*inst,
-                             Cell(m_graph.mkNode(), 0,
-                                  FieldType::NotImplemented()));
+    Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0,
+                                         FieldType::mkOpaque()));
     if (Function *callee = CS.getCalledFunction()) {
       if (callee->isDeclaration()) {
         c.getNode()->setExternal();
