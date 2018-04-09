@@ -856,8 +856,9 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   n.addAllocSite(dest);
   // -- mark node as an alloca node
   n.setAlloca();
-  m_graph.mkCell(dest, sea_dsa::Cell(n, 0,
-                                     sea_dsa::FieldType::NotImplemented()));
+  m_graph.mkCell(dest,
+                 sea_dsa::Cell(n, 0,
+                               sea_dsa::FieldType(dest.getType()).elemOf()));
   if (shouldBeTrackedIntToPtr(dest)) {
     if (!m_graph.isFlat()) {
       llvm::errs() << "WARNING: " << dest << " is allocating a new cell.\n";
