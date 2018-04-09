@@ -273,7 +273,7 @@ void IntraBlockBuilder::visitInstruction(Instruction &I) {
     return;
 
   m_graph.mkCell(I, sea_dsa::Cell(m_graph.mkNode(), 0,
-                                  sea_dsa::FieldType::NotImplemented()));
+                                  sea_dsa::FieldType(I.getType()).elemOf()));
 }
 
 void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
@@ -286,6 +286,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   n.setAlloca();
   m_graph.mkCell(AI, Cell(n, 0, FieldType::mkOpaque()));
 }
+
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   using namespace sea_dsa;
   if (isSkip(SI))
@@ -298,7 +299,7 @@ void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   thenC.unify(elseC);
 
   // -- create result cell
-  m_graph.mkCell(SI, Cell(thenC, 0, FieldType::NotImplemented()));
+  m_graph.mkCell(SI, Cell(thenC, 0, FieldType(SI.getType()).elemOf()));
 }
 
 void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
