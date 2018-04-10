@@ -243,6 +243,14 @@ public:
   inline void addAccessedType(unsigned offset, const llvm::Type *t);
   inline void growSize(unsigned offset, const llvm::Type *t);
 
+  void commitToType(FieldType FT) {
+    assert(!FT.isOpaque());
+    if (m_type.isOpaque() || m_type == FT)
+      m_type = FT;
+    else
+      m_type = FieldType(nullptr);
+  }
+
   /// unify with a given cell. At the end, both cells point to the
   /// same offset of the same node. Might cause collapse of the
   /// nodes represented by the cells.
