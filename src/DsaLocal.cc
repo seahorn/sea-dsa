@@ -226,8 +226,8 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   if (m_graph.hasCell(v)) {
     Cell &c = m_graph.mkCell(v, Cell());
     assert(!c.isNodeNull());
-    errs() << "Already has cell: ";
-    c.dump();
+    //errs() << "Already has cell: ";
+    //c.dump();
     return c;
   }
 
@@ -327,6 +327,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   assert(!base.isNodeNull());
   base.addAccessedType(0, LI.getType());
   base.setRead();
+  base.commitToType(FieldType(LI.getType()));
   // update/create the link
   if (!isSkip(LI)) {
     if (!base.hasLink()) {
@@ -547,8 +548,10 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
     n.setAlloca();
     // -- create a node for the aggregate
     op = m_graph.mkCell(*I.getAggregateOperand(),
-                        Cell(n, 0, FieldType::NotImplemented()));
+                        Cell(n, 0, FieldType::mkOpaque()));
   }
+
+  op.commitToType(FieldType(I.getType()));
 
   // -- pretend that the instruction points to the aggregate
   m_graph.mkCell(I, op);
@@ -556,14 +559,16 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   // -- update type record
   Value &v = *I.getInsertedValueOperand();
   uint64_t offset = computeIndexedOffset(I.getType(), I.getIndices(), m_dl);
-  Cell out(op, offset, FieldType::NotImplemented());
+  Cell out(op, offset, FieldType(I.getType()));
   out.growSize(0, v.getType());
   out.addAccessedType(0, v.getType());
   out.setModified();
 
   // -- update link
   if (!isSkip(v)) {
+    // TODO: follow valueCell ptrs.
     Cell vCell = valueCell(v);
+    vCell.commitToType(FieldType(v.getType()));
     assert(!vCell.isNodeNull());
     out.addLink(0, vCell);
   }
@@ -579,12 +584,12 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // -- mark node as a stack node
     n.setAlloca();
     op = m_graph.mkCell(*I.getAggregateOperand(),
-                        Cell(n, 0, FieldType::NotImplemented()));
+                        Cell(n, 0, FieldType::mkOpaque()));
   }
 
   uint64_t offset = computeIndexedOffset(I.getAggregateOperand()->getType(),
                                          I.getIndices(), m_dl);
-  Cell in(op, offset, FieldType::NotImplemented());
+  Cell in(op, offset, FieldType(I.getType()));
 
   // -- update type record
   in.addAccessedType(0, I.getType());
@@ -594,14 +599,16 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // -- create a new node if there is no link at this offset yet
     if (!in.hasLink()) {
       Node &n = m_graph.mkNode();
-      in.setLink(0, Cell(&n, 0, FieldType::mkOpaque()));
+      in.setLink(0, Cell(&n, 0, FieldType(I.getType())));
       // -- record allocation site
       n.addAllocSite(I);
       // -- mark node as a stack node
       n.setAlloca();
     }
     // create cell for the read value and point it to where the link points to
-    m_graph.mkCell(I, in.getLink());
+    const Cell &baseC = in.getLink();
+    m_graph.mkCell(I, Cell(baseC.getNode(), baseC.getRawOffset(),
+                           FieldType(I.getType()).elemOf()));
   }
 }
 
@@ -931,7 +938,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
       Node &n = g.mkNode();
-      g.mkCell(a, Cell(n, 0, FieldType(a.getType()).elemOf()));
+      g.mkCell(a, Cell(n, 0, FieldType::mkOpaque()));
       // -- XXX: hook to record allocation site if F is main
       if (F.getName() == "main")
         n.addAllocSite(a);
