@@ -35,7 +35,7 @@ public:
   FieldType(const FieldType &ft)
       : m_ty(ft.m_ty), m_isOpaque(ft.m_isOpaque),
         m_NOT_IMPLEMENTED(ft.m_NOT_IMPLEMENTED) {
-    llvm::errs() << "cpy\n";
+    //llvm::errs() << "cpy\n";
   }
   FieldType &operator=(const FieldType &) = default;
 
