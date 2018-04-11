@@ -69,6 +69,7 @@ template <typename GraphType> class GraphWriter {
     if (EI != EE && hasEdgeSourceLabels)
       O << "|<s64>truncated...";
 
+
     return hasEdgeSourceLabels;
   }
 
