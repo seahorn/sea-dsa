@@ -36,6 +36,7 @@ script:
   #- /usr/bin/cmake --build .
   - /usr/bin/cmake --build . --target install
   - /usr/bin/cmake --build . --target test-sea-dsa
+  - /usr/bin/cmake --build . --target sea-dsa-units
 
 notifications:
    slack: seahornteam:NAUqZmZHFFviPH4ktQbJXgKu
