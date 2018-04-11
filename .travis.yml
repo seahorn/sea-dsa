@@ -21,4 +21,3 @@ notifications:
       - seahorn-build@googlegroups.com
      on_success: always
      on_failure: always
-
