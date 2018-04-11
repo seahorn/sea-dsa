@@ -320,7 +320,6 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   }
 
   Cell base = valueCell(*LI.getPointerOperand()->stripPointerCasts());
-
   assert(!base.isNodeNull());
   base.addAccessedType(0, LI.getType());
   base.setRead();
@@ -329,14 +328,10 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   if (!isSkip(LI)) {
     if (!base.hasLink()) {
       Node &n = m_graph.mkNode();
-      LI.dump();
-      errs() << "Doesn't have the link!\n";
       base.setLink(0, Cell(&n, 0, FieldType(LI.getType())));
     }
 
-    const Cell &baseC = base.getLink();
-    errs() << "Already has the link!\n";
-    m_graph.mkCell(LI, baseC);
+    m_graph.mkCell(LI, base.getLink());
   }
 
   // handle first-class structs.
