@@ -336,12 +336,16 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
       errs() << "Doesn't have the link!\n";
       base.setLink(0, Cell(&n, 0, FieldType(LI.getType())));
     }
-    LI.dump();
 
     const Cell &baseC = base.getLink();
-    Cell dest(baseC.getNode(), baseC.getRawOffset(), baseC.getType());
     errs() << "Already has the link!\n";
-    dest.dump();
+    m_graph.mkCell(LI, baseC);
+  }
+
+  // handle first-class structs.
+  if (isa<StructType>(LI.getType())) {
+    Cell dest(base.getNode(), base.getRawOffset(),
+              FieldType(LI.getType()).ptrOf());
     m_graph.mkCell(LI, dest);
   }
 
@@ -551,7 +555,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
                         Cell(n, 0, FieldType::mkOpaque()));
   }
 
-  op.commitToType(FieldType(I.getType()));
+  op.commitToType(FieldType(I.getType()).ptrOf());
 
   // -- pretend that the instruction points to the aggregate
   m_graph.mkCell(I, op);
