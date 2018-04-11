@@ -204,14 +204,14 @@ public:
     O << "}\"];\n"; // Finish printing the "node" line
 
     // Output all of the edges now
-    child_iterator EI = GTraits::child_begin(Node);
-    child_iterator EE = GTraits::child_end(Node);
-    for (unsigned i = 0; EI != EE && i != 64; ++EI, ++i)
-      if (!DTraits.isNodeHidden(*EI))
-        writeEdge(Node, i, EI);
-    for (; EI != EE; ++EI)
-      if (!DTraits.isNodeHidden(*EI))
-        writeEdge(Node, 64, EI);
+//    child_iterator EI = GTraits::child_begin(Node);
+//    child_iterator EE = GTraits::child_end(Node);
+//    for (unsigned i = 0; EI != EE && i != 64; ++EI, ++i)
+//      if (!DTraits.isNodeHidden(*EI))
+//        writeEdge(Node, i, EI);
+//    for (; EI != EE; ++EI)
+//      if (!DTraits.isNodeHidden(*EI))
+//        writeEdge(Node, 64, EI);
   }
 
   void writeEdge(NodeType *Node, unsigned edgeidx, child_iterator EI) {
@@ -584,8 +584,19 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     {
       for (node_const_iterator it = g->begin(), e = g->end(); it != e; ++it) {
         const Node &N = *it;
-        if (!N.isForwarding())
+        if (!N.isForwarding()) {
+
+          for (auto &OffLink : N.getLinks()) {
+            unsigned Off = OffLink.first;
+            const sea_dsa::Cell &C = *OffLink.second.get();
+            int EdgeDest = getIndex(C.getNode(), Off);
+
+            GW.emitEdge(&N, -1, C.getNode(), EdgeDest, Twine("arrowtail=tee",
+                                                       EmitLinkTypeSuffix(C)));
+          }
+
           continue;
+        }
 
         const sea_dsa::Cell &Dest = N.getForwardDest();
         GW.emitEdge(&N, -1, Dest.getNode(), -1,

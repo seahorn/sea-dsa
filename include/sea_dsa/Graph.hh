@@ -403,6 +403,8 @@ public:
 
   NodeType getNodeType() const { return m_nodeType; }
 
+  const links_type& getLinks() const { return m_links; }
+
 private:
   /// known type of every offset/field
   accessed_types_type m_accessedTypes;
