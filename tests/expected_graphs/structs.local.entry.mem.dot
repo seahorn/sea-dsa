@@ -1,0 +1,29 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x1dc6950 [shape=record,label="{\{void\}:SM}"];
+	Node0x1dc6e00 [shape=record,label="{\{0:float\}:SM}"];
+	Node0x1dc6ea0 [shape=record,label="{\{0:float*,8:%struct.A*\}:SMR|{<s0>0,\nfloat*|<s1>8,\ni32*}}"];
+	Node0x1dc6f70 [shape=record,label="{\{0:i32*\}:SM|{<s0>0,\ni32*}}"];
+	Node0x1dc7060 [shape=record,label="{\{void\}:R}"];
+	Node0x1db8c78[ shape=plaintext, label ="tmp2"];
+	Node0x1db8c78 -> Node0x1dc6ea0:s1[arrowtail=tee,label="8, i32**",fontsize=8,color=gray63];
+	Node0x1db7f38[ shape=plaintext, label ="ii"];
+	Node0x1db7f38 -> Node0x1dc6f70[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1db72b8[ shape=plaintext, label ="entry.a"];
+	Node0x1db72b8 -> Node0x1dc7060[arrowtail=tee,label="0, i32*",fontsize=8,color=gray63];
+	Node0x1db7ea8[ shape=plaintext, label ="b"];
+	Node0x1db7ea8 -> Node0x1dc6ea0[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1db8db8[ shape=plaintext, label ="tmp3"];
+	Node0x1db8db8 -> Node0x1dc6ea0:s1[arrowtail=tee,label="8, i32**",fontsize=8,color=gray63];
+	Node0x1db7e18[ shape=plaintext, label ="f"];
+	Node0x1db7e18 -> Node0x1dc6e00[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1db8e48[ shape=plaintext, label ="tmp4"];
+	Node0x1db8e48 -> Node0x1dc6950[arrowtail=tee,label="0, i32*",fontsize=8,color=gray63];
+	Node0x1db7d88[ shape=plaintext, label ="a"];
+	Node0x1db7d88 -> Node0x1dc6950[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1dc6ea0 -> Node0x1dc6e00[arrowtail=tee,label="0, float*",fontsize=8];
+	Node0x1dc6ea0 -> Node0x1dc6950[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x1dc6f70 -> Node0x1dc6950[arrowtail=tee,label="0, i32*",fontsize=8];
+}
