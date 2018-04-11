@@ -273,7 +273,7 @@ void IntraBlockBuilder::visitInstruction(Instruction &I) {
     return;
 
   m_graph.mkCell(I, sea_dsa::Cell(m_graph.mkNode(), 0,
-                                  sea_dsa::FieldType(I.getType()).elemOf()));
+                                  sea_dsa::FieldType(I.getType())));
 }
 
 void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
@@ -299,7 +299,7 @@ void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   thenC.unify(elseC);
 
   // -- create result cell
-  m_graph.mkCell(SI, Cell(thenC, 0, FieldType(SI.getType()).elemOf()));
+  m_graph.mkCell(SI, Cell(thenC, 0, FieldType(SI.getType())));
 }
 
 void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
@@ -336,7 +336,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
     LI.dump();
 
     const Cell &baseC = base.getLink();
-    Cell dest(baseC.getNode(), baseC.getRawOffset(), baseC.getType().elemOf());
+    Cell dest(baseC.getNode(), baseC.getRawOffset(), baseC.getType());
     errs() << "Already has the link!\n";
     dest.dump();
     m_graph.mkCell(LI, dest);
@@ -532,7 +532,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   } else
     m_graph.mkCell(gep,
                    sea_dsa::Cell(base, off.first,
-                                 sea_dsa::FieldType(gep.getType()).elemOf()));
+                                 sea_dsa::FieldType(gep.getType())));
 }
 
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
@@ -615,7 +615,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // create cell for the read value and point it to where the link points to
     const Cell &baseC = in.getLink();
     m_graph.mkCell(I, Cell(baseC.getNode(), baseC.getRawOffset(),
-                           FieldType(I.getType()).elemOf()));
+                           FieldType(I.getType())));
   }
 }
 
@@ -866,7 +866,7 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   n.setAlloca();
   m_graph.mkCell(dest,
                  sea_dsa::Cell(n, 0,
-                               sea_dsa::FieldType(dest.getType()).elemOf()));
+                               sea_dsa::FieldType(dest.getType())));
   if (shouldBeTrackedIntToPtr(dest)) {
     if (!m_graph.isFlat()) {
       llvm::errs() << "WARNING: " << dest << " is allocating a new cell.\n";

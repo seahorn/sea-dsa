@@ -775,7 +775,7 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   if (isa<GlobalValue>(&v) && c.isNodeNull()) {
     sea_dsa::Node &n = mkNode();
     n.addAllocSite(v);
-    return mkCell(v, Cell(n, 0, FieldType(v.getType()).elemOf()));
+    return mkCell(v, Cell(n, 0, FieldType(v.getType())));
   }
 
   auto &res =
