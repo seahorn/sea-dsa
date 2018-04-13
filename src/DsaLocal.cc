@@ -423,7 +423,7 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
 
   // divisor
   uint64_t divisor = 0;
-
+ 
   generic_gep_type_iterator<Value *const *> TI =
       gep_type_begin(ptrTy, Indicies);
   for (unsigned CurIDX = 0, EndIDX = Indicies.size(); CurIDX != EndIDX;
