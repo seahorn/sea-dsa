@@ -422,7 +422,7 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
   uint64_t divisor = 0;
 
   Type * srcElemTy = cast<PointerType>(ptrTy)->getElementType();    
-   generic_gep_type_iterator<Value* const*> TI = gep_type_begin (srcElemTy, Indicies);
+  generic_gep_type_iterator<Value* const*> TI = gep_type_begin (srcElemTy, Indicies);
  
   for (unsigned CurIDX = 0, EndIDX = Indicies.size(); CurIDX != EndIDX;
        ++CurIDX, ++TI) {
