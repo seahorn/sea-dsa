@@ -324,6 +324,12 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
     }
     m_graph.mkCell(LI, base.getLink());
   }
+
+  // handle first-class structs by pretending pointers to them are loaded
+  if (isa<StructType>(LI.getType())) {
+    Cell dest(base.getNode(), base.getRawOffset());
+    m_graph.mkCell(LI, dest);
+  }
 }
 
 void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
@@ -504,7 +510,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   using namespace sea_dsa;
 
   // make sure that the aggregate has a cell
-  Cell op = valueCell(*I.getAggregateOperand());
+  Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
@@ -515,14 +521,12 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
     op = m_graph.mkCell(*I.getAggregateOperand(), Cell(n, 0));
   }
 
-  /// JN: I don't understand why we need to create another cell here.
-  ///     Should we remove it?
-  Cell &c = m_graph.mkCell(I, op);
+  // -- pretend that the instruction points to the aggregate
+  m_graph.mkCell(I, op);
 
   // -- update type record
   Value &v = *I.getInsertedValueOperand();
-  uint64_t offset = computeIndexedOffset(I.getAggregateOperand()->getType(),
-                                         I.getIndices(), m_dl);
+  uint64_t offset = computeIndexedOffset(I.getType(), I.getIndices(), m_dl);
   Cell out(op, offset);
   out.growSize(0, v.getType());
   out.addType(0, v.getType());
@@ -538,7 +542,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
 
 void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   using namespace sea_dsa;
-  Cell op = valueCell(*I.getAggregateOperand());
+  Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
