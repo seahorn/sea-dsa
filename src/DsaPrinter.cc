@@ -643,6 +643,8 @@ struct DsaPrinter : public ModulePass {
 
   bool runOnModule(Module &M) override {
     m_dsa = &getAnalysis<sea_dsa::DsaAnalysis>();
+    assert(m_dsa);
+
     if (m_dsa->getDsaAnalysis().kind() == CONTEXT_INSENSITIVE) {
       Function *main = M.getFunction("main");
       if (main && m_dsa->getDsaAnalysis().hasGraph(*main)) {
