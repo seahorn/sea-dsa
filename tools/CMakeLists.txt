@@ -17,7 +17,7 @@ target_link_libraries (seadsa SeaDsaAnalysis)
 llvm_config (seadsa ${LLVM_LINK_COMPONENTS})
 add_custom_target(sea-dsa-tool DEPENDS seadsa)
 
-if (TOP_LEVEL)
+if (TOP_LEVEL OR TARGET sea-dsa-tool)
   install(TARGETS seadsa RUNTIME DESTINATION bin)
 endif()
 
