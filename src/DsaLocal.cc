@@ -498,8 +498,8 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   if (m_graph.hasCell(gep)) {
     // gep can have already a cell if it can be stripped to another
     // pointer different from the base.
-    if (gep.stripPointerCasts() != &gep)
-      return;
+    assert(gep.stripPointerCasts() != &gep);
+    return;
   }
 
   assert(!m_graph.hasCell(gep));
@@ -517,14 +517,18 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     n.setArraySize(off.second);
     // result of the gep points into that array at the gep offset
     // plus the offset of the base
+    baseNode->addType(off.first + base.getRawOffset(),
+                      gep.getType()->getPointerElementType());
     m_graph.mkCell(gep, sea_dsa::Cell(n, off.first + base.getRawOffset(),
-                                      sea_dsa::FieldType::NotImplemented()));
+                                      sea_dsa::FieldType(gep.getType())));
     // finally, unify array with the node of the base
     n.unify(*baseNode);
-  } else
+  } else {
+    baseNode->addType(off.first, gep.getType()->getPointerElementType());
     m_graph.mkCell(gep,
                    sea_dsa::Cell(base, off.first,
                                  sea_dsa::FieldType(gep.getType())));
+  }
 }
 
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
