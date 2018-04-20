@@ -1,0 +1,46 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x1fb4d20 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x1fb4de0 [shape=record,label="{\{0:i32\}:SM}"];
+	Node0x1fb4eb0 [shape=record,label="{\{0:i32**\}:SMR|{<s0>0,\ni32**}}"];
+	Node0x1fb5450 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x1fb5540 [shape=record,label="{\{void\}:S}"];
+	Node0x1fb5650 [shape=record,label="{\{0:%struct.Foo*\}:SMR|{<s0>0,\ni32*}}"];
+	Node0x1fb5740 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x1fb74d0 [shape=record,label="{\{0:i32,8:float*\}: Sequence ME|{<s0>8,\nfloat*}}"];
+	Node0x1fb76b0 [shape=record,label="{\{0:i32*\}: Sequence ME|{<s0>0,\ni32*}}"];
+	Node0x1fa7458[ shape=plaintext, label ="tmp24"];
+	Node0x1fa7458 -> Node0x1fb74d0[arrowtail=tee,label="0, i32*",fontsize=8,color=gray63];
+	Node0x1fa5a08[ shape=plaintext, label ="i1"];
+	Node0x1fa5a08 -> Node0x1fb5740[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1fa57c8[ shape=plaintext, label ="ints"];
+	Node0x1fa57c8 -> Node0x1fb4eb0[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1fa6ad8[ shape=plaintext, label ="tmp15"];
+	Node0x1fa6ad8 -> Node0x1fb74d0[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1fa5758[ shape=plaintext, label ="a"];
+	Node0x1fa5758 -> Node0x1fb4de0[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1fa75b8[ shape=plaintext, label ="tmp26"];
+	Node0x1fa75b8 -> Node0x1fb74d0[arrowtail=tee,label="8, float**",fontsize=8,color=gray63];
+	Node0x1fa58e8[ shape=plaintext, label ="f"];
+	Node0x1fa58e8 -> Node0x1fb5540[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1fa6538[ shape=plaintext, label ="tmp9"];
+	Node0x1fa6538 -> Node0x1fb76b0[arrowtail=tee,label="0, i32**",fontsize=8,color=gray63];
+	Node0x1fa50d8[ shape=plaintext, label ="tmp"];
+	Node0x1fa50d8 -> Node0x1fb4d20[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1fa5858[ shape=plaintext, label ="i"];
+	Node0x1fa5858 -> Node0x1fb5450[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1fa65d0[ shape=plaintext, label ="tmp10"];
+	Node0x1fa65d0 -> Node0x1fb76b0[arrowtail=tee,label="0, i32**",fontsize=8,color=gray63];
+	Node0x1fa74f0[ shape=plaintext, label ="tmp25"];
+	Node0x1fa74f0 -> Node0x1fb74d0[arrowtail=tee,label="0, i32*",fontsize=8,color=gray63];
+	Node0x1fa5978[ shape=plaintext, label ="foos"];
+	Node0x1fa5978 -> Node0x1fb5650[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1fa5d18[ shape=plaintext, label ="tmp1"];
+	Node0x1fa5d18 -> Node0x1fb76b0[arrowtail=tee,label="0, opaque",fontsize=8,color=purple];
+	Node0x1fb4eb0 -> Node0x1fb76b0[arrowtail=tee,label="0, i32**",fontsize=8];
+	Node0x1fb5650 -> Node0x1fb74d0[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x1fb74d0 -> Node0x1fb5540[arrowtail=tee,label="0, float*",fontsize=8];
+	Node0x1fb76b0 -> Node0x1fb4de0[arrowtail=tee,label="0, i32*",fontsize=8];
+}
