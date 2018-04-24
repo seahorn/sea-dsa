@@ -33,7 +33,7 @@ sea_dsa::Node::Node(Graph &g, const Node &n, bool copyLinks)
   m_nodeType = n.m_nodeType;
 
   // -- copy types
-  joinTypes(0, n);
+  joinAccessedTypes(0, n);
 
   // -- copy allocation sites
   joinAllocSites(n.m_alloca_sites);
@@ -87,20 +87,23 @@ void sea_dsa::Node::growSize(const Offset &offset, const llvm::Type *t) {
   growSize(tSz + offset);
 }
 
-bool sea_dsa::Node::isEmtpyType() const {
+bool sea_dsa::Node::isEmtpyAccessedType() const {
   return std::all_of(
-      std::begin(m_types), std::end(m_types),
-      [](const types_type::value_type &v) { return v.second.isEmpty(); });
+      std::begin(m_accessedTypes), std::end(m_accessedTypes),
+      [](const accessed_types_type::value_type &v) {
+        return v.second.isEmpty();
+      });
 }
 
-bool sea_dsa::Node::hasType(unsigned o) const {
+bool sea_dsa::Node::hasAccessedType(unsigned o) const {
   if (isCollapsed())
     return false;
   Offset offset(*this, o);
-  return m_types.count(offset) > 0 && !m_types.at(offset).isEmpty();
+  return m_accessedTypes.count(offset) > 0 &&
+         !m_accessedTypes.at(offset).isEmpty();
 }
 
-void sea_dsa::Node::addType(unsigned o, const llvm::Type *t) {
+void sea_dsa::Node::addAccessedType(unsigned o, const llvm::Type *t) {
   if (isCollapsed())
     return;
   Offset offset(*this, o);
@@ -118,7 +121,7 @@ void sea_dsa::Node::addType(unsigned o, const llvm::Type *t) {
       if (getNode()->isCollapsed())
         return;
       unsigned fldOffset = sl->getElementOffset(idx);
-      addType(o + fldOffset, *it);
+      addAccessedType(o + fldOffset, *it);
     }
   }
   // expand array type
@@ -128,39 +131,39 @@ void sea_dsa::Node::addType(unsigned o, const llvm::Type *t) {
     for (unsigned i = 0, e = aty->getNumElements(); i < e; ++i) {
       if (getNode()->isCollapsed())
         return;
-      addType(o + i * sz, aty->getElementType());
+      addAccessedType(o + i * sz, aty->getElementType());
     }
   } else if (const VectorType *vty = dyn_cast<const VectorType>(t)) {
     uint64_t sz = vty->getElementType()->getPrimitiveSizeInBits() / 8;
     for (unsigned i = 0, e = vty->getNumElements(); i < e; ++i) {
       if (getNode()->isCollapsed())
         return;
-      addType(o + i * sz, vty->getElementType());
+      addAccessedType(o + i * sz, vty->getElementType());
     }
   }
   // -- add primitive type
   else {
     Set types = m_graph->emptySet();
-    if (m_types.count(offset) > 0)
-      types = m_types.at(offset);
+    if (m_accessedTypes.count(offset) > 0)
+      types = m_accessedTypes.at(offset);
     types = m_graph->mkSet(types, t);
-    m_types.insert(std::make_pair((unsigned)offset, types));
+    m_accessedTypes.insert(std::make_pair((unsigned)offset, types));
   }
 }
 
-void sea_dsa::Node::addType(const Offset &offset, Set types) {
+void sea_dsa::Node::addAccessedType(const Offset &offset, Set types) {
   if (isCollapsed())
     return;
   for (const llvm::Type *t : types)
-    addType(offset, t);
+    addAccessedType(offset, t);
 }
 
-void sea_dsa::Node::joinTypes(unsigned offset, const Node &n) {
+void sea_dsa::Node::joinAccessedTypes(unsigned offset, const Node &n) {
   if (isCollapsed() || n.isCollapsed())
     return;
-  for (auto &kv : n.m_types) {
+  for (auto &kv : n.m_accessedTypes) {
     const Offset noff(*this, kv.first + offset);
-    addType(noff, kv.second);
+    addAccessedType(noff, kv.second);
   }
 }
 
@@ -227,7 +230,7 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   if (!node.getNode()->isCollapsed()) {
     assert(!node.isForwarding());
     // -- merge the types
-    node.joinTypes(noffset, *this);
+    node.joinAccessedTypes(noffset, *this);
   }
 
   // -- merge node annotations
@@ -247,7 +250,7 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   m_alloca_sites.clear();
   m_size = 0;
   m_links.clear();
-  m_types.clear();
+  m_accessedTypes.clear();
   m_unique_scalar = nullptr;
   m_nodeType.reset();
 }
@@ -437,17 +440,16 @@ unsigned sea_dsa::Node::mergeAllocSites(Node &n, Cache &seen) {
   return res;
 }
 
-void sea_dsa::Node::writeTypes(raw_ostream &o) const {
+void sea_dsa::Node::writeAccessedTypes(raw_ostream &o) const {
   if (isCollapsed())
     o << "collapsed";
   else {
     // Go through all the types, and just print them.
-    const types_type &ts = types();
+    const accessed_types_type &ts = types();
     bool firstType = true;
     o << "types={";
     if (ts.begin() != ts.end()) {
-      for (typename types_type::const_iterator ii = ts.begin(), ee = ts.end();
-           ii != ee; ++ii) {
+      for (auto ii = ts.begin(), ee = ts.end(); ii != ee; ++ii) {
         if (!firstType)
           o << ",";
         firstType = false;
@@ -482,7 +484,7 @@ void sea_dsa::Node::write(raw_ostream &o) const {
     o << "Node " << this << ": ";
     o << "flags=[" << m_nodeType.toStr() << "] ";
     o << "size=" << size() << " ";
-    writeTypes(o);
+    writeAccessedTypes(o);
     o << " links=[";
     bool first = true;
     for (auto &kv : m_links) {

@@ -314,7 +314,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 
   Cell base = valueCell(*LI.getPointerOperand()->stripPointerCasts());
   assert(!base.isNull());
-  base.addType(0, LI.getType());
+  base.addAccessedType(0, LI.getType());
   base.setRead();
   // update/create the link
   if (!isSkip(LI)) {
@@ -356,7 +356,7 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
 
   // XXX: potentially it is enough to update size only at this point
   base.growSize(0, SI.getValueOperand()->getType());
-  base.addType(0, SI.getValueOperand()->getType());
+  base.addAccessedType(0, SI.getValueOperand()->getType());
 
   if (!isSkip(*SI.getValueOperand())) {
     Cell val = valueCell(*SI.getValueOperand());
@@ -529,7 +529,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   uint64_t offset = computeIndexedOffset(I.getType(), I.getIndices(), m_dl);
   Cell out(op, offset);
   out.growSize(0, v.getType());
-  out.addType(0, v.getType());
+  out.addAccessedType(0, v.getType());
   out.setModified();
 
   // -- update link
@@ -557,7 +557,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   Cell in(op, offset);
 
   // -- update type record
-  in.addType(0, I.getType());
+  in.addAccessedType(0, I.getType());
   in.setRead();
 
   if (!isSkip(I)) {
