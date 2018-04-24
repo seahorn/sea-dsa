@@ -357,15 +357,11 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         OS << "COLLAPSED";
       else {
         // Go through all the types, and just print them.
-        typedef typename sea_dsa::Node::types_type types_type_t;
-
-        const types_type_t &ts = N->types();
+        const auto &ts = N->types();
         bool firstType = true;
         OS << "{";
         if (ts.begin() != ts.end()) {
-          for (typename types_type_t::const_iterator ii = ts.begin(),
-                                                     ee = ts.end();
-               ii != ee; ++ii) {
+          for (auto ii = ts.begin(), ee = ts.end(); ii != ee; ++ii) {
             if (!firstType)
               OS << ",";
             firstType = false;
