@@ -160,10 +160,10 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
       continue;
 
     sea_dsa::Cell c = valueCell(v);
-    assert(!c.isNull());
+    assert(!c.isNodeNull());
     phi.unify(c);
   }
-  assert(!phi.isNull());
+  assert(!phi.isNodeNull());
 }
 
 class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
@@ -220,7 +220,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
 
   if (m_graph.hasCell(v)) {
     Cell &c = m_graph.mkCell(v, Cell());
-    assert(!c.isNull());
+    assert(!c.isNodeNull());
     return c;
   }
 
@@ -313,7 +313,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   }
 
   Cell base = valueCell(*LI.getPointerOperand()->stripPointerCasts());
-  assert(!base.isNull());
+  assert(!base.isNodeNull());
   base.addAccessedType(0, LI.getType());
   base.setRead();
   // update/create the link
@@ -350,7 +350,7 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
   }
 
   Cell base = valueCell(*SI.getPointerOperand()->stripPointerCasts());
-  assert(!base.isNull());
+  assert(!base.isNodeNull());
 
   base.setModified();
 
@@ -363,7 +363,7 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
     if (BlockBuilderBase::isNullConstant(*SI.getValueOperand())) {
       // TODO: mark link as possibly pointing to null
     } else {
-      assert(!val.isNull());
+      assert(!val.isNodeNull());
       base.addLink(0, val);
     }
   }
@@ -377,7 +377,7 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
     return; // do nothing if null
 
   sea_dsa::Cell arg = valueCell(*I.getOperand(0));
-  assert(!arg.isNull());
+  assert(!arg.isNodeNull());
   m_graph.mkCell(I, arg);
 }
 
@@ -469,7 +469,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     return;
 
   sea_dsa::Cell base = valueCell(ptr);
-  assert(!base.isNull());
+  assert(!base.isNodeNull());
 
   if (m_graph.hasCell(gep)) {
     // gep can have already a cell if it can be stripped to another
@@ -511,7 +511,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
 
   // make sure that the aggregate has a cell
   Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
-  if (op.isNull()) {
+  if (op.isNodeNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
     n.addAllocSite(I);
@@ -535,7 +535,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   // -- update link
   if (!isSkip(v)) {
     Cell vCell = valueCell(v);
-    assert(!vCell.isNull());
+    assert(!vCell.isNodeNull());
     out.addLink(0, vCell);
   }
 }
@@ -543,7 +543,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
 void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   using namespace sea_dsa;
   Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
-  if (op.isNull()) {
+  if (op.isNodeNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
     n.addAllocSite(I);
@@ -604,7 +604,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
         if (!m_graph.hasCell(*(CS.getArgument(i))))
           continue;
         sea_dsa::Cell c = valueCell(*(CS.getArgument(i)));
-        if (c.isNull())
+        if (c.isNodeNull())
           continue;
         toMerge.push_back(c);
       }
@@ -658,8 +658,8 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
 
 void IntraBlockBuilder::visitMemSetInst(MemSetInst &I) {
   sea_dsa::Cell dest = valueCell(*(I.getDest()));
-  // assert (!dest.isNull ());
-  if (!dest.isNull())
+  // assert (!dest.isNodeNull ());
+  if (!dest.isNodeNull())
     dest.setModified();
 
   // TODO:
@@ -936,7 +936,7 @@ void IntraBlockBuilder::visitReturnInst(ReturnInst &RI) {
     return;
 
   sea_dsa::Cell c = valueCell(*v);
-  if (c.isNull())
+  if (c.isNodeNull())
     return;
 
   m_graph.mkRetCell(m_func, c);
@@ -982,7 +982,7 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
 
   assert(m_graph.hasCell(*I.getOperand(0)));
   sea_dsa::Cell c = valueCell(*I.getOperand(0));
-  if (!c.isNull()) {
+  if (!c.isNodeNull()) {
     llvm::errs() << "WARNING: " << I << " may be escaping.\n";
     c.getNode()->setPtrToInt();
   }
