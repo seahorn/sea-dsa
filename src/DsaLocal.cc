@@ -517,14 +517,15 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     n.setArraySize(off.second);
     // result of the gep points into that array at the gep offset
     // plus the offset of the base
-    baseNode->addType(off.first + base.getRawOffset(),
-                      gep.getType()->getPointerElementType());
+    baseNode->addAccessedType(off.first + base.getRawOffset(),
+                              gep.getType()->getPointerElementType());
     m_graph.mkCell(gep, sea_dsa::Cell(n, off.first + base.getRawOffset(),
                                       sea_dsa::FieldType(gep.getType())));
     // finally, unify array with the node of the base
     n.unify(*baseNode);
   } else {
-    baseNode->addType(off.first, gep.getType()->getPointerElementType());
+    baseNode->addAccessedType(off.first,
+                              gep.getType()->getPointerElementType());
     m_graph.mkCell(gep,
                    sea_dsa::Cell(base, off.first,
                                  sea_dsa::FieldType(gep.getType())));
