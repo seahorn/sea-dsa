@@ -162,10 +162,10 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
       continue;    
 
     sea_dsa::Cell c = valueCell(v);
-    assert(!c.isNodeNull());
+    assert(!c.isNull());
     phi.unify(c);
   }
-  assert(!phi.isNodeNull());
+  assert(!phi.isNull());
 }
 
 class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
@@ -222,7 +222,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
 
   if (m_graph.hasCell(v)) {
     Cell &c = m_graph.mkCell(v, Cell());
-    assert(!c.isNodeNull());
+    assert(!c.isNull());
     //errs() << "Already has cell: ";
     //c.dump();
     return c;
@@ -320,7 +320,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   }
 
   Cell base = valueCell(*LI.getPointerOperand()->stripPointerCasts());
-  assert(!base.isNodeNull());
+  assert(!base.isNull());
   base.addAccessedType(0, LI.getType());
   base.setRead();
   base.commitToType(FieldType(LI.getType()));
@@ -360,7 +360,7 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
   }
 
   Cell base = valueCell(*SI.getPointerOperand()->stripPointerCasts());
-  assert(!base.isNodeNull());
+  assert(!base.isNull());
 
   base.setModified();
 
@@ -374,7 +374,7 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
     if (BlockBuilderBase::isNullConstant(*ValOp)) {
       // TODO: mark link as possibly pointing to null
     } else {
-      assert(!val.isNodeNull());
+      assert(!val.isNull());
       // val.getType() can be an opaque type, so we cannot use it to get
       // a ptr type.
       Cell dest(val.getNode(), val.getRawOffset(), FieldType(ValOp->getType()));
@@ -391,7 +391,7 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
     return; // do nothing if null
 
   sea_dsa::Cell arg = valueCell(*I.getOperand(0));
-  assert(!arg.isNodeNull());
+  assert(!arg.isNull());
   m_graph.mkCell(I, arg);
 }
 
@@ -493,7 +493,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     return;
 
   sea_dsa::Cell base = valueCell(ptr);
-  assert(!base.isNodeNull());
+  assert(!base.isNull());
 
   if (m_graph.hasCell(gep)) {
     // gep can have already a cell if it can be stripped to another
@@ -544,7 +544,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
 
   // make sure that the aggregate has a cell
   Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
-  if (op.isNodeNull()) {
+  if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
     n.addAllocSite(I);
@@ -573,7 +573,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
     // TODO: follow valueCell ptrs.
     Cell vCell = valueCell(v);
     vCell.commitToType(FieldType(v.getType()));
-    assert(!vCell.isNodeNull());
+    assert(!vCell.isNull());
     out.addLink(0, vCell);
   }
 }
@@ -581,7 +581,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
 void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   using namespace sea_dsa;
   Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
-  if (op.isNodeNull()) {
+  if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
     n.addAllocSite(I);
@@ -647,7 +647,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
         if (!m_graph.hasCell(*(CS.getArgument(i))))
           continue;
         sea_dsa::Cell c = valueCell(*(CS.getArgument(i)));
-        if (c.isNodeNull())
+        if (c.isNull())
           continue;
         toMerge.push_back(c);
       }
@@ -702,8 +702,8 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
 
 void IntraBlockBuilder::visitMemSetInst(MemSetInst &I) {
   sea_dsa::Cell dest = valueCell(*(I.getDest()));
-  // assert (!dest.isNodeNull ());
-  if (!dest.isNodeNull())
+  // assert (!dest.isNull ());
+  if (!dest.isNull())
     dest.setModified();
 
   // TODO:
@@ -881,7 +881,7 @@ void IntraBlockBuilder::visitReturnInst(ReturnInst &RI) {
     return;
 
   sea_dsa::Cell c = valueCell(*v);
-  if (c.isNodeNull())
+  if (c.isNull())
     return;
 
   m_graph.mkRetCell(m_func, c);
@@ -927,7 +927,7 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
 
   assert(m_graph.hasCell(*I.getOperand(0)));
   sea_dsa::Cell c = valueCell(*I.getOperand(0));
-  if (!c.isNodeNull()) {
+  if (!c.isNull()) {
     llvm::errs() << "WARNING: " << I << " may be escaping.\n";
     c.getNode()->setPtrToInt();
   }
