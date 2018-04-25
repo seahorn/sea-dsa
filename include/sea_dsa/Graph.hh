@@ -206,7 +206,7 @@ public:
   bool isRead() const;
   bool isModified() const;
 
-  bool isNull() const { return m_node == nullptr; }
+  bool isNodeNull() const { return m_node == nullptr; }
   Node *getNode() const;
   // for internal Dsa use (actual offset)
   unsigned getRawOffset() const;
@@ -216,7 +216,7 @@ public:
   void pointTo(Node &n, unsigned offset);
 
   void pointTo(const Cell &c, unsigned offset = 0) {
-    assert(!c.isNull());
+    assert(!c.isNodeNull());
     Node *n = c.getNode();
     pointTo(*n, c.getRawOffset() + offset);
   }
@@ -599,7 +599,7 @@ public:
   void viewGraph() { getGraph()->viewGraph(); }
 };
 
-bool Node::isForwarding() const { return !m_forward.isNull(); }
+bool Node::isForwarding() const { return !m_forward.isNodeNull(); }
 
 Cell &Node::getForwardDest() { return m_forward; }
 const Cell &Node::getForwardDest() const { return m_forward; }
@@ -626,7 +626,7 @@ void Cell::addAccessedType(unsigned offset, const llvm::Type *t) {
 }
 
 void Cell::growSize(unsigned o, const llvm::Type *t) {
-  assert(!isNull());
+  assert(!isNodeNull());
   Node::Offset offset(*getNode(), m_offset + o);
   getNode()->growSize(offset, t);
 }
