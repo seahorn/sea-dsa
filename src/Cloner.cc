@@ -20,7 +20,7 @@ Node &Cloner::clone(const Node &n) {
 
   for (auto &kv : n.links()) {
     // dummy link (should not happen)
-    if (kv.second->isNodeNull())
+    if (kv.second->isNull())
       continue;
 
     // -- resolve any potential forwarding
