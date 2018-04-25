@@ -5,15 +5,15 @@ using namespace sea_dsa;
 
 void FunctionalMapper::insert (const Cell &src, const Cell &dst)
 {
-  assert (!src.isNodeNull());
-  assert (!dst.isNodeNull());
+  assert (!src.isNull());
+  assert (!dst.isNull());
 
   // -- already mapped
   Cell res = get (src);
-  if (!res.isNodeNull()) return;
+  if (!res.isNull()) return;
 
   res = get (*src.getNode ());
-  if (!res.isNodeNull())
+  if (!res.isNull())
     assert (res.getNode () == dst.getNode () && "No functional node mapping");
   
   assert (src.getRawOffset () <= dst.getRawOffset () && "Not supported");
@@ -39,10 +39,10 @@ void FunctionalMapper::insert (const Cell &src, const Cell &dst)
 
 bool SimulationMapper::insert (const Cell &c1, Cell &c2)
 {
-  if (c1.isNodeNull() != c2.isNodeNull())
+  if (c1.isNull() != c2.isNull())
   { m_sim.clear (); return false; }
 
-  if (c1.isNodeNull()) return true;
+  if (c1.isNull()) return true;
 
   if (c2.getNode()->isCollapsed())
     return insert (*c1.getNode (), *c2.getNode (), 0);
