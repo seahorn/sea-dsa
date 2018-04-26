@@ -601,7 +601,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
 
         const sea_dsa::Cell &Dest = N.getForwardDest();
         GW.emitEdge(&N, -1, Dest.getNode(), -1,
-                    "arrowtail=tee,color=dodgerblue1,style=dashed");
+                    Twine("arrowtail=tee,color=dodgerblue1,style=dashed",
+                          EmitLinkTypeSuffix(Dest)));
       }
     }
   }
