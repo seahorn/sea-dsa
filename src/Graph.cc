@@ -950,13 +950,13 @@ void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
   if (withFormals) {
     for (auto &kv : g.m_formals) {
       Node &n = C.clone(*kv.second->getNode());
-      Cell c(n, kv.second->getRawOffset(), FieldType::NotImplemented());
+      Cell c(n, kv.second->getRawOffset(), kv.second->getType());
       Cell &nc = mkCell(*kv.first, Cell());
       nc.unify(c);
     }
     for (auto &kv : g.m_returns) {
       Node &n = C.clone(*kv.second->getNode());
-      Cell c(n, kv.second->getRawOffset(), FieldType::NotImplemented());
+      Cell c(n, kv.second->getRawOffset(), kv.second->getType());
       Cell &nc = mkRetCell(*kv.first, Cell());
       nc.unify(c);
     }
