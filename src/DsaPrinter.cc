@@ -659,7 +659,7 @@ void ShowDsaGraph(Graph& G) {
   const bool Res = writeGraph(&G, Filename);
   (void)Res;
   assert(Res && "Could not write graph");
-  DisplayGraph(Filename, /* wait = */ false, GraphProgram::DOT);
+  DisplayGraph(appendOutDir(Filename), /* wait = */ false, GraphProgram::DOT);
 }
 
 struct DsaViewer : public ModulePass {
