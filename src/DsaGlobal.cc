@@ -50,7 +50,7 @@ void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs,
   if (g.hasRetCell(callee)) {
     Cell &nc = g.mkCell(*cs.getInstruction(), Cell());
     const Cell &r = g.getRetCell(callee);
-    Cell c(*r.getNode(), r.getRawOffset(), FieldType::NotImplemented());
+    Cell c(*r.getNode(), r.getRawOffset(), r.getType());
     nc.unify(c);
   }
 
