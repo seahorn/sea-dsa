@@ -579,7 +579,10 @@ unsigned sea_dsa::Cell::getOffset() const {
 
 void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
   assert(!n.isForwarding());
+  n.viewGraph();
   m_node = &n;
+  m_type = FieldType::NotImplemented();
+  errs() << "dsads\n";
   if (n.isCollapsed())
     m_offset = 0;
   else if (n.isArray()) {
