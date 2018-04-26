@@ -238,8 +238,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
       isa<ConstantDataVector>(&v)) {
     // XXX Handle properly
     assert(false);
-    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0,
-                                  FieldType::NotImplemented()));
+    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0, FieldType(nullptr)));
   }
 
   // -- special case for aggregate types. Cell creation is handled elsewhere
@@ -506,7 +505,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   sea_dsa::Node *baseNode = base.getNode();
   if (baseNode->isCollapsed()) {
     m_graph.mkCell(gep,
-                   sea_dsa::Cell(baseNode, 0, sea_dsa::FieldType::NotImplemented()));
+                   sea_dsa::Cell(baseNode, 0, sea_dsa::FieldType(nullptr)));
     return;
   }
 
