@@ -275,7 +275,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   n.addAllocSite(AI);
   // -- mark node as a stack node
   n.setAlloca();
-  Cell &res = m_graph.mkCell(AI, Cell(n, 0));
+  m_graph.mkCell(AI, Cell(n, 0));
 }
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   using namespace sea_dsa;
@@ -311,7 +311,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 
   Cell base = valueCell(*LI.getPointerOperand()->stripPointerCasts());
   assert(!base.isNull());
-  base.addType(0, LI.getType());
+  base.addAccessedType(0, LI.getType());
   base.setRead();
   // update/create the link
   if (!isSkip(LI)) {
@@ -320,6 +320,12 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
       base.setLink(0, Cell(&n, 0));
     }
     m_graph.mkCell(LI, base.getLink());
+  }
+
+  // handle first-class structs by pretending pointers to them are loaded
+  if (isa<StructType>(LI.getType())) {
+    Cell dest(base.getNode(), base.getRawOffset());
+    m_graph.mkCell(LI, dest);
   }
 }
 
@@ -347,7 +353,7 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
 
   // XXX: potentially it is enough to update size only at this point
   base.growSize(0, SI.getValueOperand()->getType());
-  base.addType(0, SI.getValueOperand()->getType());
+  base.addAccessedType(0, SI.getValueOperand()->getType());
 
   if (!isSkip(*SI.getValueOperand())) {
     Cell val = valueCell(*SI.getValueOperand());
@@ -382,7 +388,6 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
 std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
                                                ArrayRef<Value *> Indicies,
                                                const DataLayout &dl) {
-  unsigned ptrSz = dl.getPointerSizeInBits();
   Type *Ty = ptrTy;
   assert(Ty->isPointerTy());
 
@@ -512,7 +517,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   using namespace sea_dsa;
 
   // make sure that the aggregate has a cell
-  Cell op = valueCell(*I.getAggregateOperand());
+  Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
@@ -523,17 +528,15 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
     op = m_graph.mkCell(*I.getAggregateOperand(), Cell(n, 0));
   }
 
-  /// JN: I don't understand why we need to create another cell here.
-  ///     Should we remove it?
-  Cell &c = m_graph.mkCell(I, op);
+  // -- pretend that the instruction points to the aggregate
+  m_graph.mkCell(I, op);
 
   // -- update type record
   Value &v = *I.getInsertedValueOperand();
-  uint64_t offset = computeIndexedOffset(I.getAggregateOperand()->getType(),
-                                         I.getIndices(), m_dl);
+  uint64_t offset = computeIndexedOffset(I.getType(), I.getIndices(), m_dl);
   Cell out(op, offset);
   out.growSize(0, v.getType());
-  out.addType(0, v.getType());
+  out.addAccessedType(0, v.getType());
   out.setModified();
 
   // -- update link
@@ -546,7 +549,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
 
 void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   using namespace sea_dsa;
-  Cell op = valueCell(*I.getAggregateOperand());
+  Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
@@ -561,7 +564,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   Cell in(op, offset);
 
   // -- update type record
-  in.addType(0, I.getType());
+  in.addAccessedType(0, I.getType());
   in.setRead();
 
   if (!isSkip(I)) {
@@ -589,7 +592,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     n.addAllocSite(*(CS.getInstruction()));
     // -- mark node as a heap node
     n.setHeap();
-    Cell &res = m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
+    m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
     return;
   }
 
@@ -656,10 +659,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   }
 
   Value *callee = CS.getCalledValue()->stripPointerCasts();
-  if (InlineAsm *inasm = dyn_cast<InlineAsm>(callee)) {
-    // TODO: handle inline assembly
-  }
-
+  // TODO: handle inline assembly
   // TODO: handle variable argument functions
 }
 

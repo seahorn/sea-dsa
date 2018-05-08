@@ -225,7 +225,7 @@ public:
   inline const Cell &getLink(unsigned offset = 0) const;
   inline void setLink(unsigned offset, const Cell &c);
   inline void addLink(unsigned offset, Cell &c);
-  inline void addType(unsigned offset, const llvm::Type *t);
+  inline void addAccessedType(unsigned offset, const llvm::Type *t);
   inline void growSize(unsigned offset, const llvm::Type *t);
 
   /// unify with a given cell. At the end, both cells point to the
@@ -367,7 +367,7 @@ private:
 
 public:
   typedef Graph::Set Set;
-  typedef boost::container::flat_map<unsigned, Set> types_type;
+  typedef boost::container::flat_map<unsigned, Set> accessed_types_type;
   typedef boost::container::flat_map<unsigned, CellRef> links_type;
 
   // Iterator for graph interface... Defined in GraphTraits.h
@@ -382,7 +382,7 @@ public:
 
 private:
   /// known type of every offset/field
-  types_type m_types;
+  accessed_types_type m_accessedTypes;
   /// destination of every offset/field
   links_type m_links;
 
@@ -404,7 +404,7 @@ private:
   Node(Graph &g, const Node &n, bool copyLinks = false);
 
   void compress() {
-    m_types.shrink_to_fit();
+    m_accessedTypes.shrink_to_fit();
     m_links.shrink_to_fit();
     m_alloca_sites.shrink_to_fit();
   }
@@ -428,11 +428,11 @@ private:
   }
 
   /// Adds a set of types for a field at a given offset
-  void addType(const Offset &offset, Set types);
+  void addAccessedType(const Offset &offset, Set types);
 
   /// joins all the types of a given node starting at a given
   /// offset of the current node
-  void joinTypes(unsigned offset, const Node &n);
+  void joinAccessedTypes(unsigned offset, const Node &n);
 
   /// increase size to accommodate a field of type t at the given offset
   void growSize(const Offset &offset, const llvm::Type *t);
@@ -441,7 +441,7 @@ private:
     return *this;
   }
 
-  void writeTypes(llvm::raw_ostream &o) const;
+  void writeAccessedTypes(llvm::raw_ostream &o) const;
 
 public:
   /// delete copy constructor
@@ -540,8 +540,8 @@ public:
   inline const Node *getNode() const;
   unsigned getRawOffset() const;
 
-  types_type &types() { return m_types; }
-  const types_type &types() const { return m_types; }
+  accessed_types_type &types() { return m_accessedTypes; }
+  const accessed_types_type &types() const { return m_accessedTypes; }
   links_type &links() { return m_links; }
   const links_type &links() const { return m_links; }
 
@@ -559,17 +559,17 @@ public:
   }
   void addLink(unsigned offset, Cell &c);
 
-  bool hasType(unsigned offset) const;
+  bool hasAccessedType(unsigned offset) const;
 
-  const Set getType(unsigned o) const {
+  const Set getAccessedType(unsigned o) const {
     Offset offset(*this, o);
-    return m_types.at(offset);
+    return m_accessedTypes.at(offset);
   }
-  bool isVoid() const { return m_types.empty(); }
-  bool isEmtpyType() const;
+  bool isVoid() const { return m_accessedTypes.empty(); }
+  bool isEmtpyAccessedType() const;
 
   /// Adds a type of a field at a given offset
-  void addType(unsigned offset, const llvm::Type *t);
+  void addAccessedType(unsigned offset, const llvm::Type *t);
 
   /// collapse the current node. Looses all field sensitivity
   /// tag argument is used for debugging only
@@ -621,8 +621,8 @@ void Cell::addLink(unsigned offset, Cell &c) {
   getNode()->addLink(m_offset + offset, c);
 }
 
-void Cell::addType(unsigned offset, const llvm::Type *t) {
-  getNode()->addType(m_offset + offset, t);
+void Cell::addAccessedType(unsigned offset, const llvm::Type *t) {
+  getNode()->addAccessedType(m_offset + offset, t);
 }
 
 void Cell::growSize(unsigned o, const llvm::Type *t) {

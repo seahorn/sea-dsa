@@ -15,7 +15,11 @@ set(LLVM_LINK_COMPONENTS
 add_executable(seadsa seadsa.cc)
 target_link_libraries (seadsa SeaDsaAnalysis)
 llvm_config (seadsa ${LLVM_LINK_COMPONENTS})
-install(TARGETS seadsa RUNTIME DESTINATION bin)
+add_custom_target(sea-dsa-tool DEPENDS seadsa)
+
+if (TOP_LEVEL OR TARGET sea-dsa-tool)
+  install(TARGETS seadsa RUNTIME DESTINATION bin)
+endif()
 
 if (SEA_DSA_STATIC_EXE)
   set (CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++")
