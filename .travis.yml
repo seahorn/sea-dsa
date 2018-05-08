@@ -22,14 +22,11 @@ before_install:
 
 install:
   - until sudo apt-get -qq update; do echo retry; done
-  - until sudo apt-get -qq install libstdc++5; do echo retry; done
-  - until sudo apt-get -qq install g++-5; do echo retry; done
+  - until sudo apt-get -qq install libstdc++5 g++-5 libboost-all-dev; do echo retry; done
   ### precompiled binaries for LLVM 3.8  
   - export LLVM_ROOT="$TRAVIS_BUILD_DIR/LLVM-3.8-Linux"
   - wget https://jorgenavas.github.io/sw/LLVM-3.8-Linux.tar.gz  
   - tar xf LLVM-3.8-Linux.tar.gz
-  ### BOOST
-  - until sudo apt-get -qq install libboost-all-dev; do echo retry; done
 
 script:
   - mkdir -p build
@@ -38,7 +35,7 @@ script:
   ## XXX: not required since LLVM already found
   #- /usr/bin/cmake --build .
   - /usr/bin/cmake --build . --target install
-  - /usr/bin/cmake --build . --target test-dsa
+  - /usr/bin/cmake --build . --target test-sea-dsa
 
 notifications:
    slack: seahornteam:NAUqZmZHFFviPH4ktQbJXgKu

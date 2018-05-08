@@ -123,14 +123,11 @@ configure_file(include/sea_dsa/config.h.cmake
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_BINARY_DIR}/include)
+
 add_subdirectory(src)
-
 add_subdirectory(units)
-
-if (TOP_LEVEL)
-  add_subdirectory(tools)
-  add_subdirectory(tests)
-endif ()  
+add_subdirectory(tools)
+add_subdirectory(tests)
 
 install(DIRECTORY include/sea_dsa DESTINATION include
   FILES_MATCHING
@@ -141,5 +138,5 @@ install(DIRECTORY include/sea_dsa DESTINATION include
   PATTERN ".svn" EXCLUDE)
 
 if (TOP_LEVEL)
-  install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION .)  
-endif ()
+  install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION .)
+endif()
