@@ -651,7 +651,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     }
   }
 
-  Value *callee = CS.getCalledValue()->stripPointerCasts();
+  // Value *callee = CS.getCalledValue()->stripPointerCasts();
   // TODO: handle inline assembly
   // TODO: handle variable argument functions
 }
