@@ -39,11 +39,11 @@ LD_FLAGS += -undefined suppress -flat_namespace
 else ifeq (FreeBSD, $(findstring FreeBSD, ${OS}))
 # FreeBSD
 LIBRARY = ${LIBRARYNAME}.so
-LIBFLAGS = -shared -Wl,-soname,${LIB}
+LIBFLAGS = -shared -Wl,-soname,${LIBRARY}
 else
 # LINUX
 LIBRARY = ${LIBRARYNAME}.so
-LIBFLAGS = -shared -Wl,-soname,${LIB}
+LIBFLAGS = -shared -Wl,-soname,${LIBRARY}
 endif
 
 SOURCES = $(wildcard src/*.cc)
