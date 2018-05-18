@@ -381,10 +381,41 @@ private:
   Cell m_forward;
 
 public:
+  class Field {
+    unsigned m_offset = -1;
+    FieldType m_type{nullptr};
+
+  public:
+    Field() = default;
+    Field(unsigned offset, FieldType type) : m_offset(offset), m_type(type) {}
+    Field(const Field &) = default;
+    Field &operator=(const Field &) = default;
+
+    std::pair<unsigned, FieldType> asTuple() const {
+      return {m_offset, m_type};
+    };
+
+    unsigned getOffset() const { return m_offset; }
+    FieldType getType() const { return m_type; }
+
+    bool operator<(const Field &o) const { return asTuple() < o.asTuple(); }
+    bool operator==(const Field &o) const { return asTuple() == o.asTuple(); }
+
+    void dump(llvm::raw_ostream &os = llvm::errs()) const {
+      os << "<" << m_offset << ", ";
+      m_type.dump(os);
+      os << ">";
+    }
+
+    friend llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const Field &f) {
+      f.dump(o);
+      return o;
+    }
+  };
+
   typedef Graph::Set Set;
-  typedef std::pair<unsigned, FieldType> FieldDescriptor;
   typedef boost::container::flat_map<unsigned, Set> accessed_types_type;
-  typedef boost::container::flat_map<FieldDescriptor, CellRef> links_type;
+  typedef boost::container::flat_map<Field, CellRef> links_type;
 
   // Iterator for graph interface... Defined in GraphTraits.h
   typedef NodeIterator<Node> iterator;
@@ -412,8 +443,8 @@ protected:
         : m_node(n), m_offset(offset), m_type(type) {}
 
     unsigned getNumericOffset() const;
-    operator Node::FieldDescriptor() const {
-      return {getNumericOffset(), m_type};
+    operator Node::Field() const {
+      return Field(getNumericOffset(), m_type);
     }
     const Node &node() const { return m_node; }
   };
@@ -586,8 +617,8 @@ public:
   unsigned size() const { return m_size; }
   void growSize(unsigned v);
 
-  bool hasLink(FieldDescriptor offset) const {
-    return hasLink(offset.first);
+  bool hasLink(Field offset) const {
+    return hasLink(offset.getOffset());
   }
 
   bool hasLink(unsigned offset) const {
@@ -597,20 +628,20 @@ public:
   const Cell &getLink(unsigned offset) const {
     return *m_links.at(Offset(*this, offset));
   }
-  const Cell &getLink(FieldDescriptor offset) const {
-    return getLink(offset.first);
+  const Cell &getLink(Field offset) const {
+    return getLink(offset.getOffset());
   }
 
   void setLink(unsigned offset, const Cell &c) {
     getLink(Offset(*this, offset)) = c;
   }
-  void setLink(FieldDescriptor offset, const Cell &c) {
-    setLink(offset.first, c);
+  void setLink(Field offset, const Cell &c) {
+    setLink(offset.getOffset(), c);
   }
 
   void addLink(unsigned offset, Cell &c);
-  void addLink(FieldDescriptor offset, Cell &c) {
-    addLink(offset.first, c);
+  void addLink(Field offset, Cell &c) {
+    addLink(offset.getOffset(), c);
   }
 
   bool hasAccessedType(unsigned offset) const;

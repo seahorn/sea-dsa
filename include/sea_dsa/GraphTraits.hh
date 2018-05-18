@@ -49,8 +49,8 @@ namespace sea_dsa {
     this_type operator++(int) { // Postincrement
       this_type tmp = *this; ++*this; return tmp;
     }
-    
-    unsigned getOffset() const { return _links_it->first.first; }
+
+    Node::Field getField() const { return _links_it->first; }
     const Cell &getCell() const {
       assert(_links_it->second);
       return *_links_it->second;
