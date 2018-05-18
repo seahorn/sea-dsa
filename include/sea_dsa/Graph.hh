@@ -191,6 +191,10 @@ class Cell {
   /// field type
   FieldType m_type = FieldType(nullptr);
 
+  std::tuple<Node *, unsigned, FieldType> asTuple() const {
+    return std::make_tuple(m_node, m_offset, m_type);
+  };
+
 public:
   Cell() = default;
 
@@ -206,11 +210,11 @@ public:
   Cell &operator=(const Cell &o) = default;
 
   bool operator==(const Cell &o) const {
-    return m_node == o.m_node && m_offset == o.m_offset;
+    return asTuple() == o.asTuple();
   }
   bool operator!=(const Cell &o) const { return !operator==(o); }
   bool operator<(const Cell &o) const {
-    return m_node < o.m_node || (m_node == o.m_node && m_offset < o.m_offset);
+    return asTuple() < o.asTuple();
   }
 
   void setRead(bool v = true);
@@ -236,7 +240,8 @@ public:
     pointTo(*n, c.getRawOffset() + offset);
   }
 
-  inline bool hasLink(unsigned offset = 0) const;
+  bool hasLink() const { return hasLink(0); }
+  inline bool hasLink(unsigned offset) const;
   inline const Cell &getLink(unsigned offset = 0) const;
   inline void setLink(unsigned offset, const Cell &c);
   inline void addLink(unsigned offset, Cell &c);
@@ -259,6 +264,7 @@ public:
   void swap(Cell &o) {
     std::swap(m_node, o.m_node);
     std::swap(m_offset, o.m_offset);
+    std::swap(m_type, o.m_type);
   }
 
   /// pretty-printer of a cell
@@ -361,20 +367,6 @@ public:
     }
   };
 
-protected:
-  class Offset;
-  friend class Offset;
-  /// helper class to ensure that offsets are properly adjusted
-  class Offset {
-    const Node &m_node;
-    const unsigned m_offset;
-
-  public:
-    Offset(const Node &n, unsigned offset) : m_node(n), m_offset(offset) {}
-    operator unsigned() const;
-    const Node &node() const { return m_node; }
-  };
-
 private:
   /// parent DSA graph
   Graph *m_graph;
@@ -390,8 +382,9 @@ private:
 
 public:
   typedef Graph::Set Set;
+  typedef std::pair<unsigned, FieldType> FieldDescriptor;
   typedef boost::container::flat_map<unsigned, Set> accessed_types_type;
-  typedef boost::container::flat_map<unsigned, CellRef> links_type;
+  typedef boost::container::flat_map<FieldDescriptor, CellRef> links_type;
 
   // Iterator for graph interface... Defined in GraphTraits.h
   typedef NodeIterator<Node> iterator;
@@ -404,6 +397,26 @@ public:
   NodeType getNodeType() const { return m_nodeType; }
 
   const links_type& getLinks() const { return m_links; }
+
+protected:
+  class Offset;
+  friend class Offset;
+  /// helper class to ensure that offsets are properly adjusted
+  class Offset {
+    const Node &m_node;
+    const unsigned m_offset;
+    const FieldType m_type;
+
+  public:
+    Offset(const Node &n, unsigned offset, FieldType type = FieldType::NotImplemented())
+        : m_node(n), m_offset(offset), m_type(type) {}
+
+    unsigned getNumericOffset() const;
+    operator Node::FieldDescriptor() const {
+      return {getNumericOffset(), m_type};
+    }
+    const Node &node() const { return m_node; }
+  };
 
 private:
   /// known type of every offset/field
@@ -573,22 +586,38 @@ public:
   unsigned size() const { return m_size; }
   void growSize(unsigned v);
 
+  bool hasLink(FieldDescriptor offset) const {
+    return hasLink(offset.first);
+  }
+
   bool hasLink(unsigned offset) const {
     return m_links.count(Offset(*this, offset)) > 0;
   }
+
   const Cell &getLink(unsigned offset) const {
     return *m_links.at(Offset(*this, offset));
   }
+  const Cell &getLink(FieldDescriptor offset) const {
+    return getLink(offset.first);
+  }
+
   void setLink(unsigned offset, const Cell &c) {
     getLink(Offset(*this, offset)) = c;
   }
+  void setLink(FieldDescriptor offset, const Cell &c) {
+    setLink(offset.first, c);
+  }
+
   void addLink(unsigned offset, Cell &c);
+  void addLink(FieldDescriptor offset, Cell &c) {
+    addLink(offset.first, c);
+  }
 
   bool hasAccessedType(unsigned offset) const;
 
   const Set getAccessedType(unsigned o) const {
     Offset offset(*this, o);
-    return m_accessedTypes.at(offset);
+    return m_accessedTypes.at(offset.getNumericOffset());
   }
   bool isVoid() const { return m_accessedTypes.empty(); }
   bool isEmtpyAccessedType() const;
@@ -680,6 +709,7 @@ template <> struct hash<sea_dsa::Cell> {
     size_t seed = 0;
     boost::hash_combine(seed, c.getNode());
     boost::hash_combine(seed, c.getRawOffset());
+    boost::hash_combine(seed, c.getType().asTuple());
     return seed;
   }
 };
