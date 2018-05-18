@@ -31,9 +31,9 @@ void FunctionalMapper::insert (const Cell &src, const Cell &dst)
   // XXX Don't think this properly handles aligning array nodes of different sizes
   for (auto &kv : src.getNode ()->links ())
   {
-    if (kv.first.first < srcOffset.getNumericOffset()) continue;
-    if (dst.getNode ()->hasLink (srcNodeOffset + kv.first.first))
-      insert (*kv.second, dst.getNode ()->getLink (srcNodeOffset + kv.first.first));
+    if (kv.first.getOffset() < srcOffset.getNumericOffset()) continue;
+    if (dst.getNode ()->hasLink (srcNodeOffset + kv.first.getOffset()))
+      insert (*kv.second, dst.getNode ()->getLink (srcNodeOffset + kv.first.getOffset()));
   }
 }
 
@@ -101,7 +101,8 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   // Check children recursively
   for (auto &kv : n1.links ())
   {
-    unsigned j = n2.isCollapsed () ? 0 : kv.first.first + offset.getNumericOffset();
+    unsigned j = n2.isCollapsed () ? 0 : kv.first.getOffset() +
+                                         offset.getNumericOffset();
     if (!n2.hasLink (j))      
     { m_sim.clear (); return false; }
     
