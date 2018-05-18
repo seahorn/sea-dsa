@@ -496,7 +496,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     auto et = Node->links().end();
     unsigned idx = 0;
     for (; it != et; ++it, ++idx) {
-      if (it->first == Offset)
+      if (it->first.first == Offset)
         return idx;
     }
     return -1;
@@ -588,7 +588,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         if (!N.isForwarding()) {
 
           for (auto &OffLink : N.getLinks()) {
-            unsigned Off = OffLink.first;
+            unsigned Off = OffLink.first.first;
             const sea_dsa::Cell &C = *OffLink.second.get();
             int EdgeDest = getIndex(C.getNode(), Off);
 
