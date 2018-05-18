@@ -243,7 +243,7 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   for (auto &kv : m_links) {
     if (kv.second->isNull())
       continue;
-    m_forward.addLink(kv.first.first, *kv.second);
+    m_forward.addLink(kv.first.getOffset(), *kv.second);
   }
 
   // reset current node
@@ -376,7 +376,7 @@ unsigned sea_dsa::Node::mergeUniqueScalar(Node &n, Cache &seen) {
 
   for (auto &kv : n.links()) {
     Node *n2 = kv.second->getNode();
-    unsigned j = kv.first.first;
+    Field j = kv.first;
 
     if (hasLink(j)) {
       Node *n1 = getLink(j).getNode();
@@ -429,7 +429,7 @@ unsigned sea_dsa::Node::mergeAllocSites(Node &n, Cache &seen) {
 
   for (auto &kv : n.links()) {
     Node *n2 = kv.second->getNode();
-    unsigned j = kv.first.first;
+    Field j = kv.first;
 
     if (hasLink(j)) {
       Node *n1 = getLink(j).getNode();
@@ -492,7 +492,7 @@ void sea_dsa::Node::write(raw_ostream &o) const {
         o << ",";
       else
         first = false;
-      o << kv.first.first << "->"
+      o << kv.first << "->"
         << "(" << kv.second->getOffset() << "," << kv.second->getType() << ","
         << kv.second->getNode() << ")";
     }
