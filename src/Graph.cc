@@ -48,7 +48,7 @@ sea_dsa::Node::Node(Graph &g, const Node &n, bool copyLinks)
 /// adjust offset based on type of the node Collapsed nodes
 /// always have offset 0; for array nodes the offset is modulo
 /// array size; otherwise offset is not adjusted
-sea_dsa::Node::Offset::operator unsigned() const {
+unsigned sea_dsa::Node::Offset::getNumericOffset() const {
   // XXX: m_node can be forward to another node since the constructor
   // of Offset was called so we grab here the non-forwarding node
   Node *n = const_cast<Node *>(m_node.getNode());
@@ -84,7 +84,7 @@ void sea_dsa::Node::growSize(const Offset &offset, const llvm::Type *t) {
   assert(m_graph);
   // XXX for some reason getTypeAllocSize() is not marked as preserving const
   auto tSz = m_graph->getDataLayout().getTypeAllocSize(const_cast<Type *>(t));
-  growSize(tSz + offset);
+  growSize(tSz + offset.getNumericOffset());
 }
 
 bool sea_dsa::Node::isEmtpyAccessedType() const {
@@ -99,8 +99,8 @@ bool sea_dsa::Node::hasAccessedType(unsigned o) const {
   if (isCollapsed())
     return false;
   Offset offset(*this, o);
-  return m_accessedTypes.count(offset) > 0 &&
-         !m_accessedTypes.at(offset).isEmpty();
+  return m_accessedTypes.count(offset.getNumericOffset()) > 0 &&
+         !m_accessedTypes.at(offset.getNumericOffset()).isEmpty();
 }
 
 void sea_dsa::Node::addAccessedType(unsigned o, const llvm::Type *t) {
@@ -144,10 +144,10 @@ void sea_dsa::Node::addAccessedType(unsigned o, const llvm::Type *t) {
   // -- add primitive type
   else {
     Set types = m_graph->emptySet();
-    if (m_accessedTypes.count(offset) > 0)
-      types = m_accessedTypes.at(offset);
+    if (m_accessedTypes.count(offset.getNumericOffset()) > 0)
+      types = m_accessedTypes.at(offset.getNumericOffset());
     types = m_graph->mkSet(types, t);
-    m_accessedTypes.insert(std::make_pair((unsigned)offset, types));
+    m_accessedTypes.insert(std::make_pair(offset.getNumericOffset(), types));
   }
 }
 
@@ -155,7 +155,7 @@ void sea_dsa::Node::addAccessedType(const Offset &offset, Set types) {
   if (isCollapsed())
     return;
   for (const llvm::Type *t : types)
-    addAccessedType(offset, t);
+    addAccessedType(offset.getNumericOffset(), t);
 }
 
 void sea_dsa::Node::joinAccessedTypes(unsigned offset, const Node &n) {
@@ -204,7 +204,7 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   assert(!isForwarding());
 
   // -- reset unique scalar at the destination
-  if (offset != 0)
+  if (offset.getNumericOffset() != 0)
     node.setUniqueScalar(nullptr);
   if (m_unique_scalar != node.getUniqueScalar()) {
     LOG("unique_scalar", if (m_unique_scalar && node.getUniqueScalar()) errs()
@@ -217,7 +217,7 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   // unsigned sz = size ();
 
   // -- create forwarding link
-  m_forward.pointTo(node, offset);
+  m_forward.pointTo(node, offset.getNumericOffset());
   // -- get updated offset based on how forwarding was resolved
   unsigned noffset = m_forward.getRawOffset();
   // -- at this point, current node is being embedded at noffset
@@ -243,7 +243,7 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   for (auto &kv : m_links) {
     if (kv.second->isNull())
       continue;
-    m_forward.addLink(kv.first, *kv.second);
+    m_forward.addLink(kv.first.first, *kv.second);
   }
 
   // reset current node
@@ -282,7 +282,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
 
   if (!isCollapsed() && !n.isCollapsed() && n.isArray() && !isArray()) {
     // -- merge into array at offset 0
-    if (offset == 0) {
+    if (offset.getNumericOffset() == 0) {
       n.unifyAt(*this, 0);
       return;
     }
@@ -308,7 +308,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
     } else {
       Offset minoff(*min, o);
       // -- arrays can only be unified at offset 0
-      if (minoff == 0) {
+      if (minoff.getNumericOffset() == 0) {
         if (min != this) {
           // unify by merging into smaller array
           n.unifyAt(*this, 0);
@@ -325,7 +325,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
   } else if (isArray() && !n.isArray()) {
     // collapse whenever merging a non-array into an array at non-0 offset
     // and the non-array does not fit into the array
-    if (offset != 0 && offset + n.size() > size()) {
+    if (offset.getNumericOffset() != 0 && offset.getNumericOffset() + n.size() > size()) {
       collapse(__LINE__);
       getNode()->unifyAt(*n.getNode(), o);
       return;
@@ -334,7 +334,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
 
   if (&n == this) {
     // -- merging the node into itself at a different offset
-    if (offset > 0)
+    if (offset.getNumericOffset() > 0)
       collapse(__LINE__);
     return;
   }
@@ -376,7 +376,7 @@ unsigned sea_dsa::Node::mergeUniqueScalar(Node &n, Cache &seen) {
 
   for (auto &kv : n.links()) {
     Node *n2 = kv.second->getNode();
-    unsigned j = kv.first;
+    unsigned j = kv.first.first;
 
     if (hasLink(j)) {
       Node *n1 = getLink(j).getNode();
@@ -429,7 +429,7 @@ unsigned sea_dsa::Node::mergeAllocSites(Node &n, Cache &seen) {
 
   for (auto &kv : n.links()) {
     Node *n2 = kv.second->getNode();
-    unsigned j = kv.first;
+    unsigned j = kv.first.first;
 
     if (hasLink(j)) {
       Node *n1 = getLink(j).getNode();
@@ -492,7 +492,7 @@ void sea_dsa::Node::write(raw_ostream &o) const {
         o << ",";
       else
         first = false;
-      o << kv.first << "->"
+      o << kv.first.first << "->"
         << "(" << kv.second->getOffset() << "," << kv.second->getType() << ","
         << kv.second->getNode() << ")";
     }
@@ -569,7 +569,7 @@ unsigned sea_dsa::Cell::getRawOffset() const {
 
 unsigned sea_dsa::Cell::getOffset() const {
   // -- adjust the offset based on the kind of node
-  if (getNode()->isCollapsed())
+  if (isNull() || getNode()->isCollapsed())
     return 0;
   else if (getNode()->isArray())
     return (getRawOffset() % getNode()->size());
@@ -579,7 +579,7 @@ unsigned sea_dsa::Cell::getOffset() const {
 
 void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
   assert(!n.isForwarding());
-  n.viewGraph();
+  //n.viewGraph();
   m_node = &n;
   m_type = FieldType::NotImplemented();
   errs() << "dsads\n";
@@ -862,7 +862,10 @@ void sea_dsa::Cell::write(raw_ostream &o) const {
   o << ">";
 }
 
-void sea_dsa::Node::dump() const { write(errs()); }
+void sea_dsa::Node::dump() const {
+  write(errs());
+  errs() << "\n";
+}
 
 bool sea_dsa::Graph::computeCalleeCallerMapping(
     const DsaCallSite &cs, Graph &calleeG, Graph &callerG,
