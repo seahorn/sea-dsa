@@ -31,9 +31,9 @@ void FunctionalMapper::insert (const Cell &src, const Cell &dst)
   // XXX Don't think this properly handles aligning array nodes of different sizes
   for (auto &kv : src.getNode ()->links ())
   {
-    if (kv.first < srcOffset) continue;
-    if (dst.getNode ()->hasLink (srcNodeOffset + kv.first))
-      insert (*kv.second, dst.getNode ()->getLink (srcNodeOffset + kv.first));
+    if (kv.first.first < srcOffset.getNumericOffset()) continue;
+    if (dst.getNode ()->hasLink (srcNodeOffset + kv.first.first))
+      insert (*kv.second, dst.getNode ()->getLink (srcNodeOffset + kv.first.first));
   }
 }
 
@@ -51,10 +51,11 @@ bool SimulationMapper::insert (const Cell &c1, Cell &c2)
   Node::Offset o1 (*c1.getNode(), c1.getRawOffset());
   Node::Offset o2 (*c2.getNode(), c2.getRawOffset());
     
-  if (o2 < o1)
+  if (o2.getNumericOffset() < o1.getNumericOffset())
   { m_sim.clear (); return false; }
   
-  return insert (*c1.getNode (), *c2.getNode (), o2 - o1);
+  return insert (*c1.getNode (), *c2.getNode (), o2.getNumericOffset() -
+                                                 o1.getNumericOffset());
 }
 
 // Return true iff n1 (at offset 0) is simulated by n2 at offset o
@@ -66,7 +67,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   auto &map = m_sim[&n1];
   if (map.count (&n2) > 0)
   { // n1 is simulated by n2 at *adjusted* offset 
-    if (map.at (&n2) == offset) return true;
+    if (map.at (&n2) == offset.getNumericOffset()) return true;
     m_sim.clear (); return false;
   }
   
@@ -75,7 +76,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   // XXX not necessarily at offset 0
   if (!n1.isArray () && n2.isArray ())
   {
-    if (offset > 0 && n1.size () + o > n2.size ())
+    if (offset.getNumericOffset() > 0 && n1.size () + o > n2.size ())
       { m_sim.clear (); return false; }
   }
 
@@ -83,7 +84,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   if (n1.isArray () && (!n2.isArray () && !n2.isCollapsed()))
   { m_sim.clear (); return false; }
 
-  if (n1.isArray () && offset != 0)
+  if (n1.isArray () && offset.getNumericOffset() != 0)
   { m_sim.clear (); return false; } 
     
   // XXX: a collapsed node can simulate an array node
@@ -95,12 +96,12 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
       
   // At this point, n1 (at offset 0) is simulated by n2 at adjusted
   // offset. Thus, we add n2 into the map.
-  map[&n2] = offset;
+  map[&n2] = offset.getNumericOffset();
 
   // Check children recursively
   for (auto &kv : n1.links ())
   {
-    unsigned j = n2.isCollapsed () ? 0 : kv.first + offset;
+    unsigned j = n2.isCollapsed () ? 0 : kv.first.first + offset.getNumericOffset();
     if (!n2.hasLink (j))      
     { m_sim.clear (); return false; }
     

@@ -5,6 +5,8 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <tuple>
+
 namespace sea_dsa {
 
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
@@ -15,6 +17,10 @@ class FieldType {
   bool m_NOT_IMPLEMENTED = false;
 
 public:
+  std::tuple<llvm::Type *, bool, bool> asTuple() const {
+    return std::make_tuple(m_ty, m_isOpaque, m_NOT_IMPLEMENTED);
+  };
+
   static FieldType mkOpaque() {
     FieldType ft{nullptr};
     ft.m_isOpaque = true;
@@ -44,23 +50,29 @@ public:
 
   bool isData() const { return !m_ty->isPointerTy(); }
   bool isPointer() const { return m_ty->isPointerTy(); }
-  bool isNull() const { return !m_ty; }
+  bool isUnknown() const { return !m_ty; }
   bool isOpaque() const { return m_isOpaque; }
 
+  llvm::Type *getLLVMType() const { return m_ty; }
+
   bool operator==(const FieldType &RHS) const {
-    return m_ty == RHS.m_ty && m_isOpaque == RHS.m_isOpaque;
+    return asTuple() == RHS.asTuple();
+  }
+
+  bool operator<(const FieldType &RHS) const {
+    return asTuple() < RHS.asTuple();
   }
 
   FieldType ptrOf() const {
     assert(!isOpaque());
-    assert(!isNull());
+    assert(!isUnknown());
     auto *PtrTy = llvm::PointerType::get(m_ty, 0);
     return FieldType{PtrTy};
   }
 
   FieldType elemOf() const {
     assert(!isOpaque());
-    assert(!isNull());
+    assert(!isUnknown());
     assert(isPointer());
 
     auto *NewTy = m_ty->getPointerElementType();
@@ -78,8 +90,8 @@ public:
       return;
     }
 
-    if (isNull()) {
-      OS << "null";
+    if (isUnknown()) {
+      OS << "unknown";
       return;
     }
 
