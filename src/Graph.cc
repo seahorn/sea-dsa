@@ -52,13 +52,14 @@ unsigned sea_dsa::Node::Offset::getNumericOffset() const {
   // XXX: m_node can be forward to another node since the constructor
   // of Offset was called so we grab here the non-forwarding node
   Node *n = const_cast<Node *>(m_node.getNode());
+  const unsigned offset = m_field.getOffset();
 
   assert(!n->isForwarding());
   if (n->isCollapsed())
     return 0;
   if (n->isArray())
-    return m_offset % n->size();
-  return m_offset;
+    return offset % n->size();
+  return offset;
 }
 
 void sea_dsa::Node::growSize(unsigned v) {
@@ -255,8 +256,8 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   m_nodeType.reset();
 }
 
-void sea_dsa::Node::addLink(unsigned o, Cell &c) {
-  Offset offset(*this, o);
+void sea_dsa::Node::addLink(Field f, Cell &c) {
+  Offset offset(*this, f);
   if (!hasLink(offset))
     setLink(offset, c);
   else {

@@ -180,6 +180,47 @@ public:
 };
 
 
+class Field {
+  unsigned m_offset = -1;
+  FieldType m_type{nullptr};
+
+public:
+  Field() = default;
+  Field(unsigned offset, FieldType type) : m_offset(offset), m_type(type) {}
+  Field(const Field &) = default;
+  Field &operator=(const Field &) = default;
+
+  Field addOffset(unsigned offset) const {
+    return {m_offset + offset, m_type};
+  }
+
+  Field subOffset(unsigned offset) const {
+    return {m_offset - offset, m_type};
+  }
+
+  std::pair<unsigned, FieldType> asTuple() const {
+    return {m_offset, m_type};
+  };
+
+  unsigned getOffset() const { return m_offset; }
+  FieldType getType() const { return m_type; }
+
+  bool operator<(const Field &o) const { return asTuple() < o.asTuple(); }
+  bool operator==(const Field &o) const { return asTuple() == o.asTuple(); }
+
+  void dump(llvm::raw_ostream &os = llvm::errs()) const {
+    os << "<" << m_offset << ", ";
+    m_type.dump(os);
+    os << ">";
+  }
+
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const Field &f) {
+    f.dump(o);
+    return o;
+  }
+};
+
+
 /**
     A memory cell (or a field). An offset into a memory object.
 */
@@ -240,11 +281,10 @@ public:
     pointTo(*n, c.getRawOffset() + offset);
   }
 
-  bool hasLink() const { return hasLink(0); }
-  inline bool hasLink(unsigned offset) const;
-  inline const Cell &getLink(unsigned offset = 0) const;
-  inline void setLink(unsigned offset, const Cell &c);
-  inline void addLink(unsigned offset, Cell &c);
+  inline bool hasLink(Field offset) const;
+  inline const Cell &getLink(Field offset) const;
+  inline void setLink(Field offset, const Cell &c);
+  inline void addLink(Field offset, Cell &c);
   inline void addAccessedType(unsigned offset, const llvm::Type *t);
   inline void growSize(unsigned offset, const llvm::Type *t);
 
@@ -381,38 +421,6 @@ private:
   Cell m_forward;
 
 public:
-  class Field {
-    unsigned m_offset = -1;
-    FieldType m_type{nullptr};
-
-  public:
-    Field() = default;
-    Field(unsigned offset, FieldType type) : m_offset(offset), m_type(type) {}
-    Field(const Field &) = default;
-    Field &operator=(const Field &) = default;
-
-    std::pair<unsigned, FieldType> asTuple() const {
-      return {m_offset, m_type};
-    };
-
-    unsigned getOffset() const { return m_offset; }
-    FieldType getType() const { return m_type; }
-
-    bool operator<(const Field &o) const { return asTuple() < o.asTuple(); }
-    bool operator==(const Field &o) const { return asTuple() == o.asTuple(); }
-
-    void dump(llvm::raw_ostream &os = llvm::errs()) const {
-      os << "<" << m_offset << ", ";
-      m_type.dump(os);
-      os << ">";
-    }
-
-    friend llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const Field &f) {
-      f.dump(o);
-      return o;
-    }
-  };
-
   typedef Graph::Set Set;
   typedef boost::container::flat_map<unsigned, Set> accessed_types_type;
   typedef boost::container::flat_map<Field, CellRef> links_type;
@@ -435,17 +443,20 @@ protected:
   /// helper class to ensure that offsets are properly adjusted
   class Offset {
     const Node &m_node;
-    const unsigned m_offset;
-    const FieldType m_type;
-
+    const Field m_field;
   public:
     Offset(const Node &n, unsigned offset, FieldType type = FieldType::NotImplemented())
-        : m_node(n), m_offset(offset), m_type(type) {}
+        : m_node(n), m_field(offset, type) {}
+
+    Offset(const Node &n, Field field)
+        : m_node(n), m_field(field) {}
 
     unsigned getNumericOffset() const;
-    operator Node::Field() const {
-      return Field(getNumericOffset(), m_type);
-    }
+    FieldType getType() const { return m_field.getType(); }
+
+    operator Field() const { return m_field; }
+    Field getField() const { return m_field; }
+
     const Node &node() const { return m_node; }
   };
 
@@ -618,31 +629,20 @@ public:
   void growSize(unsigned v);
 
   bool hasLink(Field offset) const {
-    return hasLink(offset.getOffset());
-  }
-
-  bool hasLink(unsigned offset) const {
     return m_links.count(Offset(*this, offset)) > 0;
   }
 
-  const Cell &getLink(unsigned offset) const {
+  bool getNumLinks() const { return m_links.size(); }
+
+  const Cell &getLink(Field offset) const {
     return *m_links.at(Offset(*this, offset));
   }
-  const Cell &getLink(Field offset) const {
-    return getLink(offset.getOffset());
-  }
 
-  void setLink(unsigned offset, const Cell &c) {
+  void setLink(Field offset, const Cell &c) {
     getLink(Offset(*this, offset)) = c;
   }
-  void setLink(Field offset, const Cell &c) {
-    setLink(offset.getOffset(), c);
-  }
 
-  void addLink(unsigned offset, Cell &c);
-  void addLink(Field offset, Cell &c) {
-    addLink(offset.getOffset(), c);
-  }
+  void addLink(Field field, Cell &c);
 
   bool hasAccessedType(unsigned offset) const;
 
@@ -689,21 +689,21 @@ bool Node::isForwarding() const { return !m_forward.isNull(); }
 Cell &Node::getForwardDest() { return m_forward; }
 const Cell &Node::getForwardDest() const { return m_forward; }
 
-bool Cell::hasLink(unsigned offset) const {
-  return m_node && getNode()->hasLink(m_offset + offset);
+bool Cell::hasLink(Field offset) const {
+  return m_node && getNode()->hasLink(offset.addOffset(m_offset));
 }
 
-const Cell &Cell::getLink(unsigned offset) const {
+const Cell &Cell::getLink(Field offset) const {
   assert(m_node);
-  return getNode()->getLink(offset + m_offset);
+  return getNode()->getLink(offset.addOffset(m_offset));
 }
 
-void Cell::setLink(unsigned offset, const Cell &c) {
-  getNode()->setLink(m_offset + offset, c);
+void Cell::setLink(Field offset, const Cell &c) {
+  getNode()->setLink(offset.addOffset(m_offset), c);
 }
 
-void Cell::addLink(unsigned offset, Cell &c) {
-  getNode()->addLink(m_offset + offset, c);
+void Cell::addLink(Field offset, Cell &c) {
+  getNode()->addLink(offset.addOffset(m_offset), c);
 }
 
 void Cell::addAccessedType(unsigned offset, const llvm::Type *t) {
