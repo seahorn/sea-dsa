@@ -32,8 +32,8 @@ void FunctionalMapper::insert (const Cell &src, const Cell &dst)
   for (auto &kv : src.getNode ()->links ())
   {
     if (kv.first.getOffset() < srcOffset.getNumericOffset()) continue;
-    if (dst.getNode ()->hasLink (srcNodeOffset + kv.first.getOffset()))
-      insert (*kv.second, dst.getNode ()->getLink (srcNodeOffset + kv.first.getOffset()));
+    if (dst.getNode()->hasLink(kv.first.addOffset(srcNodeOffset)))
+      insert(*kv.second, dst.getNode()->getLink(kv.first.addOffset(srcNodeOffset)));
   }
 }
 
@@ -103,14 +103,14 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   {
     unsigned j = n2.isCollapsed () ? 0 : kv.first.getOffset() +
                                          offset.getNumericOffset();
-    if (!n2.hasLink (j))      
+    if (!n2.hasLink(Field(j, FieldType::NotImplemented())))
     { m_sim.clear (); return false; }
     
     Node *n3 = kv.second->getNode ();
     // adjusted offset
     unsigned off1 = kv.second->getOffset ();
 
-    auto &link = n2.getLink (j);
+    auto &link = n2.getLink(Field(j, FieldType::NotImplemented()));
     Node *n4 = link.getNode ();
     // adjusted offset
     unsigned off2 = link.getOffset ();
