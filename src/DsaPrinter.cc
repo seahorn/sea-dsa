@@ -491,12 +491,12 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
   //   return -1;
   // }
 
-  static int getIndex(const sea_dsa::Node *Node, unsigned Offset) {
+  static int getIndex(const sea_dsa::Node *Node, Node::Field Offset) {
     auto it = Node->links().begin();
     auto et = Node->links().end();
     unsigned idx = 0;
     for (; it != et; ++it, ++idx) {
-      if (it->first.getOffset() == Offset)
+      if (it->first == Offset)
         return idx;
     }
     return -1;
@@ -535,7 +535,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
           OS << *v;
         GW.emitSimpleNode(it->first, "shape=plaintext", OS.str());
         Node *DestNode = it->second->getNode();
-        int EdgeDest = getIndex(DestNode, it->second->getOffset());
+        int EdgeDest = getIndex(DestNode, it->second);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee", EmitLinkTypeSuffix(*it->second)) +
                           ",color="
@@ -555,7 +555,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue",
                           OS.str());
         Node *DestNode = it->second->getNode();
-        int EdgeDest = getIndex(DestNode, it->second->getOffset());
+        int EdgeDest = getIndex(DestNode, it->second);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("tailclip=false,color=gray63",
                           EmitLinkTypeSuffix(*it->second)));
@@ -574,7 +574,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue",
                           OS.str());
         Node *DestNode = it->second->getNode();
-        int EdgeDest = getIndex(DestNode, it->second->getOffset());
+        int EdgeDest = getIndex(DestNode, it->second);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee,color=gray63",
                           EmitLinkTypeSuffix(*it->second)));
@@ -588,9 +588,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         if (!N.isForwarding()) {
 
           for (auto &OffLink : N.getLinks()) {
-            unsigned Off = OffLink.first.getOffset();
             const sea_dsa::Cell &C = *OffLink.second.get();
-            int EdgeDest = getIndex(C.getNode(), Off);
+            int EdgeDest = getIndex(C.getNode(), OffLink.first);
 
             GW.emitEdge(&N, -1, C.getNode(), EdgeDest, Twine("arrowtail=tee",
                                                        EmitLinkTypeSuffix(C)));
