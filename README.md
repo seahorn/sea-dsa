@@ -44,7 +44,7 @@ If you already installed `llvm-3.8` in your machine:
     mkdir build && cd build
 	cmake -DCMAKE_INSTALL_PREFIX=__dir__ -DLLVM_DIR=__here_llvm-3.8__/share/llvm/cmake  ..
    	cmake --build . --target install
-	cmake --build . --target test-dsa
+	cmake --build . --target test-sea-dsa
 	
 Otherwise:
 
@@ -55,7 +55,7 @@ Otherwise:
 To run tests:
 
     export SEADSA=__dir__/bin
-	cmake --build . --target test-dsa
+	cmake --build . --target test-sea-dsa
 
 ## Dealing with C/C++ library and external calls ##
 
