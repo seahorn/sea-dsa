@@ -155,6 +155,10 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
     // -- skip null
     if (isa<Constant>(&v) && cast<Constant>(&v)->isNullValue())
       continue;
+    
+    // -- skip undef
+    if (isa<Constant>(&v) && isa<UndefValue>(&v))
+      continue;    
 
     sea_dsa::Cell c = valueCell(v);
     assert(!c.isNull());
@@ -658,7 +662,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     }
   }
 
-  Value *callee = CS.getCalledValue()->stripPointerCasts();
+  // Value *callee = CS.getCalledValue()->stripPointerCasts();
   // TODO: handle inline assembly
   // TODO: handle variable argument functions
 }

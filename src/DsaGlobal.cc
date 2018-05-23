@@ -208,18 +208,28 @@ bool FlatMemoryGlobal::runOnModule(Module &M) {
 namespace sea_dsa {
 
 // A simple worklist implementation
-template <typename T> struct WorkList<T>::impl { std::queue<T> m_w; };
+template <typename T> struct WorkList<T>::impl {
+  std::queue<T> m_w;
+  std::set<T> m_s;
+};
 template <typename T>
 WorkList<T>::WorkList() : m_pimpl(new WorkList<T>::impl()) {}
 template <typename T> bool WorkList<T>::empty() const {
   return m_pimpl->m_w.empty();
 }
+template <typename T> size_t WorkList<T>::size() const {
+  return m_pimpl->m_w.size();
+}
 template <typename T> void WorkList<T>::enqueue(const T &e) {
-  m_pimpl->m_w.push(e);
+  auto p = m_pimpl->m_s.insert(e);
+  if (p.second) {
+    m_pimpl->m_w.push(e);
+  }
 }
 template <typename T> const T &WorkList<T>::dequeue() {
   const T &e = m_pimpl->m_w.front();
   m_pimpl->m_w.pop();
+  m_pimpl->m_s.erase(e);
   return e;
 }
 
@@ -348,6 +358,9 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   /// -- top-down/bottom-up propagation until no change
 
+  LOG("dsa-global",
+      errs () << "Initially " << w.size () << " callsite to propagate\n";);
+  
   unsigned td_props = 0;
   unsigned bu_props = 0;
   while (!w.empty()) {
@@ -364,6 +377,8 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
     if (!callee || callee->isDeclaration() || callee->empty())
       continue;
 
+    LOG("dsa-global",
+	errs() << "Selected callsite " << *I << " from queue ... ";);
     auto caller = dsaCS.getCaller();
 
     assert(m_graphs.count(caller) > 0);
@@ -393,6 +408,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
       for (auto ci : callerD)
         w.enqueue(ci); // they might need top-down
     }
+    LOG("dsa-global", errs() << "processed\n";);
   }
 
   LOG("dsa-global",
