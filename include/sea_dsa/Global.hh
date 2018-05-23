@@ -98,6 +98,7 @@ namespace sea_dsa {
   public:
     WorkList ();
     bool empty () const;
+    size_t size() const;
     void enqueue (const T &e);
     const T& dequeue ();
     
