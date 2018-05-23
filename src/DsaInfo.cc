@@ -36,18 +36,28 @@ static bool isStaticallyKnown (const DataLayout* dl,
   return false; 
 }
 
-static bool compareValues (const Value* v1, const Value* v2) {
-  if (!v1->hasName ()) {
-    errs () << "DsaInfo requires " << *v1 << " to have a name\n";
-    assert (v1->hasName ());
-  }
-
-  if (!v2->hasName ()) {
-    errs () << "DsaInfo requires " << *v2 << " to have a name\n";
-    assert (v2->hasName ());
+static StringRef valueToStr(const Value*v) {
+  if (const Constant *c = dyn_cast<const Constant>(v)) {
+    if (const ConstantInt *n = dyn_cast<const ConstantInt>(c)) {
+      const APInt &ai = n->getValue();
+      SmallString<128> str;      
+      ai.toStringSigned(str, 10);
+      return str.str();
+    }
   }
   
-  return (v1->getName () < v2->getName ());
+  if (!v->hasName()) {
+    errs () << "DsaInfo requires " << *v << " to have a name\n";
+  }
+  assert (v->hasName());
+  return v->getName();
+}
+
+static bool compareValues (const Value* v1, const Value* v2) {
+  StringRef str1 = valueToStr(v1);
+  StringRef str2 = valueToStr(v2);
+  
+  return (str1 < str2);
 }
 
 // return null if there is no graph for f
