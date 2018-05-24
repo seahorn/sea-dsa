@@ -23,6 +23,13 @@ main requirements are:
 - Boost >= 1.55
 - LLVM 5.0
 
+To run tests, install the following packages:
+
+- `sudo pip install lit OutputCheck`
+- `sudo easy_install networkx`
+- `sudo apt-get install libgraphviz-dev`
+- `sudo easy_install pygraphviz`
+
 ## Compilation and Usage ##
 
 ### Integration in other C++ projects (for users) ## 
