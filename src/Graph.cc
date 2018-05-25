@@ -244,7 +244,7 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   for (auto &kv : m_links) {
     if (kv.second->isNull())
       continue;
-    m_forward.addLink(kv.first.getOffset(), *kv.second);
+    m_forward.addLink(kv.first, *kv.second);
   }
 
   // reset current node
