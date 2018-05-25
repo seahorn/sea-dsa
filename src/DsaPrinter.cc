@@ -491,7 +491,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
   //   return -1;
   // }
 
-  static int getIndex(const sea_dsa::Node *Node, Node::Field Offset) {
+  static int getIndex(const sea_dsa::Node *Node, sea_dsa::Field Offset) {
     auto it = Node->links().begin();
     auto et = Node->links().end();
     unsigned idx = 0;
@@ -510,6 +510,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     typedef sea_dsa::Graph::formal_const_iterator formal_const_iterator;
     typedef sea_dsa::Graph::return_const_iterator return_const_iterator;
     typedef sea_dsa::Node Node;
+    typedef sea_dsa::Field Field;
     typedef sea_dsa::Graph::const_iterator node_const_iterator;
 
     auto EmitLinkTypeSuffix = [](const sea_dsa::Cell &C) {
@@ -535,7 +536,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
           OS << *v;
         GW.emitSimpleNode(it->first, "shape=plaintext", OS.str());
         Node *DestNode = it->second->getNode();
-        int EdgeDest = getIndex(DestNode, it->second);
+        Field DestField(it->second->getOffset(), it->second->getType());
+        int EdgeDest = getIndex(DestNode, DestField);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee", EmitLinkTypeSuffix(*it->second)) +
                           ",color="
@@ -555,7 +557,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue",
                           OS.str());
         Node *DestNode = it->second->getNode();
-        int EdgeDest = getIndex(DestNode, it->second);
+        Field DestField(it->second->getOffset(), it->second->getType());
+        int EdgeDest = getIndex(DestNode, DestField);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("tailclip=false,color=gray63",
                           EmitLinkTypeSuffix(*it->second)));
@@ -574,7 +577,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue",
                           OS.str());
         Node *DestNode = it->second->getNode();
-        int EdgeDest = getIndex(DestNode, it->second);
+        Field DestField(it->second->getOffset(), it->second->getType());
+        int EdgeDest = getIndex(DestNode, DestField);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee,color=gray63",
                           EmitLinkTypeSuffix(*it->second)));
