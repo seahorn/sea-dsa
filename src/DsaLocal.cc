@@ -325,12 +325,14 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   base.commitToType(FieldType(LI.getType()));
   // update/create the link
   if (!isSkip(LI)) {
-    if (!base.hasLink()) {
+    Field LoadedField(0, FieldType(LI.getType()));
+
+    if (!base.hasLink(LoadedField)) {
       Node &n = m_graph.mkNode();
-      base.setLink(0, Cell(&n, 0, FieldType(LI.getType())));
+      base.setLink(LoadedField, Cell(&n, 0, FieldType(LI.getType())));
     }
 
-    m_graph.mkCell(LI, base.getLink());
+    m_graph.mkCell(LI, base.getLink(LoadedField));
   }
 
   // handle first-class structs by pretending pointers to them are loaded
@@ -377,7 +379,7 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
       // val.getType() can be an opaque type, so we cannot use it to get
       // a ptr type.
       Cell dest(val.getNode(), val.getRawOffset(), FieldType(ValOp->getType()));
-      base.addLink(0, dest);
+      base.addLink(Field(0, FieldType(ValOp->getType())), dest);
     }
   }
 }
@@ -573,7 +575,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
     Cell vCell = valueCell(v);
     vCell.commitToType(FieldType(v.getType()));
     assert(!vCell.isNull());
-    out.addLink(0, vCell);
+    out.addLink(Field(0, FieldType(v.getType())), vCell);
   }
 }
 
@@ -599,17 +601,18 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   in.setRead();
 
   if (!isSkip(I)) {
+    Field InstType(0, FieldType(I.getType()));
     // -- create a new node if there is no link at this offset yet
-    if (!in.hasLink()) {
+    if (!in.hasLink(InstType)) {
       Node &n = m_graph.mkNode();
-      in.setLink(0, Cell(&n, 0, FieldType(I.getType())));
+      in.setLink(InstType, Cell(&n, 0, FieldType(I.getType())));
       // -- record allocation site
       n.addAllocSite(I);
       // -- mark node as a stack node
       n.setAlloca();
     }
     // create cell for the read value and point it to where the link points to
-    const Cell &baseC = in.getLink();
+    const Cell &baseC = in.getLink(InstType);
     m_graph.mkCell(I, Cell(baseC.getNode(), baseC.getRawOffset(),
                            FieldType(I.getType())));
   }

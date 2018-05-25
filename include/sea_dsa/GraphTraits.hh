@@ -50,7 +50,7 @@ namespace sea_dsa {
       this_type tmp = *this; ++*this; return tmp;
     }
 
-    Node::Field getField() const { return _links_it->first; }
+    Field getField() const { return _links_it->first; }
     const Cell &getCell() const {
       assert(_links_it->second);
       return *_links_it->second;
