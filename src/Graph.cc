@@ -99,15 +99,15 @@ bool sea_dsa::Node::isEmtpyAccessedType() const {
 bool sea_dsa::Node::hasAccessedType(unsigned o) const {
   if (isCollapsed())
     return false;
-  Offset offset(*this, o);
+  Offset offset(*this, o, FieldType::NotImplemented());
   return m_accessedTypes.count(offset.getNumericOffset()) > 0 &&
          !m_accessedTypes.at(offset.getNumericOffset()).isEmpty();
 }
 
-void sea_dsa::Node::addAccessedType(unsigned o, const llvm::Type *t) {
+void sea_dsa::Node::addAccessedType(unsigned o, llvm::Type *t) {
   if (isCollapsed())
     return;
-  Offset offset(*this, o);
+  Offset offset(*this, o, FieldType::NotImplemented());
   growSize(offset, t);
   if (isCollapsed())
     return;
@@ -156,14 +156,15 @@ void sea_dsa::Node::addAccessedType(const Offset &offset, Set types) {
   if (isCollapsed())
     return;
   for (const llvm::Type *t : types)
-    addAccessedType(offset.getNumericOffset(), t);
+    addAccessedType(offset.getNumericOffset(),
+                    const_cast<llvm::Type *>(t));
 }
 
 void sea_dsa::Node::joinAccessedTypes(unsigned offset, const Node &n) {
   if (isCollapsed() || n.isCollapsed())
     return;
   for (auto &kv : n.m_accessedTypes) {
-    const Offset noff(*this, kv.first + offset);
+    const Offset noff(*this, kv.first + offset, FieldType::NotImplemented());
     addAccessedType(noff, kv.second);
   }
 }
@@ -195,7 +196,7 @@ void sea_dsa::Node::collapse(int tag) {
     n.m_nodeType.join(m_nodeType);
     n.setCollapsed(true);
     n.m_size = 1;
-    pointTo(n, Offset(n, 0));
+    pointTo(n, Offset(n, 0, FieldType::NotImplemented()));
   }
 }
 
@@ -279,7 +280,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
     return;
   }
 
-  Offset offset(*this, o);
+  Offset offset(*this, o, FieldType::NotImplemented());
 
   if (!isCollapsed() && !n.isCollapsed() && n.isArray() && !isArray()) {
     // -- merge into array at offset 0
@@ -307,7 +308,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
       getNode()->unifyAt(*n.getNode(), o);
       return;
     } else {
-      Offset minoff(*min, o);
+      Offset minoff(*min, o, FieldType::NotImplemented());
       // -- arrays can only be unified at offset 0
       if (minoff.getNumericOffset() == 0) {
         if (min != this) {

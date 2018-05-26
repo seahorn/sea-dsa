@@ -285,8 +285,8 @@ public:
   inline const Cell &getLink(Field offset) const;
   inline void setLink(Field offset, const Cell &c);
   inline void addLink(Field offset, Cell &c);
-  inline void addAccessedType(unsigned offset, const llvm::Type *t);
-  inline void growSize(unsigned offset, const llvm::Type *t);
+  inline void addAccessedType(unsigned offset, llvm::Type *t);
+  inline void growSize(unsigned offset, llvm::Type *t);
 
   void commitToType(FieldType FT) {
     assert(!FT.isOpaque());
@@ -445,7 +445,7 @@ protected:
     const Node &m_node;
     const Field m_field;
   public:
-    Offset(const Node &n, unsigned offset, FieldType type = FieldType::NotImplemented())
+    Offset(const Node &n, unsigned offset, FieldType type)
         : m_node(n), m_field(offset, type) {}
 
     Offset(const Node &n, Field field)
@@ -647,14 +647,14 @@ public:
   bool hasAccessedType(unsigned offset) const;
 
   const Set getAccessedType(unsigned o) const {
-    Offset offset(*this, o);
+    Offset offset(*this, o, FieldType::NotImplemented());
     return m_accessedTypes.at(offset.getNumericOffset());
   }
   bool isVoid() const { return m_accessedTypes.empty(); }
   bool isEmtpyAccessedType() const;
 
   /// Adds a type of a field at a given offset
-  void addAccessedType(unsigned offset, const llvm::Type *t);
+  void addAccessedType(unsigned offset, llvm::Type *t);
 
   /// collapse the current node. Looses all field sensitivity
   /// tag argument is used for debugging only
@@ -706,13 +706,13 @@ void Cell::addLink(Field offset, Cell &c) {
   getNode()->addLink(offset.addOffset(m_offset), c);
 }
 
-void Cell::addAccessedType(unsigned offset, const llvm::Type *t) {
+void Cell::addAccessedType(unsigned offset, llvm::Type *t) {
   getNode()->addAccessedType(m_offset + offset, t);
 }
 
-void Cell::growSize(unsigned o, const llvm::Type *t) {
+void Cell::growSize(unsigned o, llvm::Type *t) {
   assert(!isNull());
-  Node::Offset offset(*getNode(), m_offset + o);
+  Node::Offset offset(*getNode(), m_offset + o, FieldType(t));
   getNode()->growSize(offset, t);
 }
 
