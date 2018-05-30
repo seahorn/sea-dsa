@@ -5,16 +5,21 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <string>
 #include <tuple>
 
 namespace sea_dsa {
 
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
 
+#define FT_STRINGIFY(x) #x
+#define FIELD_TYPE_NOT_IMPLEMENTED FieldType::NotImplemented( FT_STRINGIFY( __LINE__ ) )
+
 class FieldType {
   llvm::Type *m_ty = nullptr;
   bool m_isOpaque = false;
   bool m_NOT_IMPLEMENTED = false;
+  std::string m_whereNotImpl;
 
 public:
   std::tuple<llvm::Type *, bool, bool> asTuple() const {
@@ -27,9 +32,10 @@ public:
     return  ft;
   }
 
-  static FieldType NotImplemented() {
+  static FieldType NotImplemented(const char *Loc = "") {
     FieldType ft{nullptr};
     ft.m_NOT_IMPLEMENTED = true;
+    ft.m_whereNotImpl = Loc;
     return ft;
   }
 
@@ -56,10 +62,17 @@ public:
   llvm::Type *getLLVMType() const { return m_ty; }
 
   bool operator==(const FieldType &RHS) const {
+    if (isOpaque() || RHS.isOpaque())
+      return true;
+
     return asTuple() == RHS.asTuple();
   }
 
+  // opaque is top.
   bool operator<(const FieldType &RHS) const {
+    if (isOpaque() || RHS.isOpaque())
+      return false;
+
     return asTuple() < RHS.asTuple();
   }
 
@@ -81,7 +94,7 @@ public:
 
   void dump(llvm::raw_ostream &OS = llvm::errs()) const {
     if (m_NOT_IMPLEMENTED) {
-      OS << "TODO";
+      OS << "TODO <" << m_whereNotImpl << ">";
       return;
     }
 

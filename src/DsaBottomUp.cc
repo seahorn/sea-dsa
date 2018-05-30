@@ -129,7 +129,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
 // Keep it true until implementation is stable
 #ifndef SANITY_CHECKS
-  const bool do_sanity_checks = false;
+  const bool do_sanity_checks = true;
 #else
   const bool do_sanity_checks = true;
 #endif
@@ -191,7 +191,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
         Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
 
-        SimulationMapperRef sm(new SimulationMapper());
+        /*SimulationMapperRef sm(new SimulationMapper());
         bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
                                                      *sm, do_sanity_checks);
         assert(res); // the simulation map was successfully built.
@@ -206,6 +206,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
           // node in the caller graph
           checkAllNodesAreMapped(*callee, calleeG, *sm);
         }
+         */
       }
     }
 
