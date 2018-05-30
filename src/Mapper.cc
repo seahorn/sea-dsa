@@ -45,7 +45,7 @@ bool SimulationMapper::insert (const Cell &c1, Cell &c2)
   if (c1.isNull()) return true;
 
   if (c2.getNode()->isCollapsed())
-    return insert (*c1.getNode (), *c2.getNode (), 0);
+    return insert (*c1.getNode (), *c2.getNode (), Field(0, FIELD_TYPE_NOT_IMPLEMENTED));
 
   // XXX: adjust the offsets
   Node::Offset o1 (*c1.getNode(), c1.getRawOffset(), c1.getType());
@@ -54,20 +54,20 @@ bool SimulationMapper::insert (const Cell &c1, Cell &c2)
   if (o2.getNumericOffset() < o1.getNumericOffset())
   { m_sim.clear (); return false; }
   
-  return insert (*c1.getNode (), *c2.getNode (), o2.getNumericOffset() -
-                                                 o1.getNumericOffset());
+  return insert (*c1.getNode (), *c2.getNode (), Field(o2.getNumericOffset() -
+                                                 o1.getNumericOffset(), c2.getType()));
 }
 
 // Return true iff n1 (at offset 0) is simulated by n2 at offset o
-bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
+bool SimulationMapper::insert (const Node &n1, Node &n2, Field o)
 {
   // XXX: adjust the offset
-  Node::Offset offset (n2, o, FieldType::NotImplemented());
+  Node::Offset offset (n2, o);
 
   auto &map = m_sim[&n1];
   if (map.count (&n2) > 0)
   { // n1 is simulated by n2 at *adjusted* offset 
-    if (map.at (&n2) == offset.getNumericOffset()) return true;
+    if (map.at (&n2).getOffset() == offset.getNumericOffset()) return true;
     m_sim.clear (); return false;
   }
   
@@ -76,7 +76,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
   // XXX not necessarily at offset 0
   if (!n1.isArray () && n2.isArray ())
   {
-    if (offset.getNumericOffset() > 0 && n1.size () + o > n2.size ())
+    if (offset.getNumericOffset() > 0 && n1.size () + o.getOffset() > n2.size ())
       { m_sim.clear (); return false; }
   }
 
@@ -96,21 +96,21 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
       
   // At this point, n1 (at offset 0) is simulated by n2 at adjusted
   // offset. Thus, we add n2 into the map.
-  map[&n2] = offset.getNumericOffset();
+  map[&n2] = Field(offset.getNumericOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
 
   // Check children recursively
   for (auto &kv : n1.links ())
   {
     unsigned j = n2.isCollapsed () ? 0 : kv.first.getOffset() +
                                          offset.getNumericOffset();
-    if (!n2.hasLink(Field(j, FieldType::NotImplemented())))
+    if (!n2.hasLink(Field(j, FIELD_TYPE_NOT_IMPLEMENTED)))
     { m_sim.clear (); return false; }
     
     Node *n3 = kv.second->getNode ();
     // adjusted offset
     unsigned off1 = kv.second->getOffset ();
 
-    auto &link = n2.getLink(Field(j, FieldType::NotImplemented()));
+    auto &link = n2.getLink(Field(j, FIELD_TYPE_NOT_IMPLEMENTED));
     Node *n4 = link.getNode ();
     // adjusted offset
     unsigned off2 = link.getOffset ();
@@ -120,7 +120,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, unsigned o)
     { m_sim.clear (); return false; }
 
     // Offsets must be adjusted     
-    if (!insert (*n3, *n4, off2 - off1))
+    if (!insert (*n3, *n4, Field(off2 - off1, FIELD_TYPE_NOT_IMPLEMENTED)))
     { m_sim.clear (); return false; }
   }
   
@@ -143,8 +143,7 @@ bool SimulationMapper::isInjective (bool onlyModified)  const
     for (auto &c: kv.second) 
     {
       // FIXME: Types
-      auto res = inv_sim.insert(Cell(c.first, c.second,
-                                     FieldType::NotImplemented()));
+      auto res = inv_sim.insert(Cell(c.first, c.second.getOffset(), c.second.getType()));
       if (!onlyModified || c.first->isModified()) 
         if (!res.second) return false;
     }
