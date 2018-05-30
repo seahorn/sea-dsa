@@ -55,7 +55,7 @@ unsigned sea_dsa::Node::Offset::getNumericOffset() const {
   const unsigned offset = m_field.getOffset();
 
   assert(!n->isForwarding());
-  if (n->isCollapsed())
+  if (n->isOffsetCollapsed())
     return 0;
   if (n->isArray())
     return offset % n->size();
@@ -63,12 +63,12 @@ unsigned sea_dsa::Node::Offset::getNumericOffset() const {
 }
 
 void sea_dsa::Node::growSize(unsigned v) {
-  if (isCollapsed())
+  if (isOffsetCollapsed())
     m_size = 1;
   else if (v > m_size) {
     // -- cannot grow size of an array
     if (isArray())
-      collapse(__LINE__);
+      collapseOffsets(__LINE__);
     else
       m_size = v;
   }
@@ -79,7 +79,7 @@ void sea_dsa::Node::growSize(const Offset &offset, const llvm::Type *t) {
     return;
   if (t->isVoidTy())
     return;
-  if (isCollapsed())
+  if (isOffsetCollapsed())
     return;
 
   assert(m_graph);
@@ -97,7 +97,7 @@ bool sea_dsa::Node::isEmtpyAccessedType() const {
 }
 
 bool sea_dsa::Node::hasAccessedType(unsigned o) const {
-  if (isCollapsed())
+  if (isOffsetCollapsed())
     return false;
   Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
   return m_accessedTypes.count(offset.getNumericOffset()) > 0 &&
@@ -105,11 +105,11 @@ bool sea_dsa::Node::hasAccessedType(unsigned o) const {
 }
 
 void sea_dsa::Node::addAccessedType(unsigned o, llvm::Type *t) {
-  if (isCollapsed())
+  if (isOffsetCollapsed())
     return;
   Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
   growSize(offset, t);
-  if (isCollapsed())
+  if (isOffsetCollapsed())
     return;
 
   // -- recursively expand structures
@@ -119,7 +119,7 @@ void sea_dsa::Node::addAccessedType(unsigned o, llvm::Type *t) {
     unsigned idx = 0;
     for (auto it = sty->element_begin(), end = sty->element_end(); it != end;
          ++it, ++idx) {
-      if (getNode()->isCollapsed())
+      if (getNode()->isOffsetCollapsed())
         return;
       unsigned fldOffset = sl->getElementOffset(idx);
       addAccessedType(o + fldOffset, *it);
@@ -130,14 +130,14 @@ void sea_dsa::Node::addAccessedType(unsigned o, llvm::Type *t) {
     uint64_t sz =
         m_graph->getDataLayout().getTypeStoreSize(aty->getElementType());
     for (unsigned i = 0, e = aty->getNumElements(); i < e; ++i) {
-      if (getNode()->isCollapsed())
+      if (getNode()->isOffsetCollapsed())
         return;
       addAccessedType(o + i * sz, aty->getElementType());
     }
   } else if (const VectorType *vty = dyn_cast<const VectorType>(t)) {
     uint64_t sz = vty->getElementType()->getPrimitiveSizeInBits() / 8;
     for (unsigned i = 0, e = vty->getNumElements(); i < e; ++i) {
-      if (getNode()->isCollapsed())
+      if (getNode()->isOffsetCollapsed())
         return;
       addAccessedType(o + i * sz, vty->getElementType());
     }
@@ -153,7 +153,7 @@ void sea_dsa::Node::addAccessedType(unsigned o, llvm::Type *t) {
 }
 
 void sea_dsa::Node::addAccessedType(const Offset &offset, Set types) {
-  if (isCollapsed())
+  if (isOffsetCollapsed())
     return;
   for (const llvm::Type *t : types)
     addAccessedType(offset.getNumericOffset(),
@@ -161,7 +161,7 @@ void sea_dsa::Node::addAccessedType(const Offset &offset, Set types) {
 }
 
 void sea_dsa::Node::joinAccessedTypes(unsigned offset, const Node &n) {
-  if (isCollapsed() || n.isCollapsed())
+  if (isOffsetCollapsed() || n.isOffsetCollapsed())
     return;
   for (auto &kv : n.m_accessedTypes) {
     const Offset noff(*this, kv.first + offset, FieldType::NotImplemented());
@@ -169,13 +169,13 @@ void sea_dsa::Node::joinAccessedTypes(unsigned offset, const Node &n) {
   }
 }
 
-/// collapse the current node. Looses all field sensitivity
-void sea_dsa::Node::collapse(int tag) {
-  if (isCollapsed())
+/// collapse the current node. Looses all offset-based field sensitivity
+void sea_dsa::Node::collapseOffsets(int tag) {
+  if (isOffsetCollapsed())
     return;
 
   LOG("unique_scalar", if (m_unique_scalar) errs()
-                           << "KILL due to collapse: " << *m_unique_scalar
+                           << "KILL due to offset-collapse: " << *m_unique_scalar
                            << "\n";);
 
   m_unique_scalar = nullptr;
@@ -184,19 +184,19 @@ void sea_dsa::Node::collapse(int tag) {
   // collapsed to indicate that it cannot grow or change
   if (size() <= 1) {
     m_size = 1;
-    setCollapsed(true);
+    setOffsetCollapsed(true);
     return;
   } else {
-    LOG("dsa-collapse", errs() << "Collapsing tag: " << tag << "\n";
+    LOG("dsa-collapse", errs() << "Offset-Collapsing tag: " << tag << "\n";
         write(errs()); errs() << "\n";);
 
     // create a new node to be the collapsed version of the current one
     // move everything to the new node. This breaks cycles in the links.
     Node &n = m_graph->mkNode();
     n.m_nodeType.join(m_nodeType);
-    n.setCollapsed(true);
+    n.setOffsetCollapsed(true);
     n.m_size = 1;
-    pointTo(n, Offset(n, 0, FieldType::NotImplemented()));
+    pointTo(n, Offset(n, 0, FIELD_TYPE_NOT_IMPLEMENTED));
   }
 }
 
@@ -228,8 +228,8 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   // // -- grow the size if necessary
   // if (sz + noffset > node.size ()) node.growSize (sz + noffset);
 
-  assert(!node.isForwarding() || node.getNode()->isCollapsed());
-  if (!node.getNode()->isCollapsed()) {
+  assert(!node.isForwarding() || node.getNode()->isOffsetCollapsed());
+  if (!node.getNode()->isOffsetCollapsed()) {
     assert(!node.isForwarding());
     // -- merge the types
     node.joinAccessedTypes(noffset, *this);
@@ -274,15 +274,15 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
   assert(!n.isForwarding());
 
   // collapse before merging with a collapsed node
-  if (!isCollapsed() && n.isCollapsed()) {
-    collapse(__LINE__);
+  if (!isOffsetCollapsed() && n.isOffsetCollapsed()) {
+    collapseOffsets(__LINE__);
     getNode()->unifyAt(*n.getNode(), o);
     return;
   }
 
-  Offset offset(*this, o, FieldType::NotImplemented());
+  Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
 
-  if (!isCollapsed() && !n.isCollapsed() && n.isArray() && !isArray()) {
+  if (!isOffsetCollapsed() && !n.isOffsetCollapsed() && n.isArray() && !isArray()) {
     // -- merge into array at offset 0
     if (offset.getNumericOffset() == 0) {
       n.unifyAt(*this, 0);
@@ -290,7 +290,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
     }
     // -- cannot merge array at non-zero offset
     else {
-      collapse(__LINE__);
+      collapseOffsets(__LINE__);
       getNode()->unifyAt(*n.getNode(), o);
       return;
     }
@@ -304,11 +304,11 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
     // can only shrink an array if the new size is a divisor of all
     // previous non-constant indexes
     if (max->size() % min->size() != 0) {
-      collapse(__LINE__);
+      collapseOffsets(__LINE__);
       getNode()->unifyAt(*n.getNode(), o);
       return;
     } else {
-      Offset minoff(*min, o, FieldType::NotImplemented());
+      Offset minoff(*min, o, FIELD_TYPE_NOT_IMPLEMENTED);
       // -- arrays can only be unified at offset 0
       if (minoff.getNumericOffset() == 0) {
         if (min != this) {
@@ -319,7 +319,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
         // otherwise, proceed unifying n into this
       } else {
         // -- cannot unify arrays at non-zero offset
-        collapse(__LINE__);
+        collapseOffsets(__LINE__);
         getNode()->unifyAt(*n.getNode(), o);
         return;
       }
@@ -328,7 +328,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
     // collapse whenever merging a non-array into an array at non-0 offset
     // and the non-array does not fit into the array
     if (offset.getNumericOffset() != 0 && offset.getNumericOffset() + n.size() > size()) {
-      collapse(__LINE__);
+      collapseOffsets(__LINE__);
       getNode()->unifyAt(*n.getNode(), o);
       return;
     }
@@ -337,7 +337,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
   if (&n == this) {
     // -- merging the node into itself at a different offset
     if (offset.getNumericOffset() > 0)
-      collapse(__LINE__);
+      collapseOffsets(__LINE__);
     return;
   }
 
@@ -443,7 +443,7 @@ unsigned sea_dsa::Node::mergeAllocSites(Node &n, Cache &seen) {
 }
 
 void sea_dsa::Node::writeAccessedTypes(raw_ostream &o) const {
-  if (isCollapsed())
+  if (isOffsetCollapsed())
     o << "collapsed";
   else {
     // Go through all the types, and just print them.
@@ -571,7 +571,7 @@ unsigned sea_dsa::Cell::getRawOffset() const {
 
 unsigned sea_dsa::Cell::getOffset() const {
   // -- adjust the offset based on the kind of node
-  if (isNull() || getNode()->isCollapsed())
+  if (isNull() || getNode()->isOffsetCollapsed())
     return 0;
   else if (getNode()->isArray())
     return (getRawOffset() % getNode()->size());
@@ -585,7 +585,7 @@ void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
   m_node = &n;
   m_type = FieldType::NotImplemented();
   errs() << "dsads\n";
-  if (n.isCollapsed())
+  if (n.isOffsetCollapsed())
     m_offset = 0;
   else if (n.isArray()) {
     assert(n.size() > 0);
