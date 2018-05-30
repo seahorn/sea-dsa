@@ -53,24 +53,24 @@ namespace sea_dsa {
 
   static void printMemTypes (nodes_range nodes, llvm::raw_ostream &o) { 
     // Here counters
-    unsigned num_collapses = 0;    // number of collapsed nodes
+    unsigned num_offset_collapses = 0;    // number of offset-collapsed nodes
     unsigned num_typed_nodes = 0;  // number of typed nodes
     unsigned num_untyped_nodes = 0;
     
     o << " --- Type information\n";
     for (const auto &n: nodes) {
-      if (n.getNode()->isCollapsed ())
-	num_collapses ++;
+      if (n.getNode()->isOffsetCollapsed ())
+	num_offset_collapses++;
       else if (std::distance(n.getNode()->types().begin(),
 			     n.getNode()->types().end()) == 0)
-	num_untyped_nodes ++;    
+	num_untyped_nodes++;
       else if (std::distance(n.getNode()->types().begin(),
 			     n.getNode()->types().end()) > 0)
-	num_typed_nodes ++;
+	num_typed_nodes++;
     }
     o << "\t" << num_typed_nodes   << " number of typed nodes.\n";
     o << "\t" << num_untyped_nodes << " number of untyped nodes.\n";
-    o << "\t" << num_collapses     << " number of collapsed nodes.\n";
+    o << "\t" << num_offset_collapses     << " number of offset-collapsed nodes.\n";
     
     // ufo::Stats::uset ("DsaNumOfCollapsedNodes", num_collapses);
 

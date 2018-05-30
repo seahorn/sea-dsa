@@ -44,7 +44,7 @@ bool SimulationMapper::insert (const Cell &c1, Cell &c2)
 
   if (c1.isNull()) return true;
 
-  if (c2.getNode()->isCollapsed())
+  if (c2.getNode()->isOffsetCollapsed())
     return insert (*c1.getNode (), *c2.getNode (), Field(0, FIELD_TYPE_NOT_IMPLEMENTED));
 
   // XXX: adjust the offsets
@@ -81,17 +81,17 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, Field o)
   }
 
   // XXX: a collapsed node can simulate an array node
-  if (n1.isArray () && (!n2.isArray () && !n2.isCollapsed()))
+  if (n1.isArray () && (!n2.isArray () && !n2.isOffsetCollapsed()))
   { m_sim.clear (); return false; }
 
   if (n1.isArray () && offset.getNumericOffset() != 0)
   { m_sim.clear (); return false; } 
     
   // XXX: a collapsed node can simulate an array node
-  if (n1.isArray () && !n2.isCollapsed() && n1.size () != n2.size ())
+  if (n1.isArray () && !n2.isOffsetCollapsed() && n1.size () != n2.size ())
   { m_sim.clear (); return false; }
   
-  if (n1.isCollapsed () && !n2.isCollapsed ())
+  if (n1.isOffsetCollapsed() && !n2.isOffsetCollapsed())
   { m_sim.clear (); return false; }
       
   // At this point, n1 (at offset 0) is simulated by n2 at adjusted
@@ -101,7 +101,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, Field o)
   // Check children recursively
   for (auto &kv : n1.links ())
   {
-    unsigned j = n2.isCollapsed () ? 0 : kv.first.getOffset() +
+    unsigned j = n2.isOffsetCollapsed() ? 0 : kv.first.getOffset() +
                                          offset.getNumericOffset();
     if (!n2.hasLink(Field(j, FIELD_TYPE_NOT_IMPLEMENTED)))
     { m_sim.clear (); return false; }
@@ -116,7 +116,7 @@ bool SimulationMapper::insert (const Node &n1, Node &n2, Field o)
     unsigned off2 = link.getOffset ();
 
     // Offsets must be adjusted 
-    if (off2 < off1 && !n4->isCollapsed ())
+    if (off2 < off1 && !n4->isOffsetCollapsed())
     { m_sim.clear (); return false; }
 
     // Offsets must be adjusted     

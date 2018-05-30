@@ -342,7 +342,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
                                        const sea_dsa::Graph *G) {
     std::string empty;
     raw_string_ostream OS(empty);
-    if (N->isCollapsed()) {
+    if (N->isOffsetCollapsed()) {
       OS << "color=brown1, style=filled";
     }
     return OS.str();
@@ -355,8 +355,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     if (N->isForwarding()) {
       OS << "FORWARDING";
     } else {
-      if (N->isCollapsed())
-        OS << "COLLAPSED";
+      if (N->isOffsetCollapsed())
+        OS << "OFFSET-COLLAPSED";
       else {
         // Go through all the types, and just print them.
         const auto &ts = N->types();
