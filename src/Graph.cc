@@ -99,7 +99,7 @@ bool sea_dsa::Node::isEmtpyAccessedType() const {
 bool sea_dsa::Node::hasAccessedType(unsigned o) const {
   if (isCollapsed())
     return false;
-  Offset offset(*this, o, FieldType::NotImplemented());
+  Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
   return m_accessedTypes.count(offset.getNumericOffset()) > 0 &&
          !m_accessedTypes.at(offset.getNumericOffset()).isEmpty();
 }
@@ -107,7 +107,7 @@ bool sea_dsa::Node::hasAccessedType(unsigned o) const {
 void sea_dsa::Node::addAccessedType(unsigned o, llvm::Type *t) {
   if (isCollapsed())
     return;
-  Offset offset(*this, o, FieldType::NotImplemented());
+  Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
   growSize(offset, t);
   if (isCollapsed())
     return;
