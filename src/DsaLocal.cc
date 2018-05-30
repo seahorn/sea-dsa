@@ -498,7 +498,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 
   assert(!m_graph.hasCell(gep));
   sea_dsa::Node *baseNode = base.getNode();
-  if (baseNode->isCollapsed()) {
+  if (baseNode->isOffsetCollapsed()) {
     m_graph.mkCell(gep,
                    sea_dsa::Cell(baseNode, 0, sea_dsa::FieldType(nullptr)));
     return;
@@ -657,7 +657,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
       if (!isSkip(*(CS.getArgument(0)))) {
         if (m_graph.hasCell(*(CS.getArgument(0)))) {
           sea_dsa::Cell c = valueCell(*(CS.getArgument(0)));
-          c.getNode()->collapse(__LINE__);
+          c.getNode()->collapseOffsets(__LINE__);
         }
       }
       return;

@@ -336,7 +336,8 @@ public:
     unsigned modified : 1;
     unsigned read : 1;
     unsigned array : 1;
-    unsigned collapsed : 1;
+    unsigned offset_collapsed : 1;
+    unsigned type_collapsed : 1;
     unsigned external : 1;
     unsigned inttoptr : 1;
     unsigned ptrtoint : 1;
@@ -356,7 +357,8 @@ public:
       modified |= n.modified;
       read |= n.read;
       array |= n.array;
-      collapsed |= n.collapsed;
+      offset_collapsed |= n.offset_collapsed;
+      type_collapsed |= n.type_collapsed;
       external |= n.external;
       inttoptr |= n.inttoptr;
       ptrtoint |= n.ptrtoint;
@@ -364,15 +366,18 @@ public:
       dead |= n.dead;
 
       // XXX: cannot be collapsed and array at the same time
-      if (collapsed && array)
+      if ((offset_collapsed || type_collapsed) && array)
         array = 0;
     }
     void reset() { memset(this, 0, sizeof(*this)); }
 
     std::string toStr() const {
-      std::string flags("");
-      if (collapsed)
-        flags += "C";
+      std::string flags;
+
+      if (offset_collapsed)
+        flags += "oC";
+      if (type_collapsed)
+        flags += "tC";
       if (alloca)
         flags += "S";
       if (heap)
@@ -582,12 +587,12 @@ public:
 
   bool isArray() const { return m_nodeType.array; }
 
-  Node &setCollapsed(bool v = true) {
-    m_nodeType.collapsed = v;
+  Node &setOffsetCollapsed(bool v = true) {
+    m_nodeType.offset_collapsed = v;
     setArray(false);
     return *this;
   }
-  bool isCollapsed() const { return m_nodeType.collapsed; }
+  bool isOffsetCollapsed() const { return m_nodeType.offset_collapsed; }
 
   bool isUnique() const { return m_unique_scalar; }
   const llvm::Value *getUniqueScalar() const { return m_unique_scalar; }
@@ -657,9 +662,9 @@ public:
   /// Adds a type of a field at a given offset
   void addAccessedType(unsigned offset, llvm::Type *t);
 
-  /// collapse the current node. Looses all field sensitivity
+  /// collapse the current node. Looses all offset-based field sensitivity
   /// tag argument is used for debugging only
-  void collapse(int tag /*= -2*/);
+  void collapseOffsets(int tag /*= -2*/);
 
   /// Add a new allocation site
   void addAllocSite(const llvm::Value &v);
