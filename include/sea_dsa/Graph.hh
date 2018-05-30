@@ -444,6 +444,7 @@ protected:
   class Offset {
     const Node &m_node;
     const Field m_field;
+
   public:
     Offset(const Node &n, unsigned offset, FieldType type)
         : m_node(n), m_field(offset, type) {}
@@ -740,7 +741,7 @@ template <> struct hash<sea_dsa::Cell> {
     size_t seed = 0;
     boost::hash_combine(seed, c.getNode());
     boost::hash_combine(seed, c.getRawOffset());
-    boost::hash_combine(seed, c.getType().asTuple());
+    // boost::hash_combine(seed, c.getType().asTuple());
     return seed;
   }
 };

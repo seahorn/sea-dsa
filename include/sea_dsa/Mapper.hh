@@ -33,7 +33,7 @@ namespace sea_dsa
     /// the simulation relation: a node is simulated by a cell
     typedef std::unordered_map<const Node*,
 			       boost::container::flat_map<Node*,
-							  unsigned> > rel_type;
+							  Field> > rel_type;
     rel_type m_sim;
     
   public:
@@ -41,7 +41,7 @@ namespace sea_dsa
     SimulationMapper () {}
     
     bool insert (const Cell &c1, Cell &c2);
-    bool insert (const Node &n1, Node &n2, unsigned offset);
+    bool insert (const Node &n1, Node &n2, Field offset);
     
     Cell get (const Node &n) const
     {
@@ -51,7 +51,7 @@ namespace sea_dsa
       if (map.size () != 1) return Cell ();
       
       auto kv = map.begin ();
-      return Cell (*kv->first, kv->second, FieldType::NotImplemented());
+      return Cell (*kv->first, kv->second.getOffset(), kv->second.getType());
     }
     
     Cell get (const Cell &c) const
