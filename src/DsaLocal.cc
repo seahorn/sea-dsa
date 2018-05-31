@@ -283,7 +283,8 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   n.addAllocSite(AI);
   // -- mark node as a stack node
   n.setAlloca();
-  m_graph.mkCell(AI, Cell(n, 0, FieldType::mkOpaque()));
+
+  m_graph.mkCell(AI, Cell(n, 0, FieldType(AI.getType())));
 }
 
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
@@ -372,10 +373,20 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
 
   if (!isSkip(*ValOp)) {
     Cell val = valueCell(*ValOp);
+
     if (BlockBuilderBase::isNullConstant(*ValOp)) {
       // TODO: mark link as possibly pointing to null
     } else {
       assert(!val.isNull());
+
+      if (val.getType().isOpaque()) {
+        errs() << "Store opaque edge for: ";
+        ValOp->dump();
+        errs() << ", ";
+        val.dump();
+        errs() << "\n";
+        base.getNode()->collapseTypes(__LINE__);
+      }
       // val.getType() can be an opaque type, so we cannot use it to get
       // a ptr type.
       Cell dest(val.getNode(), val.getRawOffset(), FieldType(ValOp->getType()));
@@ -503,11 +514,12 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     return;
   }
 
+  const sea_dsa::FieldType gepType(gep.getType());
+
   assert(!m_graph.hasCell(gep));
   sea_dsa::Node *baseNode = base.getNode();
   if (baseNode->isOffsetCollapsed()) {
-    m_graph.mkCell(gep,
-                   sea_dsa::Cell(baseNode, 0, sea_dsa::FieldType(nullptr)));
+    m_graph.mkCell(gep, sea_dsa::Cell(baseNode, 0, gepType));
     return;
   }
 
@@ -521,15 +533,13 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     baseNode->addAccessedType(off.first + base.getRawOffset(),
                               gep.getType()->getPointerElementType());
     m_graph.mkCell(gep, sea_dsa::Cell(n, off.first + base.getRawOffset(),
-                                      sea_dsa::FieldType(gep.getType())));
+                                      gepType));
     // finally, unify array with the node of the base
     n.unify(*baseNode);
   } else {
     baseNode->addAccessedType(off.first,
                               gep.getType()->getPointerElementType());
-    m_graph.mkCell(gep,
-                   sea_dsa::Cell(base, off.first,
-                                 sea_dsa::FieldType(gep.getType())));
+    m_graph.mkCell(gep, sea_dsa::Cell(base, off.first, gepType));
   }
 }
 
