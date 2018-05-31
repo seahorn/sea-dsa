@@ -12,8 +12,7 @@ namespace sea_dsa {
 
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
 
-#define FT_STRINGIFY(x) #x
-#define FIELD_TYPE_NOT_IMPLEMENTED FieldType::NotImplemented( FT_STRINGIFY( __LINE__ ) )
+#define FIELD_TYPE_NOT_IMPLEMENTED FieldType::NotImplemented(std::to_string(__LINE__ ))
 
 class FieldType {
   llvm::Type *m_ty = nullptr;
@@ -32,7 +31,7 @@ public:
     return  ft;
   }
 
-  static FieldType NotImplemented(const char *Loc = "") {
+  static FieldType NotImplemented(std::string Loc = "") {
     FieldType ft{nullptr};
     ft.m_NOT_IMPLEMENTED = true;
     ft.m_whereNotImpl = Loc;
@@ -44,11 +43,7 @@ public:
       m_ty = GetFirstPrimitiveTy(Ty);
   }
 
-  FieldType(const FieldType &ft)
-      : m_ty(ft.m_ty), m_isOpaque(ft.m_isOpaque),
-        m_NOT_IMPLEMENTED(ft.m_NOT_IMPLEMENTED) {
-    //llvm::errs() << "cpy\n";
-  }
+  FieldType(const FieldType &ft) = default;
   FieldType &operator=(const FieldType &) = default;
 
   FieldType(FieldType &&) = default;
@@ -94,7 +89,7 @@ public:
 
   void dump(llvm::raw_ostream &OS = llvm::errs()) const {
     if (m_NOT_IMPLEMENTED) {
-      OS << "TODO <" << m_whereNotImpl << ">";
+      OS << "TODO<" << m_whereNotImpl << ">";
       return;
     }
 
