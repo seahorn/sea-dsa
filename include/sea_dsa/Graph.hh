@@ -460,9 +460,7 @@ protected:
     unsigned getNumericOffset() const;
     FieldType getType() const { return m_field.getType(); }
 
-    operator Field() const { return m_field; }
-    Field getField() const { return m_field; }
-
+    Field getField() const { return Field(getNumericOffset(), getType()); }
     const Node &node() const { return m_node; }
   };
 
@@ -507,7 +505,7 @@ private:
 
   Cell &getLink(const Offset &offset) {
     assert(this == &offset.node());
-    auto &res = m_links[offset];
+    auto &res = m_links[offset.getField()];
     if (!res)
       res.reset(new Cell());
     return *res;
@@ -635,17 +633,17 @@ public:
   void growSize(unsigned v);
 
   bool hasLink(Field offset) const {
-    return m_links.count(Offset(*this, offset)) > 0;
+    return m_links.count(Offset(*this, offset).getField()) > 0;
   }
 
   bool getNumLinks() const { return m_links.size(); }
 
   const Cell &getLink(Field offset) const {
-    return *m_links.at(Offset(*this, offset));
+    return *m_links.at(Offset(*this, offset).getField());
   }
 
   void setLink(Field offset, const Cell &c) {
-    getLink(Offset(*this, offset)) = c;
+    getLink(Offset(*this, offset))= c;
   }
 
   void addLink(Field field, Cell &c);
@@ -653,7 +651,7 @@ public:
   bool hasAccessedType(unsigned offset) const;
 
   const Set getAccessedType(unsigned o) const {
-    Offset offset(*this, o, FieldType::NotImplemented());
+    Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
     return m_accessedTypes.at(offset.getNumericOffset());
   }
   bool isVoid() const { return m_accessedTypes.empty(); }
