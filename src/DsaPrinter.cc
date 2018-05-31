@@ -342,8 +342,12 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
                                        const sea_dsa::Graph *G) {
     std::string empty;
     raw_string_ostream OS(empty);
-    if (N->isOffsetCollapsed()) {
+    if (N->isOffsetCollapsed() && N->isTypeCollapsed()) {
       OS << "color=brown1, style=filled";
+    } else if (N->isOffsetCollapsed()) {
+      OS << "color=chocolate1, style=filled";
+    } else if (N->isTypeCollapsed()) {
+      OS << "color=darkorchid2, style=filled";
     }
     return OS.str();
   }
@@ -355,9 +359,13 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     if (N->isForwarding()) {
       OS << "FORWARDING";
     } else {
-      if (N->isOffsetCollapsed())
-        OS << "OFFSET-COLLAPSED";
-      else {
+      if (N->isOffsetCollapsed() || N->isTypeCollapsed()) {
+        if (N->isOffsetCollapsed())
+          OS << "OFFSET-";
+        if (N->isTypeCollapsed())
+          OS << "TYPE-";
+        OS << "COLLAPSED";
+      } else {
         // Go through all the types, and just print them.
         const auto &ts = N->types();
         bool firstType = true;
