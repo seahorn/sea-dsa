@@ -62,6 +62,20 @@ unsigned sea_dsa::Node::Offset::getNumericOffset() const {
   return offset;
 }
 
+/// adjust field type based on type of the node Collapsed nodes
+/// always have type null; otherwise offset is not adjusted
+sea_dsa::FieldType sea_dsa::Node::Offset::getType() const {
+  // XXX: m_node can be forward to another node since the constructor
+  // of Offset was called so we grab here the non-forwarding node
+  Node *n = const_cast<Node *>(m_node.getNode());
+
+  assert(!n->isForwarding());
+  if (n->isTypeCollapsed())
+    return FieldType(nullptr);
+
+  return m_field.getType();
+}
+
 void sea_dsa::Node::growSize(unsigned v) {
   if (isOffsetCollapsed())
     m_size = 1;
@@ -196,10 +210,32 @@ void sea_dsa::Node::collapseOffsets(int tag) {
     n.m_nodeType.join(m_nodeType);
     n.setOffsetCollapsed(true);
     n.m_size = 1;
-    viewGraph();
     pointTo(n, Offset(n, 0, FIELD_TYPE_NOT_IMPLEMENTED));
-    viewGraph();
   }
+}
+
+/// collapse the current node. Looses all type-based field sensitivity
+void sea_dsa::Node::collapseTypes(int tag) {
+  if (isTypeCollapsed())
+    return;
+
+  LOG("unique_scalar", if (m_unique_scalar) errs()
+        << "KILL due to type-collapse: " << *m_unique_scalar
+        << "\n";);
+
+  m_unique_scalar = nullptr;
+  assert(!isForwarding());
+
+  LOG("dsa-collapse", errs() << "Type-Collapsing tag: " << tag << "\n";
+      write(errs()); errs() << "\n";);
+
+  // create a new node to be the collapsed version of the current one
+  // move everything to the new node. This breaks cycles in the links.
+  Node &n = m_graph->mkNode();
+  n.m_nodeType.join(m_nodeType);
+  n.setTypeCollapsed(true);
+  n.m_size = m_size;
+  pointTo(n, Offset(n, 0, FieldType(nullptr)));
 }
 
 void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
@@ -230,7 +266,8 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   // // -- grow the size if necessary
   // if (sz + noffset > node.size ()) node.growSize (sz + noffset);
 
-  assert(!node.isForwarding() || node.getNode()->isOffsetCollapsed());
+  assert(!node.isForwarding() || node.getNode()->isOffsetCollapsed() ||
+         node.getNode()->isTypeCollapsed());
   if (!node.getNode()->isOffsetCollapsed()) {
     assert(!node.isForwarding());
     // -- merge the types

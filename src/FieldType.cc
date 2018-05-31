@@ -26,4 +26,16 @@ llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty) {
   return GetFirstPrimitiveTy(FirstTy);
 }
 
+bool FieldType::IsOmnipotentChar(llvm::Type *Ty) {
+  assert(Ty);
+  auto *Prim = GetFirstPrimitiveTy(Ty);
+  if (auto *PTy = llvm::dyn_cast<llvm::PointerType>(Prim))
+    if (auto *ITy =
+        llvm::dyn_cast<llvm::IntegerType>(PTy->getPointerElementType()))
+      if (ITy->getBitWidth() == 8)
+        return true;
+
+  return false;
+}
+
 } // namespace sea_dsa
