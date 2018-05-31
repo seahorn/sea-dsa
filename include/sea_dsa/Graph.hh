@@ -458,7 +458,7 @@ protected:
         : m_node(n), m_field(field) {}
 
     unsigned getNumericOffset() const;
-    FieldType getType() const { return m_field.getType(); }
+    FieldType getType() const;
 
     Field getField() const { return Field(getNumericOffset(), getType()); }
     const Node &node() const { return m_node; }
@@ -592,6 +592,13 @@ public:
   }
   bool isOffsetCollapsed() const { return m_nodeType.offset_collapsed; }
 
+  Node &setTypeCollapsed(bool v = true) {
+    m_nodeType.type_collapsed = v;
+    setArray(false);
+    return *this;
+  }
+  bool isTypeCollapsed() const { return m_nodeType.type_collapsed; }
+
   bool isUnique() const { return m_unique_scalar; }
   const llvm::Value *getUniqueScalar() const { return m_unique_scalar; }
   void setUniqueScalar(const llvm::Value *v) {
@@ -663,6 +670,10 @@ public:
   /// collapse the current node. Looses all offset-based field sensitivity
   /// tag argument is used for debugging only
   void collapseOffsets(int tag /*= -2*/);
+
+  /// collapse the current node. Looses all type-based field sensitivity
+  /// tag argument is used for debugging only
+  void collapseTypes(int tag /*= -2*/);
 
   /// Add a new allocation site
   void addAllocSite(const llvm::Value &v);

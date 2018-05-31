@@ -39,8 +39,14 @@ public:
   }
 
   explicit FieldType(llvm::Type *Ty) {
-    if (Ty)
-      m_ty = GetFirstPrimitiveTy(Ty);
+    if (!Ty)
+      return;
+
+    m_ty = GetFirstPrimitiveTy(Ty);
+    if (false && IsOmnipotentChar(m_ty)) {
+      m_ty = nullptr;
+      m_isOpaque = true;
+    }
   }
 
   FieldType(const FieldType &ft) = default;
@@ -53,6 +59,8 @@ public:
   bool isPointer() const { return m_ty->isPointerTy(); }
   bool isUnknown() const { return !m_ty; }
   bool isOpaque() const { return m_isOpaque; }
+
+  static bool IsOmnipotentChar(llvm::Type *Ty);
 
   llvm::Type *getLLVMType() const { return m_ty; }
 
