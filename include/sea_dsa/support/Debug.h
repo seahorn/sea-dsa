@@ -4,7 +4,8 @@
 #include <set>
 
 #define LOG(TAG,CODE) \
-  do { if (::sea_dsa::SeaDsaLog.count(TAG) > 0 || true) { CODE; } } while (0)
+  do { if (::sea_dsa::SeaDsaLog.count(TAG) > 0 || \
+           ::sea_dsa::SeaDsaLog.count("all") > 0) { CODE; } } while (0)
 
 
 namespace sea_dsa {
