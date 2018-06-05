@@ -16,36 +16,32 @@ llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
 
 class FieldType {
   llvm::Type *m_ty = nullptr;
-  bool m_isOpaque = false;
   bool m_NOT_IMPLEMENTED = false;
   std::string m_whereNotImpl;
 
+  FieldType() = default;
+
 public:
-  std::tuple<llvm::Type *, bool, bool> asTuple() const {
-    return std::make_tuple(m_ty, m_isOpaque, m_NOT_IMPLEMENTED);
+  std::tuple<llvm::Type *, bool> asTuple() const {
+    return std::make_tuple(m_ty, m_NOT_IMPLEMENTED);
   };
 
-  static FieldType mkOpaque() {
-    FieldType ft{nullptr};
-    ft.m_isOpaque = true;
-    return  ft;
-  }
+  static FieldType mkUnknown() { return FieldType(); }
 
   static FieldType NotImplemented(std::string Loc = "") {
-    FieldType ft{nullptr};
+    FieldType ft;
     ft.m_NOT_IMPLEMENTED = true;
     ft.m_whereNotImpl = Loc;
     return ft;
   }
 
   explicit FieldType(llvm::Type *Ty) {
-    if (!Ty)
-      return;
+    assert(Ty);
 
     m_ty = GetFirstPrimitiveTy(Ty);
     if (false && IsOmnipotentChar(m_ty)) {
+      llvm::errs() << "Omnipotent char: " << *this << "\n";
       m_ty = nullptr;
-      m_isOpaque = true;
     }
   }
 
@@ -58,14 +54,13 @@ public:
   bool isData() const { return !m_ty->isPointerTy(); }
   bool isPointer() const { return m_ty->isPointerTy(); }
   bool isUnknown() const { return !m_ty; }
-  bool isOpaque() const { return m_isOpaque; }
 
   static bool IsOmnipotentChar(llvm::Type *Ty);
 
   llvm::Type *getLLVMType() const { return m_ty; }
 
   bool operator==(const FieldType &RHS) const {
-    if (isOpaque() || RHS.isOpaque())
+    if (isUnknown() || RHS.isUnknown())
       return true;
 
     return asTuple() == RHS.asTuple();
@@ -73,21 +68,19 @@ public:
 
   // opaque is top.
   bool operator<(const FieldType &RHS) const {
-    if (isOpaque() || RHS.isOpaque())
+    if (isUnknown() || RHS.isUnknown())
       return false;
 
     return asTuple() < RHS.asTuple();
   }
 
   FieldType ptrOf() const {
-    assert(!isOpaque());
     assert(!isUnknown());
     auto *PtrTy = llvm::PointerType::get(m_ty, 0);
     return FieldType{PtrTy};
   }
 
   FieldType elemOf() const {
-    assert(!isOpaque());
     assert(!isUnknown());
     assert(isPointer());
 
@@ -98,11 +91,6 @@ public:
   void dump(llvm::raw_ostream &OS = llvm::errs()) const {
     if (m_NOT_IMPLEMENTED) {
       OS << "TODO<" << m_whereNotImpl << ">";
-      return;
-    }
-
-    if (isOpaque()) {
-      OS << "opaque";
       return;
     }
 
