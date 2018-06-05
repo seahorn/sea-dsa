@@ -8,6 +8,7 @@
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/InstVisitor.h"
@@ -241,7 +242,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
       isa<ConstantDataVector>(&v)) {
     // XXX Handle properly
     assert(false);
-    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0, FieldType(nullptr)));
+    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0, FieldType::mkUnknown()));
   }
 
   // -- special case for aggregate types. Cell creation is handled elsewhere
@@ -287,7 +288,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   // -- mark node as a stack node
   n.setAlloca();
 
-  m_graph.mkCell(AI, Cell(n, 0, FieldType(AI.getType())));
+  m_graph.mkCell(AI, Cell(n, 0, FieldType::mkUnknown()));
 }
 
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
@@ -342,7 +343,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   // handle first-class structs by pretending pointers to them are loaded
   if (isa<StructType>(LI.getType())) {
     Cell dest(base.getNode(), base.getRawOffset(),
-              FieldType(LI.getType()).ptrOf());
+              FieldType(LI.getPointerOperand()->getType()));
     m_graph.mkCell(LI, dest);
   }
 }
@@ -382,14 +383,12 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
     } else {
       assert(!val.isNull());
 
-      if (val.getType().isOpaque()) {
-        errs() << "Store opaque edge for: ";
-        ValOp->dump();
-        errs() << ", ";
-        val.dump();
-        errs() << "\n";
-        base.getNode()->collapseTypes(__LINE__);
-      }
+      if (val.getType().isUnknown())
+        val.commitToType(FieldType(ValOp->getType()));
+
+//      if (FieldType::IsOmnipotentChar(ValOp->getType()))
+//        val.getNode()->collapseTypes(__LINE__);
+
       // val.getType() can be an opaque type, so we cannot use it to get
       // a ptr type.
       Cell dest(val.getNode(), val.getRawOffset(), FieldType(ValOp->getType()));
@@ -502,14 +501,25 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 
   if (m_graph.hasCell(gep)) {
     // gep can have already a cell if it can be stripped to another
-    // pointer different from the base.
-    assert(gep.stripPointerCasts() != &gep);
+    // pointer different from the base or is a constant gep that has already
+    // been visited.
+    assert(gep.stripPointerCasts() != &gep || llvm::isa<ConstantExpr>(&gep));
     return;
   }
 
-  const sea_dsa::FieldType gepType(gep.getType());
+  static unsigned i = 0;
+  //errs() << "GEP " << (++i);
+  //gep.dump();
+  //errs() << "\n\tLLVM type: ";
+  //gep.getType()->dump();
 
-  assert(!m_graph.hasCell(gep));
+  if (i == 16)
+    errs();
+
+  const sea_dsa::FieldType gepType(gep.getType());
+  //errs() << "\n\tSeaDsa type: " << gepType << "\n";
+
+      assert(!m_graph.hasCell(gep));
   sea_dsa::Node *baseNode = base.getNode();
   if (baseNode->isOffsetCollapsed()) {
     m_graph.mkCell(gep, sea_dsa::Cell(baseNode, 0, gepType));
@@ -538,6 +548,15 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
   Value &ptr = *I.getPointerOperand();
+
+  // Visit nested constant GEP first.
+  if (isa<ConstantExpr>(&ptr))
+    if (auto *g = dyn_cast<GEPOperator>(&ptr)) {
+      llvm::errs() << "Visiting nested constant GEP first\n";
+      SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
+      visitGep(*g, *g->getPointerOperand(), indicies);
+    }
+
   SmallVector<Value *, 8> indicies(I.op_begin() + 1, I.op_end());
   visitGep(I, ptr, indicies);
 }
@@ -556,10 +575,10 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
     n.setAlloca();
     // -- create a node for the aggregate
     op = m_graph.mkCell(*I.getAggregateOperand(),
-                        Cell(n, 0, FieldType::mkOpaque()));
+                        Cell(n, 0, FieldType::mkUnknown()));
   }
 
-  op.commitToType(FieldType(I.getType()).ptrOf());
+  op.commitToType(FieldType(I.getType()->getPointerTo(0)));
 
   // -- pretend that the instruction points to the aggregate
   m_graph.mkCell(I, op);
@@ -592,7 +611,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // -- mark node as a stack node
     n.setAlloca();
     op = m_graph.mkCell(*I.getAggregateOperand(),
-                        Cell(n, 0, FieldType::mkOpaque()));
+                        Cell(n, 0, FieldType::mkUnknown()));
   }
 
   uint64_t offset = computeIndexedOffset(I.getAggregateOperand()->getType(),
@@ -633,7 +652,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     n.setHeap();
 
     m_graph.mkCell(*CS.getInstruction(),
-                   Cell(n, 0, FieldType::mkOpaque()));
+                   Cell(n, 0, FieldType::mkUnknown()));
     return;
   }
 
@@ -677,7 +696,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   Instruction *inst = CS.getInstruction();
   if (inst && !isSkip(*inst)) {
     Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0,
-                                         FieldType::mkOpaque()));
+                                         FieldType::mkUnknown()));
     if (Function *callee = CS.getCalledFunction()) {
       if (callee->isDeclaration()) {
         c.getNode()->setExternal();
@@ -947,7 +966,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
       Node &n = g.mkNode();
-      g.mkCell(a, Cell(n, 0, FieldType::mkOpaque()));
+      g.mkCell(a, Cell(n, 0, FieldType::mkUnknown()));
       // -- XXX: hook to record allocation site if F is main
       if (F.getName() == "main")
         n.addAllocSite(a);
