@@ -71,7 +71,7 @@ sea_dsa::FieldType sea_dsa::Node::Offset::getType() const {
 
   assert(!n->isForwarding());
   if (n->isTypeCollapsed())
-    return FieldType(nullptr);
+    return FieldType::mkUnknown();
 
   return m_field.getType();
 }
@@ -235,7 +235,7 @@ void sea_dsa::Node::collapseTypes(int tag) {
   n.m_nodeType.join(m_nodeType);
   n.setTypeCollapsed(true);
   n.m_size = m_size;
-  pointTo(n, Offset(n, 0, FieldType(nullptr)));
+  pointTo(n, Offset(n, 0, FieldType::mkUnknown()));
 }
 
 void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
@@ -299,8 +299,8 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
 
 void sea_dsa::Node::addLink(Field f, Cell &c) {
   Offset offset(*this, f);
-  errs() << "Add link, offset: " << offset.getNumericOffset() << ", "
-         << offset.getType() << "\n";
+//  errs() << "Add link, offset: " << offset.getNumericOffset() << ", "
+//         << offset.getType() << "\n";
 
   if (!hasLink(offset.getField()))
     setLink(offset.getField(), c);
@@ -627,7 +627,7 @@ void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
   //n.viewGraph();
   m_node = &n;
   m_type = FIELD_TYPE_NOT_IMPLEMENTED;
-  errs() << "dsads\n";
+  // errs() << "dsads\n";
   if (n.isOffsetCollapsed())
     m_offset = 0;
   else if (n.isArray()) {

@@ -230,7 +230,7 @@ class Cell {
   /// field offset
   mutable unsigned m_offset = 0;
   /// field type
-  FieldType m_type = FieldType(nullptr);
+  FieldType m_type = FieldType::mkUnknown();
 
   std::tuple<Node *, unsigned, FieldType> asTuple() const {
     return std::make_tuple(m_node, m_offset, m_type);
@@ -289,11 +289,10 @@ public:
   inline void growSize(unsigned offset, llvm::Type *t);
 
   void commitToType(FieldType FT) {
-    assert(!FT.isOpaque());
-    if (m_type.isOpaque() || m_type == FT)
+    if (m_type.isUnknown() || m_type == FT)
       m_type = FT;
     else
-      m_type = FieldType(nullptr);
+      m_type = FieldType::mkUnknown();
   }
 
   /// unify with a given cell. At the end, both cells point to the
