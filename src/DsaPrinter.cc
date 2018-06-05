@@ -440,7 +440,9 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     std::string S;
     llvm::raw_string_ostream O(S);
     O << I.getField() << ",\n" << I.getCell().getType();
-    return O.str();
+    O.flush();
+
+    return DOT::EscapeString(S);
   }
 
   static bool hasEdgeDestLabels() { return true; }
@@ -525,7 +527,12 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
       std::string Buff;
       llvm::raw_string_ostream OS(Buff);
       const auto &Ty = C.getType();
-      OS << ",label=\"" << C.getOffset() << ", " << Ty << "\",fontsize=8";
+      std::string TyBuff;
+      llvm::raw_string_ostream TyOs(TyBuff);
+      TyOs << Ty;
+
+      OS << ",label=\"" << C.getOffset() << ", "
+         << DOT::EscapeString(TyOs.str()) << "\",fontsize=8";
 
       return OS.str();
     };
@@ -548,8 +555,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         int EdgeDest = getIndex(DestNode, DestField);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee", EmitLinkTypeSuffix(*it->second)) +
-                          ",color="
-                    + (it->second->getType().isOpaque() ? "purple" : "gray63"));
+                          ",color=" + (it->second->getType().isUnknown() ?
+                                       "purple" : "gray63"));
       }
     }
 
