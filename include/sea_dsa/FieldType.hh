@@ -12,12 +12,14 @@ namespace sea_dsa {
 
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
 
-#define FIELD_TYPE_NOT_IMPLEMENTED FieldType::NotImplemented(std::to_string(__LINE__ ))
+#define FIELD_TYPE_STRINGIFY(X) #X
+#define FIELD_TYPE_NOT_IMPLEMENTED FieldType::NotImplemented( \
+                                     FIELD_TYPE_STRINGIFY(__LINE__ ))
 
 class FieldType {
   llvm::Type *m_ty = nullptr;
   bool m_NOT_IMPLEMENTED = false;
-  std::string m_whereNotImpl;
+  const char *m_whereNotImpl = "";
 
   FieldType() = default;
 
@@ -28,7 +30,7 @@ public:
 
   static FieldType mkUnknown() { return FieldType(); }
 
-  static FieldType NotImplemented(std::string Loc = "") {
+  static FieldType NotImplemented(const char *Loc) {
     FieldType ft;
     ft.m_NOT_IMPLEMENTED = true;
     ft.m_whereNotImpl = Loc;
@@ -60,7 +62,7 @@ public:
   llvm::Type *getLLVMType() const { return m_ty; }
 
   bool operator==(const FieldType &RHS) const {
-    if (isUnknown() || RHS.isUnknown())
+    if (isUnknown() || RHS.isUnknown() || IsNotTypeAware())
       return true;
 
     return asTuple() == RHS.asTuple();
@@ -68,7 +70,7 @@ public:
 
   // opaque is top.
   bool operator<(const FieldType &RHS) const {
-    if (isUnknown() || RHS.isUnknown())
+    if (isUnknown() || RHS.isUnknown() || IsNotTypeAware())
       return false;
 
     return asTuple() < RHS.asTuple();
@@ -110,6 +112,9 @@ public:
     FTy.dump(OS);
     return OS;
   }
+
+private:
+  static bool IsNotTypeAware();
 };
 
 } // namespace sea_dsa

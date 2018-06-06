@@ -6,6 +6,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/CommandLine.h"
 
 #include <set>
 #include <string>
@@ -21,6 +22,22 @@
 #include "boost/unordered_set.hpp"
 
 using namespace llvm;
+
+namespace sea_dsa {
+bool IsTypeAware;
+}
+
+static llvm::cl::opt<bool, true>
+    XTypeAware("sea-dsa-type-aware",
+              llvm::cl::desc("Enable SeaDsa type awareness"),
+              llvm::cl::location(sea_dsa::IsTypeAware), llvm::cl::init(false));
+
+sea_dsa::Node::Node(Graph &g)
+    : m_graph(&g), m_unique_scalar(nullptr), m_has_once_unique_scalar(false),
+      m_size(0), m_id(++m_id_factory) {
+  if (!IsTypeAware)
+    setTypeCollapsed(true);
+}
 
 sea_dsa::Node::Node(Graph &g, const Node &n, bool copyLinks)
     : m_graph(&g), m_unique_scalar(n.m_unique_scalar), m_size(n.m_size) {
@@ -44,6 +61,9 @@ sea_dsa::Node::Node(Graph &g, const Node &n, bool copyLinks)
     for (auto &kv : n.m_links)
       m_links[kv.first].reset(new Cell(*kv.second));
   }
+
+  if (!IsTypeAware)
+    setTypeCollapsed(true);
 }
 /// adjust offset based on type of the node Collapsed nodes
 /// always have offset 0; for array nodes the offset is modulo
@@ -70,6 +90,10 @@ sea_dsa::FieldType sea_dsa::Node::Offset::getType() const {
   Node *n = const_cast<Node *>(m_node.getNode());
 
   assert(!n->isForwarding());
+
+  if (!IsTypeAware)
+    assert(n->isTypeCollapsed());
+
   if (n->isTypeCollapsed())
     return FieldType::mkUnknown();
 
@@ -301,6 +325,8 @@ void sea_dsa::Node::addLink(Field f, Cell &c) {
   Offset offset(*this, f);
 //  errs() << "Add link, offset: " << offset.getNumericOffset() << ", "
 //         << offset.getType() << "\n";
+  if (!IsTypeAware)
+    assert(offset.getType().isUnknown());
 
   if (!hasLink(offset.getField()))
     setLink(offset.getField(), c);

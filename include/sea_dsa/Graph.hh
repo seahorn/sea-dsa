@@ -35,6 +35,8 @@ typedef std::unique_ptr<Cell> CellRef;
 class FunctionalMapper;
 class DsaCallSite;
 
+extern bool IsTypeAware;
+
 // Data structure graph traversal iterator
 template <typename T> class NodeIterator;
 
@@ -480,10 +482,7 @@ private:
 
   uint64_t m_id; // global id for the node
 
-  Node(Graph &g)
-      : m_graph(&g), m_unique_scalar(nullptr), m_has_once_unique_scalar(false),
-        m_size(0), m_id(++m_id_factory) {}
-
+  Node(Graph &g);
   Node(Graph &g, const Node &n, bool copyLinks = false);
 
   void compress() {
