@@ -2,6 +2,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 
+#include "sea_dsa/Graph.hh"
 #include "sea_dsa/TypeUtils.hh"
 
 namespace sea_dsa {
@@ -37,5 +38,7 @@ bool FieldType::IsOmnipotentChar(llvm::Type *Ty) {
 
   return false;
 }
+
+bool FieldType::IsNotTypeAware() { return !IsTypeAware; }
 
 } // namespace sea_dsa

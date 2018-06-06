@@ -346,7 +346,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
       OS << "color=brown1, style=filled";
     } else if (N->isOffsetCollapsed()) {
       OS << "color=chocolate1, style=filled";
-    } else if (N->isTypeCollapsed()) {
+    } else if (N->isTypeCollapsed() && sea_dsa::IsTypeAware) {
       OS << "color=darkorchid2, style=filled";
     }
     return OS.str();
@@ -359,10 +359,11 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     if (N->isForwarding()) {
       OS << "FORWARDING";
     } else {
-      if (N->isOffsetCollapsed() || N->isTypeCollapsed()) {
+      if (N->isOffsetCollapsed() || (N->isTypeCollapsed() &&
+                                     sea_dsa::IsTypeAware)) {
         if (N->isOffsetCollapsed())
           OS << "OFFSET-";
-        if (N->isTypeCollapsed())
+        if (N->isTypeCollapsed() && sea_dsa::IsTypeAware)
           OS << "TYPE-";
         OS << "COLLAPSED";
       } else {
@@ -439,10 +440,17 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
                                         sea_dsa::Node::iterator I) {
     std::string S;
     llvm::raw_string_ostream O(S);
-    O << I.getField() << ",\n" << I.getCell().getType();
+    O << I.getField();
     O.flush();
+    std::string Res;
 
-    return DOT::EscapeString(S);
+    for (char C : S) {
+      if (C == '"')
+        Res += '\\';
+      Res += C;
+    }
+
+    return Res;
   }
 
   static bool hasEdgeDestLabels() { return true; }
