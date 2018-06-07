@@ -443,11 +443,12 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     O << I.getField();
     O.flush();
     std::string Res;
+    Res.reserve(S.size() + 2);
 
     for (char C : S) {
       if (C == '"')
-        Res += '\\';
-      Res += C;
+        Res.push_back('\\');
+      Res.push_back(C);
     }
 
     return Res;

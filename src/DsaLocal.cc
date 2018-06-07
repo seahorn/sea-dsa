@@ -392,7 +392,7 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
       // val.getType() can be an opaque type, so we cannot use it to get
       // a ptr type.
       Cell dest(val.getNode(), val.getRawOffset(), FieldType(ValOp->getType()));
-      base.addLink(Field(0, FieldType(ValOp->getType())), dest);
+      base.addLink(Field(0, dest.getType()), dest);
     }
   }
 }
@@ -549,13 +549,13 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
   Value &ptr = *I.getPointerOperand();
 
-  // Visit nested constant GEP first.
-  if (isa<ConstantExpr>(&ptr))
-    if (auto *g = dyn_cast<GEPOperator>(&ptr)) {
-      llvm::errs() << "Visiting nested constant GEP first\n";
-      SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
-      visitGep(*g, *g->getPointerOperand(), indicies);
-    }
+//  // Visit nested constant GEP first.
+//  if (isa<ConstantExpr>(&ptr))
+//    if (auto *g = dyn_cast<GEPOperator>(&ptr)) {
+//      llvm::errs() << "Visiting nested constant GEP first\n";
+//      SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
+//      visitGep(*g, *g->getPointerOperand(), indicies);
+//    }
 
   SmallVector<Value *, 8> indicies(I.op_begin() + 1, I.op_end());
   visitGep(I, ptr, indicies);
@@ -616,18 +616,20 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
 
   uint64_t offset = computeIndexedOffset(I.getAggregateOperand()->getType(),
                                          I.getIndices(), m_dl);
-  Cell in(op, offset, FieldType(I.getType()));
+  FieldType opType(I.getType());
+  Cell in(op, offset, opType);
 
   // -- update type record
   in.addAccessedType(0, I.getType());
   in.setRead();
 
   if (!isSkip(I)) {
-    Field InstType(0, FieldType(I.getType()));
+    Field InstType(0, opType);
     // -- create a new node if there is no link at this offset yet
     if (!in.hasLink(InstType)) {
       Node &n = m_graph.mkNode();
-      in.setLink(InstType, Cell(&n, 0, FieldType(I.getType())));
+      FieldType nType = opType;
+      in.setLink(InstType, Cell(&n, 0, nType));
       // -- record allocation site
       n.addAllocSite(I);
       // -- mark node as a stack node
@@ -636,7 +638,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // create cell for the read value and point it to where the link points to
     const Cell &baseC = in.getLink(InstType);
     m_graph.mkCell(I, Cell(baseC.getNode(), baseC.getRawOffset(),
-                           FieldType(I.getType())));
+                           InstType.getType()));
   }
 }
 
