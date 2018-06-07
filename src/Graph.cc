@@ -667,6 +667,12 @@ void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
   }
 }
 
+bool sea_dsa::Cell::isTypeCollapsed() const {
+  auto *N = getNode();
+  assert(N);
+  return N->isTypeCollapsed();
+}
+
 sea_dsa::FieldType sea_dsa::Cell::getType() const {
   // -- resolve forwarding
   getNode();

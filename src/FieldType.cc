@@ -7,6 +7,11 @@
 
 namespace sea_dsa {
 
+static llvm::cl::opt<bool>
+    OmnipotentChar("sea-dsa-omnipotent-char",
+                   llvm::cl::desc("Enable SeaDsa omnipotent char"),
+                   llvm::cl::init(false));
+
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty) {
   assert(Ty);
 
@@ -25,6 +30,20 @@ llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty) {
     return FirstTy;
 
   return GetFirstPrimitiveTy(FirstTy);
+}
+
+FieldType::FieldType(llvm::Type *Ty) {
+  assert(Ty);
+
+  m_ty = GetFirstPrimitiveTy(Ty);
+  if (OmnipotentChar && IsOmnipotentChar(m_ty)) {
+    static bool shown = false;
+    if (!shown) {
+      llvm::errs() << "Omnipotent char: " << *this << "\n";
+      shown = true;
+    }
+    m_ty = nullptr;
+  }
 }
 
 bool FieldType::IsOmnipotentChar(llvm::Type *Ty) {
