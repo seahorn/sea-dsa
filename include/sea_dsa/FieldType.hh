@@ -37,15 +37,7 @@ public:
     return ft;
   }
 
-  explicit FieldType(llvm::Type *Ty) {
-    assert(Ty);
-
-    m_ty = GetFirstPrimitiveTy(Ty);
-    if (false && IsOmnipotentChar(m_ty)) {
-      llvm::errs() << "Omnipotent char: " << *this << "\n";
-      m_ty = nullptr;
-    }
-  }
+  explicit FieldType(llvm::Type *Ty);
 
   FieldType(const FieldType &ft) = default;
   FieldType &operator=(const FieldType &) = default;
@@ -70,6 +62,9 @@ public:
 
   // opaque is top.
   bool operator<(const FieldType &RHS) const {
+    //assert(isUnknown());
+    //assert(RHS.isUnknown());
+
     if (isUnknown() || RHS.isUnknown() || IsNotTypeAware())
       return false;
 
