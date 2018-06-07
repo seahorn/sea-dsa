@@ -242,13 +242,16 @@ public:
   Cell() = default;
 
   Cell(Node *node, unsigned offset, FieldType Type)
-      : m_node(node), m_offset(offset), m_type(Type) {}
+      : m_node(node), m_offset(offset), m_type(isTypeCollapsed() ?
+                                               FieldType::mkUnknown() : Type) {}
 
   Cell(Node &node, unsigned offset, FieldType Type)
-      : m_node(&node), m_offset(offset), m_type(Type) {}
+      : m_node(&node), m_offset(offset),
+        m_type(isTypeCollapsed() ? FieldType::mkUnknown() : Type) {}
 
   Cell(const Cell &o, unsigned offset, FieldType Type)
-      : m_node(o.m_node), m_offset(o.m_offset + offset), m_type(Type) {}
+      : m_node(o.m_node), m_offset(o.m_offset + offset),
+        m_type(isTypeCollapsed() ? FieldType::mkUnknown() : Type) {}
 
   Cell &operator=(const Cell &o) = default;
 
@@ -273,6 +276,7 @@ public:
   // for Dsa clients (offset is adjusted based on the node)
   unsigned getOffset() const;
 
+  bool isTypeCollapsed() const;
   FieldType getType() const;
 
   void pointTo(Node &n, unsigned offset);
@@ -638,17 +642,21 @@ public:
   void growSize(unsigned v);
 
   bool hasLink(Field offset) const {
+    if (!IsTypeAware)
+      assert(Offset(*this, offset).getField().getType().isUnknown());
     return m_links.count(Offset(*this, offset).getField()) > 0;
   }
 
   bool getNumLinks() const { return m_links.size(); }
 
   const Cell &getLink(Field offset) const {
+    if (!IsTypeAware)
+      assert(Offset(*this, offset).getField().getType().isUnknown());
     return *m_links.at(Offset(*this, offset).getField());
   }
 
   void setLink(Field offset, const Cell &c) {
-    getLink(Offset(*this, offset))= c;
+    getLink(Offset(*this, offset)) = c;
   }
 
   void addLink(Field field, Cell &c);
