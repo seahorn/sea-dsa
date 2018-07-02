@@ -62,6 +62,9 @@ protected:
   typedef llvm::DenseMap<const llvm::Function *, CellRef> ReturnMap;
   ReturnMap m_returns;
 
+  //  Whether the graph is flat or not
+  bool m_is_flat;
+  
   SetFactory &getSetFactory() { return m_setFactory; }
   Set emptySet() { return m_setFactory.getEmptySet(); }
   /// return a new set that is the union of old and a set containing v
@@ -83,8 +86,8 @@ public:
   typedef ArgumentMap::const_iterator formal_const_iterator;
   typedef ReturnMap::const_iterator return_const_iterator;
 
-  Graph(const llvm::DataLayout &dl, SetFactory &sf)
-      : m_dl(dl), m_setFactory(sf) {}
+  Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false)
+    : m_dl(dl), m_setFactory(sf), m_is_flat(is_flat) {}
 
   virtual ~Graph() {}
 
@@ -158,6 +161,8 @@ public:
   friend void ShowDsaGraph(Graph &g);
   /// view the Dsa graph using GraphViz. (For debugging.)
   void viewGraph() { ShowDsaGraph(*this); }
+
+  bool isFlat() const { return m_is_flat;}
 };
 
 /**
@@ -166,7 +171,8 @@ public:
 class FlatGraph : public Graph {
 
 public:
-  FlatGraph(const llvm::DataLayout &dl, SetFactory &sf) : Graph(dl, sf) {}
+  FlatGraph(const llvm::DataLayout &dl, SetFactory &sf)
+    : Graph(dl, sf, true) {}
 
   virtual Node &mkNode() override;
 };

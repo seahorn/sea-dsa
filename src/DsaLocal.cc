@@ -932,8 +932,9 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   n.setAlloca();
   m_graph.mkCell(dest, sea_dsa::Cell(n, 0));
   if (shouldBeTrackedIntToPtr(dest)) {
-    llvm::errs() << "WARNING: " << dest << " is allocating a new cell. "
-                 << "It might be unsound if not flat memory model.\n";
+    if (!m_graph.isFlat()) {
+      llvm::errs() << "WARNING: " << dest << " is allocating a new cell.\n";
+    }
   }
 }
 
@@ -994,7 +995,9 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
   assert(m_graph.hasCell(*I.getOperand(0)));
   sea_dsa::Cell c = valueCell(*I.getOperand(0));
   if (!c.isNull()) {
-    llvm::errs() << "WARNING: " << I << " may be escaping.\n";
+    if (!m_graph.isFlat()) {    
+      llvm::errs() << "WARNING: " << I << " may be escaping.\n";
+    }
     c.getNode()->setPtrToInt();
   }
 }
