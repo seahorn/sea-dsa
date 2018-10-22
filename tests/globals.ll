@@ -1,4 +1,4 @@
-; RUN: %seadsa %s %cs_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-dot-outdir=%T/globals.ll
+; RUN: %seadsa %s %cs_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-type-aware=true --sea-dsa-dot-outdir=%T/globals.ll
 ; RUN: %cmp-graphs %tests/globals.entry.mem.dot %T/globals.ll/entry.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 
