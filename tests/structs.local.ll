@@ -1,4 +1,4 @@
-; RUN: %seadsa %s %cs_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-dot-outdir=%T/structs.local.ll
+; RUN: %seadsa %s %cs_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-type-aware=true --sea-dsa-dot-outdir=%T/structs.local.ll
 ; RUN: %cmp-graphs %tests/structs.local.entry.mem.dot %T/structs.local.ll/entry.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 

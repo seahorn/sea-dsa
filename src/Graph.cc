@@ -862,6 +862,7 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
       isa<Argument>(v) ? m_formals[cast<const Argument>(&v)] : m_values[&v];
   if (!res) {
     res.reset(new Cell(c));
+
     if (res->getRawOffset() == 0 && res->getNode()) {
       if (!(res->getNode()->hasOnceUniqueScalar()))
         res->getNode()->setUniqueScalar(&v);
@@ -935,7 +936,10 @@ bool sea_dsa::Graph::hasCell(const llvm::Value &u) const {
 void sea_dsa::Cell::write(raw_ostream &o) const {
   getNode();
   o << "<" << m_offset << "," << m_type << ", ";
-  m_node->write(o);
+  if (m_node)
+    m_node->write(o);
+  else
+    o << "null";
   o << ">";
 }
 
