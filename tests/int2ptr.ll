@@ -1,4 +1,4 @@
-; RUN: %seadsa %s %cs_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-dot-outdir=%T/int2ptr.ll
+; RUN: %seadsa %s %cs_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-type-aware=true --sea-dsa-dot-outdir=%T/int2ptr.ll
 ; RUN: %cmp-graphs %tests/int2ptr.entry.mem.dot %T/int2ptr.ll/entry.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 

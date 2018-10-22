@@ -32,7 +32,6 @@ class Cell;
 class SimulationMapper;
 typedef std::unique_ptr<Cell> CellRef;
 
-class FunctionalMapper;
 class DsaCallSite;
 
 extern bool IsTypeAware;
@@ -240,6 +239,7 @@ class Cell {
 
 public:
   Cell() = default;
+  Cell(const Cell &) = default;
 
   Cell(Node *node, unsigned offset, FieldType Type)
       : m_node(node), m_offset(offset), m_type(isTypeCollapsed() ?
@@ -348,6 +348,7 @@ public:
     unsigned ptrtoint : 1;
     unsigned vastart : 1;
     unsigned dead : 1;
+    unsigned null : 1;
 
     NodeType() { reset(); }
     void join(const NodeType &n) {
@@ -369,6 +370,7 @@ public:
       ptrtoint |= n.ptrtoint;
       vastart |= n.vastart;
       dead |= n.dead;
+      null |= n.null;
 
       // XXX: cannot be collapsed and array at the same time
       if ((offset_collapsed || type_collapsed) && array)
@@ -413,6 +415,8 @@ public:
         flags += "V";
       if (dead)
         flags += "D";
+      if (null)
+        flags += "N";
       return flags;
     }
   };
@@ -669,6 +673,14 @@ public:
   }
   bool isVoid() const { return m_accessedTypes.empty(); }
   bool isEmtpyAccessedType() const;
+
+  /// Nodes that originate from operations on nullptr, e.g. gep(null, Offset).
+  bool isNullAlloc() const { return m_nodeType.null; }
+  Node &setNullAlloc(bool v = true) {
+    m_nodeType.null = v;
+    return *this;
+  }
+
 
   /// Adds a type of a field at a given offset
   void addAccessedType(unsigned offset, llvm::Type *t);

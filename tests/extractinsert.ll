@@ -1,4 +1,4 @@
-; RUN: %seadsa %s %cs_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-dot-outdir=%T/extractinsert.ll
+; RUN: %seadsa %s %cs_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-type-aware=true --sea-dsa-dot-outdir=%T/extractinsert.ll
 ; RUN: %cmp-graphs %tests/extractinsert.entry.mem.dot %T/extractinsert.ll/entry.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 

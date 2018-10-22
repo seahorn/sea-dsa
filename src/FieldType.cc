@@ -12,6 +12,11 @@ static llvm::cl::opt<bool>
                    llvm::cl::desc("Enable SeaDsa omnipotent char"),
                    llvm::cl::init(true));
 
+namespace sea_dsa {
+  bool IsTypeAware;
+}
+
+
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty) {
   assert(Ty);
 
@@ -34,6 +39,11 @@ llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty) {
 
 FieldType::FieldType(llvm::Type *Ty) {
   assert(Ty);
+
+  if (!IsTypeAware) {
+    m_ty = nullptr;
+    return;
+  }
 
   m_ty = GetFirstPrimitiveTy(Ty);
   if (OmnipotentChar && IsOmnipotentChar(m_ty)) {
