@@ -26,6 +26,11 @@ using namespace llvm;
 
 namespace llvm {
 
+static llvm::cl::opt<bool>
+    TrustArgumentTypes("sea-dsa-trust-args",
+               llvm::cl::desc("Trust function argument types"),
+               llvm::cl::init(true));
+
 // borrowed from SeaHorn
 class __BlockedEdges {
   llvm::SmallPtrSet<const BasicBlock *, 8> m_set;
@@ -224,8 +229,8 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   if (m_graph.hasCell(v)) {
     Cell &c = m_graph.mkCell(v, Cell());
     assert(!c.isNull());
-    //errs() << "Already has cell: ";
-    //c.dump();
+    //  errs() << "Already has cell: ";
+    //  c.dump();
     return c;
   }
 
@@ -486,8 +491,9 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
                                 ArrayRef<Value *> indicies) {
   // -- skip NULL
   if (const Constant *c = dyn_cast<Constant>(&ptr))
-    if (c->isNullValue())
+    if (c->isNullValue()) {
       return;
+    }
 
   // -- skip NULL
   if (const LoadInst *LI = dyn_cast<LoadInst>(&ptr)) {
@@ -651,7 +657,6 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
 
 void IntraBlockBuilder::visitCallSite(CallSite CS) {
   using namespace sea_dsa;
-
   if (llvm::isAllocationFn(CS.getInstruction(), &m_tli, true)) {
     assert(CS.getInstruction());
     Node &n = m_graph.mkNode();
@@ -704,8 +709,9 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
 
   Instruction *inst = CS.getInstruction();
   if (inst && !isSkip(*inst)) {
-    Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0,
-                                         FieldType::mkUnknown()));
+    FieldType ty(inst->getType());
+    Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0, ty));
+    c.commitToType(ty);
     if (Function *callee = CS.getCalledFunction()) {
       if (callee->isDeclaration()) {
         c.getNode()->setExternal();
@@ -975,7 +981,10 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
       Node &n = g.mkNode();
-      g.mkCell(a, Cell(n, 0, FieldType::mkUnknown()));
+      if (TrustArgumentTypes)
+        g.mkCell(a, Cell(n, 0, FieldType(a.getType())));
+      else
+        g.mkCell(a, Cell(n, 0, FieldType::mkUnknown()));
       // -- XXX: hook to record allocation site if F is main
       if (F.getName() == "main")
         n.addAllocSite(a);
