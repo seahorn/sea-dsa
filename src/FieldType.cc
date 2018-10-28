@@ -28,6 +28,8 @@ llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty) {
 
   auto It = AggregateIterator::mkBegin(Ty, /* DL = */ nullptr);
   auto *FirstTy = It->Ty;
+  if (!FirstTy)
+    return Ty;
   if (FirstTy->isPointerTy() && FirstTy->getPointerElementType() == Ty)
     return Ty;
 
