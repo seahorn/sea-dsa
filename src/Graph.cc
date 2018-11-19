@@ -564,8 +564,7 @@ void sea_dsa::Node::write(raw_ostream &o) const {
       else
         first = false;
       o << kv.first << "->"
-        << "(" << kv.second->getOffset() << "," << kv.second->getType() << ","
-        << kv.second->getNode() << ")";
+        << "(" << kv.second->getOffset() << "," << kv.second->getNode() << ")";
     }
     o << "] ";
     first = true;
@@ -652,7 +651,6 @@ void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
   assert(!n.isForwarding());
   //n.viewGraph();
   m_node = &n;
-  m_type = FIELD_TYPE_NOT_IMPLEMENTED;
   // errs() << "dsads\n";
   if (n.isOffsetCollapsed())
     m_offset = 0;
@@ -665,19 +663,6 @@ void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
       n.growSize(offset);
     m_offset = offset;
   }
-}
-
-bool sea_dsa::Cell::isTypeCollapsed() const {
-  auto *N = getNode();
-  assert(N);
-  return N->isTypeCollapsed();
-}
-
-sea_dsa::FieldType sea_dsa::Cell::getType() const {
-  // -- resolve forwarding
-  getNode();
-  // -- return current field type
-  return m_type;
 }
 
 unsigned sea_dsa::Node::getRawOffset() const {
@@ -855,7 +840,7 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   if (isa<GlobalValue>(&v) && c.isNull()) {
     sea_dsa::Node &n = mkNode();
     n.addAllocSite(v);
-    return mkCell(v, Cell(n, 0, FieldType(v.getType())));
+    return mkCell(v, Cell(n, 0));
   }
 
   auto &res =
@@ -935,7 +920,7 @@ bool sea_dsa::Graph::hasCell(const llvm::Value &u) const {
 
 void sea_dsa::Cell::write(raw_ostream &o) const {
   getNode();
-  o << "<" << m_offset << "," << m_type << ", ";
+  o << "<" << m_offset << ", ";
   if (m_node)
     m_node->write(o);
   else
@@ -1025,7 +1010,7 @@ void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
     Node &n = C.clone(*kv.second->getNode());
 
     // -- re-create the cell
-    Cell c(n, kv.second->getRawOffset(), kv.second->getType());
+    Cell c(n, kv.second->getRawOffset());
 
     // -- insert value
     Cell &nc = mkCell(*kv.first, Cell());
@@ -1037,13 +1022,13 @@ void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
   if (withFormals) {
     for (auto &kv : g.m_formals) {
       Node &n = C.clone(*kv.second->getNode());
-      Cell c(n, kv.second->getRawOffset(), kv.second->getType());
+      Cell c(n, kv.second->getRawOffset());
       Cell &nc = mkCell(*kv.first, Cell());
       nc.unify(c);
     }
     for (auto &kv : g.m_returns) {
       Node &n = C.clone(*kv.second->getNode());
-      Cell c(n, kv.second->getRawOffset(), kv.second->getType());
+      Cell c(n, kv.second->getRawOffset());
       Cell &nc = mkRetCell(*kv.first, Cell());
       nc.unify(c);
     }

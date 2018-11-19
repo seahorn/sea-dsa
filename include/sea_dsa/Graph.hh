@@ -230,28 +230,23 @@ class Cell {
   mutable Node *m_node = nullptr;
   /// field offset
   mutable unsigned m_offset = 0;
-  /// field type
-  FieldType m_type = FieldType::mkUnknown();
 
-  std::tuple<Node *, unsigned, FieldType> asTuple() const {
-    return std::make_tuple(m_node, m_offset, m_type);
+  std::tuple<Node *, unsigned> asTuple() const {
+    return std::make_tuple(m_node, m_offset);
   };
 
 public:
   Cell() = default;
   Cell(const Cell &) = default;
 
-  Cell(Node *node, unsigned offset, FieldType Type)
-      : m_node(node), m_offset(offset), m_type(isTypeCollapsed() ?
-                                               FieldType::mkUnknown() : Type) {}
+  Cell(Node *node, unsigned offset)
+      : m_node(node), m_offset(offset) {}
 
-  Cell(Node &node, unsigned offset, FieldType Type)
-      : m_node(&node), m_offset(offset),
-        m_type(isTypeCollapsed() ? FieldType::mkUnknown() : Type) {}
+  Cell(Node &node, unsigned offset)
+      : m_node(&node), m_offset(offset) {}
 
-  Cell(const Cell &o, unsigned offset, FieldType Type)
-      : m_node(o.m_node), m_offset(o.m_offset + offset),
-        m_type(isTypeCollapsed() ? FieldType::mkUnknown() : Type) {}
+  Cell(const Cell &o, unsigned offset)
+      : m_node(o.m_node), m_offset(o.m_offset + offset) {}
 
   Cell &operator=(const Cell &o) = default;
 
@@ -276,9 +271,6 @@ public:
   // for Dsa clients (offset is adjusted based on the node)
   unsigned getOffset() const;
 
-  bool isTypeCollapsed() const;
-  FieldType getType() const;
-
   void pointTo(Node &n, unsigned offset);
 
   void pointTo(const Cell &c, unsigned offset = 0) {
@@ -294,13 +286,6 @@ public:
   inline void addAccessedType(unsigned offset, llvm::Type *t);
   inline void growSize(unsigned offset, llvm::Type *t);
 
-  void commitToType(FieldType FT) {
-    if (m_type.isUnknown() || m_type == FT)
-      m_type = FT;
-    else
-      m_type = FieldType::mkUnknown();
-  }
-
   /// unify with a given cell. At the end, both cells point to the
   /// same offset of the same node. Might cause collapse of the
   /// nodes represented by the cells.
@@ -309,7 +294,6 @@ public:
   void swap(Cell &o) {
     std::swap(m_node, o.m_node);
     std::swap(m_offset, o.m_offset);
-    std::swap(m_type, o.m_type);
   }
 
   /// pretty-printer of a cell

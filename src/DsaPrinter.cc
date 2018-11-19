@@ -535,13 +535,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     auto EmitLinkTypeSuffix = [](const sea_dsa::Cell &C) {
       std::string Buff;
       llvm::raw_string_ostream OS(Buff);
-      const auto &Ty = C.getType();
-      std::string TyBuff;
-      llvm::raw_string_ostream TyOs(TyBuff);
-      TyOs << Ty;
 
-      OS << ",label=\"" << C.getOffset() << ", "
-         << DOT::EscapeString(TyOs.str()) << "\",fontsize=8";
+      OS << ",label=\"" << C.getOffset() << "\",fontsize=8";
 
       return OS.str();
     };
@@ -560,12 +555,11 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
           OS << *v;
         GW.emitSimpleNode(it->first, "shape=plaintext", OS.str());
         Node *DestNode = it->second->getNode();
-        Field DestField(it->second->getOffset(), it->second->getType());
+        Field DestField(it->second->getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
         int EdgeDest = getIndex(DestNode, DestField);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee", EmitLinkTypeSuffix(*it->second)) +
-                          ",color=" + (it->second->getType().isUnknown() ?
-                                       "purple" : "gray63"));
+                          ",color=gray63");
       }
     }
 
@@ -581,7 +575,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue",
                           OS.str());
         Node *DestNode = it->second->getNode();
-        Field DestField(it->second->getOffset(), it->second->getType());
+        Field DestField(it->second->getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
         int EdgeDest = getIndex(DestNode, DestField);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("tailclip=false,color=gray63",
@@ -601,7 +595,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue",
                           OS.str());
         Node *DestNode = it->second->getNode();
-        Field DestField(it->second->getOffset(), it->second->getType());
+        Field DestField(it->second->getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
         int EdgeDest = getIndex(DestNode, DestField);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee,color=gray63",

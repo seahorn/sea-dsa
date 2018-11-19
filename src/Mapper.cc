@@ -3,59 +3,68 @@
 
 using namespace sea_dsa;
 
-void FunctionalMapper::insert (const Cell &src, const Cell &dst)
-{
+void FunctionalMapper::insert(const Cell &src, const Cell &dst) {
   assert (!src.isNull());
   assert (!dst.isNull());
 
   // -- already mapped
-  Cell res = get (src);
+  Cell res = get(src);
   if (!res.isNull()) return;
 
-  res = get (*src.getNode ());
+  res = get(*src.getNode());
   if (!res.isNull())
-    assert (res.getNode () == dst.getNode () && "No functional node mapping");
-  
-  assert (src.getRawOffset () <= dst.getRawOffset () && "Not supported");
+    assert (res.getNode() == dst.getNode() && "No functional node mapping");
+
+  assert (src.getRawOffset() <= dst.getRawOffset() && "Not supported");
 
   // -- offset of the source node in the destination
-  unsigned srcNodeOffset = dst.getRawOffset () - src.getRawOffset ();
+  unsigned srcNodeOffset = dst.getRawOffset() - src.getRawOffset();
 
   // FIXME: Types
-  m_nodes.insert (std::make_pair (src.getNode (), Cell (dst.getNode (), srcNodeOffset, dst.getType())));
-  m_cells.insert (std::make_pair (src, dst));
-  
-  Node::Offset srcOffset (*src.getNode (), src.getRawOffset (), src.getType());
-  
+  m_nodes.insert(std::make_pair(src.getNode(),
+                                Cell(dst.getNode(), srcNodeOffset)));
+  m_cells.insert(std::make_pair(src, dst));
+
+  Node::Offset srcOffset(*src.getNode(), src.getRawOffset(),
+                         FIELD_TYPE_NOT_IMPLEMENTED);
+
   // -- process all the links
-  // XXX Don't think this properly handles aligning array nodes of different sizes
-  for (auto &kv : src.getNode ()->links ())
-  {
-    if (kv.first.getOffset() < srcOffset.getNumericOffset()) continue;
+  // XXX: Don't think this properly handles aligning array nodes of different
+  //     sizes
+  for (auto &kv : src.getNode()->links()) {
+    if (kv.first.getOffset() < srcOffset.getNumericOffset())
+      continue;
     if (dst.getNode()->hasLink(kv.first.addOffset(srcNodeOffset)))
-      insert(*kv.second, dst.getNode()->getLink(kv.first.addOffset(srcNodeOffset)));
+      insert(*kv.second,
+             dst.getNode()->getLink(kv.first.addOffset(srcNodeOffset)));
   }
 }
 
-bool SimulationMapper::insert (const Cell &c1, Cell &c2)
-{
-  if (c1.isNull() != c2.isNull())
-  { m_sim.clear (); return false; }
+bool SimulationMapper::insert(const Cell &c1, Cell &c2) {
+  if (c1.isNull() != c2.isNull()) {
+    m_sim.clear();
+    return false;
+  }
 
-  if (c1.isNull()) return true;
+  if (c1.isNull())
+    return true;
 
   if (c2.getNode()->isOffsetCollapsed())
-    return insert (*c1.getNode (), *c2.getNode (), Field(0, FIELD_TYPE_NOT_IMPLEMENTED));
+    return insert(*c1.getNode(), *c2.getNode(),
+                  Field(0, FIELD_TYPE_NOT_IMPLEMENTED));
 
   // XXX: adjust the offsets
-  Node::Offset o1 (*c1.getNode(), c1.getRawOffset(), c1.getType());
-  Node::Offset o2 (*c2.getNode(), c2.getRawOffset(), c2.getType());
-    
-  if (o2.getNumericOffset() < o1.getNumericOffset())
-  { m_sim.clear (); return false; }
-  
-  return insert (*c1.getNode (), *c2.getNode (), Field(o2.getNumericOffset() -
-                                                 o1.getNumericOffset(), c2.getType()));
+  Node::Offset o1(*c1.getNode(), c1.getRawOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
+  Node::Offset o2(*c2.getNode(), c2.getRawOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
+
+  if (o2.getNumericOffset() < o1.getNumericOffset()) {
+    m_sim.clear();
+    return false;
+  }
+
+  return insert(*c1.getNode(), *c2.getNode(), Field(o2.getNumericOffset() -
+                                                    o1.getNumericOffset(),
+                                                    FIELD_TYPE_NOT_IMPLEMENTED));
 }
 
 // Return true iff n1 (at offset 0) is simulated by n2 at offset o
@@ -143,7 +152,7 @@ bool SimulationMapper::isInjective (bool onlyModified)  const
     for (auto &c: kv.second) 
     {
       // FIXME: Types
-      auto res = inv_sim.insert(Cell(c.first, c.second.getOffset(), c.second.getType()));
+      auto res = inv_sim.insert(Cell(c.first, c.second.getOffset()));
       if (!onlyModified || c.first->isModified()) 
         if (!res.second) return false;
     }
