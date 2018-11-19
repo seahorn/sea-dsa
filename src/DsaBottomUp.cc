@@ -35,7 +35,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   for (auto &kv : boost::make_iterator_range(calleeG.globals_begin(),
                                              calleeG.globals_end())) {
     Node &n = C.clone(*kv.second->getNode());
-    Cell c(n, kv.second->getRawOffset(), kv.second->getType());
+    Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
     nc.unify(c);
   }
@@ -45,7 +45,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   if (calleeG.hasRetCell(callee)) {
     const Cell &ret = calleeG.getRetCell(callee);
     Node &n = C.clone(*ret.getNode());
-    Cell c(n, ret.getRawOffset(), ret.getType());
+    Cell c(n, ret.getRawOffset());
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
     nc.unify(c);
   }
@@ -61,7 +61,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     if (calleeG.hasCell(*fml)) {
       const Cell &formalC = calleeG.getCell(*fml);
       Node &n = C.clone(*formalC.getNode());
-      Cell c(n, formalC.getRawOffset(), formalC.getType());
+      Cell c(n, formalC.getRawOffset());
       Cell &nc = callerG.mkCell(*arg, Cell());
       nc.unify(c);
     }
@@ -112,8 +112,7 @@ bool BottomUpAnalysis::checkAllNodesAreMapped(const Function &fn, Graph &fnG,
   reachableNodes(fn, fnG, reach, retReach);
   for (const Node *n : reach) {
 
-    Cell callerC = sm.get(Cell(const_cast<Node *>(n), 0,
-                               FIELD_TYPE_NOT_IMPLEMENTED));
+    Cell callerC = sm.get(Cell(const_cast<Node *>(n), 0));
     if (callerC.isNull()) {
       errs() << "ERROR: callee node " << *n
              << " not mapped to a caller node.\n";
