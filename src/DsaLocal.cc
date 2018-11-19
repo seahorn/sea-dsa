@@ -244,7 +244,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
       isa<ConstantDataVector>(&v)) {
     // XXX Handle properly
     assert(false);
-    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0, FieldType::mkUnknown()));
+    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
   }
 
   // -- special case for aggregate types. Cell creation is handled elsewhere
@@ -277,8 +277,7 @@ void IntraBlockBuilder::visitInstruction(Instruction &I) {
   if (isSkip(I))
     return;
 
-  m_graph.mkCell(I, sea_dsa::Cell(m_graph.mkNode(), 0,
-                                  sea_dsa::FieldType(I.getType())));
+  m_graph.mkCell(I, sea_dsa::Cell(m_graph.mkNode(), 0));
 }
 
 void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
@@ -290,7 +289,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   // -- mark node as a stack node
   n.setAlloca();
 
-  m_graph.mkCell(AI, Cell(n, 0, FieldType::mkUnknown()));
+  m_graph.mkCell(AI, Cell(n, 0));
 }
 
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
@@ -305,7 +304,7 @@ void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   thenC.unify(elseC);
 
   // -- create result cell
-  m_graph.mkCell(SI, Cell(thenC, 0, FieldType(SI.getType())));
+  m_graph.mkCell(SI, Cell(thenC, 0));
 }
 
 void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
@@ -329,14 +328,17 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   assert(!base.isNull());
   base.addAccessedType(0, LI.getType());
   base.setRead();
-  base.commitToType(FieldType(LI.getType()));
   // update/create the link
   if (!isSkip(LI)) {
     Field LoadedField(0, FieldType(LI.getType()));
 
     if (!base.hasLink(LoadedField)) {
       Node &n = m_graph.mkNode();
-      base.setLink(LoadedField, Cell(&n, 0, FieldType(LI.getType())));
+      base.setLink(LoadedField, Cell(&n, 0));
+      llvm::errs() << "Setting link: ";
+      LI.print(errs());
+      llvm::errs() << base << " -->  " << n << "\n";
+      llvm::errs() << "\t\t" << LoadedField << "\n";
     }
 
     m_graph.mkCell(LI, base.getLink(LoadedField));
@@ -344,8 +346,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 
   // handle first-class structs by pretending pointers to them are loaded
   if (isa<StructType>(LI.getType())) {
-    Cell dest(base.getNode(), base.getRawOffset(),
-              FieldType(LI.getPointerOperand()->getType()));
+    Cell dest(base.getNode(), base.getRawOffset());
     m_graph.mkCell(LI, dest);
   }
 }
@@ -385,16 +386,10 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
     } else {
       assert(!val.isNull());
 
-      if (val.getType().isUnknown())
-        val.commitToType(FieldType(ValOp->getType()));
-
-//      if (FieldType::IsOmnipotentChar(ValOp->getType()))
-//        val.getNode()->collapseTypes(__LINE__);
-
       // val.getType() can be an opaque type, so we cannot use it to get
       // a ptr type.
-      Cell dest(val.getNode(), val.getRawOffset(), FieldType(ValOp->getType()));
-      base.addLink(Field(0, dest.getType()), dest);
+      Cell dest(val.getNode(), val.getRawOffset());
+      base.addLink(Field(0, FieldType(ValOp->getType())), dest);
     }
   }
 }
@@ -467,25 +462,25 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
 }
 
 /// Computes offset into an indexed type
-uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
-                              const DataLayout &dl) {
-  uint64_t offset = 0;
-  for (unsigned idx : indecies) {
-    if (StructType *sty = dyn_cast<StructType>(ty)) {
-      const StructLayout *layout = dl.getStructLayout(sty);
-      offset += layout->getElementOffset(idx);
-      ty = sty->getElementType(idx);
-    } else {
-      if (PointerType *ptrTy = dyn_cast<PointerType>(ty))
-	ty = ptrTy->getElementType();
-      else if (SequentialType *seqTy = dyn_cast<SequentialType>(ty))
-	ty = seqTy->getElementType();
-      assert(ty && "Type is neither PointerType nor SequentialType");      
-      offset += idx * dl.getTypeAllocSize(ty);
+  uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
+                                const DataLayout &dl) {
+    uint64_t offset = 0;
+    for (unsigned idx : indecies) {
+      if (StructType *sty = dyn_cast<StructType>(ty)) {
+        const StructLayout *layout = dl.getStructLayout(sty);
+        offset += layout->getElementOffset(idx);
+        ty = sty->getElementType(idx);
+      } else {
+        if (PointerType *ptrTy = dyn_cast<PointerType>(ty))
+          ty = ptrTy->getElementType();
+        else if (SequentialType *seqTy = dyn_cast<SequentialType>(ty))
+          ty = seqTy->getElementType();
+        assert(ty && "Type is neither PointerType nor SequentialType");
+        offset += idx * dl.getTypeAllocSize(ty);
+      }
     }
+    return offset;
   }
-  return offset;
-}
 
 void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
                                 ArrayRef<Value *> indicies) {
@@ -535,7 +530,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
       assert(!m_graph.hasCell(gep));
   sea_dsa::Node *baseNode = base.getNode();
   if (baseNode->isOffsetCollapsed()) {
-    m_graph.mkCell(gep, sea_dsa::Cell(baseNode, 0, gepType));
+    m_graph.mkCell(gep, sea_dsa::Cell(baseNode, 0));
     return;
   }
 
@@ -546,16 +541,11 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     n.setArraySize(off.second);
     // result of the gep points into that array at the gep offset
     // plus the offset of the base
-    baseNode->addAccessedType(off.first + base.getRawOffset(),
-                              gep.getType()->getPointerElementType());
-    m_graph.mkCell(gep, sea_dsa::Cell(n, off.first + base.getRawOffset(),
-                                      gepType));
+    m_graph.mkCell(gep, sea_dsa::Cell(n, off.first + base.getRawOffset()));
     // finally, unify array with the node of the base
     n.unify(*baseNode);
   } else {
-    baseNode->addAccessedType(off.first,
-                              gep.getType()->getPointerElementType());
-    m_graph.mkCell(gep, sea_dsa::Cell(base, off.first, gepType));
+    m_graph.mkCell(gep, sea_dsa::Cell(base, off.first));
   }
 }
 
@@ -587,11 +577,8 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
     // -- mark node as a stack node
     n.setAlloca();
     // -- create a node for the aggregate
-    op = m_graph.mkCell(*I.getAggregateOperand(),
-                        Cell(n, 0, FieldType::mkUnknown()));
+    op = m_graph.mkCell(*I.getAggregateOperand(), Cell(n, 0));
   }
-
-  op.commitToType(FieldType(I.getType()->getPointerTo(0)));
 
   // -- pretend that the instruction points to the aggregate
   m_graph.mkCell(I, op);
@@ -599,7 +586,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   // -- update type record
   Value &v = *I.getInsertedValueOperand();
   uint64_t offset = computeIndexedOffset(I.getType(), I.getIndices(), m_dl);
-  Cell out(op, offset, FieldType(I.getType()));
+  Cell out(op, offset);
   out.growSize(0, v.getType());
   out.addAccessedType(0, v.getType());
   out.setModified();
@@ -608,7 +595,6 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   if (!isSkip(v)) {
     // TODO: follow valueCell ptrs.
     Cell vCell = valueCell(v);
-    vCell.commitToType(FieldType(v.getType()));
     assert(!vCell.isNull());
     out.addLink(Field(0, FieldType(v.getType())), vCell);
   }
@@ -623,14 +609,13 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     n.addAllocSite(I);
     // -- mark node as a stack node
     n.setAlloca();
-    op = m_graph.mkCell(*I.getAggregateOperand(),
-                        Cell(n, 0, FieldType::mkUnknown()));
+    op = m_graph.mkCell(*I.getAggregateOperand(), Cell(n, 0));
   }
 
   uint64_t offset = computeIndexedOffset(I.getAggregateOperand()->getType(),
                                          I.getIndices(), m_dl);
   FieldType opType(I.getType());
-  Cell in(op, offset, opType);
+  Cell in(op, offset);
 
   // -- update type record
   in.addAccessedType(0, I.getType());
@@ -642,7 +627,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     if (!in.hasLink(InstType)) {
       Node &n = m_graph.mkNode();
       FieldType nType = opType;
-      in.setLink(InstType, Cell(&n, 0, nType));
+      in.setLink(InstType, Cell(&n, 0));
       // -- record allocation site
       n.addAllocSite(I);
       // -- mark node as a stack node
@@ -650,8 +635,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     }
     // create cell for the read value and point it to where the link points to
     const Cell &baseC = in.getLink(InstType);
-    m_graph.mkCell(I, Cell(baseC.getNode(), baseC.getRawOffset(),
-                           InstType.getType()));
+    m_graph.mkCell(I, Cell(baseC.getNode(), baseC.getRawOffset()));
   }
 }
 
@@ -665,8 +649,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     // -- mark node as a heap node
     n.setHeap();
 
-    m_graph.mkCell(*CS.getInstruction(),
-                   Cell(n, 0, FieldType::mkUnknown()));
+    m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
     return;
   }
 
@@ -709,9 +692,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
 
   Instruction *inst = CS.getInstruction();
   if (inst && !isSkip(*inst)) {
-    FieldType ty(inst->getType());
-    Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0, ty));
-    c.commitToType(ty);
+    Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
     if (Function *callee = CS.getCalledFunction()) {
       if (callee->isDeclaration()) {
         c.getNode()->setExternal();
@@ -900,9 +881,7 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   n.addAllocSite(dest);
   // -- mark node as an alloca node
   n.setAlloca();
-  m_graph.mkCell(dest,
-                 sea_dsa::Cell(n, 0,
-                               sea_dsa::FieldType(dest.getType())));
+  m_graph.mkCell(dest, sea_dsa::Cell(n, 0));
   if (shouldBeTrackedIntToPtr(dest)) {
     if (!m_graph.isFlat()) {
       llvm::errs() << "WARNING: " << dest << " is allocating a new cell.\n";
@@ -982,9 +961,9 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
       Node &n = g.mkNode();
       if (TrustArgumentTypes)
-        g.mkCell(a, Cell(n, 0, FieldType(a.getType())));
+        g.mkCell(a, Cell(n, 0));
       else
-        g.mkCell(a, Cell(n, 0, FieldType::mkUnknown()));
+        g.mkCell(a, Cell(n, 0));
       // -- XXX: hook to record allocation site if F is main
       if (F.getName() == "main")
         n.addAllocSite(a);

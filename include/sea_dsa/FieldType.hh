@@ -13,8 +13,8 @@ namespace sea_dsa {
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
 
 #define FIELD_TYPE_STRINGIFY(X) #X
-#define FIELD_TYPE_NOT_IMPLEMENTED FieldType::NotImplemented( \
-                                     FIELD_TYPE_STRINGIFY(__LINE__ ))
+#define FIELD_TYPE_NOT_IMPLEMENTED sea_dsa::FieldType::NotImplemented( \
+                                                FIELD_TYPE_STRINGIFY(__LINE__ ))
 
 class FieldType {
   llvm::Type *m_ty = nullptr;

@@ -50,7 +50,7 @@ void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs,
   if (g.hasRetCell(callee)) {
     Cell &nc = g.mkCell(*cs.getInstruction(), Cell());
     const Cell &r = g.getRetCell(callee);
-    Cell c(*r.getNode(), r.getRawOffset(), r.getType());
+    Cell c(*r.getNode(), r.getRawOffset());
     nc.unify(c);
   }
 
@@ -245,7 +245,7 @@ void ContextSensitiveGlobalAnalysis::cloneAndResolveArguments(
   for (auto &kv : boost::make_iterator_range(callerG.globals_begin(),
                                              callerG.globals_end())) {
     Node &n = C.clone(*kv.second->getNode());
-    Cell c(n, kv.second->getRawOffset(), kv.second->getType());
+    Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
     nc.unify(c);
   }
@@ -256,7 +256,7 @@ void ContextSensitiveGlobalAnalysis::cloneAndResolveArguments(
     auto &inst = *cs.getInstruction();
     const Cell &csCell = callerG.getCell(inst);
     Node &n = C.clone(*csCell.getNode());
-    Cell c(n, csCell.getRawOffset(), csCell.getType());
+    Cell c(n, csCell.getRawOffset());
     Cell &nc = calleeG.getRetCell(callee);
     nc.unify(c);
   }
@@ -272,7 +272,7 @@ void ContextSensitiveGlobalAnalysis::cloneAndResolveArguments(
     if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
       const Cell &callerCell = callerG.getCell(*arg);
       Node &n = C.clone(*callerCell.getNode());
-      Cell c(n, callerCell.getRawOffset(), callerCell.getType());
+      Cell c(n, callerCell.getRawOffset());
       Cell &nc = calleeG.mkCell(*fml, Cell());
       nc.unify(c);
     }

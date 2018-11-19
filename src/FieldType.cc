@@ -42,6 +42,13 @@ llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty) {
 FieldType::FieldType(llvm::Type *Ty) {
   assert(Ty);
 
+  static bool WarnTypeAware = true;
+  if (WarnTypeAware) {
+    llvm::errs() << "Sea-Dsa " << (IsTypeAware ? "" : "not ")
+                 << "type aware!\n";
+    WarnTypeAware = false;
+  }
+
   if (!IsTypeAware) {
     m_ty = nullptr;
     return;
@@ -60,11 +67,7 @@ FieldType::FieldType(llvm::Type *Ty) {
 
 bool FieldType::IsOmnipotentChar(llvm::Type *Ty) {
   assert(Ty);
-  auto *Prim = GetFirstPrimitiveTy(Ty);
-  while (Prim->isPointerTy())
-    Prim = Prim->getPointerElementType();
-
-  if (auto *ITy = llvm::dyn_cast<llvm::IntegerType>(Prim))
+  if (auto *ITy = llvm::dyn_cast<llvm::IntegerType>(Ty))
       if (ITy->getBitWidth() == 8)
         return true;
 

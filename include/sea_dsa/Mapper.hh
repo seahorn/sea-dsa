@@ -42,26 +42,23 @@ namespace sea_dsa
     
     bool insert (const Cell &c1, Cell &c2);
     bool insert (const Node &n1, Node &n2, Field offset);
-    
-    Cell get (const Node &n) const
-    {
-      if (!m_sim.count (&n)) return Cell ();
-      auto &map = m_sim.at (&n);
-      
-      if (map.size () != 1) return Cell ();
-      
-      auto kv = map.begin ();
-      return Cell (*kv->first, kv->second.getOffset(), kv->second.getType());
+
+    Cell get(const Node &n) const {
+      if (!m_sim.count(&n)) return Cell();
+      auto &map = m_sim.at(&n);
+
+      if (map.size() != 1) return Cell();
+
+      auto kv = map.begin();
+      return Cell(*kv->first, kv->second.getOffset());
     }
-    
-    Cell get (const Cell &c) const
-    {
-      if (!c.getNode ()) return Cell();
-      
-      Cell res = get (*c.getNode ());
+
+    Cell get(const Cell &c) const {
+      if (!c.getNode()) return Cell();
+
+      Cell res = get(*c.getNode());
       // FIXME: Types
-      return Cell (res.getNode (),
-		   res.getRawOffset () + c.getRawOffset (), res.getType());
+      return Cell(res.getNode(), res.getRawOffset() + c.getRawOffset());
     }
     
     bool empty () const { return m_sim.empty (); }
