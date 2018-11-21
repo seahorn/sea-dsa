@@ -441,19 +441,21 @@ protected:
   /// helper class to ensure that offsets are properly adjusted
   class Offset {
     const Node &m_node;
-    const Field m_field;
-
+    const unsigned m_offset;
   public:
-    Offset(const Node &n, unsigned offset, FieldType type)
-        : m_node(n), m_field(offset, type) {}
-
-    Offset(const Node &n, Field field)
-        : m_node(n), m_field(field) {}
+    Offset(const Node &n, unsigned offset)
+        : m_node(n), m_offset(offset) {}
 
     unsigned getNumericOffset() const;
-    FieldType getType() const;
 
-    Field getField() const { return Field(getNumericOffset(), getType()); }
+    Field getAdjustedField(Field f) {
+      return Field(getNumericOffset(), f.getType());
+    }
+
+    static Field getAdjustedField(const Node &n, Field f) {
+      return Offset(n, f.getOffset()).getAdjustedField(f);
+    }
+
     const Node &node() const { return m_node; }
   };
 
@@ -493,9 +495,8 @@ private:
   /// should use unifyAt() that has less stringent preconditions.
   void pointTo(Node &node, const Offset &offset);
 
-  Cell &getLink(const Offset &offset) {
-    assert(this == &offset.node());
-    auto &res = m_links[offset.getField()];
+  Cell &getLink(const Field &f) {
+    auto &res = m_links[Offset::getAdjustedField(*this, f)];
     if (!res)
       res.reset(new Cell());
     return *res;
@@ -629,22 +630,22 @@ public:
   unsigned size() const { return m_size; }
   void growSize(unsigned v);
 
-  bool hasLink(Field offset) const {
+  bool hasLink(Field f) const {
     if (!IsTypeAware)
-      assert(Offset(*this, offset).getField().getType().isUnknown());
-    return m_links.count(Offset(*this, offset).getField()) > 0;
+      assert(f.getType().isUnknown());
+    return m_links.count(Offset::getAdjustedField(*this, f)) > 0;
   }
 
   bool getNumLinks() const { return m_links.size(); }
 
-  const Cell &getLink(Field offset) const {
+  const Cell &getLink(Field f) const {
     if (!IsTypeAware)
-      assert(Offset(*this, offset).getField().getType().isUnknown());
-    return *m_links.at(Offset(*this, offset).getField());
+      assert(f.getType().isUnknown());
+    return *m_links.at(Offset::getAdjustedField(*this, f));
   }
 
-  void setLink(Field offset, const Cell &c) {
-    getLink(Offset(*this, offset)) = c;
+  void setLink(Field f, const Cell &c) {
+    getLink(Offset::getAdjustedField(*this, f)) = c;
   }
 
   void addLink(Field field, Cell &c);
@@ -652,7 +653,7 @@ public:
   bool hasAccessedType(unsigned offset) const;
 
   const Set getAccessedType(unsigned o) const {
-    Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
+    Offset offset(*this, o);
     return m_accessedTypes.at(offset.getNumericOffset());
   }
   bool isVoid() const { return m_accessedTypes.empty(); }
@@ -729,7 +730,7 @@ void Cell::addAccessedType(unsigned offset, llvm::Type *t) {
 
 void Cell::growSize(unsigned o, llvm::Type *t) {
   assert(!isNull());
-  Node::Offset offset(*getNode(), m_offset + o, FieldType(t));
+  Node::Offset offset(*getNode(), m_offset + o);
   getNode()->growSize(offset, t);
 }
 

@@ -25,8 +25,7 @@ void FunctionalMapper::insert(const Cell &src, const Cell &dst) {
                                 Cell(dst.getNode(), srcNodeOffset)));
   m_cells.insert(std::make_pair(src, dst));
 
-  Node::Offset srcOffset(*src.getNode(), src.getRawOffset(),
-                         FIELD_TYPE_NOT_IMPLEMENTED);
+  Node::Offset srcOffset(*src.getNode(), src.getRawOffset());
 
   // -- process all the links
   // XXX: Don't think this properly handles aligning array nodes of different
@@ -54,8 +53,8 @@ bool SimulationMapper::insert(const Cell &c1, Cell &c2) {
                   Field(0, FIELD_TYPE_NOT_IMPLEMENTED));
 
   // XXX: adjust the offsets
-  Node::Offset o1(*c1.getNode(), c1.getRawOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
-  Node::Offset o2(*c2.getNode(), c2.getRawOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
+  Node::Offset o1(*c1.getNode(), c1.getRawOffset());
+  Node::Offset o2(*c2.getNode(), c2.getRawOffset());
 
   if (o2.getNumericOffset() < o1.getNumericOffset()) {
     m_sim.clear();
@@ -68,10 +67,10 @@ bool SimulationMapper::insert(const Cell &c1, Cell &c2) {
 }
 
 // Return true iff n1 (at offset 0) is simulated by n2 at offset o
-bool SimulationMapper::insert (const Node &n1, Node &n2, Field o)
+bool SimulationMapper::insert(const Node &n1, Node &n2, Field o)
 {
   // XXX: adjust the offset
-  Node::Offset offset (n2, o);
+  Node::Offset offset(n2, o.getOffset());
 
   auto &map = m_sim[&n1];
   if (map.count (&n2) > 0)
