@@ -335,10 +335,6 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
     if (!base.hasLink(LoadedField)) {
       Node &n = m_graph.mkNode();
       base.setLink(LoadedField, Cell(&n, 0));
-      llvm::errs() << "Setting link: ";
-      LI.print(errs());
-      llvm::errs() << base << " -->  " << n << "\n";
-      llvm::errs() << "\t\t" << LoadedField << "\n";
     }
 
     m_graph.mkCell(LI, base.getLink(LoadedField));
