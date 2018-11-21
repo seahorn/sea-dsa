@@ -72,7 +72,7 @@ unsigned sea_dsa::Node::Offset::getNumericOffset() const {
   // XXX: m_node can be forward to another node since the constructor
   // of Offset was called so we grab here the non-forwarding node
   Node *n = const_cast<Node *>(m_node.getNode());
-  const unsigned offset = m_field.getOffset();
+  const unsigned offset = m_offset;
 
   assert(!n->isForwarding());
   if (n->isOffsetCollapsed())
@@ -80,24 +80,6 @@ unsigned sea_dsa::Node::Offset::getNumericOffset() const {
   if (n->isArray())
     return offset % n->size();
   return offset;
-}
-
-/// adjust field type based on type of the node Collapsed nodes
-/// always have type null; otherwise offset is not adjusted
-sea_dsa::FieldType sea_dsa::Node::Offset::getType() const {
-  // XXX: m_node can be forward to another node since the constructor
-  // of Offset was called so we grab here the non-forwarding node
-  Node *n = const_cast<Node *>(m_node.getNode());
-
-  assert(!n->isForwarding());
-
-  if (!IsTypeAware)
-    assert(n->isTypeCollapsed());
-
-  if (n->isTypeCollapsed())
-    return FieldType::mkUnknown();
-
-  return m_field.getType();
 }
 
 void sea_dsa::Node::growSize(unsigned v) {
@@ -137,7 +119,7 @@ bool sea_dsa::Node::isEmtpyAccessedType() const {
 bool sea_dsa::Node::hasAccessedType(unsigned o) const {
   if (isOffsetCollapsed())
     return false;
-  Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
+  Offset offset(*this, o);
   return m_accessedTypes.count(offset.getNumericOffset()) > 0 &&
          !m_accessedTypes.at(offset.getNumericOffset()).isEmpty();
 }
@@ -145,7 +127,7 @@ bool sea_dsa::Node::hasAccessedType(unsigned o) const {
 void sea_dsa::Node::addAccessedType(unsigned o, llvm::Type *t) {
   if (isOffsetCollapsed())
     return;
-  Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
+  Offset offset(*this, o);
   growSize(offset, t);
   if (isOffsetCollapsed())
     return;
@@ -202,7 +184,7 @@ void sea_dsa::Node::joinAccessedTypes(unsigned offset, const Node &n) {
   if (isOffsetCollapsed() || n.isOffsetCollapsed())
     return;
   for (auto &kv : n.m_accessedTypes) {
-    const Offset noff(*this, kv.first + offset, FIELD_TYPE_NOT_IMPLEMENTED);
+    const Offset noff(*this, kv.first + offset);
     addAccessedType(noff, kv.second);
   }
 }
@@ -234,7 +216,7 @@ void sea_dsa::Node::collapseOffsets(int tag) {
     n.m_nodeType.join(m_nodeType);
     n.setOffsetCollapsed(true);
     n.m_size = 1;
-    pointTo(n, Offset(n, 0, FIELD_TYPE_NOT_IMPLEMENTED));
+    pointTo(n, Offset(n, 0));
   }
 }
 
@@ -259,7 +241,7 @@ void sea_dsa::Node::collapseTypes(int tag) {
   n.m_nodeType.join(m_nodeType);
   n.setTypeCollapsed(true);
   n.m_size = m_size;
-  pointTo(n, Offset(n, 0, FieldType::mkUnknown()));
+  pointTo(n, Offset(n, 0));
 }
 
 void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
@@ -322,16 +304,16 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
 }
 
 void sea_dsa::Node::addLink(Field f, Cell &c) {
-  Offset offset(*this, f);
-//  errs() << "Add link, offset: " << offset.getNumericOffset() << ", "
-//         << offset.getType() << "\n";
-  if (!IsTypeAware)
-    assert(offset.getType().isUnknown());
+  Offset offset(*this, f.getOffset());
+  const Field adjustedField = offset.getAdjustedField(f);
 
-  if (!hasLink(offset.getField()))
-    setLink(offset.getField(), c);
+  if (!IsTypeAware)
+    assert(f.getType().isUnknown());
+
+  if (!hasLink(adjustedField))
+    setLink(adjustedField, c);
   else {
-    Cell &link = getLink(offset);
+    Cell &link = getLink(adjustedField);
     link.unify(c);
   }
 }
@@ -349,7 +331,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
     return;
   }
 
-  Offset offset(*this, o, FIELD_TYPE_NOT_IMPLEMENTED);
+  Offset offset(*this, o);
 
   if (!isOffsetCollapsed() && !n.isOffsetCollapsed() && n.isArray() && !isArray()) {
     // -- merge into array at offset 0
@@ -377,7 +359,7 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
       getNode()->unifyAt(*n.getNode(), o);
       return;
     } else {
-      Offset minoff(*min, o, FIELD_TYPE_NOT_IMPLEMENTED);
+      Offset minoff(*min, o);
       // -- arrays can only be unified at offset 0
       if (minoff.getNumericOffset() == 0) {
         if (min != this) {

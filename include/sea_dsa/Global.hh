@@ -160,7 +160,7 @@ namespace sea_dsa {
 
   // Llvm passes
   
-  class DsaGlobalPass: public llvm::ModulePass 
+  class DsaGlobalPass: public llvm::ModulePass
   {
      protected:
     

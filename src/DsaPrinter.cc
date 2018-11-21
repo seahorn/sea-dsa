@@ -559,7 +559,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         int EdgeDest = getIndex(DestNode, DestField);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee", EmitLinkTypeSuffix(*it->second)) +
-                          ",color=gray63");
+                          ",color=purple");
       }
     }
 
@@ -578,7 +578,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         Field DestField(it->second->getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
         int EdgeDest = getIndex(DestNode, DestField);
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
-                    Twine("tailclip=false,color=gray63",
+                    Twine("tailclip=false,color=dodgerblue3",
                           EmitLinkTypeSuffix(*it->second)));
       }
     }
