@@ -14,4 +14,5 @@ add_llvm_library (SeaDsaAnalysis
   Debug.cc
   NameValues.cc
   RemovePtrToInt.cc
+  AllocWrapInfo.cc
   )
