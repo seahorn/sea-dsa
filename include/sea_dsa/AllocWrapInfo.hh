@@ -16,6 +16,7 @@ class Instruction;
 class TargetLibraryInfo;
 class Value;
 } // namespace llvm
+
 namespace sea_dsa {
 class AllocWrapInfo : public llvm::ModulePass {
 protected:

@@ -27,6 +27,8 @@ namespace {
 bool isNotStored(Value *V);
 }
 
+char AllocWrapInfo::ID = 0;
+
 void AllocWrapInfo::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.setPreservesAll();
@@ -76,6 +78,7 @@ bool AllocWrapInfo::runOnModule(Module &M) {
   while (findWrappers(M, m_deallocs)) { /* skip */
     ;
   }
+
   return false;
 }
 
@@ -210,3 +213,7 @@ bool isNotStored(Value *V) {
 }
 
 } // namespace
+
+static llvm::RegisterPass<sea_dsa::AllocWrapInfo>
+    X("seadsa-alloc-wrap-info",
+      "Detects allocator wrappers");
