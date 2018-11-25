@@ -5,37 +5,14 @@ env:
      - os: linux
        dist: trusty
        language: generic
+services:
+  - docker
 
-before_install:
-   - until sudo add-apt-repository -y ppa:saiarcot895/chromium-beta; do echo retry; done
-   - until sudo apt-get -qq update; do echo retry; done
-   - until sudo add-apt-repository --yes ppa:ubuntu-toolchain-r/test; do echo retry; done
-   - sudo apt-get --yes update
-
-install:
-  - sudo apt-get install --yes python-pip
-  - sudo pip install lit
-  - sudo pip install OutputCheck
-  - sudo easy_install networkx
-  - sudo apt-get install libgraphviz-dev
-  - sudo easy_install pygraphviz
-  - wget -O cmake.sh https://cmake.org/files/v3.10/cmake-3.10.0-rc1-Linux-x86_64.sh
-  - sudo sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
-  - until sudo apt-get -qq update; do echo retry; done
-  - until sudo apt-get -qq install libstdc++5 g++-5 libboost-all-dev; do echo retry; done
-  ### precompiled binaries for LLVM 3.8
-  - export LLVM_ROOT="$TRAVIS_BUILD_DIR/LLVM-3.8-Linux"
-  - wget https://jorgenavas.github.io/sw/LLVM-3.8-Linux.tar.gz
-  - tar xf LLVM-3.8-Linux.tar.gz
+install: true
 
 script:
-  - mkdir -p build
-  - cd build
-  - /usr/local/cmake/bin/cmake -DBOOST_ROOT=${BOOST_ROOT}-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-5 -DCMAKE_PROGRAM_PATH=/usr/bin  -DCMAKE_INSTALL_PREFIX=run ../;
-  - /usr/local/cmake/bin/cmake --build .
-  - /usr/local/cmake/bin/cmake --build . --target install
-  - /usr/local/cmake/bin/cmake --build . --target test-sea-dsa
-  - /usr/local/cmake/bin/cmake --build . --target sea-dsa-units
+  ### build with docker
+  - docker build --build-arg UBUNTU=xenial --build-arg BUILD_TYPE=MinSizeRel --build-arg TRAVIS=true -t seadsa_xenial_build -f docker/seadsa-full-size-rel.Dockerfile .
 
 notifications:
    slack: seahornteam:NAUqZmZHFFviPH4ktQbJXgKu
