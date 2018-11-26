@@ -15,14 +15,17 @@ class TargetLibraryInfo;
 } // namespace llvm
 
 namespace sea_dsa {
+class AllocWrapInfo;
 
 class LocalAnalysis {
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
+  const sea_dsa::AllocWrapInfo &m_allocInfo;
 
 public:
-  LocalAnalysis(const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli)
-      : m_dl(dl), m_tli(tli) {}
+  LocalAnalysis(const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
+                const AllocWrapInfo &allocInfo)
+      : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo) {}
 
   void runOnFunction(llvm::Function &F, Graph &g);
 };
@@ -34,6 +37,7 @@ class Local : public llvm::ModulePass {
 
   const llvm::DataLayout *m_dl;
   const llvm::TargetLibraryInfo *m_tli;
+  const AllocWrapInfo *m_allocInfo;
 
 public:
   static char ID;

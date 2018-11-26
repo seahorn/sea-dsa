@@ -1,3 +1,5 @@
+#include "sea_dsa/BottomUp.hh"
+
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -11,7 +13,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/BottomUp.hh"
+#include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Cloner.hh"
 #include "sea_dsa/Graph.hh"
@@ -133,7 +135,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   const bool do_sanity_checks = true;
 #endif
 
-  LocalAnalysis la(m_dl, m_tli);
+  LocalAnalysis la(m_dl, m_tli, m_allocInfo);
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
 
@@ -229,15 +231,17 @@ BottomUp::BottomUp() : ModulePass(ID), m_dl(nullptr), m_tli(nullptr) {}
 void BottomUp::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
+  AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
 bool BottomUp::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  m_allocInfo = &getAnalysis<AllocWrapInfo>();
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-  BottomUpAnalysis bu(*m_dl, *m_tli, cg);
+  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg);
   for (auto &F : M) { // XXX: the graphs must be created here
     if (F.isDeclaration() || F.empty())
       continue;

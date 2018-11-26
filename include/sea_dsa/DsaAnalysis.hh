@@ -20,11 +20,13 @@ namespace llvm  {
 }
 
 namespace sea_dsa {
-  
+  class AllocWrapInfo;
+
   class DsaAnalysis : public llvm::ModulePass {
 
     const llvm::DataLayout *m_dl;
     llvm::TargetLibraryInfo *m_tli;
+    const AllocWrapInfo *m_allocInfo;
     Graph::SetFactory m_setFactory;
     std::unique_ptr<GlobalAnalysis> m_ga;
     
@@ -32,8 +34,9 @@ namespace sea_dsa {
       
     static char ID;       
     
-    DsaAnalysis ():
-      ModulePass (ID), m_dl(nullptr), m_tli(nullptr), m_ga(nullptr) { }
+    DsaAnalysis():
+      ModulePass(ID), m_dl(nullptr), m_tli(nullptr), m_allocInfo(nullptr),
+      m_ga(nullptr) { }
     
     void getAnalysisUsage (llvm::AnalysisUsage &AU) const override;
     
