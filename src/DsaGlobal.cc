@@ -12,6 +12,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/BottomUp.hh"
 #include "sea_dsa/CallGraph.hh"
 #include "sea_dsa/CallSite.hh"
@@ -82,7 +83,7 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
   else
     m_graph.reset(new Graph(m_dl, m_setFactory));
 
-  LocalAnalysis la(m_dl, m_tli);
+  LocalAnalysis la(m_dl, m_tli, m_allocInfo);
 
   // -- bottom-up inlining of all graphs
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
@@ -169,6 +170,7 @@ ContextInsensitiveGlobal::ContextInsensitiveGlobal()
 void ContextInsensitiveGlobal::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
+  AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
@@ -176,10 +178,11 @@ bool ContextInsensitiveGlobal::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  auto &allocInfo = getAnalysis<AllocWrapInfo>();
 
   const bool useFlatMemory = false;
-  m_ga.reset(new ContextInsensitiveGlobalAnalysis(dl, tli, cg, m_setFactory,
-                                                  useFlatMemory));
+  m_ga.reset(new ContextInsensitiveGlobalAnalysis(dl, tli, allocInfo, cg,
+                                                  m_setFactory, useFlatMemory));
   return m_ga->runOnModule(M);
 }
 
@@ -188,6 +191,7 @@ FlatMemoryGlobal::FlatMemoryGlobal() : DsaGlobalPass(ID), m_ga(nullptr) {}
 void FlatMemoryGlobal::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
+  AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
@@ -195,10 +199,11 @@ bool FlatMemoryGlobal::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  auto &allocInfo = getAnalysis<AllocWrapInfo>();
 
   const bool useFlatMemory = true;
-  m_ga.reset(new ContextInsensitiveGlobalAnalysis(dl, tli, cg, m_setFactory,
-                                                  useFlatMemory));
+  m_ga.reset(new ContextInsensitiveGlobalAnalysis(dl, tli, allocInfo, cg,
+                                                  m_setFactory, useFlatMemory));
   return m_ga->runOnModule(M);
 }
 
@@ -340,7 +345,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run bottom up analysis on the whole call graph
   //    and initialize worklist
-  BottomUpAnalysis bu(m_dl, m_tli, m_cg);
+  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg);
   bu.runOnModule(M, m_graphs);
 
   DsaCallGraph dsaCG(m_cg);
@@ -514,6 +519,7 @@ ContextSensitiveGlobal::ContextSensitiveGlobal()
 void ContextSensitiveGlobal::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
+  AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
@@ -521,8 +527,10 @@ bool ContextSensitiveGlobal::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  auto &allocInfo = getAnalysis<AllocWrapInfo>();
 
-  m_ga.reset(new ContextSensitiveGlobalAnalysis(dl, tli, cg, m_setFactory));
+  m_ga.reset(new ContextSensitiveGlobalAnalysis(dl, tli, allocInfo, cg,
+                                                m_setFactory));
   return m_ga->runOnModule(M);
 }
 } // namespace sea_dsa

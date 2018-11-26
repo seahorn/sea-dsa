@@ -18,6 +18,7 @@ class CallGraph;
 } // namespace llvm
 
 namespace sea_dsa {
+class AllocWrapInfo;
 
 class BottomUpAnalysis {
 
@@ -33,6 +34,7 @@ private:
 
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
+  const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   CalleeCallerMapping m_callee_caller_map;
 
@@ -50,8 +52,9 @@ public:
                                        Graph &callerG);
 
   BottomUpAnalysis(const llvm::DataLayout &dl,
-                   const llvm::TargetLibraryInfo &tli, llvm::CallGraph &cg)
-      : m_dl(dl), m_tli(tli), m_cg(cg) {}
+                   const llvm::TargetLibraryInfo &tli,
+                   const AllocWrapInfo &allocInfo, llvm::CallGraph &cg)
+      : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 
@@ -74,6 +77,7 @@ class BottomUp : public llvm::ModulePass {
   Graph::SetFactory m_setFactory;
   const llvm::DataLayout *m_dl;
   const llvm::TargetLibraryInfo *m_tli;
+  const AllocWrapInfo *m_allocInfo;
   GraphMap m_graphs;
 
 public:

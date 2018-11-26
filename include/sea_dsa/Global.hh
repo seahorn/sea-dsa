@@ -21,6 +21,8 @@ class CallGraph;
 
 namespace sea_dsa {
 
+class AllocWrapInfo;
+
 enum GlobalAnalysisKind { CONTEXT_INSENSITIVE, CONTEXT_SENSITIVE, FLAT_MEMORY };
 
 // Common API for global analyses
@@ -42,6 +44,7 @@ public:
   virtual Graph &getGraph(const llvm::Function &F) = 0;
 
   virtual bool hasGraph(const llvm::Function &F) const = 0;
+
 };
 
 // Context-insensitive dsa analysis
@@ -54,6 +57,7 @@ private:
 
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
+  const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   GraphRef m_graph;
@@ -65,11 +69,12 @@ private:
 public:
   ContextInsensitiveGlobalAnalysis(const llvm::DataLayout &dl,
                                    const llvm::TargetLibraryInfo &tli,
+                                   const AllocWrapInfo &allocInfo,
                                    llvm::CallGraph &cg, SetFactory &setFactory,
                                    const bool useFlatMemory)
       : GlobalAnalysis(useFlatMemory ? FLAT_MEMORY : CONTEXT_INSENSITIVE),
-        m_dl(dl), m_tli(tli), m_cg(cg), m_setFactory(setFactory),
-        m_graph(nullptr) {}
+        m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
+        m_setFactory(setFactory), m_graph(nullptr) {}
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -105,6 +110,7 @@ private:
 
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
+  const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
 
@@ -126,9 +132,10 @@ public:
 public:
   ContextSensitiveGlobalAnalysis(const llvm::DataLayout &dl,
                                  const llvm::TargetLibraryInfo &tli,
+                                 const AllocWrapInfo &allocInfo,
                                  llvm::CallGraph &cg, SetFactory &setFactory)
-      : GlobalAnalysis(CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli), m_cg(cg),
-        m_setFactory(setFactory) {}
+      : GlobalAnalysis(CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
+        m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
 
   bool runOnModule(llvm::Module &M) override;
 
