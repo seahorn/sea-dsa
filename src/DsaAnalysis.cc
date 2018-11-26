@@ -1,3 +1,5 @@
+#include "sea_dsa/DsaAnalysis.hh"
+
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -5,7 +7,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/DsaAnalysis.hh"
+#include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/Global.hh"
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Stats.hh"
@@ -28,11 +30,11 @@ static llvm::cl::opt<bool>
              llvm::cl::init(false));
 
 void DsaAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<TargetLibraryInfoWrapperPass>();
-  AU.addRequired<CallGraphWrapperPass>();
-  // XXX: needed if we run later DsaInfo
   AU.addRequired<RemovePtrToInt>();
   AU.addRequired<NameValues>();
+  AU.addRequired<CallGraphWrapperPass>();
+  AU.addRequired<TargetLibraryInfoWrapperPass>();
+  AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
@@ -54,20 +56,22 @@ GlobalAnalysis &DsaAnalysis::getDsaAnalysis() {
 bool DsaAnalysis::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  m_allocInfo = &getAnalysis<AllocWrapInfo>();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
   switch (DsaGlobalAnalysis) {
   case CONTEXT_INSENSITIVE:
-    m_ga.reset(new ContextInsensitiveGlobalAnalysis(*m_dl, *m_tli, cg,
-                                                    m_setFactory, false));
+    m_ga.reset(new ContextInsensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
+                                                    cg, m_setFactory, false));
     break;
   case FLAT_MEMORY:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
-        *m_dl, *m_tli, cg, m_setFactory, true /* use flat*/));
+        *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory, true /* use flat*/));
     break;
   default: /* CONTEXT_SENSITIVE */
     m_ga.reset(
-        new ContextSensitiveGlobalAnalysis(*m_dl, *m_tli, cg, m_setFactory));
+        new ContextSensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo, cg,
+                                           m_setFactory));
   }
 
   m_ga->runOnModule(M);

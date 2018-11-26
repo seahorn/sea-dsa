@@ -1,3 +1,5 @@
+#include "sea_dsa/Local.hh"
+
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -15,8 +17,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 
+#include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/Graph.hh"
-#include "sea_dsa/Local.hh"
 #include "sea_dsa/TypeUtils.hh"
 #include "sea_dsa/support/Debug.h"
 
@@ -104,6 +106,7 @@ protected:
   sea_dsa::Graph &m_graph;
   const DataLayout &m_dl;
   const TargetLibraryInfo &m_tli;
+  const sea_dsa::AllocWrapInfo &m_allocInfo;
 
   sea_dsa::Cell valueCell(const Value &v);
   void visitGep(const Value &gep, const Value &base,
@@ -135,8 +138,10 @@ protected:
 
 public:
   BlockBuilderBase(Function &func, sea_dsa::Graph &graph, const DataLayout &dl,
-                   const TargetLibraryInfo &tli)
-      : m_func(func), m_graph(graph), m_dl(dl), m_tli(tli) {}
+                   const TargetLibraryInfo &tli,
+                   const sea_dsa::AllocWrapInfo &allocInfo)
+      : m_func(func), m_graph(graph), m_dl(dl), m_tli(tli),
+        m_allocInfo(allocInfo) {}
 };
 
 class InterBlockBuilder : public InstVisitor<InterBlockBuilder>,
@@ -147,8 +152,9 @@ class InterBlockBuilder : public InstVisitor<InterBlockBuilder>,
 
 public:
   InterBlockBuilder(Function &func, sea_dsa::Graph &graph, const DataLayout &dl,
-                    const TargetLibraryInfo &tli)
-      : BlockBuilderBase(func, graph, dl, tli) {}
+                    const TargetLibraryInfo &tli,
+                    const sea_dsa::AllocWrapInfo &allocInfo)
+      : BlockBuilderBase(func, graph, dl, tli, allocInfo) {}
 };
 
 void InterBlockBuilder::visitPHINode(PHINode &PHI) {
@@ -213,8 +219,9 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
 public:
   IntraBlockBuilder(Function &func, sea_dsa::Graph &graph, const DataLayout &dl,
-                    const TargetLibraryInfo &tli)
-      : BlockBuilderBase(func, graph, dl, tli) {}
+                    const TargetLibraryInfo &tli,
+                    const sea_dsa::AllocWrapInfo &allocInfo)
+      : BlockBuilderBase(func, graph, dl, tli, allocInfo) {}
 };
 
 sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
@@ -637,7 +644,10 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
 
 void IntraBlockBuilder::visitCallSite(CallSite CS) {
   using namespace sea_dsa;
-  if (llvm::isAllocationFn(CS.getInstruction(), &m_tli, true)) {
+  Function *callee =
+      dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts());
+  if (llvm::isAllocationFn(CS.getInstruction(), &m_tli, true) ||
+      (callee && m_allocInfo.isAllocWrapper(*callee))) {
     assert(CS.getInstruction());
     Node &n = m_graph.mkNode();
     // -- record allocation site
@@ -649,8 +659,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     return;
   }
 
-  if (const Function *callee =
-          dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts())) {
+  if (callee) {
     /**
         sea_dsa_alias(p1,...,pn)
         unify the cells of p1,...,pn
@@ -971,8 +980,8 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   revTopoSort(F, bbs);
   boost::reverse(bbs);
 
-  IntraBlockBuilder intraBuilder(F, g, m_dl, m_tli);
-  InterBlockBuilder interBuilder(F, g, m_dl, m_tli);
+  IntraBlockBuilder intraBuilder(F, g, m_dl, m_tli, m_allocInfo);
+  InterBlockBuilder interBuilder(F, g, m_dl, m_tli, m_allocInfo);
   for (const BasicBlock *bb : bbs)
     intraBuilder.visit(*const_cast<BasicBlock *>(bb));
   for (const BasicBlock *bb : bbs)
@@ -1008,16 +1017,19 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
       g.write(errs()));
 }
 
-Local::Local() : ModulePass(ID), m_dl(nullptr), m_tli(nullptr) {}
+Local::Local() : ModulePass(ID), m_dl(nullptr), m_tli(nullptr),
+                 m_allocInfo(nullptr) {}
 
 void Local::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
+  AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
 bool Local::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  m_allocInfo = &getAnalysis<AllocWrapInfo>();
 
   for (Function &F : M)
     runOnFunction(F);
@@ -1030,7 +1042,7 @@ bool Local::runOnFunction(Function &F) {
 
   LOG("progress", errs() << "DSA: " << F.getName() << "\n";);
 
-  LocalAnalysis la(*m_dl, *m_tli);
+  LocalAnalysis la(*m_dl, *m_tli, *m_allocInfo);
   GraphRef g = std::make_shared<Graph>(*m_dl, m_setFactory);
   la.runOnFunction(F, *g);
   m_graphs[&F] = g;

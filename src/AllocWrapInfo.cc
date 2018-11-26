@@ -31,6 +31,7 @@ char AllocWrapInfo::ID = 0;
 
 void AllocWrapInfo::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.setPreservesAll();
 }
 
@@ -99,11 +100,11 @@ void AllocWrapInfo::findAllocs(Module &M) {
   }
 }
 bool AllocWrapInfo::isAllocWrapper(llvm::Function &fn) const {
-  return m_allocs.count(fn.getName());
+  return m_allocs.count(fn.getName()) != 0;
 }
 
 bool AllocWrapInfo::isDeallocWrapper(llvm::Function &fn) const {
-  return m_deallocs.count(fn.getName());
+  return m_deallocs.count(fn.getName()) != 0;
 }
 
 bool AllocWrapInfo::findWrappers(Module &M, std::set<std::string> &fn_names) {
