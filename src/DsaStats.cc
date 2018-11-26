@@ -64,14 +64,12 @@ namespace sea_dsa {
     for (const auto &n: nodes) {
       if (n.getNode()->isOffsetCollapsed()) {
         num_offset_collapses++;
-        continue;
+      } else {
+        if (n.getNode()->types().empty())
+          num_untyped_nodes++;
+        else
+          num_typed_nodes++;
       }
-
-      if (n.getNode()->types().empty())
-        num_untyped_nodes++;
-      else
-        num_typed_nodes++;
-
       num_fields += n.getNode()->getLinks().size();
 
       llvm::SmallDenseSet<unsigned, 8> fields;
