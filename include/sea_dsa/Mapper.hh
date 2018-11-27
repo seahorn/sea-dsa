@@ -57,7 +57,6 @@ namespace sea_dsa
       if (!c.getNode()) return Cell();
 
       Cell res = get(*c.getNode());
-      // FIXME: Types
       return Cell(res.getNode(), res.getRawOffset() + c.getRawOffset());
     }
     
