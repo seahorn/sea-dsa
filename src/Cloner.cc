@@ -9,11 +9,16 @@ Node &Cloner::clone(const Node &n) {
 
   // check the cache
   auto it = m_map.find(&n);
-  if (it != m_map.end())
+  if (it != m_map.end()) {
+    // XXX TODO: might need to update attributes of it->second based on n
     return *(it->second);
+  }
 
   // -- clone the node (except for the links)
   Node &nNode = m_graph.cloneNode(n);
+
+  // XXX TODO: update attributes of nNode based on n and current
+  // XXX TODO: cloning requirements
 
   // -- update cache
   m_map.insert(std::make_pair(&n, &nNode));
