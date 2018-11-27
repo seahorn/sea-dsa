@@ -39,5 +39,7 @@ RUN cmake -GNinja \
     ln -s /clang-5.0/bin/clang++ run/bin/clang++
 
 # RUN tests when they are ready to go
+# RUN cmake --build . --target test-sea-dsa
+RUN cmake --build . --target sea-dsa-units
 
 WORKDIR /sea-dsa
