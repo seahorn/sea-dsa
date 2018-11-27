@@ -244,6 +244,9 @@ template <typename T> const T &WorkList<T>::dequeue() {
 void ContextSensitiveGlobalAnalysis::cloneAndResolveArguments(
     const DsaCallSite &cs, Graph &callerG, Graph &calleeG) {
 
+  // XXX TODO: This cloner should remove all alloca instructions
+  // XXX TODO: from nodes that are being cloned into calleeG
+  // XXX TODO: except for the ones passed directly at call site (see below)
   Cloner C(calleeG);
 
   // clone and unify globals
@@ -276,6 +279,11 @@ void ContextSensitiveGlobalAnalysis::cloneAndResolveArguments(
     const Value *fml = &*FI;
     if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
       const Cell &callerCell = callerG.getCell(*arg);
+      // XXX TODO: if callerCell.getNode() has allocas , they are copied
+      // XXX TODO: but allocas that are in nodes reachable from this node are not
+      // XXX TODO: careful because the node might be reachable in multiple ways
+      // XXX TODO: easiest if cloner can copy attributes that were removed
+      // XXX TODO: by a previous clone
       Node &n = C.clone(*callerCell.getNode());
       Cell c(n, callerCell.getRawOffset());
       Cell &nc = calleeG.mkCell(*fml, Cell());
@@ -368,7 +376,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   LOG("dsa-global",
       errs () << "Initially " << w.size () << " callsite to propagate\n";);
-  
+
   unsigned td_props = 0;
   unsigned bu_props = 0;
   while (!w.empty()) {
