@@ -31,6 +31,10 @@ namespace sea_dsa {
 void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
                                                 Graph &calleeG,
                                                 Graph &callerG) {
+
+  // XXX TODO: The Cloner must strip all alloca instructions
+  // XXX TODO: That do not escape the callee. It might need to know
+  // XXX TODO: more context to be able to do so
   Cloner C(callerG);
 
   // clone and unify globals
@@ -148,7 +152,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
       if (!fGraph) {
         assert(graphs.find(fn) != graphs.end());
-        fGraph = graphs[fn];
+        fGraph = graphs.at(fn);
         assert(fGraph);
       }
 
@@ -192,6 +196,8 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
         Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
 
+        // XXX AG TODO: The loop containing this code is either dead
+        // XXX AG TODO: code or needs revision
         /*SimulationMapperRef sm(new SimulationMapper());
         bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
                                                      *sm, do_sanity_checks);
