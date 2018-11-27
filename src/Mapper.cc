@@ -19,11 +19,8 @@ void FunctionalMapper::insert(const Cell &src, const Cell &dst) {
 
   // -- offset of the source node in the destination
   unsigned srcNodeOffset = dst.getRawOffset() - src.getRawOffset();
-
-  // FIXME: Types
-  m_nodes.insert(std::make_pair(src.getNode(),
-                                Cell(dst.getNode(), srcNodeOffset)));
-  m_cells.insert(std::make_pair(src, dst));
+  m_nodes.emplace(src.getNode(), Cell(dst.getNode(), srcNodeOffset));
+  m_cells.emplace(src, dst);
 
   Node::Offset srcOffset(*src.getNode(), src.getRawOffset());
 
@@ -104,21 +101,24 @@ bool SimulationMapper::insert(const Node &n1, Node &n2, Field o)
       
   // At this point, n1 (at offset 0) is simulated by n2 at adjusted
   // offset. Thus, we add n2 into the map.
-  map[&n2] = Field(offset.getNumericOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
+  map.emplace(&n2, offset.getAdjustedField(o));
 
   // Check children recursively
   for (auto &kv : n1.links ())
   {
-    unsigned j = n2.isOffsetCollapsed() ? 0 : kv.first.getOffset() +
+    const unsigned j = n2.isOffsetCollapsed() ? 0 : kv.first.getOffset() +
                                          offset.getNumericOffset();
-    if (!n2.hasLink(Field(j, FIELD_TYPE_NOT_IMPLEMENTED)))
+    const FieldType ty = kv.first.getType();
+    const Field adjusted(j, ty);
+
+    if (!n2.hasLink(adjusted))
     { m_sim.clear (); return false; }
     
     Node *n3 = kv.second->getNode ();
     // adjusted offset
     unsigned off1 = kv.second->getOffset ();
 
-    auto &link = n2.getLink(Field(j, FIELD_TYPE_NOT_IMPLEMENTED));
+    auto &link = n2.getLink(adjusted);
     Node *n4 = link.getNode ();
     // adjusted offset
     unsigned off2 = link.getOffset ();
@@ -128,7 +128,7 @@ bool SimulationMapper::insert(const Node &n1, Node &n2, Field o)
     { m_sim.clear (); return false; }
 
     // Offsets must be adjusted     
-    if (!insert (*n3, *n4, Field(off2 - off1, FIELD_TYPE_NOT_IMPLEMENTED)))
+    if (!insert (*n3, *n4, Field(off2 - off1, ty)))
     { m_sim.clear (); return false; }
   }
   
@@ -150,7 +150,6 @@ bool SimulationMapper::isInjective (bool onlyModified)  const
   for (auto &kv: m_sim) 
     for (auto &c: kv.second) 
     {
-      // FIXME: Types
       auto res = inv_sim.insert(Cell(c.first, c.second.getOffset()));
       if (!onlyModified || c.first->isModified()) 
         if (!res.second) return false;
