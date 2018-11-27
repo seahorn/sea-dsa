@@ -183,7 +183,7 @@ public:
 
 class Field {
   unsigned m_offset = -1;
-  FieldType m_type{nullptr};
+  FieldType m_type = FIELD_TYPE_NOT_IMPLEMENTED;
 
 public:
   Field() = default;

@@ -31,7 +31,6 @@ namespace sea_dsa {
 void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
                                                 Graph &calleeG,
                                                 Graph &callerG) {
-
   // XXX TODO: The Cloner must strip all alloca instructions
   // XXX TODO: That do not escape the callee. It might need to know
   // XXX TODO: more context to be able to do so
@@ -152,7 +151,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
       if (!fGraph) {
         assert(graphs.find(fn) != graphs.end());
-        fGraph = graphs.at(fn);
+        fGraph = graphs[fn];
         assert(fGraph);
       }
 
@@ -196,11 +195,10 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
         Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
 
-        // XXX AG TODO: The loop containing this code is either dead
-        // XXX AG TODO: code or needs revision
-        /*SimulationMapperRef sm(new SimulationMapper());
+        SimulationMapperRef sm(new SimulationMapper());
         bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
                                                      *sm, do_sanity_checks);
+        (void)res;
         assert(res); // the simulation map was successfully built.
         m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
 
@@ -213,7 +211,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
           // node in the caller graph
           checkAllNodesAreMapped(*callee, calleeG, *sm);
         }
-         */
+
       }
     }
 
