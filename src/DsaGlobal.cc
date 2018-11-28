@@ -45,7 +45,7 @@ namespace sea_dsa {
 
 // Unify callsite arguments within the same graph
 void GlobalAnalysis::resolveArguments(DsaCallSite &cs, Graph &g) {
-				      
+
   // unify return
   const Function &callee = *cs.getCallee();
   if (g.hasRetCell(callee)) {
@@ -74,8 +74,8 @@ void GlobalAnalysis::resolveArguments(DsaCallSite &cs, Graph &g) {
 // Clone caller nodes into callee and resolve arguments
 // XXX: this code is pretty much symmetric to the one defined in
 // BottomUp. They should be merged at some point.
-void GlobalAnalysis::cloneAndResolveArguments(
-    const DsaCallSite &cs, Graph &callerG, Graph &calleeG) {
+void GlobalAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
+                                              Graph &callerG, Graph &calleeG) {
 
   // XXX TODO: This cloner should remove all alloca instructions
   // XXX TODO: from nodes that are being cloned into calleeG
@@ -113,7 +113,8 @@ void GlobalAnalysis::cloneAndResolveArguments(
     if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
       const Cell &callerCell = callerG.getCell(*arg);
       // XXX TODO: if callerCell.getNode() has allocas , they are copied
-      // XXX TODO: but allocas that are in nodes reachable from this node are not
+      // XXX TODO: but allocas that are in nodes reachable from this node are
+      // not
       // XXX TODO: careful because the node might be reachable in multiple ways
       // XXX TODO: easiest if cloner can copy attributes that were removed
       // XXX TODO: by a previous clone
@@ -125,10 +126,9 @@ void GlobalAnalysis::cloneAndResolveArguments(
   }
   calleeG.compress();
 }
-  
 
 /// CONTEXT-INSENSITIVE DSA
-  
+
 bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   LOG("dsa-global",
@@ -244,8 +244,8 @@ bool ContextInsensitiveGlobalPass::runOnModule(Module &M) {
   return m_ga->runOnModule(M);
 }
 
-  
-FlatMemoryGlobalPass::FlatMemoryGlobalPass() : DsaGlobalPass(ID), m_ga(nullptr) {}
+FlatMemoryGlobalPass::FlatMemoryGlobalPass()
+    : DsaGlobalPass(ID), m_ga(nullptr) {}
 
 void FlatMemoryGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
@@ -337,7 +337,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   /// -- top-down/bottom-up propagation until no change
 
   LOG("dsa-global",
-      errs () << "Initially " << w.size () << " callsite to propagate\n";);
+      errs() << "Initially " << w.size() << " callsite to propagate\n";);
 
   unsigned td_props = 0;
   unsigned bu_props = 0;
@@ -355,8 +355,8 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
     if (!callee || callee->isDeclaration() || callee->empty())
       continue;
 
-    LOG("dsa-global",
-	errs() << "Selected callsite " << *I << " from queue ... ";);
+    LOG("dsa-global", errs()
+                          << "Selected callsite " << *I << " from queue ... ";);
     auto caller = dsaCS.getCaller();
 
     assert(m_graphs.count(caller) > 0);
@@ -470,7 +470,7 @@ void ContextSensitiveGlobalAnalysis::propagateBottomUp(const DsaCallSite &cs,
   // errs () << "Bottom-up propagation at " << *cs.getInstruction () << "\n";
   assert(decidePropagation(cs, calleeG, callerG) != UP);
 }
-  
+
 // Perform some sanity checks:
 // 1) each callee node can be simulated by its corresponding caller node.
 // 2) no two callee nodes are mapped to the same caller node.
@@ -550,7 +550,7 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
     if (!callee || callee->isDeclaration() || callee->empty())
       continue;
     auto caller = dsaCS.getCaller();
-    
+
     assert(m_graphs.count(caller) > 0);
     assert(m_graphs.count(callee) > 0);
 
@@ -558,24 +558,25 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
     Graph &calleeG = *(m_graphs.find(callee)->second);
 
     cloneAndResolveArguments(dsaCS, callerG, calleeG);
-  }  
-  
+  }
+
   // Removing dead nodes (if any)
   for (auto &kv : m_graphs)
     kv.second->remove_dead();
 
-  LOG("dsa-global-graph", for (auto &kv : m_graphs) {
+  LOG("dsa-global-graph", for (auto &kv
+                               : m_graphs) {
     errs() << "### Global Dsa graph for " << kv.first->getName() << "\n";
     kv.second->write(errs());
     errs() << "\n";
   });
 
-  LOG("dsa-global", errs() << "Finished bottom-up + top-down global analysis\n");
+  LOG("dsa-global",
+      errs() << "Finished bottom-up + top-down global analysis\n");
   return false;
 }
 
-const Graph &
-BottomUpTopDownGlobalAnalysis::getGraph(const Function &fn) const {
+const Graph &BottomUpTopDownGlobalAnalysis::getGraph(const Function &fn) const {
   return *(m_graphs.find(&fn)->second);
 }
 
@@ -586,9 +587,7 @@ Graph &BottomUpTopDownGlobalAnalysis::getGraph(const Function &fn) {
 bool BottomUpTopDownGlobalAnalysis::hasGraph(const Function &fn) const {
   return m_graphs.count(&fn) > 0;
 }
-  
 
-  
 /// LLVM passes
 
 ContextSensitiveGlobalPass::ContextSensitiveGlobalPass()
@@ -609,15 +608,13 @@ bool ContextSensitiveGlobalPass::runOnModule(Module &M) {
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
 
-  m_ga.reset(new ContextSensitiveGlobalAnalysis(dl, tli, allocInfo, cg,
-                                                m_setFactory));
+  m_ga.reset(
+      new ContextSensitiveGlobalAnalysis(dl, tli, allocInfo, cg, m_setFactory));
   return m_ga->runOnModule(M);
 }
 
-
 BottomUpTopDownGlobalPass::BottomUpTopDownGlobalPass()
-  : DsaGlobalPass(ID), m_ga(nullptr) {
-}
+    : DsaGlobalPass(ID), m_ga(nullptr) {}
 
 void BottomUpTopDownGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
@@ -632,10 +629,11 @@ bool BottomUpTopDownGlobalPass::runOnModule(Module &M) {
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
 
-  m_ga.reset(new BottomUpTopDownGlobalAnalysis(dl, tli, allocInfo, cg, m_setFactory));
+  m_ga.reset(
+      new BottomUpTopDownGlobalAnalysis(dl, tli, allocInfo, cg, m_setFactory));
   return m_ga->runOnModule(M);
 }
-  
+
 } // namespace sea_dsa
 
 namespace sea_dsa {
