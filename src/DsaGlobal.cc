@@ -222,17 +222,17 @@ bool ContextInsensitiveGlobalAnalysis::hasGraph(const Function &fn) const {
 
 /// LLVM passes
 
-ContextInsensitiveGlobal::ContextInsensitiveGlobal()
+ContextInsensitiveGlobalPass::ContextInsensitiveGlobalPass()
     : DsaGlobalPass(ID), m_ga(nullptr) {}
 
-void ContextInsensitiveGlobal::getAnalysisUsage(AnalysisUsage &AU) const {
+void ContextInsensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
-bool ContextInsensitiveGlobal::runOnModule(Module &M) {
+bool ContextInsensitiveGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
@@ -245,16 +245,16 @@ bool ContextInsensitiveGlobal::runOnModule(Module &M) {
 }
 
   
-FlatMemoryGlobal::FlatMemoryGlobal() : DsaGlobalPass(ID), m_ga(nullptr) {}
+FlatMemoryGlobalPass::FlatMemoryGlobalPass() : DsaGlobalPass(ID), m_ga(nullptr) {}
 
-void FlatMemoryGlobal::getAnalysisUsage(AnalysisUsage &AU) const {
+void FlatMemoryGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
-bool FlatMemoryGlobal::runOnModule(Module &M) {
+bool FlatMemoryGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
@@ -591,19 +591,19 @@ bool BottomUpTopDownGlobalAnalysis::hasGraph(const Function &fn) const {
   
 /// LLVM passes
 
-ContextSensitiveGlobal::ContextSensitiveGlobal()
+ContextSensitiveGlobalPass::ContextSensitiveGlobalPass()
     : DsaGlobalPass(ID), m_ga(nullptr) {
   // initializeCallGraphWrapperPassPass(*PassRegistry::getPassRegistry());
 }
 
-void ContextSensitiveGlobal::getAnalysisUsage(AnalysisUsage &AU) const {
+void ContextSensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
-bool ContextSensitiveGlobal::runOnModule(Module &M) {
+bool ContextSensitiveGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
@@ -615,18 +615,18 @@ bool ContextSensitiveGlobal::runOnModule(Module &M) {
 }
 
 
-BottomUpTopDownGlobal::BottomUpTopDownGlobal()
+BottomUpTopDownGlobalPass::BottomUpTopDownGlobalPass()
   : DsaGlobalPass(ID), m_ga(nullptr) {
 }
 
-void BottomUpTopDownGlobal::getAnalysisUsage(AnalysisUsage &AU) const {
+void BottomUpTopDownGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
 
-bool BottomUpTopDownGlobal::runOnModule(Module &M) {
+bool BottomUpTopDownGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
@@ -772,22 +772,22 @@ void CallGraphClosure<GA, Op>::exec_callsite(const DsaCallSite &cs,
 }
 } // namespace sea_dsa
 
-char sea_dsa::FlatMemoryGlobal::ID = 0;
+char sea_dsa::FlatMemoryGlobalPass::ID = 0;
 
-char sea_dsa::ContextInsensitiveGlobal::ID = 0;
+char sea_dsa::ContextInsensitiveGlobalPass::ID = 0;
 
-char sea_dsa::ContextSensitiveGlobal::ID = 0;
+char sea_dsa::ContextSensitiveGlobalPass::ID = 0;
 
-char sea_dsa::BottomUpTopDownGlobal::ID = 0;
+char sea_dsa::BottomUpTopDownGlobalPass::ID = 0;
 
-static llvm::RegisterPass<sea_dsa::FlatMemoryGlobal>
+static llvm::RegisterPass<sea_dsa::FlatMemoryGlobalPass>
     X("seadsa-flat-global", "Flat memory Dsa analysis");
 
-static llvm::RegisterPass<sea_dsa::ContextInsensitiveGlobal>
+static llvm::RegisterPass<sea_dsa::ContextInsensitiveGlobalPass>
     Y("seadsa-ci-global", "Context-insensitive Dsa analysis");
 
-static llvm::RegisterPass<sea_dsa::ContextSensitiveGlobal>
+static llvm::RegisterPass<sea_dsa::ContextSensitiveGlobalPass>
     W("seadsa-cs-global", "Context-sensitive Dsa analysis");
 
-static llvm::RegisterPass<sea_dsa::BottomUpTopDownGlobal>
+static llvm::RegisterPass<sea_dsa::BottomUpTopDownGlobalPass>
     Z("seadsa-butd-global", "Bottom-up + top-down Dsa analysis");
