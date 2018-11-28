@@ -14,6 +14,7 @@
 
 #include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/BottomUp.hh"
+#include "sea_dsa/TopDown.hh"
 #include "sea_dsa/CallGraph.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Cloner.hh"
@@ -43,8 +44,10 @@ using namespace llvm;
 
 namespace sea_dsa {
 
+/// CONTEXT-INSENSITIVE DSA
+
 // Unify callsite arguments within the same graph
-void GlobalAnalysis::resolveArguments(DsaCallSite &cs, Graph &g) {
+void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs, Graph &g) {
 
   // unify return
   const Function &callee = *cs.getCallee();
@@ -70,65 +73,7 @@ void GlobalAnalysis::resolveArguments(DsaCallSite &cs, Graph &g) {
     }
   }
 }
-
-// Clone caller nodes into callee and resolve arguments
-// XXX: this code is pretty much symmetric to the one defined in
-// BottomUp. They should be merged at some point.
-void GlobalAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
-                                              Graph &callerG, Graph &calleeG) {
-
-  // XXX TODO: This cloner should remove all alloca instructions
-  // XXX TODO: from nodes that are being cloned into calleeG
-  // XXX TODO: except for the ones passed directly at call site (see below)
-  Cloner C(calleeG);
-
-  // clone and unify globals
-  for (auto &kv : boost::make_iterator_range(callerG.globals_begin(),
-                                             callerG.globals_end())) {
-    Node &n = C.clone(*kv.second->getNode());
-    Cell c(n, kv.second->getRawOffset());
-    Cell &nc = calleeG.mkCell(*kv.first, Cell());
-    nc.unify(c);
-  }
-
-  // clone and unify return
-  const Function &callee = *cs.getCallee();
-  if (calleeG.hasRetCell(callee) && callerG.hasCell(*cs.getInstruction())) {
-    auto &inst = *cs.getInstruction();
-    const Cell &csCell = callerG.getCell(inst);
-    Node &n = C.clone(*csCell.getNode());
-    Cell c(n, csCell.getRawOffset());
-    Cell &nc = calleeG.getRetCell(callee);
-    nc.unify(c);
-  }
-
-  // clone and unify actuals and formals
-  DsaCallSite::const_actual_iterator AI = cs.actual_begin(),
-                                     AE = cs.actual_end();
-  for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(),
-                                          FE = cs.formal_end();
-       FI != FE && AI != AE; ++FI, ++AI) {
-    const Value *arg = (*AI).get();
-    const Value *fml = &*FI;
-    if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
-      const Cell &callerCell = callerG.getCell(*arg);
-      // XXX TODO: if callerCell.getNode() has allocas , they are copied
-      // XXX TODO: but allocas that are in nodes reachable from this node are
-      // not
-      // XXX TODO: careful because the node might be reachable in multiple ways
-      // XXX TODO: easiest if cloner can copy attributes that were removed
-      // XXX TODO: by a previous clone
-      Node &n = C.clone(*callerCell.getNode());
-      Cell c(n, callerCell.getRawOffset());
-      Cell &nc = calleeG.mkCell(*fml, Cell());
-      nc.unify(c);
-    }
-  }
-  calleeG.compress();
-}
-
-/// CONTEXT-INSENSITIVE DSA
-
+  
 bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   LOG("dsa-global",
@@ -448,7 +393,7 @@ ContextSensitiveGlobalAnalysis::decidePropagation(const DsaCallSite &cs,
 void ContextSensitiveGlobalAnalysis::propagateTopDown(const DsaCallSite &cs,
                                                       Graph &callerG,
                                                       Graph &calleeG) {
-  cloneAndResolveArguments(cs, callerG, calleeG);
+  TopDownAnalysis::cloneAndResolveArguments(cs, callerG, calleeG);
 
   LOG("dsa-global", if (decidePropagation(cs, calleeG, callerG) == DOWN) {
     errs() << "Sanity check failed:"
@@ -535,31 +480,16 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
     m_graphs[&F] = fGraph;
   }
 
-  // -- Run bottom up analysis on the whole call graph
+  // -- Run bottom up analysis on the whole call graph: callees before
+  // -- callers.
   BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg);
   bu.runOnModule(M, m_graphs);
 
-  // -- Run top-down propagation: from caller to callees.
-  //    Get all callsites from the bottom up pass' datastructure. We
-  //    don't need to but it's convenient.
-  for (auto &kv : boost::make_iterator_range(bu.callee_caller_mapping_begin(),
-                                             bu.callee_caller_mapping_end())) {
-    ImmutableCallSite CS(kv.first);
-    DsaCallSite dsaCS(CS);
-    auto callee = dsaCS.getCallee();
-    if (!callee || callee->isDeclaration() || callee->empty())
-      continue;
-    auto caller = dsaCS.getCaller();
-
-    assert(m_graphs.count(caller) > 0);
-    assert(m_graphs.count(callee) > 0);
-
-    Graph &callerG = *(m_graphs.find(caller)->second);
-    Graph &calleeG = *(m_graphs.find(callee)->second);
-
-    cloneAndResolveArguments(dsaCS, callerG, calleeG);
-  }
-
+  // -- Run top down analysis on the whole call graph: callers before
+  // -- callees.
+  TopDownAnalysis td(m_dl, m_tli, m_allocInfo, m_cg);
+  td.runOnModule(M, m_graphs);
+  
   // Removing dead nodes (if any)
   for (auto &kv : m_graphs)
     kv.second->remove_dead();

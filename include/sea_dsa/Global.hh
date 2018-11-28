@@ -41,13 +41,6 @@ class GlobalAnalysis {
 protected:
   GlobalAnalysisKind _kind;
 
-  // unify caller/callee nodes within the same graph
-  void resolveArguments(DsaCallSite &cs, Graph &g);
-
-  // clone caller nodes into callee graph and unify arguments
-  void cloneAndResolveArguments(const DsaCallSite &cs, Graph &callerG,
-                                Graph &calleeG);
-
 public:
   GlobalAnalysis(GlobalAnalysisKind kind) : _kind(kind) {}
 
@@ -91,6 +84,9 @@ public:
         m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
         m_setFactory(setFactory), m_graph(nullptr) {}
 
+  // unify caller/callee nodes within the same graph
+  static void resolveArguments(DsaCallSite &cs, Graph &g);
+  
   bool runOnModule(llvm::Module &M) override;
 
   const Graph &getGraph(const llvm::Function &fn) const override;
