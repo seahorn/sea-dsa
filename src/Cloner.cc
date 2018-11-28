@@ -1,8 +1,9 @@
 #include "sea_dsa/Cloner.hh"
-
+#include "sea_dsa/support/Debug.h"
+#include "llvm/IR/Instructions.h"
 using namespace sea_dsa;
 
-Node &Cloner::clone(const Node &n) {
+Node &Cloner::clone(const Node &n, bool forceAlloca) {
   // -- don't clone nodes that are already in the graph
   if (n.getGraph() == &m_graph)
     return *const_cast<Node *>(&n);
@@ -10,16 +11,35 @@ Node &Cloner::clone(const Node &n) {
   // check the cache
   auto it = m_map.find(&n);
   if (it != m_map.end()) {
-    // XXX TODO: might need to update attributes of it->second based on n
-    return *(it->second);
+    Node &nNode = *(it->second);
+    // if alloca are stripped but this call forces them,
+    // then ensure that all allocas of n are copied over to nNode
+    if (m_strip_alloca && forceAlloca &&
+        nNode.getAllocSites().size() < n.getAllocSites().size()) {
+      nNode.insertAllocSites(n.getAllocSites().begin(),
+                             n.getAllocSites().end());
+    }
+    return nNode;
   }
 
   // -- clone the node (except for the links)
   Node &nNode = m_graph.cloneNode(n);
 
-  // XXX TODO: update attributes of nNode based on n and current
-  // XXX TODO: cloning requirements
-
+  // if not forcing allocas and stripping allocas is enabled, remove
+  // all alloca instructions from the new node
+  if (!forceAlloca && m_strip_alloca) {
+    unsigned sz = nNode.getAllocSites().size();
+    nNode.resetAllocSites();
+    llvm::SmallVector<const llvm::Value *, 16> sites;
+    for (const llvm::Value *val : n.getAllocSites()) {
+      if (!llvm::isa<llvm::AllocaInst>(val))
+        sites.push_back(val);
+    }
+    nNode.insertAllocSites(sites.begin(), sites.end());
+    LOG("cloner", if (nNode.getAllocSites().size() < sz) llvm::errs()
+                      << "Clone: reduced allocas from " << sz << " to "
+                      << nNode.getAllocSites().size() << "\n";);
+  }
   // -- update cache
   m_map.insert(std::make_pair(&n, &nNode));
 

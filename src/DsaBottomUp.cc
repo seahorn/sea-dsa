@@ -29,12 +29,9 @@ namespace sea_dsa {
 
 // Clone callee nodes into caller and resolve arguments
 void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
-                                                Graph &calleeG,
-                                                Graph &callerG) {
-  // XXX TODO: The Cloner must strip all alloca instructions
-  // XXX TODO: That do not escape the callee. It might need to know
-  // XXX TODO: more context to be able to do so
-  Cloner C(callerG);
+                                                Graph &calleeG, Graph &callerG,
+                                                bool noescape) {
+  Cloner C(callerG, noescape);
 
   // clone and unify globals
   for (auto &kv : boost::make_iterator_range(calleeG.globals_begin(),
@@ -178,7 +175,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
         Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
 
-        cloneAndResolveArguments(dsaCS, calleeG, callerG);
+        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape);
       }
 
       // -- store the simulation maps from the SCC
@@ -211,7 +208,6 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
           // node in the caller graph
           checkAllNodesAreMapped(*callee, calleeG, *sm);
         }
-
       }
     }
 
