@@ -38,6 +38,8 @@ private:
   llvm::CallGraph &m_cg;
   CalleeCallerMapping m_callee_caller_map;
 
+  // true if assume that alloca allocated (stack) memory does not escape
+  bool m_noescape;
   // sanity check
   bool checkAllNodesAreMapped(const llvm::Function &callee, Graph &calleeG,
                               const SimulationMapper &sm);
@@ -49,12 +51,14 @@ public:
                                          SimulationMapper &simMap);
 
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &calleeG,
-                                       Graph &callerG);
+                                       Graph &callerG, bool noescape = true);
 
   BottomUpAnalysis(const llvm::DataLayout &dl,
                    const llvm::TargetLibraryInfo &tli,
-                   const AllocWrapInfo &allocInfo, llvm::CallGraph &cg)
-      : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg) {}
+                   const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
+                   bool noescape = true /* TODO: CLI*/)
+      : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
+        m_noescape(noescape) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 
