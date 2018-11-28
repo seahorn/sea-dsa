@@ -20,6 +20,7 @@
 #include "boost/range/algorithm/set_algorithm.hpp"
 #include "boost/range/iterator_range.hpp"
 #include "boost/unordered_set.hpp"
+#include "boost/version.hpp"
 
 using namespace llvm;
 
@@ -444,8 +445,18 @@ void sea_dsa::Node::addAllocSite(const Value &v) { m_alloca_sites.insert(&v); }
 
 void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
   using namespace boost;
+  #if BOOST_VERSION / 100 % 100 < 68
+  m_alloca_sites.insert(s.begin(),s.end());
+                        
+  #else
+  // At least with boost 1.65 this code does not compile due to an
+  // ambiguity problem when make_reverse_iterator is called. There are
+  // two found candidates: one in boost and the other one in llvm.
+  // With boost 1.68 the ambiguity problem is gone. We don't know with
+  // 1.66 and 1.67.
   m_alloca_sites.insert(container::ordered_unique_range_t(), s.begin(),
                         s.end());
+  #endif   
 }
 
 // pre: this simulated by n
