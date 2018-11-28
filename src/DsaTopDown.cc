@@ -85,7 +85,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 }
 
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
-
+  
   LOG("dsa-td", errs() << "Started top-down analysis ... \n");
 
   // The SCC iterator has the property that the graph is traversed in
@@ -96,9 +96,16 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   // some wrappers around CallGraph. Instead, we store the postorder
   // SCC in a vector and traverse in reversed order.
   typedef scc_iterator<CallGraph *> scc_iterator_t;
-  typedef const std::vector<typename GraphTraits<CallGraph *>::NodeRef> scc_t;
+  typedef std::vector<typename GraphTraits<CallGraph *>::NodeRef> scc_t;
+  
   std::vector<scc_t> postorder_scc;
-  std::copy(scc_begin(&m_cg), scc_end(&m_cg), std::back_inserter(postorder_scc));
+  
+  // copy all SCC elements in the vector
+  // XXX: this is not efficient
+  postorder_scc.reserve(std::distance(m_cg.begin(), m_cg.end()));
+  for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
+    postorder_scc.push_back(*it);
+  }
   
   LocalAnalysis la(m_dl, m_tli, m_allocInfo);
   for (auto it = postorder_scc.rbegin(), et = postorder_scc.rend(); it!=et; ++it) {
@@ -137,7 +144,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
         Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
         Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
-	// propagate from the caller to the callee
+  	// propagate from the caller to the callee
         cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);
       }
     }
