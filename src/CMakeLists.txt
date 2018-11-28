@@ -9,6 +9,7 @@ add_llvm_library (SeaDsaAnalysis
   DsaStats.cc
   Mapper.cc
   DsaBottomUp.cc
+  DsaTopDown.cc  
   DsaCallGraph.cc
   DsaAnalysis.cc
   DsaPrinter.cc
