@@ -210,7 +210,7 @@ public:
 };
 
 // LLVM pass for flat analysis
-class FlatMemoryGlobal : public DsaGlobalPass {
+class FlatMemoryGlobalPass : public DsaGlobalPass {
 
   Graph::SetFactory m_setFactory;
   std::unique_ptr<ContextInsensitiveGlobalAnalysis> m_ga;
@@ -218,7 +218,7 @@ class FlatMemoryGlobal : public DsaGlobalPass {
 public:
   static char ID;
 
-  FlatMemoryGlobal();
+  FlatMemoryGlobalPass();
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -234,7 +234,7 @@ public:
 };
 
 // LLVM pass for context-insensitive analysis  
-class ContextInsensitiveGlobal : public DsaGlobalPass {
+class ContextInsensitiveGlobalPass : public DsaGlobalPass {
 
   Graph::SetFactory m_setFactory;
   std::unique_ptr<ContextInsensitiveGlobalAnalysis> m_ga;
@@ -242,7 +242,7 @@ class ContextInsensitiveGlobal : public DsaGlobalPass {
 public:
   static char ID;
 
-  ContextInsensitiveGlobal();
+  ContextInsensitiveGlobalPass();
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -258,14 +258,14 @@ public:
 };
 
 // LLVM pass for SAS'17 context-sensitive analysis
-class ContextSensitiveGlobal : public DsaGlobalPass {
+class ContextSensitiveGlobalPass : public DsaGlobalPass {
   Graph::SetFactory m_setFactory;
   std::unique_ptr<ContextSensitiveGlobalAnalysis> m_ga;
 
 public:
   static char ID;
 
-  ContextSensitiveGlobal();
+  ContextSensitiveGlobalPass();
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -281,14 +281,14 @@ public:
 };
 
 // LLVM pass for bottom-up + top-down analysis
-class BottomUpTopDownGlobal : public DsaGlobalPass {
+class BottomUpTopDownGlobalPass : public DsaGlobalPass {
   Graph::SetFactory m_setFactory;
   std::unique_ptr<BottomUpTopDownGlobalAnalysis> m_ga;
 
 public:
   static char ID;
 
-  BottomUpTopDownGlobal();
+  BottomUpTopDownGlobalPass();
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
