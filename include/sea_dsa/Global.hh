@@ -23,13 +23,31 @@ namespace sea_dsa {
 
 class AllocWrapInfo;
 
-enum GlobalAnalysisKind { CONTEXT_INSENSITIVE, CONTEXT_SENSITIVE, FLAT_MEMORY };
+enum GlobalAnalysisKind {
+  // useful for VC generation
+  CONTEXT_INSENSITIVE,
+  // useful for VC generation
+  CONTEXT_SENSITIVE,
+  // bottom-up followed by one top-down pass (not useful for VC generation)
+  BUTD_CONTEXT_SENSITIVE,
+  // enforce one single node for the whole program
+  // used when most pessimistic assumptions must be considered in
+  // presence of inttoptr and/or external calls.
+  FLAT_MEMORY
+};
 
 // Common API for global analyses
 class GlobalAnalysis {
 protected:
   GlobalAnalysisKind _kind;
 
+  // unify caller/callee nodes within the same graph
+  void resolveArguments(DsaCallSite &cs, Graph &g);
+
+  // clone caller nodes into callee graph and unify arguments
+  void cloneAndResolveArguments(const DsaCallSite &cs, Graph &callerG,
+                                Graph &calleeG);
+  
 public:
   GlobalAnalysis(GlobalAnalysisKind kind) : _kind(kind) {}
 
@@ -63,9 +81,7 @@ private:
   GraphRef m_graph;
   // functions represented in m_graph
   boost::container::flat_set<const llvm::Function *> m_fns;
-
-  void resolveArguments(DsaCallSite &cs, Graph &g);
-
+  
 public:
   ContextInsensitiveGlobalAnalysis(const llvm::DataLayout &dl,
                                    const llvm::TargetLibraryInfo &tli,
@@ -98,7 +114,9 @@ private:
   std::unique_ptr<impl> m_pimpl;
 };
 
-// Context-sensitive dsa analysis
+// Context-sensitive dsa analysis as described in the SAS'17 paper. It
+// ensures that no two disjoint Dsa nodes modified in a function can
+// be aliased at any particular call site.
 class ContextSensitiveGlobalAnalysis : public GlobalAnalysis {
 public:
   typedef typename Graph::SetFactory SetFactory;
@@ -116,9 +134,6 @@ private:
 
 public:
   GraphMap m_graphs;
-
-  void cloneAndResolveArguments(const DsaCallSite &cs, Graph &callerG,
-                                Graph &calleeG);
 
   PropagationKind decidePropagation(const DsaCallSite &cs, Graph &callerG,
                                     Graph &calleeG);
@@ -146,6 +161,44 @@ public:
   bool hasGraph(const llvm::Function &fn) const override;
 };
 
+
+// Bottom-up followed by a top-down pass. The analysis is
+// context-sensitive but it might be unsound is the client is a
+// verification condition (VC) generator.
+class BottomUpTopDownGlobalAnalysis : public GlobalAnalysis {
+public:
+  typedef typename Graph::SetFactory SetFactory;
+
+private:
+  typedef std::shared_ptr<Graph> GraphRef;
+  typedef BottomUpAnalysis::GraphMap GraphMap;
+
+  const llvm::DataLayout &m_dl;
+  const llvm::TargetLibraryInfo &m_tli;
+  const AllocWrapInfo &m_allocInfo;
+  llvm::CallGraph &m_cg;
+  SetFactory &m_setFactory;
+
+  GraphMap m_graphs;
+  
+public:
+
+  BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
+			const llvm::TargetLibraryInfo &tli,
+			const AllocWrapInfo &allocInfo,
+			llvm::CallGraph &cg, SetFactory &setFactory)
+      : GlobalAnalysis(BUTD_CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
+        m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
+
+  bool runOnModule(llvm::Module &M) override;
+
+  const Graph &getGraph(const llvm::Function &fn) const override;
+
+  Graph &getGraph(const llvm::Function &fn) override;
+
+  bool hasGraph(const llvm::Function &fn) const override;
+};
+
 // Llvm passes
 
 class DsaGlobalPass : public llvm::ModulePass {
@@ -156,6 +209,7 @@ public:
   virtual GlobalAnalysis &getGlobalAnalysis() = 0;
 };
 
+// LLVM pass for flat analysis
 class FlatMemoryGlobal : public DsaGlobalPass {
 
   Graph::SetFactory m_setFactory;
@@ -179,6 +233,7 @@ public:
   }
 };
 
+// LLVM pass for context-insensitive analysis  
 class ContextInsensitiveGlobal : public DsaGlobalPass {
 
   Graph::SetFactory m_setFactory;
@@ -202,6 +257,7 @@ public:
   }
 };
 
+// LLVM pass for SAS'17 context-sensitive analysis
 class ContextSensitiveGlobal : public DsaGlobalPass {
   Graph::SetFactory m_setFactory;
   std::unique_ptr<ContextSensitiveGlobalAnalysis> m_ga;
@@ -224,6 +280,29 @@ public:
   }
 };
 
+// LLVM pass for bottom-up + top-down analysis
+class BottomUpTopDownGlobal : public DsaGlobalPass {
+  Graph::SetFactory m_setFactory;
+  std::unique_ptr<BottomUpTopDownGlobalAnalysis> m_ga;
+
+public:
+  static char ID;
+
+  BottomUpTopDownGlobal();
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
+
+  bool runOnModule(llvm::Module &M) override;
+
+  llvm::StringRef getPassName() const override {
+    return "Bottom-up + Top-down DSA passes";
+  }
+
+  GlobalAnalysis &getGlobalAnalysis() override {
+    return *(static_cast<GlobalAnalysis *>(&*m_ga));
+  }
+};
+  
 // Execute operation Op on each callsite until no more changes
 template <class GlobalAnalysis, class Op> class CallGraphClosure {
 
