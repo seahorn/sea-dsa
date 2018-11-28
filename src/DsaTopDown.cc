@@ -101,32 +101,14 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   std::vector<scc_t> postorder_scc;
   
   // copy all SCC elements in the vector
-  // XXX: this is not efficient
+  // XXX: this is inefficient
   postorder_scc.reserve(std::distance(m_cg.begin(), m_cg.end()));
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     postorder_scc.push_back(*it);
   }
-  
-  LocalAnalysis la(m_dl, m_tli, m_allocInfo);
+
   for (auto it = postorder_scc.rbegin(), et = postorder_scc.rend(); it!=et; ++it) {
     auto &scc = *it;
-    // -- compute a local graph shared between all functions in the scc
-    GraphRef fGraph = nullptr;
-    for (CallGraphNode *cgn : scc) {
-      Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty())
-        continue;
-
-      if (!fGraph) {
-        assert(graphs.find(fn) != graphs.end());
-        fGraph = graphs[fn];
-        assert(fGraph);
-      }
-
-      la.runOnFunction(*fn, *fGraph);
-      graphs[fn] = fGraph;
-    }
-
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty())
@@ -139,18 +121,25 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         if (!callee || callee->isDeclaration() || callee->empty())
           continue;
 
-        assert(graphs.count(dsaCS.getCaller()) > 0);
-        assert(graphs.count(dsaCS.getCallee()) > 0);
-
-        Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
-        Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
+	// XXX: We assume that `graphs` has been already populated by
+	// the bottom-up pass. We report an error and skip the
+	// callsite otherwise.
+	auto it = graphs.find(dsaCS.getCaller());
+	if (it == graphs.end()) {
+	  errs() << "ERROR: top-down analysis could not find dsa graph for caller\n";
+	  continue;
+	} 
+        Graph &callerG = *(it->second);
+	it = graphs.find(dsaCS.getCallee());
+	if (it == graphs.end()) {
+	  errs() << "ERROR: top-down analysis could not find dsa graph for callee\n";	  
+	  continue;
+	} 
+        Graph &calleeG = *(it->second);
   	// propagate from the caller to the callee
         cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);
       }
     }
-
-    if (fGraph)
-      fGraph->compress();
   }
 
   LOG("dsa-td-graph", for (auto &kv
