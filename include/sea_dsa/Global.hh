@@ -47,7 +47,7 @@ protected:
   // clone caller nodes into callee graph and unify arguments
   void cloneAndResolveArguments(const DsaCallSite &cs, Graph &callerG,
                                 Graph &calleeG);
-  
+
 public:
   GlobalAnalysis(GlobalAnalysisKind kind) : _kind(kind) {}
 
@@ -62,7 +62,6 @@ public:
   virtual Graph &getGraph(const llvm::Function &F) = 0;
 
   virtual bool hasGraph(const llvm::Function &F) const = 0;
-
 };
 
 // Context-insensitive dsa analysis
@@ -81,7 +80,7 @@ private:
   GraphRef m_graph;
   // functions represented in m_graph
   boost::container::flat_set<const llvm::Function *> m_fns;
-  
+
 public:
   ContextInsensitiveGlobalAnalysis(const llvm::DataLayout &dl,
                                    const llvm::TargetLibraryInfo &tli,
@@ -161,10 +160,11 @@ public:
   bool hasGraph(const llvm::Function &fn) const override;
 };
 
-
-// Bottom-up followed by a top-down pass. The analysis is
-// context-sensitive but it might be unsound is the client is a
-// verification condition (VC) generator.
+/**
+ * Global analysis that runs one bottom-up followed by one top-down
+ * pass.  This is the most precise variant of context-sensitive
+ * DSA-style global analysis.
+ */
 class BottomUpTopDownGlobalAnalysis : public GlobalAnalysis {
 public:
   typedef typename Graph::SetFactory SetFactory;
@@ -180,13 +180,12 @@ private:
   SetFactory &m_setFactory;
 
   GraphMap m_graphs;
-  
-public:
 
+public:
   BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
-			const llvm::TargetLibraryInfo &tli,
-			const AllocWrapInfo &allocInfo,
-			llvm::CallGraph &cg, SetFactory &setFactory)
+                                const llvm::TargetLibraryInfo &tli,
+                                const AllocWrapInfo &allocInfo,
+                                llvm::CallGraph &cg, SetFactory &setFactory)
       : GlobalAnalysis(BUTD_CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
         m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
 
@@ -233,7 +232,7 @@ public:
   }
 };
 
-// LLVM pass for context-insensitive analysis  
+// LLVM pass for context-insensitive analysis
 class ContextInsensitiveGlobalPass : public DsaGlobalPass {
 
   Graph::SetFactory m_setFactory;
@@ -302,7 +301,7 @@ public:
     return *(static_cast<GlobalAnalysis *>(&*m_ga));
   }
 };
-  
+
 // Execute operation Op on each callsite until no more changes
 template <class GlobalAnalysis, class Op> class CallGraphClosure {
 
