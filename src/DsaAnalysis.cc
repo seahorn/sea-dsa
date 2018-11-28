@@ -20,7 +20,8 @@ using namespace llvm;
 static llvm::cl::opt<sea_dsa::GlobalAnalysisKind> DsaGlobalAnalysis(
     "sea-dsa", llvm::cl::desc("DSA: kind of Dsa analysis"),
     llvm::cl::values(
-        clEnumValN(CONTEXT_SENSITIVE, "cs", "Context-sensitive (default)"),
+        clEnumValN(CONTEXT_SENSITIVE, "cs", "Context-sensitive as in SAS'17 (default)"),
+        clEnumValN(BUTD_CONTEXT_SENSITIVE, "butd-cs", "Bottom-up + top-down"),	
         clEnumValN(CONTEXT_INSENSITIVE, "ci", "Context-insensitive"),
         clEnumValN(FLAT_MEMORY, "flat", "Flat memory")),
     llvm::cl::init(CONTEXT_SENSITIVE));
@@ -67,6 +68,11 @@ bool DsaAnalysis::runOnModule(Module &M) {
   case FLAT_MEMORY:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
         *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory, true /* use flat*/));
+    break;
+  case BUTD_CONTEXT_SENSITIVE:
+    m_ga.reset(
+        new BottomUpTopDownGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo, cg,
+					  m_setFactory));
     break;
   default: /* CONTEXT_SENSITIVE */
     m_ga.reset(

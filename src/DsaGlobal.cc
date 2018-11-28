@@ -41,11 +41,11 @@ static llvm::cl::opt<bool> normalizeAllocaSites(
 
 using namespace llvm;
 
-/// CONTEXT-INSENSITIVE DSA
 namespace sea_dsa {
 
-void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs,
-                                                        Graph &g) {
+// Unify callsite arguments within the same graph
+void GlobalAnalysis::resolveArguments(DsaCallSite &cs, Graph &g) {
+				      
   // unify return
   const Function &callee = *cs.getCallee();
   if (g.hasRetCell(callee)) {
@@ -71,6 +71,64 @@ void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs,
   }
 }
 
+// Clone caller nodes into callee and resolve arguments
+// XXX: this code is pretty much symmetric to the one defined in
+// BottomUp. They should be merged at some point.
+void GlobalAnalysis::cloneAndResolveArguments(
+    const DsaCallSite &cs, Graph &callerG, Graph &calleeG) {
+
+  // XXX TODO: This cloner should remove all alloca instructions
+  // XXX TODO: from nodes that are being cloned into calleeG
+  // XXX TODO: except for the ones passed directly at call site (see below)
+  Cloner C(calleeG);
+
+  // clone and unify globals
+  for (auto &kv : boost::make_iterator_range(callerG.globals_begin(),
+                                             callerG.globals_end())) {
+    Node &n = C.clone(*kv.second->getNode());
+    Cell c(n, kv.second->getRawOffset());
+    Cell &nc = calleeG.mkCell(*kv.first, Cell());
+    nc.unify(c);
+  }
+
+  // clone and unify return
+  const Function &callee = *cs.getCallee();
+  if (calleeG.hasRetCell(callee) && callerG.hasCell(*cs.getInstruction())) {
+    auto &inst = *cs.getInstruction();
+    const Cell &csCell = callerG.getCell(inst);
+    Node &n = C.clone(*csCell.getNode());
+    Cell c(n, csCell.getRawOffset());
+    Cell &nc = calleeG.getRetCell(callee);
+    nc.unify(c);
+  }
+
+  // clone and unify actuals and formals
+  DsaCallSite::const_actual_iterator AI = cs.actual_begin(),
+                                     AE = cs.actual_end();
+  for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(),
+                                          FE = cs.formal_end();
+       FI != FE && AI != AE; ++FI, ++AI) {
+    const Value *arg = (*AI).get();
+    const Value *fml = &*FI;
+    if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
+      const Cell &callerCell = callerG.getCell(*arg);
+      // XXX TODO: if callerCell.getNode() has allocas , they are copied
+      // XXX TODO: but allocas that are in nodes reachable from this node are not
+      // XXX TODO: careful because the node might be reachable in multiple ways
+      // XXX TODO: easiest if cloner can copy attributes that were removed
+      // XXX TODO: by a previous clone
+      Node &n = C.clone(*callerCell.getNode());
+      Cell c(n, callerCell.getRawOffset());
+      Cell &nc = calleeG.mkCell(*fml, Cell());
+      nc.unify(c);
+    }
+  }
+  calleeG.compress();
+}
+  
+
+/// CONTEXT-INSENSITIVE DSA
+  
 bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   LOG("dsa-global",
@@ -186,6 +244,7 @@ bool ContextInsensitiveGlobal::runOnModule(Module &M) {
   return m_ga->runOnModule(M);
 }
 
+  
 FlatMemoryGlobal::FlatMemoryGlobal() : DsaGlobalPass(ID), m_ga(nullptr) {}
 
 void FlatMemoryGlobal::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -209,7 +268,6 @@ bool FlatMemoryGlobal::runOnModule(Module &M) {
 
 } // end namespace sea_dsa
 
-/// CONTEXT-SENSITIVE DSA
 namespace sea_dsa {
 
 // A simple worklist implementation
@@ -238,103 +296,7 @@ template <typename T> const T &WorkList<T>::dequeue() {
   return e;
 }
 
-// Clone caller nodes into callee and resolve arguments
-// XXX: this code is pretty much symmetric to the one defined in
-// BottomUp. They should be merged at some point.
-void ContextSensitiveGlobalAnalysis::cloneAndResolveArguments(
-    const DsaCallSite &cs, Graph &callerG, Graph &calleeG) {
-
-  // XXX TODO: This cloner should remove all alloca instructions
-  // XXX TODO: from nodes that are being cloned into calleeG
-  // XXX TODO: except for the ones passed directly at call site (see below)
-  Cloner C(calleeG);
-
-  // clone and unify globals
-  for (auto &kv : boost::make_iterator_range(callerG.globals_begin(),
-                                             callerG.globals_end())) {
-    Node &n = C.clone(*kv.second->getNode());
-    Cell c(n, kv.second->getRawOffset());
-    Cell &nc = calleeG.mkCell(*kv.first, Cell());
-    nc.unify(c);
-  }
-
-  // clone and unify return
-  const Function &callee = *cs.getCallee();
-  if (calleeG.hasRetCell(callee) && callerG.hasCell(*cs.getInstruction())) {
-    auto &inst = *cs.getInstruction();
-    const Cell &csCell = callerG.getCell(inst);
-    Node &n = C.clone(*csCell.getNode());
-    Cell c(n, csCell.getRawOffset());
-    Cell &nc = calleeG.getRetCell(callee);
-    nc.unify(c);
-  }
-
-  // clone and unify actuals and formals
-  DsaCallSite::const_actual_iterator AI = cs.actual_begin(),
-                                     AE = cs.actual_end();
-  for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(),
-                                          FE = cs.formal_end();
-       FI != FE && AI != AE; ++FI, ++AI) {
-    const Value *arg = (*AI).get();
-    const Value *fml = &*FI;
-    if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
-      const Cell &callerCell = callerG.getCell(*arg);
-      // XXX TODO: if callerCell.getNode() has allocas , they are copied
-      // XXX TODO: but allocas that are in nodes reachable from this node are not
-      // XXX TODO: careful because the node might be reachable in multiple ways
-      // XXX TODO: easiest if cloner can copy attributes that were removed
-      // XXX TODO: by a previous clone
-      Node &n = C.clone(*callerCell.getNode());
-      Cell c(n, callerCell.getRawOffset());
-      Cell &nc = calleeG.mkCell(*fml, Cell());
-      nc.unify(c);
-    }
-  }
-  calleeG.compress();
-}
-
-// Decide which kind of propagation (if any) is needed
-ContextSensitiveGlobalAnalysis::PropagationKind
-ContextSensitiveGlobalAnalysis::decidePropagation(const DsaCallSite &cs,
-                                                  Graph &calleeG,
-                                                  Graph &callerG) {
-
-  PropagationKind res = UP;
-  SimulationMapper sm;
-  if (Graph::computeCalleeCallerMapping(cs, calleeG, callerG, sm, false)) {
-    if (sm.isFunction()) {
-      // isInjective only checks modified nodes by default
-      res = (sm.isInjective() ? NONE : DOWN);
-    }
-  }
-  return res;
-}
-
-void ContextSensitiveGlobalAnalysis::propagateTopDown(const DsaCallSite &cs,
-                                                      Graph &callerG,
-                                                      Graph &calleeG) {
-  cloneAndResolveArguments(cs, callerG, calleeG);
-
-  LOG("dsa-global", if (decidePropagation(cs, calleeG, callerG) == DOWN) {
-    errs() << "Sanity check failed:"
-           << " we should not need more top-down propagation\n";
-  });
-  // errs () << "Top-down propagation at " << *cs.getInstruction () << "\n";
-  assert(decidePropagation(cs, calleeG, callerG) != DOWN);
-}
-
-void ContextSensitiveGlobalAnalysis::propagateBottomUp(const DsaCallSite &cs,
-                                                       Graph &calleeG,
-                                                       Graph &callerG) {
-  BottomUpAnalysis::cloneAndResolveArguments(cs, calleeG, callerG);
-
-  LOG("dsa-global", if (decidePropagation(cs, calleeG, callerG) == UP) {
-    errs() << "Sanity check failed:"
-           << " we should not need more bottom-up propagation\n";
-  });
-  // errs () << "Bottom-up propagation at " << *cs.getInstruction () << "\n";
-  assert(decidePropagation(cs, calleeG, callerG) != UP);
-}
+/// CONTEXT-SENSITIVE DSA
 
 bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
@@ -466,6 +428,49 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   return false;
 }
 
+// Decide which kind of propagation (if any) is needed
+ContextSensitiveGlobalAnalysis::PropagationKind
+ContextSensitiveGlobalAnalysis::decidePropagation(const DsaCallSite &cs,
+                                                  Graph &calleeG,
+                                                  Graph &callerG) {
+
+  PropagationKind res = UP;
+  SimulationMapper sm;
+  if (Graph::computeCalleeCallerMapping(cs, calleeG, callerG, sm, false)) {
+    if (sm.isFunction()) {
+      // isInjective only checks modified nodes by default
+      res = (sm.isInjective() ? NONE : DOWN);
+    }
+  }
+  return res;
+}
+
+void ContextSensitiveGlobalAnalysis::propagateTopDown(const DsaCallSite &cs,
+                                                      Graph &callerG,
+                                                      Graph &calleeG) {
+  cloneAndResolveArguments(cs, callerG, calleeG);
+
+  LOG("dsa-global", if (decidePropagation(cs, calleeG, callerG) == DOWN) {
+    errs() << "Sanity check failed:"
+           << " we should not need more top-down propagation\n";
+  });
+  // errs () << "Top-down propagation at " << *cs.getInstruction () << "\n";
+  assert(decidePropagation(cs, calleeG, callerG) != DOWN);
+}
+
+void ContextSensitiveGlobalAnalysis::propagateBottomUp(const DsaCallSite &cs,
+                                                       Graph &calleeG,
+                                                       Graph &callerG) {
+  BottomUpAnalysis::cloneAndResolveArguments(cs, calleeG, callerG);
+
+  LOG("dsa-global", if (decidePropagation(cs, calleeG, callerG) == UP) {
+    errs() << "Sanity check failed:"
+           << " we should not need more bottom-up propagation\n";
+  });
+  // errs () << "Bottom-up propagation at " << *cs.getInstruction () << "\n";
+  assert(decidePropagation(cs, calleeG, callerG) != UP);
+}
+  
 // Perform some sanity checks:
 // 1) each callee node can be simulated by its corresponding caller node.
 // 2) no two callee nodes are mapped to the same caller node.
@@ -517,7 +522,74 @@ bool ContextSensitiveGlobalAnalysis::hasGraph(const Function &fn) const {
   return m_graphs.count(&fn) > 0;
 }
 
-/// LLVM pass
+bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
+
+  LOG("dsa-global",
+      errs() << "Started bottom-up + top-down global analysis ... \n");
+
+  for (auto &F : M) {
+    if (F.isDeclaration() || F.empty())
+      continue;
+
+    GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
+    m_graphs[&F] = fGraph;
+  }
+
+  // -- Run bottom up analysis on the whole call graph
+  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg);
+  bu.runOnModule(M, m_graphs);
+
+  // -- Run top-down propagation: from caller to callees.
+  //    Get all callsites from the bottom up pass' datastructure. We
+  //    don't need to but it's convenient.
+  for (auto &kv : boost::make_iterator_range(bu.callee_caller_mapping_begin(),
+                                             bu.callee_caller_mapping_end())) {
+    ImmutableCallSite CS(kv.first);
+    DsaCallSite dsaCS(CS);
+    auto callee = dsaCS.getCallee();
+    if (!callee || callee->isDeclaration() || callee->empty())
+      continue;
+    auto caller = dsaCS.getCaller();
+    
+    assert(m_graphs.count(caller) > 0);
+    assert(m_graphs.count(callee) > 0);
+
+    Graph &callerG = *(m_graphs.find(caller)->second);
+    Graph &calleeG = *(m_graphs.find(callee)->second);
+
+    cloneAndResolveArguments(dsaCS, callerG, calleeG);
+  }  
+  
+  // Removing dead nodes (if any)
+  for (auto &kv : m_graphs)
+    kv.second->remove_dead();
+
+  LOG("dsa-global-graph", for (auto &kv : m_graphs) {
+    errs() << "### Global Dsa graph for " << kv.first->getName() << "\n";
+    kv.second->write(errs());
+    errs() << "\n";
+  });
+
+  LOG("dsa-global", errs() << "Finished bottom-up + top-down global analysis\n");
+  return false;
+}
+
+const Graph &
+BottomUpTopDownGlobalAnalysis::getGraph(const Function &fn) const {
+  return *(m_graphs.find(&fn)->second);
+}
+
+Graph &BottomUpTopDownGlobalAnalysis::getGraph(const Function &fn) {
+  return *(m_graphs.find(&fn)->second);
+}
+
+bool BottomUpTopDownGlobalAnalysis::hasGraph(const Function &fn) const {
+  return m_graphs.count(&fn) > 0;
+}
+  
+
+  
+/// LLVM passes
 
 ContextSensitiveGlobal::ContextSensitiveGlobal()
     : DsaGlobalPass(ID), m_ga(nullptr) {
@@ -541,6 +613,29 @@ bool ContextSensitiveGlobal::runOnModule(Module &M) {
                                                 m_setFactory));
   return m_ga->runOnModule(M);
 }
+
+
+BottomUpTopDownGlobal::BottomUpTopDownGlobal()
+  : DsaGlobalPass(ID), m_ga(nullptr) {
+}
+
+void BottomUpTopDownGlobal::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<TargetLibraryInfoWrapperPass>();
+  AU.addRequired<CallGraphWrapperPass>();
+  AU.addRequired<AllocWrapInfo>();
+  AU.setPreservesAll();
+}
+
+bool BottomUpTopDownGlobal::runOnModule(Module &M) {
+  auto &dl = M.getDataLayout();
+  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  auto &allocInfo = getAnalysis<AllocWrapInfo>();
+
+  m_ga.reset(new BottomUpTopDownGlobalAnalysis(dl, tli, allocInfo, cg, m_setFactory));
+  return m_ga->runOnModule(M);
+}
+  
 } // namespace sea_dsa
 
 namespace sea_dsa {
@@ -683,6 +778,8 @@ char sea_dsa::ContextInsensitiveGlobal::ID = 0;
 
 char sea_dsa::ContextSensitiveGlobal::ID = 0;
 
+char sea_dsa::BottomUpTopDownGlobal::ID = 0;
+
 static llvm::RegisterPass<sea_dsa::FlatMemoryGlobal>
     X("seadsa-flat-global", "Flat memory Dsa analysis");
 
@@ -690,4 +787,7 @@ static llvm::RegisterPass<sea_dsa::ContextInsensitiveGlobal>
     Y("seadsa-ci-global", "Context-insensitive Dsa analysis");
 
 static llvm::RegisterPass<sea_dsa::ContextSensitiveGlobal>
-    Z("seadsa-cs-global", "Context-sensitive Dsa analysis");
+    W("seadsa-cs-global", "Context-sensitive Dsa analysis");
+
+static llvm::RegisterPass<sea_dsa::BottomUpTopDownGlobal>
+    Z("seadsa-butd-global", "Bottom-up + top-down Dsa analysis");
