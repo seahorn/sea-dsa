@@ -1,10 +1,10 @@
 #ifndef __DSA_GRAPH_HH_
 #define __DSA_GRAPH_HH_
 
-#include "boost/iterator/filter_iterator.hpp"
 #include "boost/container/flat_map.hpp"
 #include "boost/container/flat_set.hpp"
 #include "boost/functional/hash.hpp"
+#include "boost/iterator/filter_iterator.hpp"
 #include "boost/iterator/indirect_iterator.hpp"
 
 // llvm 3.8: forward declarations not enough
@@ -67,7 +67,7 @@ protected:
 
   //  Whether the graph is flat or not
   bool m_is_flat;
-  
+
   SetFactory &getSetFactory() { return m_setFactory; }
   Set emptySet() { return m_setFactory.getEmptySet(); }
   /// return a new set that is the union of old and a set containing v
@@ -90,7 +90,7 @@ public:
   typedef ReturnMap::const_iterator return_const_iterator;
 
   Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false)
-    : m_dl(dl), m_setFactory(sf), m_is_flat(is_flat) {}
+      : m_dl(dl), m_setFactory(sf), m_is_flat(is_flat) {}
 
   virtual ~Graph() {}
 
@@ -165,7 +165,7 @@ public:
   /// view the Dsa graph using GraphViz. (For debugging.)
   void viewGraph() { ShowDsaGraph(*this); }
 
-  bool isFlat() const { return m_is_flat;}
+  bool isFlat() const { return m_is_flat; }
 };
 
 /**
@@ -174,12 +174,10 @@ public:
 class FlatGraph : public Graph {
 
 public:
-  FlatGraph(const llvm::DataLayout &dl, SetFactory &sf)
-    : Graph(dl, sf, true) {}
+  FlatGraph(const llvm::DataLayout &dl, SetFactory &sf) : Graph(dl, sf, true) {}
 
   virtual Node &mkNode() override;
 };
-
 
 class Field {
   unsigned m_offset = -1;
@@ -191,17 +189,11 @@ public:
   Field(const Field &) = default;
   Field &operator=(const Field &) = default;
 
-  Field addOffset(unsigned offset) const {
-    return {m_offset + offset, m_type};
-  }
+  Field addOffset(unsigned offset) const { return {m_offset + offset, m_type}; }
 
-  Field subOffset(unsigned offset) const {
-    return {m_offset - offset, m_type};
-  }
+  Field subOffset(unsigned offset) const { return {m_offset - offset, m_type}; }
 
-  std::pair<unsigned, FieldType> asTuple() const {
-    return {m_offset, m_type};
-  };
+  std::pair<unsigned, FieldType> asTuple() const { return {m_offset, m_type}; };
 
   unsigned getOffset() const { return m_offset; }
   FieldType getType() const { return m_type; }
@@ -221,7 +213,6 @@ public:
   }
 };
 
-
 /**
     A memory cell (or a field). An offset into a memory object.
 */
@@ -239,24 +230,18 @@ public:
   Cell() = default;
   Cell(const Cell &) = default;
 
-  Cell(Node *node, unsigned offset)
-      : m_node(node), m_offset(offset) {}
+  Cell(Node *node, unsigned offset) : m_node(node), m_offset(offset) {}
 
-  Cell(Node &node, unsigned offset)
-      : m_node(&node), m_offset(offset) {}
+  Cell(Node &node, unsigned offset) : m_node(&node), m_offset(offset) {}
 
   Cell(const Cell &o, unsigned offset)
       : m_node(o.m_node), m_offset(o.m_offset + offset) {}
 
   Cell &operator=(const Cell &o) = default;
 
-  bool operator==(const Cell &o) const {
-    return asTuple() == o.asTuple();
-  }
+  bool operator==(const Cell &o) const { return asTuple() == o.asTuple(); }
   bool operator!=(const Cell &o) const { return !operator==(o); }
-  bool operator<(const Cell &o) const {
-    return asTuple() < o.asTuple();
-  }
+  bool operator<(const Cell &o) const { return asTuple() < o.asTuple(); }
 
   void setRead(bool v = true);
   void setModified(bool v = true);
@@ -433,7 +418,7 @@ public:
 
   NodeType getNodeType() const { return m_nodeType; }
 
-  const links_type& getLinks() const { return m_links; }
+  const links_type &getLinks() const { return m_links; }
 
 protected:
   class Offset;
@@ -442,9 +427,9 @@ protected:
   class Offset {
     const Node &m_node;
     const unsigned m_offset;
+
   public:
-    Offset(const Node &n, unsigned offset)
-        : m_node(n), m_offset(offset) {}
+    Offset(const Node &n, unsigned offset) : m_node(n), m_offset(offset) {}
 
     unsigned getNumericOffset() const;
 
@@ -666,7 +651,6 @@ public:
     return *this;
   }
 
-
   /// Adds a type of a field at a given offset
   void addAccessedType(unsigned offset, llvm::Type *t);
 
@@ -682,6 +666,15 @@ public:
   void addAllocSite(const llvm::Value &v);
   /// get all allocation sites
   const AllocaSet &getAllocSites() const { return m_alloca_sites; }
+  void resetAllocSites() { m_alloca_sites.clear(); }
+
+  template <typename Iterator>
+  void insertAllocSites(Iterator begin, Iterator end) {
+    m_alloca_sites.insert(begin, end);
+  }
+
+  bool hasAllocSite(const llvm::Value &v) { return m_alloca_sites.count(&v); }
+
   /// joins all the allocation sites
   void joinAllocSites(const AllocaSet &s);
   /// compute a simulation relation between this and n while
