@@ -31,9 +31,8 @@ namespace sea_dsa {
 // XXX: this code is pretty much symmetric to the one defined in
 // BottomUp. They should be merged at some point.
 void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
-					       Graph &callerG, Graph &calleeG,
-					       bool noescape) {
-
+                                               Graph &callerG, Graph &calleeG,
+                                               bool noescape) {
   // XXX TODO: This cloner should remove all alloca instructions
   // XXX TODO: from nodes that are being cloned into calleeG
   // XXX TODO: except for the ones passed directly at call site (see below)
@@ -85,21 +84,21 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 }
 
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
-  
+
   LOG("dsa-td", errs() << "Started top-down analysis ... \n");
 
   // The SCC iterator has the property that the graph is traversed in
   // post-order.
-  // 
+  //
   // Here, we want to visit all callers before callees. We could use
   // SCC iterator on the Inverse graph but it requires to implement
   // some wrappers around CallGraph. Instead, we store the postorder
   // SCC in a vector and traverse in reversed order.
   typedef scc_iterator<CallGraph *> scc_iterator_t;
   typedef std::vector<typename GraphTraits<CallGraph *>::NodeRef> scc_t;
-  
+
   std::vector<scc_t> postorder_scc;
-  
+
   // copy all SCC elements in the vector
   // XXX: this is inefficient
   postorder_scc.reserve(std::distance(m_cg.begin(), m_cg.end()));
@@ -107,7 +106,8 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     postorder_scc.push_back(*it);
   }
 
-  for (auto it = postorder_scc.rbegin(), et = postorder_scc.rend(); it!=et; ++it) {
+  for (auto it = postorder_scc.rbegin(), et = postorder_scc.rend(); it != et;
+       ++it) {
     auto &scc = *it;
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
@@ -121,22 +121,24 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         if (!callee || callee->isDeclaration() || callee->empty())
           continue;
 
-	// XXX: We assume that `graphs` has been already populated by
-	// the bottom-up pass. We report an error and skip the
-	// callsite otherwise.
-	auto it = graphs.find(dsaCS.getCaller());
-	if (it == graphs.end()) {
-	  errs() << "ERROR: top-down analysis could not find dsa graph for caller\n";
-	  continue;
-	} 
+        // XXX: We assume that `graphs` has been already populated by
+        // the bottom-up pass. We report an error and skip the
+        // callsite otherwise.
+        auto it = graphs.find(dsaCS.getCaller());
+        if (it == graphs.end()) {
+          errs() << "ERROR: top-down analysis could not find dsa graph for "
+                    "caller\n";
+          continue;
+        }
         Graph &callerG = *(it->second);
-	it = graphs.find(dsaCS.getCallee());
-	if (it == graphs.end()) {
-	  errs() << "ERROR: top-down analysis could not find dsa graph for callee\n";	  
-	  continue;
-	} 
+        it = graphs.find(dsaCS.getCallee());
+        if (it == graphs.end()) {
+          errs() << "ERROR: top-down analysis could not find dsa graph for "
+                    "callee\n";
+          continue;
+        }
         Graph &calleeG = *(it->second);
-  	// propagate from the caller to the callee
+        // propagate from the caller to the callee
         cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);
       }
     }
@@ -152,5 +154,4 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   LOG("dsa-td", errs() << "Finished top-down analysis\n");
   return false;
 }
-} // end namespace
-
+} // namespace sea_dsa
