@@ -445,10 +445,9 @@ void sea_dsa::Node::addAllocSite(const Value &v) { m_alloca_sites.insert(&v); }
 
 void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
   using namespace boost;
-  #if BOOST_VERSION / 100 % 100 < 68
-  m_alloca_sites.insert(s.begin(),s.end());
-                        
-  #else
+#if BOOST_VERSION / 100 % 100 < 68
+  m_alloca_sites.insert(s.begin(), s.end());
+#else
   // At least with boost 1.65 this code does not compile due to an
   // ambiguity problem when make_reverse_iterator is called. There are
   // two found candidates: one in boost and the other one in llvm.
@@ -456,7 +455,7 @@ void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
   // 1.66 and 1.67.
   m_alloca_sites.insert(container::ordered_unique_range_t(), s.begin(),
                         s.end());
-  #endif   
+#endif
 }
 
 // pre: this simulated by n
