@@ -33,10 +33,7 @@ namespace sea_dsa {
 void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
                                                Graph &callerG, Graph &calleeG,
                                                bool noescape) {
-  // XXX TODO: This cloner should remove all alloca instructions
-  // XXX TODO: from nodes that are being cloned into calleeG
-  // XXX TODO: except for the ones passed directly at call site (see below)
-  Cloner C(calleeG);
+  Cloner C(calleeG, noescape);
 
   // clone and unify globals
   for (auto &kv : boost::make_iterator_range(callerG.globals_begin(),
@@ -68,13 +65,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     const Value *fml = &*FI;
     if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
       const Cell &callerCell = callerG.getCell(*arg);
-      // XXX TODO: if callerCell.getNode() has allocas , they are copied
-      // XXX TODO: but allocas that are in nodes reachable from this node are
-      // not
-      // XXX TODO: careful because the node might be reachable in multiple ways
-      // XXX TODO: easiest if cloner can copy attributes that were removed
-      // XXX TODO: by a previous clone
-      Node &n = C.clone(*callerCell.getNode());
+      Node &n = C.clone(*callerCell.getNode(), noescape);
       Cell c(n, callerCell.getRawOffset());
       Cell &nc = calleeG.mkCell(*fml, Cell());
       nc.unify(c);
