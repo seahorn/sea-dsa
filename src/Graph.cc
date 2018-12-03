@@ -938,7 +938,7 @@ bool sea_dsa::Graph::computeCalleeCallerMapping(
       Cell &nc = callerG.mkCell(*kv.first, Cell());
       if (!simMap.insert(c, nc)) {
         if (reportIfSanityCheckFailed) {
-          errs() << "ERROR: callee is not simulated by caller at "
+          errs() << "ERROR 1: callee is not simulated by caller at "
                  << *cs.getInstruction() << "\n"
                  << "\tGlobal: " << *kv.first << "\n"
                  << "\tCallee cell=" << c << "\n"
@@ -956,7 +956,7 @@ bool sea_dsa::Graph::computeCalleeCallerMapping(
       Cell &nc = callerG.mkCell(*cs.getInstruction(), Cell());
       if (!simMap.insert(c, nc)) {
         if (reportIfSanityCheckFailed) {
-          errs() << "ERROR: callee is not simulated by caller at "
+          errs() << "ERROR 2: callee is not simulated by caller at "
                  << *cs.getInstruction() << "\n"
                  << "\rReturn value of " << callee.getName() << "\n"
                  << "\rCallee cell=" << c << "\n"
@@ -974,13 +974,14 @@ bool sea_dsa::Graph::computeCalleeCallerMapping(
        FI != FE && AI != AE; ++FI, ++AI) {
     const Value *fml = &*FI;
     const Value *arg = (*AI).get();
+
     if (calleeG.hasCell(*fml) && callerG.hasCell(*arg)) {
       Cell &c = calleeG.mkCell(*fml, Cell());
       if (!onlyModified || c.isModified()) {
         Cell &nc = callerG.mkCell(*arg, Cell());
         if (!simMap.insert(c, nc)) {
           if (reportIfSanityCheckFailed) {
-            errs() << "ERROR: callee is not simulated by caller at "
+            errs() << "ERROR 3: callee is not simulated by caller at "
                    << *cs.getInstruction() << "\n"
                    << "\tFormal param " << *fml << "\n"
                    << "\tActual param " << *arg << "\n"

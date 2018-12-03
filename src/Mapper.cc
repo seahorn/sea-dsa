@@ -58,9 +58,9 @@ bool SimulationMapper::insert(const Cell &c1, Cell &c2) {
     return false;
   }
 
-  return insert(*c1.getNode(), *c2.getNode(), Field(o2.getNumericOffset() -
-                                                    o1.getNumericOffset(),
-                                                    FIELD_TYPE_NOT_IMPLEMENTED));
+  Field f(o2.getNumericOffset() - o1.getNumericOffset(),
+          FIELD_TYPE_NOT_IMPLEMENTED);
+  return insert(*c1.getNode(), *c2.getNode(), f);
 }
 
 // Return true iff n1 (at offset 0) is simulated by n2 at offset o
@@ -81,7 +81,11 @@ bool SimulationMapper::insert(const Node &n1, Node &n2, Field o)
   // XXX not necessarily at offset 0
   if (!n1.isArray () && n2.isArray ())
   {
-    if (offset.getNumericOffset() > 0 && n1.size () + o.getOffset() > n2.size ())
+    // XXX: n1 is an unfolding of n2, we can map it.
+    if (n1.size() >= n2.size() && (n1.size() % n2.size() == 0) &&
+        offset.getNumericOffset() == 0) {
+      ; // Do nothing.
+    } else if (offset.getNumericOffset() > 0 && n1.size () + o.getOffset() > n2.size ())
       { m_sim.clear (); return false; }
   }
 
@@ -93,8 +97,17 @@ bool SimulationMapper::insert(const Node &n1, Node &n2, Field o)
   { m_sim.clear (); return false; } 
     
   // XXX: a collapsed node can simulate an array node
-  if (n1.isArray () && !n2.isOffsetCollapsed() && n1.size () != n2.size ())
-  { m_sim.clear (); return false; }
+  if (n1.isArray () && !n2.isOffsetCollapsed() && n1.size () != n2.size ()) {
+    // XXX: two arrays are properly aligned, and n2 is smaller than n1,
+    //      and n1 is an unfolding of n2, we can map it.
+    if (n2.isArray() && n2.size() < n1.size() &&
+        (n1.size() % n2.size() == 0) && offset.getNumericOffset() == 0) {
+      ; // Do nothing.
+    } else {
+      m_sim.clear();
+      return false;
+    }
+  }
   
   if (n1.isOffsetCollapsed() && !n2.isOffsetCollapsed())
   { m_sim.clear (); return false; }
@@ -123,7 +136,14 @@ bool SimulationMapper::insert(const Node &n1, Node &n2, Field o)
     // adjusted offset
     unsigned off2 = link.getOffset ();
 
-    // Offsets must be adjusted 
+    // Account for arrays and wrap around -- array simulates its unfolding.
+    // Note: simulation is not symmetric -- doesn't work the other way round.
+    if (n4->isArray()) {
+      Node::Offset _offset(*n4, off1);
+      off1 = _offset.getNumericOffset();
+    }
+
+    // Offsets must be adjusted
     if (off2 < off1 && !n4->isOffsetCollapsed())
     { m_sim.clear (); return false; }
 
