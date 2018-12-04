@@ -163,11 +163,14 @@ void DsaInfo::assignAllocSiteId () {
     
     // iterate over all allocation sites
     auto &n_alloca_sites = n.getNode ()->getAllocSites ();
-    std::vector<const llvm::Value*> n_alloca_sites_sorted (n_alloca_sites.begin(),
-							   n_alloca_sites.end());
-    std::sort (n_alloca_sites_sorted.begin(),
-	       n_alloca_sites_sorted.end(), compareValues);
-    
+    std::vector<const llvm::Value *> n_alloca_sites_sorted;
+    n_alloca_sites_sorted.reserve(n_alloca_sites.size());
+    for (const DSAllocSite &as : n_alloca_sites)
+      n_alloca_sites_sorted.push_back(&as.getAllocSite());
+
+    std::sort(n_alloca_sites_sorted.begin(), n_alloca_sites_sorted.end(),
+              compareValues);
+
     for (const llvm::Value*v : n_alloca_sites_sorted) {
       // assign a unique id to the allocation site for Dsa clients
       unsigned site_id;

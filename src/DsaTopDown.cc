@@ -33,7 +33,9 @@ namespace sea_dsa {
 void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
                                                Graph &callerG, Graph &calleeG,
                                                bool noescape) {
-  Cloner C(calleeG, noescape);
+  CloningContext context(cs, CloningContext::TopDown);
+  auto options = Cloner::BuildOptions(Cloner::StripAllocas);
+  Cloner C(calleeG, context, options);
 
   // clone and unify globals
   for (auto &kv : boost::make_iterator_range(callerG.globals_begin(),

@@ -441,21 +441,18 @@ unsigned sea_dsa::Node::mergeUniqueScalar(Node &n, Cache &seen) {
   return res;
 }
 
-void sea_dsa::Node::addAllocSite(const Value &v) { m_alloca_sites.insert(&v); }
+void sea_dsa::Node::addAllocSite(const DSAllocSite &as) {
+  m_alloca_sites.insert(as);
+}
 
-void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
-  using namespace boost;
-#if BOOST_VERSION / 100 % 100 < 68
-  m_alloca_sites.insert(s.begin(), s.end());
-#else
-  // At least with boost 1.65 this code does not compile due to an
-  // ambiguity problem when make_reverse_iterator is called. There are
-  // two found candidates: one in boost and the other one in llvm.
-  // With boost 1.68 the ambiguity problem is gone. We don't know with
-  // 1.66 and 1.67.
-  m_alloca_sites.insert(container::ordered_unique_range_t(), s.begin(),
-                        s.end());
-#endif
+void sea_dsa::Node::joinAllocSites(const AllocaSet &set) {
+  for (auto &as : set) {
+    auto it = m_alloca_sites.find(as);
+    if (it != m_alloca_sites.end())
+      it->copyPaths(as);
+    else
+      m_alloca_sites.insert(as);
+  }
 }
 
 // pre: this simulated by n
@@ -561,7 +558,8 @@ void sea_dsa::Node::write(raw_ostream &o) const {
     o << "] ";
     first = true;
     o << " alloca sites=[";
-    for (const Value *a : getAllocSites()) {
+    for (const auto &as : getAllocSites()) {
+      Value *a = &as.getAllocSite();
       if (!first)
         o << ",";
       else
@@ -831,7 +829,8 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   // Pretend that global values are always present
   if (isa<GlobalValue>(&v) && c.isNull()) {
     sea_dsa::Node &n = mkNode();
-    n.addAllocSite(v);
+    DSAllocSite as(v);
+    n.addAllocSite(as);
     return mkCell(v, Cell(n, 0));
   }
 
@@ -997,7 +996,7 @@ bool sea_dsa::Graph::computeCalleeCallerMapping(
 }
 
 void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
-  Cloner C(*this);
+  Cloner C(*this, CloningContext::mkNoContext(), Cloner::CloningOptions::Basic);
   for (auto &kv : g.m_values) {
     // -- clone node
     Node &n = C.clone(*kv.second->getNode());

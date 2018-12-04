@@ -85,8 +85,11 @@ bool SimulationMapper::insert(const Node &n1, Node &n2, Field o)
     if (n1.size() >= n2.size() && (n1.size() % n2.size() == 0) &&
         offset.getNumericOffset() == 0) {
       ; // Do nothing.
-    } else if (offset.getNumericOffset() > 0 && n1.size () + o.getOffset() > n2.size ())
-      { m_sim.clear (); return false; }
+    } else if (offset.getNumericOffset() > 0 &&
+               n1.size() + o.getOffset() > n2.size()) {
+      m_sim.clear();
+      return false;
+    }
   }
 
   // XXX: a collapsed node can simulate an array node
@@ -97,18 +100,18 @@ bool SimulationMapper::insert(const Node &n1, Node &n2, Field o)
   { m_sim.clear (); return false; } 
     
   // XXX: a collapsed node can simulate an array node
-  if (n1.isArray () && !n2.isOffsetCollapsed() && n1.size () != n2.size ()) {
+  if (n1.isArray() && !n2.isOffsetCollapsed() && n1.size() != n2.size()) {
     // XXX: two arrays are properly aligned, and n2 is smaller than n1,
     //      and n1 is an unfolding of n2, we can map it.
-    if (n2.isArray() && n2.size() < n1.size() &&
-        (n1.size() % n2.size() == 0) && offset.getNumericOffset() == 0) {
+    if (n2.isArray() && n2.size() < n1.size() && (n1.size() % n2.size() == 0) &&
+        offset.getNumericOffset() == 0) {
       ; // Do nothing.
     } else {
       m_sim.clear();
       return false;
     }
   }
-  
+
   if (n1.isOffsetCollapsed() && !n2.isOffsetCollapsed())
   { m_sim.clear (); return false; }
       

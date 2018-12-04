@@ -288,6 +288,71 @@ public:
   void dump() const;
 };
 
+
+class DSAllocSite {
+  llvm::Value *m_allocSite = nullptr;
+  enum StepKind { Local, BottomUp, TopDown };
+  using Step = std::pair<StepKind, llvm::Function *>;
+  std::vector<std::vector<Step>> m_callPaths;
+
+public:
+  DSAllocSite(llvm::Value& V) : m_allocSite(&V) {}
+  DSAllocSite(const llvm::Value& V)
+    : DSAllocSite(const_cast<llvm::Value&>(V)) {}
+
+
+  llvm::Value &getAllocSite() const {
+    assert(m_allocSite);
+    return *m_allocSite;
+  }
+
+  void addStep(const Step& s) {
+    for (auto &Path : m_callPaths)
+      Path.push_back(s);
+  }
+
+  void copyPaths(const DSAllocSite& other) {
+    m_callPaths.insert(m_callPaths.end(), other.m_callPaths.begin(),
+                                          other.m_callPaths.end());
+  }
+
+  void print(llvm::raw_ostream &os = llvm::errs()) const {
+    if (m_allocSite)
+      m_allocSite->print(os);
+    else
+      os << "<nullptr>";
+
+    for (const auto& Path : m_callPaths) {
+      os << "\n\t(";
+      for (const Step &step : Path) {
+        if (step.first == Local) {
+          os << "LOCAL ";
+        } else if (step.first == BottomUp) {
+          os << " -BU-> ";
+        } else if (step.first == TopDown) {
+          os << " <-TD- ";
+        }
+      }
+      os << ")\n";
+    }
+  }
+
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream& os,
+                                       const DSAllocSite& AS) {
+    AS.print(os);
+    return os;
+  }
+
+  bool operator<(const DSAllocSite &other) const {
+    return m_allocSite < other.m_allocSite;
+  }
+
+  bool operator==(const DSAllocSite &other) const {
+    return m_allocSite == other.m_allocSite;
+  }
+};
+
+
 /// A node of a DSA graph representing a memory object
 class Node {
   friend class Graph;
@@ -454,7 +519,7 @@ private:
   unsigned m_size;
 
   /// allocation sites for the node
-  typedef boost::container::flat_set<const llvm::Value *> AllocaSet;
+  typedef boost::container::flat_set<DSAllocSite> AllocaSet;
   AllocaSet m_alloca_sites;
 
   static uint64_t m_id_factory;
@@ -663,7 +728,7 @@ public:
   void collapseTypes(int tag /*= -2*/);
 
   /// Add a new allocation site
-  void addAllocSite(const llvm::Value &v);
+  void addAllocSite(const DSAllocSite &as);
   /// get all allocation sites
   const AllocaSet &getAllocSites() const { return m_alloca_sites; }
   void resetAllocSites() { m_alloca_sites.clear(); }
@@ -673,7 +738,11 @@ public:
     m_alloca_sites.insert(begin, end);
   }
 
-  bool hasAllocSite(const llvm::Value &v) { return m_alloca_sites.count(&v); }
+  bool hasAllocSite(const DSAllocSite &as) { return m_alloca_sites.count(as); }
+  bool hasAllocSite(const llvm::Value &v) {
+    DSAllocSite dummy(v); // DSAllocSite is equal iff it has the same Value.
+    return hasAllocSite(dummy);
+  }
 
   /// joins all the allocation sites
   void joinAllocSites(const AllocaSet &s);
@@ -683,7 +752,9 @@ public:
   /// 0x0 (no change), 0x1 (this changed), 0x2 (n changed), 0x3
   /// (both changed).
   unsigned mergeAllocSites(Node &n);
-  template <typename Cache> unsigned mergeAllocSites(Node &n, Cache &seen);
+
+  template <typename Cache>
+  unsigned mergeAllocSites(Node &n, Cache &seen);
 
   /// pretty-printer of a node
   void write(llvm::raw_ostream &o) const;
