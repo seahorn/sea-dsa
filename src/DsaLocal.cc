@@ -281,6 +281,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
 }
 
 void IntraBlockBuilder::visitInstruction(Instruction &I) {
+  LOG("blockbuilder", errs()<<"I:"<<I.getName()<<"/n");
   if (isSkip(I))
     return;
 
@@ -288,6 +289,7 @@ void IntraBlockBuilder::visitInstruction(Instruction &I) {
 }
 
 void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
+  LOG("blockbuilder", errs()<<"AI:"<<AI.getName()<<"/n");
   using namespace sea_dsa;
   assert(!m_graph.hasCell(AI));
   Node &n = m_graph.mkNode();
@@ -900,6 +902,7 @@ void IntraBlockBuilder::visitIntToPtrInst(IntToPtrInst &I) {
 
 void IntraBlockBuilder::visitReturnInst(ReturnInst &RI) {
   Value *v = RI.getReturnValue();
+  LOG("blockbuilder", errs()<<"v at return inst:"<<v->getName()<<"\n");
   if (!v || isSkip(*v))
     return;
 
@@ -961,10 +964,13 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
 namespace sea_dsa {
 
 void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
+  LOG("runOnFunction", errs()<<"F:"<<F.getName()<<"\n");
   // create cells and nodes for formal arguments
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
+
       Node &n = g.mkNode();
+
       if (TrustArgumentTypes)
         g.mkCell(a, Cell(n, 0));
       else
@@ -974,6 +980,9 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
         n.addAllocSite(a);
       // -- mark node as a stack node
       n.setAlloca();
+      // -- mark node as incomplete (formal arguments)
+      n.setIncomplete();
+      LOG("runOnFunction", errs()<<"formal argument: ";n.dump(););
     }
 
   std::vector<const BasicBlock *> bbs;
@@ -984,6 +993,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   InterBlockBuilder interBuilder(F, g, m_dl, m_tli, m_allocInfo);
   for (const BasicBlock *bb : bbs)
     intraBuilder.visit(*const_cast<BasicBlock *>(bb));
+
   for (const BasicBlock *bb : bbs)
     interBuilder.visit(*const_cast<BasicBlock *>(bb));
 
@@ -1030,6 +1040,7 @@ bool Local::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
+  errs() << "DSA Module: " << M.getName() << "\n";
 
   for (Function &F : M)
     runOnFunction(F);
@@ -1040,7 +1051,7 @@ bool Local::runOnFunction(Function &F) {
   if (F.isDeclaration() || F.empty())
     return false;
 
-  LOG("progress", errs() << "DSA: " << F.getName() << "\n";);
+  errs() << "DSA: " << F.getName() << "\n";
 
   LocalAnalysis la(*m_dl, *m_tli, *m_allocInfo);
   GraphRef g = std::make_shared<Graph>(*m_dl, m_setFactory);

@@ -520,6 +520,14 @@ public:
     m_nodeType.heap = v;
     return *this;
   }
+  Node &setIncomplete(bool v = true) {
+    m_nodeType.incomplete = v;
+    return *this;
+  }
+  Node &setGlobal(bool v = true) {
+    m_nodeType.global = v;
+    return *this;
+  }
   Node &setRead(bool v = true) {
     m_nodeType.read = v;
     return *this;

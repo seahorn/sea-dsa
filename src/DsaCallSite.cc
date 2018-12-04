@@ -3,7 +3,8 @@
 #include "llvm/IR/Instructions.h"
 
 #include "sea_dsa/CallSite.hh"
-
+#include "sea_dsa/support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
 namespace sea_dsa {
@@ -15,7 +16,9 @@ namespace sea_dsa {
   { return a.getType()->isPointerTy();} 
   
   DsaCallSite::DsaCallSite(const ImmutableCallSite &cs)
-    : m_cs (cs) { }
+    : m_cs (cs) {
+    LOG("dsa-global-getcallsite", errs()<<cs->getParent()->getParent()->getName()<<"\n");
+  }
   
   const Value* DsaCallSite::getRetVal () const
   { 
