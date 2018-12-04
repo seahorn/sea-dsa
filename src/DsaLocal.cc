@@ -227,6 +227,8 @@ public:
 sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   using namespace sea_dsa;
   assert(v.getType()->isPointerTy() || v.getType()->isAggregateType());
+  
+  LOG("blockbuilder", errs()<<"valueCell: ";v.print(errs(), true); errs()<<"\n");
 
   if (isNullConstant(v)) {
     LOG("dsa", errs() << "WARNING: not handled constant: " << v << "\n";);
@@ -281,7 +283,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
 }
 
 void IntraBlockBuilder::visitInstruction(Instruction &I) {
-  LOG("blockbuilder", errs()<<"I:"<<I.getName()<<"/n");
+//  LOG("blockbuilder", errs()<<"I:";I.dump());
   if (isSkip(I))
     return;
 
@@ -289,7 +291,6 @@ void IntraBlockBuilder::visitInstruction(Instruction &I) {
 }
 
 void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
-  LOG("blockbuilder", errs()<<"AI:"<<AI.getName()<<"/n");
   using namespace sea_dsa;
   assert(!m_graph.hasCell(AI));
   Node &n = m_graph.mkNode();
@@ -297,7 +298,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   n.addAllocSite(AI);
   // -- mark node as a stack node
   n.setAlloca();
-
+  LOG("blockbuilder", errs()<<"visitAllocaInst";n.write(errs()));
   m_graph.mkCell(AI, Cell(n, 0));
 }
 
@@ -343,6 +344,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 
     if (!base.hasLink(LoadedField)) {
       Node &n = m_graph.mkNode();
+      LOG("blockbuilder", errs()<<"visitLoadInst";n.write(errs()));
       base.setLink(LoadedField, Cell(&n, 0));
     }
 
@@ -543,6 +545,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   if (off.second) {
     // create a node representing the array
     sea_dsa::Node &n = m_graph.mkNode();
+    LOG("blockbuilder", errs()<<"visitGep";n.write(errs()));
     n.setArraySize(off.second);
     // result of the gep points into that array at the gep offset
     // plus the offset of the base
@@ -577,6 +580,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
+    LOG("blockbuilder", errs()<<"visitInsertValueInst";n.write(errs()));
     // -- record allocation site
     n.addAllocSite(I);
     // -- mark node as a stack node
@@ -610,6 +614,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
+    LOG("blockbuilder", errs()<<"visitExtractValueInst";n.write(errs()));
     // -- record allocation site
     n.addAllocSite(I);
     // -- mark node as a stack node
@@ -631,6 +636,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // -- create a new node if there is no link at this offset yet
     if (!in.hasLink(InstType)) {
       Node &n = m_graph.mkNode();
+      LOG("blockbuilder", errs()<<"visitExtractValueInst !isSkip(I)";n.write(errs()));
       FieldType nType = opType;
       in.setLink(InstType, Cell(&n, 0));
       // -- record allocation site
@@ -652,6 +658,8 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
       (callee && m_allocInfo.isAllocWrapper(*callee))) {
     assert(CS.getInstruction());
     Node &n = m_graph.mkNode();
+    LOG("blockbuilder", errs()<<"visitCallSite llvm::isAllocationFn(CS.getInstruction(), &m_tli, true ||\n"
+            "      (callee && m_allocInfo.isAllocWrapper(*callee))";n.write(errs()));
     // -- record allocation site
     n.addAllocSite(*(CS.getInstruction()));
     // -- mark node as a heap node
@@ -707,6 +715,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
         // XXX: we ignore external calls created by AbstractMemory pass
         if (!callee->getName().startswith("verifier.nondet.abstract.memory"))
           c.getNode()->addAllocSite(*inst);
+          LOG("blockbuilder", errs()<<"visitCallSite inst && !isSkip(*inst)";c.getNode()->write(errs()));
 
         // TODO: many more things can be done to handle external
         // TODO: functions soundly and precisely.  An absolutely
@@ -883,6 +892,7 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   // if (!shouldBeTrackedIntToPtr (dest)) return;
 
   sea_dsa::Node &n = m_graph.mkNode();
+  LOG("blockbuilder", errs()<<"visitCastIntToPtr";n.write(errs()));
   n.setIntToPtr();
   // -- record allocation site
   n.addAllocSite(dest);

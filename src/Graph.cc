@@ -834,6 +834,10 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   if (isa<GlobalValue>(&v) && c.isNull()) {
     sea_dsa::Node &n = mkNode();
     n.addAllocSite(v);
+    if (isa<GlobalValue>(v)){
+        n.setGlobal();
+        n.setIncomplete();
+    }
     return mkCell(v, Cell(n, 0));
   }
 
