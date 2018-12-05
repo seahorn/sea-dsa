@@ -53,6 +53,14 @@ public:
     return m_allocSite == other.m_allocSite;
   }
 
+  bool operator!=(const DSAllocSite &other) const {
+    return !(*this == other);
+  }
+
+  bool operator>(const DSAllocSite &other) const {
+    return (other != *this) && !(other < *this);
+  }
+
 private:
   friend sea_dsa::Graph;
 
