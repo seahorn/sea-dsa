@@ -30,8 +30,8 @@ namespace llvm {
 
 static llvm::cl::opt<bool>
     TrustArgumentTypes("sea-dsa-trust-args",
-               llvm::cl::desc("Trust function argument types"),
-               llvm::cl::init(true));
+                       llvm::cl::desc("Trust function argument types"),
+                       llvm::cl::init(true));
 
 // borrowed from SeaHorn
 class __BlockedEdges {
@@ -63,7 +63,7 @@ public:
   po_iterator_storage(const po_iterator_storage &S) : Visited(S.Visited) {}
 
   bool insertEdge(Optional<const BasicBlock *> src, const BasicBlock *dst) {
-    return Visited.insert(dst);    
+    return Visited.insert(dst);
   }
   void finishPostorder(const BasicBlock *bb) {}
 };
@@ -168,10 +168,10 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
     // -- skip null
     if (isa<Constant>(&v) && cast<Constant>(&v)->isNullValue())
       continue;
-    
+
     // -- skip undef
     if (isa<Constant>(&v) && isa<UndefValue>(&v))
-      continue;    
+      continue;
 
     sea_dsa::Cell c = valueCell(v);
     assert(!c.isNull());
@@ -428,9 +428,10 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
   // divisor
   uint64_t divisor = 0;
 
-  Type * srcElemTy = cast<PointerType>(ptrTy)->getElementType();    
-  generic_gep_type_iterator<Value* const*> TI = gep_type_begin (srcElemTy, Indicies);
- 
+  Type *srcElemTy = cast<PointerType>(ptrTy)->getElementType();
+  generic_gep_type_iterator<Value *const *> TI =
+      gep_type_begin(srcElemTy, Indicies);
+
   for (unsigned CurIDX = 0, EndIDX = Indicies.size(); CurIDX != EndIDX;
        ++CurIDX, ++TI) {
     if (StructType *STy = TI.getStructTypeOrNull()) {
@@ -439,11 +440,11 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
       Ty = STy->getElementType(fieldNo);
     } else {
       if (PointerType *ptrTy = dyn_cast<PointerType>(Ty))
-	Ty = ptrTy->getElementType();
+        Ty = ptrTy->getElementType();
       else if (SequentialType *seqTy = dyn_cast<SequentialType>(Ty))
-	Ty = seqTy->getElementType();
+        Ty = seqTy->getElementType();
       assert(Ty && "Type is neither PointerType nor SequentialType");
-      
+
       uint64_t sz = dl.getTypeStoreSize(Ty);
       if (ConstantInt *ci = dyn_cast<ConstantInt>(Indicies[CurIDX])) {
         int64_t arrayIdx = ci->getSExtValue();
@@ -465,25 +466,25 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
 }
 
 /// Computes offset into an indexed type
-  uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
-                                const DataLayout &dl) {
-    uint64_t offset = 0;
-    for (unsigned idx : indecies) {
-      if (StructType *sty = dyn_cast<StructType>(ty)) {
-        const StructLayout *layout = dl.getStructLayout(sty);
-        offset += layout->getElementOffset(idx);
-        ty = sty->getElementType(idx);
-      } else {
-        if (PointerType *ptrTy = dyn_cast<PointerType>(ty))
-          ty = ptrTy->getElementType();
-        else if (SequentialType *seqTy = dyn_cast<SequentialType>(ty))
-          ty = seqTy->getElementType();
-        assert(ty && "Type is neither PointerType nor SequentialType");
-        offset += idx * dl.getTypeAllocSize(ty);
-      }
+uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
+                              const DataLayout &dl) {
+  uint64_t offset = 0;
+  for (unsigned idx : indecies) {
+    if (StructType *sty = dyn_cast<StructType>(ty)) {
+      const StructLayout *layout = dl.getStructLayout(sty);
+      offset += layout->getElementOffset(idx);
+      ty = sty->getElementType(idx);
+    } else {
+      if (PointerType *ptrTy = dyn_cast<PointerType>(ty))
+        ty = ptrTy->getElementType();
+      else if (SequentialType *seqTy = dyn_cast<SequentialType>(ty))
+        ty = seqTy->getElementType();
+      assert(ty && "Type is neither PointerType nor SequentialType");
+      offset += idx * dl.getTypeAllocSize(ty);
     }
-    return offset;
   }
+  return offset;
+}
 
 void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
                                 ArrayRef<Value *> indicies) {
@@ -519,18 +520,18 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   }
 
   static unsigned i = 0;
-  //errs() << "GEP " << (++i);
-  //gep.dump();
-  //errs() << "\n\tLLVM type: ";
-  //gep.getType()->dump();
+  // errs() << "GEP " << (++i);
+  // gep.dump();
+  // errs() << "\n\tLLVM type: ";
+  // gep.getType()->dump();
 
   if (i == 16)
     errs();
 
   const sea_dsa::FieldType gepType(gep.getType());
-  //errs() << "\n\tSeaDsa type: " << gepType << "\n";
+  // errs() << "\n\tSeaDsa type: " << gepType << "\n";
 
-      assert(!m_graph.hasCell(gep));
+  assert(!m_graph.hasCell(gep));
   sea_dsa::Node *baseNode = base.getNode();
   if (baseNode->isOffsetCollapsed()) {
     m_graph.mkCell(gep, sea_dsa::Cell(baseNode, 0));
@@ -555,13 +556,13 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
   Value &ptr = *I.getPointerOperand();
 
-//  // Visit nested constant GEP first.
-//  if (isa<ConstantExpr>(&ptr))
-//    if (auto *g = dyn_cast<GEPOperator>(&ptr)) {
-//      llvm::errs() << "Visiting nested constant GEP first\n";
-//      SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
-//      visitGep(*g, *g->getPointerOperand(), indicies);
-//    }
+  //  // Visit nested constant GEP first.
+  //  if (isa<ConstantExpr>(&ptr))
+  //    if (auto *g = dyn_cast<GEPOperator>(&ptr)) {
+  //      llvm::errs() << "Visiting nested constant GEP first\n";
+  //      SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
+  //      visitGep(*g, *g->getPointerOperand(), indicies);
+  //    }
 
   SmallVector<Value *, 8> indicies(I.op_begin() + 1, I.op_end());
   visitGep(I, ptr, indicies);
@@ -910,54 +911,67 @@ void IntraBlockBuilder::visitReturnInst(ReturnInst &RI) {
   m_graph.mkRetCell(m_func, c);
 }
 
-bool shouldBeTrackedPtrToInt(const Value &def) {
-  if (def.hasOneUse() && isa<CmpInst>(*(def.use_begin()->getUser())))
-    return false;
+/**
+  Returns true if the given ptrtoint instruction is escaping into
+  memory. That is, it flows directly into one of Load/Store/Call
+  instructions.
 
-  if (def.hasOneUse()) {
-    Value *v = dyn_cast<Value>(def.use_begin()->getUser());
-    DenseSet<Value *> seen;
-    while (v && v->hasOneUse() && seen.insert(v).second) {
-      if (isa<LoadInst>(v) || isa<StoreInst>(v) || isa<CallInst>(v))
-        break;
-      v = dyn_cast<Value>(v->use_begin()->getUser());
-    }
-    if (isa<BranchInst>(v))
-      return false;
+  Load is considered escaping because it is observable from the memory
+  perspective
+*/
+bool isEscapingPtrToInt(const PtrToIntInst &def) {
+  SmallVector<const Value *, 16> workList;
+  SmallPtrSet<const Value *, 16> seen;
+  workList.push_back(&def);
 
-    /// XXX: search for a common pattern in which all uses are
-    /// assume functions
-    if (!v->hasOneUse()) {
-      for (auto const &U : v->uses()) {
-        if (const CallInst *CI = dyn_cast<const CallInst>(U.getUser())) {
-          ImmutableCallSite CS(CI);
-          const Function *callee = CS.getCalledFunction();
-          if (callee && (callee->getName() == "verifier.assume" ||
-                         callee->getName() == "llvm.assume"))
-            continue;
-        }
-        return true;
+  while (!workList.empty()) {
+    const Value *v = workList.back();
+    workList.pop_back();
+    if (!seen.insert(v).second)
+      continue;
+
+    for (auto *user : v->users()) {
+      if (!seen.count(user))
+        continue;
+      if (isa<BranchInst>(user) || isa<CmpInst>(user))
+        continue;
+      if (auto *si = dyn_cast<SelectInst>(user)) {
+        if (si->getCondition() == v)
+          continue;
       }
-      return false;
+      if (auto *bi = dyn_cast<BinaryOperator>(user)) {
+        if (bi->getOpcode() == Instruction::Sub &&
+            isa<PtrToIntInst>(bi->getOperand(0)) &&
+            isa<PtrToIntInst>(bi->getOperand(1)))
+          continue;
+      }
+      if (auto *CI = dyn_cast<const CallInst>(user)) {
+        ImmutableCallSite CS(CI);
+        const Function *callee = CS.getCalledFunction();
+        if (callee && (callee->getName() == "verifier.assume" ||
+                       callee->getName() == "llvm.assume"))
+          continue;
+      }
+      if (isa<LoadInst>(*v) || isa<StoreInst>(*v) || isa<CallInst>(*v))
+        return true;
+
+      workList.push_back(user);
     }
   }
-  return true;
+  return false;
 }
 
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
-  if (!shouldBeTrackedPtrToInt(I))
-    return;
+  if (!isEscapingPtrToInt(I)) return;
 
   assert(m_graph.hasCell(*I.getOperand(0)));
   sea_dsa::Cell c = valueCell(*I.getOperand(0));
   if (!c.isNull()) {
     llvm::errs() << "WARNING: " << I << " may be escaping.\n";
-    c.getNode()->setPtrToInt();
   }
 }
 
 } // end namespace
-
 namespace sea_dsa {
 
 void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
@@ -1017,8 +1031,8 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
       g.write(errs()));
 }
 
-Local::Local() : ModulePass(ID), m_dl(nullptr), m_tli(nullptr),
-                 m_allocInfo(nullptr) {}
+Local::Local()
+    : ModulePass(ID), m_dl(nullptr), m_tli(nullptr), m_allocInfo(nullptr) {}
 
 void Local::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
