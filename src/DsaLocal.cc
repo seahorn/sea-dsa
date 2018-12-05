@@ -87,7 +87,7 @@ void revTopoSort(const llvm::Function &F,
   std::copy(po_ext_begin(f, ble), po_ext_end(f, ble), std::back_inserter(out));
 }
 
-std::pair<uint64_t, uint64_t>
+std::pair<int64_t, uint64_t>
 computeGepOffset(Type *ptrTy, ArrayRef<Value *> Indicies, const DataLayout &dl);
 
 template <typename T> T gcd(T a, T b) {
@@ -416,14 +416,14 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
    The first element of the pair is the fixed offset. The second is
    a gcd of the variable offset.
  */
-std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
+std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
                                                ArrayRef<Value *> Indicies,
                                                const DataLayout &dl) {
   Type *Ty = ptrTy;
   assert(Ty->isPointerTy());
 
   // numeric offset
-  uint64_t noffset = 0;
+  int64_t noffset = 0;
 
   // divisor
   uint64_t divisor = 0;
@@ -448,7 +448,8 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
       uint64_t sz = dl.getTypeStoreSize(Ty);
       if (ConstantInt *ci = dyn_cast<ConstantInt>(Indicies[CurIDX])) {
         int64_t arrayIdx = ci->getSExtValue();
-        if (arrayIdx < 0) {
+        // XXX disabling and handling at the caller
+        if (false && arrayIdx < 0) {
           errs() << "WARNING: negative GEP index\n";
           // XXX for now, give up as soon as a negative index is found
           // XXX can probably do better. Some negative indexes are positive
@@ -458,7 +459,7 @@ std::pair<uint64_t, uint64_t> computeGepOffset(Type *ptrTy,
         }
         noffset += (uint64_t)arrayIdx * sz;
       } else
-        divisor = divisor == 0 ? sz : gcd(divisor, sz);
+        divisor = divisor == 0 ? sz : gcd(divisor, sz < 0 ? -sz : sz);
     }
   }
 
@@ -539,6 +540,13 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   }
 
   auto off = computeGepOffset(ptr.getType(), indicies, m_dl);
+  if (off.first < 0) {
+    errs() << "Negative GEP: " << "(" << off.first << ", " << off.second << ") "
+           << gep << "\n";
+    // XXX current work-around
+    // XXX If the offset is negative, convert to an array of stride 1
+    off = std::make_pair(0, 1);
+  }
   if (off.second) {
     // create a node representing the array
     sea_dsa::Node &n = m_graph.mkNode();
