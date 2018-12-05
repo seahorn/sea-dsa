@@ -7,11 +7,11 @@
 namespace sea_dsa {
 
 struct CloningContext {
-  llvm::Optional<DsaCallSite> CS;
+  llvm::Optional<llvm::ImmutableCallSite> CS;
   enum DirectionKind { Unset, BottomUp, TopDown };
   DirectionKind Direction;
 
-  CloningContext(DsaCallSite cs, DirectionKind direction) :
+  CloningContext(llvm::ImmutableCallSite cs, DirectionKind direction) :
     CS(cs), Direction(direction) {}
 
   static CloningContext mkNoContext() { return {}; }

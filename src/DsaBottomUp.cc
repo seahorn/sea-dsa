@@ -21,8 +21,6 @@
 #include "sea_dsa/config.h"
 #include "sea_dsa/support/Debug.h"
 
-#include "boost/range/iterator_range.hpp"
-
 using namespace llvm;
 
 namespace sea_dsa {
@@ -31,13 +29,13 @@ namespace sea_dsa {
 void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
                                                 Graph &calleeG, Graph &callerG,
                                                 bool noescape) {
-  CloningContext context(CS, CloningContext::BottomUp);
+  CloningContext context(CS.getCallSite(), CloningContext::BottomUp);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(callerG, context, options);
 
   // clone and unify globals
-  for (auto &kv : boost::make_iterator_range(calleeG.globals_begin(),
-                                             calleeG.globals_end())) {
+  for (auto &kv :
+       llvm::make_range(calleeG.globals_begin(), calleeG.globals_end())) {
     Node &n = C.clone(*kv.second->getNode());
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
@@ -99,8 +97,7 @@ static void reachableNodes(const Function &fn, Graph &g, Set &inputReach,
   }
 
   // globals
-  for (auto &kv :
-       boost::make_iterator_range(g.globals_begin(), g.globals_end()))
+  for (auto &kv : llvm::make_range(g.globals_begin(), g.globals_end()))
     markReachableNodes(kv.second->getNode(), inputReach);
 
   // return value

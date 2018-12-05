@@ -48,11 +48,14 @@ namespace sea_dsa
     
     const llvm::Instruction* getInstruction () const;
     
-    const_formal_iterator formal_begin() const; 
+    const llvm::ImmutableCallSite &getCallSite() const { return  m_cs; }
+
+    const_formal_iterator formal_begin() const;
     const_formal_iterator formal_end() const; 
     
     const_actual_iterator actual_begin() const; 
-    const_actual_iterator actual_end() const; 
+    const_actual_iterator actual_end() const;
+
   };
 }
 #endif 

@@ -21,8 +21,6 @@
 #include "sea_dsa/config.h"
 #include "sea_dsa/support/Debug.h"
 
-#include "boost/range/iterator_range.hpp"
-
 using namespace llvm;
 
 namespace sea_dsa {
@@ -33,13 +31,13 @@ namespace sea_dsa {
 void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
                                                Graph &callerG, Graph &calleeG,
                                                bool noescape) {
-  CloningContext context(cs, CloningContext::TopDown);
+  CloningContext context(cs.getCallSite(), CloningContext::TopDown);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(calleeG, context, options);
 
   // clone and unify globals
-  for (auto &kv : boost::make_iterator_range(callerG.globals_begin(),
-                                             callerG.globals_end())) {
+  for (auto &kv :
+       llvm::make_range(callerG.globals_begin(), callerG.globals_end())) {
     Node &n = C.clone(*kv.second->getNode());
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());

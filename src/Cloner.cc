@@ -30,9 +30,9 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
   if (!forceAlloca && m_strip_allocas) {
     unsigned sz = nNode.getAllocSites().size();
     nNode.resetAllocSites();
-    llvm::SmallVector<DSAllocSite, 8> sites;
-    for (const DSAllocSite &as : n.getAllocSites()) {
-      const llvm::Value *val = &as.getAllocSite();
+    llvm::SmallVector<DSAllocSite *, 16> sites;
+    for (DSAllocSite *as : n.getAllocSites()) {
+      const llvm::Value *val = &as->getAllocSite();
       if (!llvm::isa<llvm::AllocaInst>(val))
         sites.push_back(as);
     }

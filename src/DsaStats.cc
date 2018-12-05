@@ -124,8 +124,8 @@ namespace sea_dsa {
     // count the number of nodes with more than one allocation site
     for (const auto &n: nodes) {
       SmallPtrSet<Type *, 32> allocTypes;
-      for (const sea_dsa::DSAllocSite &as : n.getNode()->getAllocSites()) {
-        llvm::Value *v = &as.getAllocSite();
+      for (const sea_dsa::DSAllocSite *as : n.getNode()->getAllocSites()) {
+        llvm::Value *v = &as->getAllocSite();
         allocTypes.insert(v->getType());
       }
       num_non_singleton += (allocTypes.size() > 1);

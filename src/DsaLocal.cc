@@ -292,7 +292,8 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   assert(!m_graph.hasCell(AI));
   Node &n = m_graph.mkNode();
   // -- record allocation site
-  n.addAllocSite(AI);
+  DSAllocSite *as = m_graph.mkAllocSite(AI);
+  n.addAllocSite(as);
   // -- mark node as a stack node
   n.setAlloca();
 

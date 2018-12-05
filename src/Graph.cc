@@ -441,17 +441,28 @@ unsigned sea_dsa::Node::mergeUniqueScalar(Node &n, Cache &seen) {
   return res;
 }
 
-void sea_dsa::Node::addAllocSite(const DSAllocSite &as) {
+void sea_dsa::Node::addAllocSite(DSAllocSite *as) {
+  assert(as->getOwner() == m_graph);
   m_alloca_sites.insert(as);
 }
 
+void sea_dsa::Node::addAllocSite(const llvm::Value &v) {
+  DSAllocSite *as = m_graph->mkAllocSite(v);
+  addAllocSite(as);
+}
+
 void sea_dsa::Node::joinAllocSites(const AllocaSet &set) {
-  for (auto &as : set) {
-    auto it = m_alloca_sites.find(as);
+  for (DSAllocSite *as : set) {
+    // as might come from another graph. Make a local copy of the alloc site,
+    // but copy over path from the original one.
+    DSAllocSite *localAS = m_graph->mkAllocSite(as->getAllocSite());
+    auto it = m_alloca_sites.find(localAS);
     if (it != m_alloca_sites.end())
-      it->copyPaths(as);
-    else
-      m_alloca_sites.insert(as);
+      (*it)->copyPaths(*as);
+    else {
+      localAS->copyPaths(*as);
+      m_alloca_sites.insert(localAS);
+    }
   }
 }
 
@@ -558,8 +569,8 @@ void sea_dsa::Node::write(raw_ostream &o) const {
     o << "] ";
     first = true;
     o << " alloca sites=[";
-    for (const auto &as : getAllocSites()) {
-      Value *a = &as.getAllocSite();
+    for (DSAllocSite *as : getAllocSites()) {
+      Value *a = &as->getAllocSite();
       if (!first)
         o << ",";
       else
@@ -829,7 +840,7 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   // Pretend that global values are always present
   if (isa<GlobalValue>(&v) && c.isNull()) {
     sea_dsa::Node &n = mkNode();
-    DSAllocSite as(v);
+    DSAllocSite *as = mkAllocSite(v);
     n.addAllocSite(as);
     return mkCell(v, Cell(n, 0));
   }
@@ -907,6 +918,24 @@ bool sea_dsa::Graph::hasCell(const llvm::Value &u) const {
       // -- globals are always implicitly present
       isa<GlobalValue>(&v) || m_values.count(&v) > 0 ||
       (isa<Argument>(&v) && m_formals.count(cast<const Argument>(&v)) > 0);
+}
+
+sea_dsa::DSAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
+  if (!v.hasName()) {
+    errs() << "ERROR: Unnamed allocation site:\t";
+    v.print(errs());
+    errs() << "\n";
+    assert(false);
+  }
+
+  auto it = m_valueToAllocSite.find(&v);
+  if (it != m_valueToAllocSite.end())
+    return it->second;
+
+  m_allocSites.emplace_back(new DSAllocSite(*this, v));
+  DSAllocSite *as = m_allocSites.back().get();
+  m_valueToAllocSite[&v] = as;
+  return as;
 }
 
 void sea_dsa::Cell::write(raw_ostream &o) const {

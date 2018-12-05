@@ -16,6 +16,7 @@
 #include "llvm/ADT/ImmutableSet.h"
 
 #include "sea_dsa/FieldType.hh"
+#include "sea_dsa/AllocSite.hh"
 
 #include <functional>
 
@@ -29,6 +30,7 @@ namespace sea_dsa {
 
 class Node;
 class Cell;
+class Graph;
 class SimulationMapper;
 typedef std::unique_ptr<Cell> CellRef;
 
@@ -65,6 +67,12 @@ protected:
   typedef llvm::DenseMap<const llvm::Function *, CellRef> ReturnMap;
   ReturnMap m_returns;
 
+  using AllocSites = std::vector<std::unique_ptr<DSAllocSite>>;
+  AllocSites m_allocSites;
+
+  using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DSAllocSite *>;
+  ValueToAllocSite m_valueToAllocSite;
+
   //  Whether the graph is flat or not
   bool m_is_flat;
 
@@ -88,6 +96,10 @@ public:
       global_const_iterator;
   typedef ArgumentMap::const_iterator formal_const_iterator;
   typedef ReturnMap::const_iterator return_const_iterator;
+  using alloc_site_iterator
+    = boost::indirect_iterator<typename AllocSites::iterator>;
+  using alloc_site_const_iterator
+    = boost::indirect_iterator<typename AllocSites::const_iterator>;
 
   Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false)
       : m_dl(dl), m_setFactory(sf), m_is_flat(is_flat) {}
@@ -144,6 +156,28 @@ public:
   virtual Cell &getRetCell(const llvm::Function &fn);
 
   virtual const Cell &getRetCell(const llvm::Function &fn) const;
+
+  llvm::Optional<DSAllocSite *> getAllocSiteOrNone(const llvm::Value &v) const {
+    auto it = m_valueToAllocSite.find(&v);
+    if (it != m_valueToAllocSite.end())
+      return it->second;
+
+    return llvm::None;
+  }
+
+  DSAllocSite *mkAllocSite(const llvm::Value &v);
+
+  llvm::iterator_range<alloc_site_iterator> alloc_sites() {
+    alloc_site_iterator begin = m_allocSites.begin();
+    alloc_site_iterator end = m_allocSites.end();
+    return llvm::make_range(begin, end);
+  }
+
+  llvm::iterator_range<alloc_site_const_iterator> alloc_sites() const {
+    alloc_site_const_iterator begin = m_allocSites.begin();
+    alloc_site_const_iterator end = m_allocSites.end();
+    return llvm::make_range(begin, end);
+  }
 
   /// compute a map from callee nodes to caller nodes
   //
@@ -287,71 +321,6 @@ public:
   /// for gdb
   void dump() const;
 };
-
-
-class DSAllocSite {
-  llvm::Value *m_allocSite = nullptr;
-  enum StepKind { Local, BottomUp, TopDown };
-  using Step = std::pair<StepKind, llvm::Function *>;
-  std::vector<std::vector<Step>> m_callPaths;
-
-public:
-  DSAllocSite(llvm::Value& V) : m_allocSite(&V) {}
-  DSAllocSite(const llvm::Value& V)
-    : DSAllocSite(const_cast<llvm::Value&>(V)) {}
-
-
-  llvm::Value &getAllocSite() const {
-    assert(m_allocSite);
-    return *m_allocSite;
-  }
-
-  void addStep(const Step& s) {
-    for (auto &Path : m_callPaths)
-      Path.push_back(s);
-  }
-
-  void copyPaths(const DSAllocSite& other) {
-    m_callPaths.insert(m_callPaths.end(), other.m_callPaths.begin(),
-                                          other.m_callPaths.end());
-  }
-
-  void print(llvm::raw_ostream &os = llvm::errs()) const {
-    if (m_allocSite)
-      m_allocSite->print(os);
-    else
-      os << "<nullptr>";
-
-    for (const auto& Path : m_callPaths) {
-      os << "\n\t(";
-      for (const Step &step : Path) {
-        if (step.first == Local) {
-          os << "LOCAL ";
-        } else if (step.first == BottomUp) {
-          os << " -BU-> ";
-        } else if (step.first == TopDown) {
-          os << " <-TD- ";
-        }
-      }
-      os << ")\n";
-    }
-  }
-
-  friend llvm::raw_ostream &operator<<(llvm::raw_ostream& os,
-                                       const DSAllocSite& AS) {
-    AS.print(os);
-    return os;
-  }
-
-  bool operator<(const DSAllocSite &other) const {
-    return m_allocSite < other.m_allocSite;
-  }
-
-  bool operator==(const DSAllocSite &other) const {
-    return m_allocSite == other.m_allocSite;
-  }
-};
-
 
 /// A node of a DSA graph representing a memory object
 class Node {
@@ -519,7 +488,7 @@ private:
   unsigned m_size;
 
   /// allocation sites for the node
-  typedef boost::container::flat_set<DSAllocSite> AllocaSet;
+  typedef boost::container::flat_set<DSAllocSite *> AllocaSet;
   AllocaSet m_alloca_sites;
 
   static uint64_t m_id_factory;
@@ -728,20 +697,30 @@ public:
   void collapseTypes(int tag /*= -2*/);
 
   /// Add a new allocation site
-  void addAllocSite(const DSAllocSite &as);
+  void addAllocSite(DSAllocSite *as);
+  void addAllocSite(const llvm::Value& v);
+
   /// get all allocation sites
   const AllocaSet &getAllocSites() const { return m_alloca_sites; }
   void resetAllocSites() { m_alloca_sites.clear(); }
 
   template <typename Iterator>
   void insertAllocSites(Iterator begin, Iterator end) {
-    m_alloca_sites.insert(begin, end);
+    for (auto AS : llvm::make_range(begin, end)) {
+      // Every DSAllocSite is local to its graph, even if it was copied over
+      // from another graph.
+      // Make sure we are not mixing AS from different graphs.
+      DSAllocSite *newAS = m_graph->mkAllocSite(AS->getAllocSite());
+      m_alloca_sites.insert(newAS);
+    }
   }
 
-  bool hasAllocSite(const DSAllocSite &as) { return m_alloca_sites.count(as); }
+  bool hasAllocSite(DSAllocSite *as) { return m_alloca_sites.count(as); }
   bool hasAllocSite(const llvm::Value &v) {
-    DSAllocSite dummy(v); // DSAllocSite is equal iff it has the same Value.
-    return hasAllocSite(dummy);
+    llvm::Optional<DSAllocSite *> optAS = m_graph->getAllocSiteOrNone(v);
+    assert(optAS.hasValue());
+
+    return hasAllocSite(*optAS);
   }
 
   /// joins all the allocation sites

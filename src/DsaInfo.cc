@@ -165,8 +165,8 @@ void DsaInfo::assignAllocSiteId () {
     auto &n_alloca_sites = n.getNode ()->getAllocSites ();
     std::vector<const llvm::Value *> n_alloca_sites_sorted;
     n_alloca_sites_sorted.reserve(n_alloca_sites.size());
-    for (const DSAllocSite &as : n_alloca_sites)
-      n_alloca_sites_sorted.push_back(&as.getAllocSite());
+    for (const DSAllocSite *as : n_alloca_sites)
+      n_alloca_sites_sorted.push_back(&as->getAllocSite());
 
     std::sort(n_alloca_sites_sorted.begin(), n_alloca_sites_sorted.end(),
               compareValues);
