@@ -268,10 +268,9 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
       assert(m_graph.hasCell(v));
       return m_graph.mkCell(v, Cell());
     } else if (ce->getOpcode() == Instruction::IntToPtr) {
-      Value &i = *(ce->getOperand(0));
-      visitCastIntToPtr(i);
-      assert(m_graph.hasCell(i));
-      return m_graph.mkCell(i, Cell());
+      visitCastIntToPtr(*ce);
+      assert(m_graph.hasCell(*ce));
+      return m_graph.mkCell(*ce, Cell());
     }
   }
 
@@ -862,6 +861,8 @@ bool shouldBeTrackedIntToPtr(const Value &def) {
   // XXX: use_begin will return the same Value def. We need to call
   //      getUser() to get the actual user.
   // if (def.hasOneUse () && isa<CmpInst> (*(def.use_begin ()))) return false;
+
+  if (def.hasNUses(0)) return false;
 
   if (def.hasOneUse()) {
     const Value *v = dyn_cast<Value>(def.use_begin()->getUser());

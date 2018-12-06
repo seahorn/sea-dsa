@@ -1,42 +1,51 @@
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/InstIterator.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/config.h"
-#include "sea_dsa/Info.hh"
-#include "sea_dsa/Graph.hh"
 #include "sea_dsa/DsaAnalysis.hh"
+#include "sea_dsa/Graph.hh"
+#include "sea_dsa/Info.hh"
+#include "sea_dsa/config.h"
 #include "sea_dsa/support/Debug.h"
 
-static llvm::cl::opt<std::string>
-DsaToCsv("sea-dsa-to-csv",
-    llvm::cl::desc ("DSA: print pairs of allocation site and Dsa node into a CSV file"),
-    llvm::cl::init (""),
-    llvm::cl::Hidden);
+static llvm::cl::opt<std::string> DsaToCsv(
+    "sea-dsa-to-csv",
+    llvm::cl::desc(
+        "DSA: print pairs of allocation site and Dsa node into a CSV file"),
+    llvm::cl::init(""), llvm::cl::Hidden);
 
 static llvm::cl::opt<std::string>
 AllocasToFile("sea-dsa-allocas-to-file",
     llvm::cl::desc ("DSA: print allocation sites into a file"),
-    llvm::cl::init (""),
-    llvm::cl::Hidden);
+                  llvm::cl::init(""), llvm::cl::Hidden);
 
 using namespace sea_dsa;
 using namespace llvm;
 
 static bool isStaticallyKnown (const DataLayout* dl, 
-                               const TargetLibraryInfo* tli,
-                               const Value* v) {
+                              const TargetLibraryInfo *tli, const Value *v) {
   uint64_t size;
   ObjectSizeOpts opts;
   opts.RoundToAlign = true;
-  if (getObjectSize (v, size, *dl, tli, opts)) return (size > 0);
+  if (getObjectSize(v, size, *dl, tli, opts))
+    return (size > 0);
   return false; 
 }
+
+static bool isIntToPtrConstant(const llvm::Value &v) {
+  if (auto *inttoptr = dyn_cast<ConstantExpr>(&v)) {
+    if (inttoptr->getOpcode() == Instruction::IntToPtr) {
+      return true;
+    }
+  }
+  return false;
+}
+
 
 static StringRef valueToStr(const Value*v) {
   if (const Constant *c = dyn_cast<const Constant>(v)) {
@@ -48,10 +57,10 @@ static StringRef valueToStr(const Value*v) {
     }
   }
   
-  if (!v->hasName()) {
+  if (!v->hasName() && !isIntToPtrConstant(*v)) {
     errs () << "DsaInfo requires " << *v << " to have a name\n";
   }
-  assert (v->hasName());
+  assert(isIntToPtrConstant(*v) || v->hasName());
   return v->getName();
 }
 
@@ -65,7 +74,8 @@ static bool compareValues (const Value* v1, const Value* v2) {
 // return null if there is no graph for f
 Graph* DsaInfo::getDsaGraph(const Function&f) const {
   Graph *g = nullptr;
-  if (m_dsa.hasGraph(f)) g = &m_dsa.getGraph(f);
+  if (m_dsa.hasGraph(f))
+    g = &m_dsa.getGraph(f);
   return g;
 }
 
@@ -76,7 +86,8 @@ bool DsaInfo::is_alive_node::operator()(const NodeWrapper& n) {
 void DsaInfo::recordMemAccess (const Value* v, Graph& g, const Instruction &I) {
   v = v->stripPointerCasts();
 
-  if (isStaticallyKnown (&m_dl, &m_tli, v)) return;
+  if (isStaticallyKnown(&m_dl, &m_tli, v))
+    return;
   
   if (!g.hasCell(*v)) {
     // sanity check
@@ -112,10 +123,10 @@ void DsaInfo::recordMemAccesses (const Function&F) {
   // Here we just count the number of **non-trivial** memory accesses
   // because it is useful for passes that will instrument them.
   auto g = getDsaGraph(F);
-  if (!g) return;
+  if (!g)
+    return;
 
-  for (const_inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i)  
-  {
+  for (const_inst_iterator i = inst_begin(F), e = inst_end(F); i != e; ++i) {
     const Instruction *I = &*i;
     if (const LoadInst *LI = dyn_cast<LoadInst>(I)) {
       recordMemAccess (LI->getPointerOperand (), *g, *I);
@@ -149,12 +160,14 @@ void DsaInfo::assignAllocSiteId () {
   /// XXX: sort nodes by id's to achieve determinism across different
   /// executions.
   std::vector<NodeWrapper> nodes_sorted;
-  for (auto n: nodes) { nodes_sorted.push_back (n);} 
+  for (auto n : nodes) {
+    nodes_sorted.push_back(n);
+  }
   std::sort (nodes_sorted.begin(), nodes_sorted.end());
 
-
   // map each allocation site to a set of nodes
-  DenseMap<const llvm::Value*, std::pair<unsigned, NodeWrapperSet> > alloc_to_nodes_map;
+  DenseMap<const llvm::Value *, std::pair<unsigned, NodeWrapperSet>>
+      alloc_to_nodes_map;
   
   // iterate over all sorted nodes
   for (const auto &n: nodes_sorted) {
@@ -167,7 +180,7 @@ void DsaInfo::assignAllocSiteId () {
 							   n_alloca_sites.end());
     std::sort (n_alloca_sites_sorted.begin(),
 	       n_alloca_sites_sorted.end(), compareValues);
-    
+
     for (const llvm::Value*v : n_alloca_sites_sorted) {
       // assign a unique id to the allocation site for Dsa clients
       unsigned site_id;
@@ -176,14 +189,12 @@ void DsaInfo::assignAllocSiteId () {
       auto it = alloc_to_nodes_map.find (v);
       if (it != alloc_to_nodes_map.end())
         it->second.second.insert(n);
-      else 
-      {
+      else {
         NodeWrapperSet s;
         s.insert(n);
-        alloc_to_nodes_map.insert(std::make_pair(v, 
-                                                 std::make_pair(site_id, s)));
+        alloc_to_nodes_map.insert(
+            std::make_pair(v, std::make_pair(site_id, s)));
       }
-      
     }
   }
   
@@ -210,9 +221,12 @@ void DsaInfo::assignAllocSiteId () {
       file << "Dsa Node Ids {";
       bool first = true;
       for (typename NodeWrapperSet::iterator it = kv.second.second.begin(),
-	     et = kv.second.second.end(); it != et; ) {
-	if (!first) file << ",";
-	else first = false;
+                                             et = kv.second.second.end();
+           it != et;) {
+        if (!first)
+          file << ",";
+        else
+          first = false;
 	file << it->getId ();
 	++it;
       }
@@ -238,16 +252,15 @@ void DsaInfo::assignAllocSiteId () {
  
 template <typename PairRange, typename SetMap>
 inline void InsertReferrer (PairRange r, SetMap &m) {
-  for (auto &kv: r)
-  {
+  for (auto &kv : r) {
     const Node *n = kv.second->getNode ();
-    if (!(n->isRead () || n->isModified ())) continue;
+    if (!(n->isRead() || n->isModified()))
+      continue;
     
     auto it = m.find (n);
     if (it != m.end ())
       it->second.insert (kv.first);
-    else
-    {
+    else {
       typename SetMap::mapped_type s;
       s.insert (kv.first);
       m.insert(std::make_pair (n, s));
@@ -261,7 +274,8 @@ std::string DsaInfo::getName (const Function&fn, const Value& v) {
   const Value * V = v.stripPointerCasts();
   
   auto it = m_names.find (V);
-  if (it != m_names.end ()) return it->second;
+  if (it != m_names.end())
+    return it->second;
 
   std::string name = fn.getName ().str() + "." + v.getName ().str();
   auto res = m_names.insert (std::make_pair (V, name));
@@ -280,30 +294,26 @@ std::string DsaInfo::getName (const Function&fn, const Value& v) {
   // return res.first->second;
 }
 
-
 // Assign to each node a **deterministic** id that is preserved across
 // different executions
 void DsaInfo::assignNodeId (const Function& fn, Graph* g) {
   #if 1
   /// XXX: Assume class Node already assigns a global id to each node
 
-  for (auto &kv: boost::make_iterator_range (g->scalar_begin(), 
-                                             g->scalar_end())) 
-  {
+  for (auto &kv :
+       boost::make_iterator_range(g->scalar_begin(), g->scalar_end())) {
     const Node *n = kv.second->getNode ();
     m_nodes_map.insert(std::make_pair(n,NodeWrapper(n, n->getId(), "")));
   }                                   
                                       
-  for (auto &kv: boost::make_iterator_range (g->formal_begin(), 
-                                             g->formal_end())) 
-  {
+  for (auto &kv :
+       boost::make_iterator_range(g->formal_begin(), g->formal_end())) {
     const Node *n = kv.second->getNode ();
     m_nodes_map.insert(std::make_pair(n,NodeWrapper(n, n->getId(), "")));
   }                                   
 
-  for (auto &kv: boost::make_iterator_range (g->return_begin(), 
-                                             g->return_end())) 
-  {
+  for (auto &kv :
+       boost::make_iterator_range(g->return_begin(), g->return_end())) {
     const Node *n = kv.second->getNode ();
     m_nodes_map.insert(std::make_pair(n,NodeWrapper(n, n->getId(), "")));
   }                                   
@@ -319,17 +329,16 @@ void DsaInfo::assignNodeId (const Function& fn, Graph* g) {
   ReferrerRepVector sorted_ref_vector;
 
   // Build referrers for each node
-  InsertReferrer (boost::make_iterator_range (g->scalar_begin(), 
-                                              g->scalar_end()), ref_map);
-  InsertReferrer (boost::make_iterator_range (g->formal_begin(), 
-                                              g->formal_end()), ref_map);
-  InsertReferrer (boost::make_iterator_range (g->return_begin(), 
-                                              g->return_end()), ref_map);
+  InsertReferrer(boost::make_iterator_range(g->scalar_begin(), g->scalar_end()),
+                 ref_map);
+  InsertReferrer(boost::make_iterator_range(g->formal_begin(), g->formal_end()),
+                 ref_map);
+  InsertReferrer(boost::make_iterator_range(g->return_begin(), g->return_end()),
+                 ref_map);
 
   // Find *deterministically* a representative for each node from its
   // set of referrers
-  for (auto &kv: ref_map)
-  {
+  for (auto &kv : ref_map) {
     const Node * n = kv.first;
     const ValueSet& refs = kv.second;
 
@@ -338,8 +347,7 @@ void DsaInfo::assignNodeId (const Function& fn, Graph* g) {
     std::vector<std::string> named_refs;
     named_refs.reserve (refs.size ());
     for (auto v: refs) 
-      if (v->hasName ()) 
-      {
+      if (v->hasName()) {
         /// XXX: constant expressions won't have names
         named_refs.push_back (getName (fn, *v));
       }
@@ -354,7 +362,8 @@ void DsaInfo::assignNodeId (const Function& fn, Graph* g) {
       errs () << "WARNING DsaInfo: not found representative for node\n";
   }
 
-  if (sorted_ref_vector.empty()) return;
+  if (sorted_ref_vector.empty())
+    return;
 
   // Sort nodes 
   unsigned num_ref = sorted_ref_vector.size ();
@@ -370,20 +379,19 @@ void DsaInfo::assignNodeId (const Function& fn, Graph* g) {
   // -- Finally, assign a unique (deterministic) id to each node
   //    The id 0 is reserved in case some query goes wrong.
   for (auto &kv: sorted_ref_vector)
-    m_nodes_map.insert(std::make_pair(kv.first, 
-                                      NodeWrapper(kv.first, 
-						  m_nodes_map.size()+1,
-						  kv.second)));
+    m_nodes_map.insert(std::make_pair(
+        kv.first, NodeWrapper(kv.first, m_nodes_map.size() + 1, kv.second)));
   #endif 
 }
 
 bool DsaInfo::runOnFunction (Function &f) {
-  if (f.isDeclaration ()) return false;
+  if (f.isDeclaration())
+    return false;
   
   if (Graph* g = getDsaGraph(f)) {
-    LOG ("dsa-info",
-         errs () << f.getName () 
-                 << " has " << std::distance (g->begin(), g->end()) << " nodes\n");
+    LOG("dsa-info", errs() << f.getName() << " has "
+                           << std::distance(g->begin(), g->end())
+                           << " nodes\n");
 
     // XXX: If the analysis is context-insensitive all functions have
     // the same graph so we just need to compute the id's for the
@@ -455,8 +463,8 @@ void DsaInfoPass::getAnalysisUsage (AnalysisUsage &AU) const {
 bool DsaInfoPass::runOnModule (Module &M) {
 
   auto &dsa = getAnalysis<DsaAnalysis>();
-  m_dsa_info.reset (new DsaInfo (dsa.getDataLayout (), dsa.getTLI(),
-				 dsa.getDsaAnalysis()));
+  m_dsa_info.reset(
+      new DsaInfo(dsa.getDataLayout(), dsa.getTLI(), dsa.getDsaAnalysis()));
 
   m_dsa_info->runOnModule (M);
   return false;
@@ -467,13 +475,9 @@ DsaInfo& DsaInfoPass::getDsaInfo () {
   return *(static_cast<DsaInfo*> (&*m_dsa_info));
 } 
 
-
-Pass *createDsaInfoPass () {
-  return new sea_dsa::DsaInfoPass();
-}
+Pass *createDsaInfoPass() { return new sea_dsa::DsaInfoPass(); }
 
 char sea_dsa::DsaInfoPass::ID = 0;
 
 static llvm::RegisterPass<sea_dsa::DsaInfoPass> 
 X ("seadsa-info", "Gather info about DSA memory graphs");
-
