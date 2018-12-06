@@ -8,6 +8,36 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
   if (n.getGraph() == &m_graph)
     return *const_cast<Node *>(&n);
 
+  // Calculate the cloning Step to add to Call Path.
+  llvm::Optional<DSAllocSite::Step> optCloningStep = llvm::None;
+  if (m_cloningContext.Direction != CloningContext::Unset) {
+    const auto optCS = m_cloningContext.CS;
+    assert(m_cloningContext.CS);
+    assert(optCS);
+    DSAllocSite::StepKind direction;
+    const llvm::Function *dest = nullptr;
+    switch (m_cloningContext.Direction) {
+    case CloningContext::BottomUp: {
+      direction = DSAllocSite::BottomUp;
+      if (optCS.hasValue())
+        dest = DsaCallSite(*optCS).getCaller();
+      break;
+    }
+    case CloningContext::TopDown: {
+      direction = DSAllocSite::TopDown;
+      if (optCS.hasValue())
+        dest = DsaCallSite(*optCS).getCallee();
+      break;
+    }
+    case CloningContext::Unset:
+      break;
+    default:
+      llvm_unreachable("Unhandled case");
+    }
+    optCloningStep =
+        DSAllocSite::Step(direction, const_cast<llvm::Function *>(dest));
+  }
+
   // check the cache
   auto it = m_map.find(&n);
   if (it != m_map.end()) {
@@ -16,8 +46,8 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
     // then ensure that all allocas of n are copied over to nNode
     if (m_strip_allocas && forceAlloca &&
         nNode.getAllocSites().size() < n.getAllocSites().size()) {
-      nNode.insertAllocSites(n.getAllocSites().begin(),
-                             n.getAllocSites().end());
+      nNode.insertAllocSites(n.getAllocSites().begin(), n.getAllocSites().end(),
+                             optCloningStep);
     }
     return nNode;
   }
@@ -36,13 +66,13 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
       if (!llvm::isa<llvm::AllocaInst>(val))
         sites.push_back(as);
     }
-    nNode.insertAllocSites(sites.begin(), sites.end());
+    nNode.insertAllocSites(sites.begin(), sites.end(), optCloningStep);
     LOG("cloner", if (nNode.getAllocSites().size() < sz) llvm::errs()
                       << "Clone: reduced allocas from " << sz << " to "
                       << nNode.getAllocSites().size() << "\n";);
   }
   // -- update cache
-  m_map.insert(std::make_pair(&n, &nNode));
+  m_map.insert({&n, &nNode});
 
   for (auto &kv : n.links()) {
     // dummy link (should not happen)

@@ -140,7 +140,10 @@ public:
 
   /// creates a cell for the value or returns existing cell if
   /// present
-  virtual Cell &mkCell(const llvm::Value &v, const Cell &c);
+  /// @param location -- function where the cell was discovered, used for
+  ///                    tracking alloc sites.
+  virtual Cell &mkCell(const llvm::Value &v, const Cell &c,
+                       const llvm::Function *location = nullptr);
   virtual Cell &mkRetCell(const llvm::Function &fn, const Cell &c);
 
   /// return a cell for the value
@@ -177,6 +180,10 @@ public:
     alloc_site_const_iterator begin = m_allocSites.begin();
     alloc_site_const_iterator end = m_allocSites.end();
     return llvm::make_range(begin, end);
+  }
+
+  bool hasAllocSiteForValue(const llvm::Value &v) const {
+    return m_valueToAllocSite.count(&v) > 0;
   }
 
   /// compute a map from callee nodes to caller nodes
@@ -698,30 +705,39 @@ public:
 
   /// Add a new allocation site
   void addAllocSite(DSAllocSite *as);
-  void addAllocSite(const llvm::Value& v);
+
+  void addLocalAllocSite(const llvm::Value &v, const llvm::Function& location);
 
   /// get all allocation sites
   const AllocaSet &getAllocSites() const { return m_alloca_sites; }
   void resetAllocSites() { m_alloca_sites.clear(); }
 
   template <typename Iterator>
-  void insertAllocSites(Iterator begin, Iterator end) {
-    for (auto AS : llvm::make_range(begin, end)) {
+  void insertAllocSites(Iterator begin, Iterator end,
+                        llvm::Optional<DSAllocSite::Step> addStep) {
+    for (DSAllocSite* AS : llvm::make_range(begin, end)) {
       // Every DSAllocSite is local to its graph, even if it was copied over
       // from another graph.
       // Make sure we are not mixing AS from different graphs.
       DSAllocSite *newAS = m_graph->mkAllocSite(AS->getAllocSite());
+      newAS->copyPaths(*AS);
+      if (addStep)
+        newAS->addStep(*addStep);
       m_alloca_sites.insert(newAS);
     }
   }
 
-  bool hasAllocSite(DSAllocSite *as) { return m_alloca_sites.count(as); }
-  bool hasAllocSite(const llvm::Value &v) {
+  bool hasAllocSite(DSAllocSite *as) const {
+    return m_alloca_sites.count(as) > 0;
+  }
+  bool hasAllocSite(const llvm::Value &v) const {
     llvm::Optional<DSAllocSite *> optAS = m_graph->getAllocSiteOrNone(v);
     assert(optAS.hasValue());
 
     return hasAllocSite(*optAS);
   }
+
+  llvm::Optional<DSAllocSite *> getAllocSiteOrNone(const llvm::Value &v) const;
 
   /// joins all the allocation sites
   void joinAllocSites(const AllocaSet &s);

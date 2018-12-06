@@ -32,6 +32,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   CloningContext context(CS.getCallSite(), CloningContext::BottomUp);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(callerG, context, options);
+  assert(context.CS);
 
   // clone and unify globals
   for (auto &kv :

@@ -62,7 +62,7 @@ public:
 
 private:
   Graph &m_graph;
-  CloningContext &m_cloningContext;
+  CloningContext m_cloningContext;
   llvm::DenseMap<const Node *, Node *> m_map;
   bool m_strip_allocas;
   bool m_track_call_paths;

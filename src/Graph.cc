@@ -446,9 +446,28 @@ void sea_dsa::Node::addAllocSite(DSAllocSite *as) {
   m_alloca_sites.insert(as);
 }
 
-void sea_dsa::Node::addAllocSite(const llvm::Value &v) {
+void sea_dsa::Node::addLocalAllocSite(const llvm::Value &v,
+                                      const llvm::Function &location) {
+  assert(!m_graph->hasAllocSiteForValue(v) &&
+         "Local Alloc Sites must be fresh in graph");
+
   DSAllocSite *as = m_graph->mkAllocSite(v);
+  as->addStep({DSAllocSite::Local, const_cast<Function *>(&location)});
   addAllocSite(as);
+}
+
+llvm::Optional<sea_dsa::DSAllocSite *>
+sea_dsa::Node::getAllocSiteOrNone(const llvm::Value &v) const {
+  llvm::Optional<DSAllocSite *> optAS = m_graph->getAllocSiteOrNone(v);
+  if (!optAS.hasValue())
+    return optAS;
+
+  DSAllocSite *AS = *optAS;
+  auto it = m_alloca_sites.find(AS);
+  if (it == m_alloca_sites.end())
+    return llvm::None;
+
+  return *it;
 }
 
 void sea_dsa::Node::joinAllocSites(const AllocaSet &set) {
@@ -835,13 +854,19 @@ void sea_dsa::Graph::remove_dead() {
                 m_nodes.end());
 }
 
-sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
+sea_dsa::Cell &
+sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c,
+                       const llvm::Function *location /*= nullptr*/) {
   auto &v = *u.stripPointerCasts();
   // Pretend that global values are always present
   if (isa<GlobalValue>(&v) && c.isNull()) {
     sea_dsa::Node &n = mkNode();
-    DSAllocSite *as = mkAllocSite(v);
-    n.addAllocSite(as);
+    if (!hasAllocSiteForValue(v)) {
+      DSAllocSite *as = mkAllocSite(v);
+      // assert(location);
+      as->addStep({DSAllocSite::Local, const_cast<Function *>(location)});
+      n.addAllocSite(as);
+    }
     return mkCell(v, Cell(n, 0));
   }
 

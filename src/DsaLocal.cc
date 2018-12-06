@@ -234,7 +234,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   }
 
   if (m_graph.hasCell(v)) {
-    Cell &c = m_graph.mkCell(v, Cell());
+    Cell &c = m_graph.mkCell(v, Cell(), &m_func);
     assert(!c.isNull());
     //  errs() << "Already has cell: ";
     //  c.dump();
@@ -251,7 +251,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
       isa<ConstantDataVector>(&v)) {
     // XXX Handle properly
     assert(false);
-    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
+    return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0), &m_func);
   }
 
   // -- special case for aggregate types. Cell creation is handled elsewhere
@@ -266,11 +266,11 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
       SmallVector<Value *, 8> indicies(ce->op_begin() + 1, ce->op_end());
       visitGep(v, base, indicies);
       assert(m_graph.hasCell(v));
-      return m_graph.mkCell(v, Cell());
+      return m_graph.mkCell(v, Cell(), &m_func);
     } else if (ce->getOpcode() == Instruction::IntToPtr) {
       visitCastIntToPtr(*ce);
       assert(m_graph.hasCell(*ce));
-      return m_graph.mkCell(*ce, Cell());
+      return m_graph.mkCell(*ce, Cell(), &m_func);
     }
   }
 
@@ -291,12 +291,11 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   assert(!m_graph.hasCell(AI));
   Node &n = m_graph.mkNode();
   // -- record allocation site
-  DSAllocSite *as = m_graph.mkAllocSite(AI);
-  n.addAllocSite(as);
+  n.addLocalAllocSite(AI, m_func);
   // -- mark node as a stack node
   n.setAlloca();
 
-  m_graph.mkCell(AI, Cell(n, 0));
+  m_graph.mkCell(AI, Cell(n, 0), &m_func);
 }
 
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
@@ -311,7 +310,7 @@ void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   thenC.unify(elseC);
 
   // -- create result cell
-  m_graph.mkCell(SI, Cell(thenC, 0));
+  m_graph.mkCell(SI, Cell(thenC, 0), &m_func);
 }
 
 void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
@@ -344,7 +343,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
       base.setLink(LoadedField, Cell(&n, 0));
     }
 
-    m_graph.mkCell(LI, base.getLink(LoadedField));
+    m_graph.mkCell(LI, base.getLink(LoadedField), &m_func);
   }
 
   // handle first-class structs by pretending pointers to them are loaded
@@ -406,7 +405,7 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
 
   sea_dsa::Cell arg = valueCell(*I.getOperand(0));
   assert(!arg.isNull());
-  m_graph.mkCell(I, arg);
+  m_graph.mkCell(I, arg, &m_func);
 }
 
 /**
@@ -520,22 +519,10 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     return;
   }
 
-  static unsigned i = 0;
-  // errs() << "GEP " << (++i);
-  // gep.dump();
-  // errs() << "\n\tLLVM type: ";
-  // gep.getType()->dump();
-
-  if (i == 16)
-    errs();
-
-  const sea_dsa::FieldType gepType(gep.getType());
-  // errs() << "\n\tSeaDsa type: " << gepType << "\n";
-
   assert(!m_graph.hasCell(gep));
   sea_dsa::Node *baseNode = base.getNode();
   if (baseNode->isOffsetCollapsed()) {
-    m_graph.mkCell(gep, sea_dsa::Cell(baseNode, 0));
+    m_graph.mkCell(gep, sea_dsa::Cell(baseNode, 0), &m_func);
     return;
   }
 
@@ -553,11 +540,12 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     n.setArraySize(off.second);
     // result of the gep points into that array at the gep offset
     // plus the offset of the base
-    m_graph.mkCell(gep, sea_dsa::Cell(n, off.first + base.getRawOffset()));
+    m_graph.mkCell(gep, sea_dsa::Cell(n, off.first + base.getRawOffset()),
+                   &m_func);
     // finally, unify array with the node of the base
     n.unify(*baseNode);
   } else {
-    m_graph.mkCell(gep, sea_dsa::Cell(base, off.first));
+    m_graph.mkCell(gep, sea_dsa::Cell(base, off.first), &m_func);
   }
 }
 
@@ -585,7 +573,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
-    n.addAllocSite(I);
+    n.addLocalAllocSite(I, m_func);
     // -- mark node as a stack node
     n.setAlloca();
     // -- create a node for the aggregate
@@ -618,7 +606,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
-    n.addAllocSite(I);
+    n.addLocalAllocSite(I, m_func);
     // -- mark node as a stack node
     n.setAlloca();
     op = m_graph.mkCell(*I.getAggregateOperand(), Cell(n, 0));
@@ -641,7 +629,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
       FieldType nType = opType;
       in.setLink(InstType, Cell(&n, 0));
       // -- record allocation site
-      n.addAllocSite(I);
+      n.addLocalAllocSite(I, m_func);
       // -- mark node as a stack node
       n.setAlloca();
     }
@@ -660,7 +648,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     assert(CS.getInstruction());
     Node &n = m_graph.mkNode();
     // -- record allocation site
-    n.addAllocSite(*(CS.getInstruction()));
+    n.addLocalAllocSite(*CS.getInstruction(), m_func);
     // -- mark node as a heap node
     n.setHeap();
 
@@ -713,7 +701,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
         // -- treat external function as allocation
         // XXX: we ignore external calls created by AbstractMemory pass
         if (!callee->getName().startswith("verifier.nondet.abstract.memory"))
-          c.getNode()->addAllocSite(*inst);
+          c.getNode()->addLocalAllocSite(*inst, m_func);
 
         // TODO: many more things can be done to handle external
         // TODO: functions soundly and precisely.  An absolutely
@@ -894,7 +882,7 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   sea_dsa::Node &n = m_graph.mkNode();
   n.setIntToPtr();
   // -- record allocation site
-  n.addAllocSite(dest);
+  n.addLocalAllocSite(dest, m_func);
   // -- mark node as an alloca node
   n.setAlloca();
   m_graph.mkCell(dest, sea_dsa::Cell(n, 0));
@@ -989,13 +977,10 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
       Node &n = g.mkNode();
-      if (TrustArgumentTypes)
-        g.mkCell(a, Cell(n, 0));
-      else
-        g.mkCell(a, Cell(n, 0));
+      g.mkCell(a, Cell(n, 0));
       // -- XXX: hook to record allocation site if F is main
       if (F.getName() == "main")
-        n.addAllocSite(a);
+        n.addLocalAllocSite(a, F);
       // -- mark node as a stack node
       n.setAlloca();
     }
