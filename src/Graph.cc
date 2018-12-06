@@ -910,6 +910,40 @@ bool sea_dsa::Graph::hasCell(const llvm::Value &u) const {
       (isa<Argument>(&v) && m_formals.count(cast<const Argument>(&v)) > 0);
 }
 
+static bool isIntToPtrConstant(const llvm::Value &v) {
+  if (auto *inttoptr = dyn_cast<ConstantExpr>(&v)) {
+    if (inttoptr->getOpcode() == Instruction::IntToPtr) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* XXX Resurrect when DSAllocSite comes back
+sea_dsa::DSAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
+  // skip IntToPtr constants. These are used in vtables as markers.
+  if (!v.hasName()) {
+    if (isIntToPtrConstant(v)) {
+      // XXX break const
+      const_cast<llvm::Value*>(&v)->setName("ag.inttoptr");
+    }
+    else {
+      errs() << "ERROR: Unnamed allocation site:\t";
+      errs() << v << "\n";
+      assert(false);
+    }
+  }
+
+  auto it = m_valueToAllocSite.find(&v);
+  if (it != m_valueToAllocSite.end())
+    return it->second;
+
+  m_allocSites.emplace_back(new DSAllocSite(*this, v));
+  DSAllocSite *as = m_allocSites.back().get();
+  m_valueToAllocSite[&v] = as;
+  return as;
+}*/
+
 void sea_dsa::Cell::write(raw_ostream &o) const {
   getNode();
   o << "<" << m_offset << ", ";
