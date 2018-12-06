@@ -452,7 +452,7 @@ void sea_dsa::Node::addLocalAllocSite(const llvm::Value &v,
          "Local Alloc Sites must be fresh in graph");
 
   DSAllocSite *as = m_graph->mkAllocSite(v);
-  as->addStep({DSAllocSite::Local, const_cast<Function *>(&location)});
+  as->setLocalStep(&location);
   addAllocSite(as);
 }
 
@@ -864,7 +864,7 @@ sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c,
     if (!hasAllocSiteForValue(v)) {
       DSAllocSite *as = mkAllocSite(v);
       // assert(location);
-      as->addStep({DSAllocSite::Local, const_cast<Function *>(location)});
+      as->setLocalStep(location);
       n.addAllocSite(as);
     }
     return mkCell(v, Cell(n, 0));

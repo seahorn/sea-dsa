@@ -112,6 +112,9 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         if (!callee || callee->isDeclaration() || callee->empty())
           continue;
 
+        errs() << "TD " << dsaCS.getCaller()->getName() << " -> "
+               << dsaCS.getCallee()->getName() << "\n";
+
         // XXX: We assume that `graphs` has been already populated by
         // the bottom-up pass. We report an error and skip the
         // callsite otherwise.

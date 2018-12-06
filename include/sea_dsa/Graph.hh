@@ -714,15 +714,15 @@ public:
 
   template <typename Iterator>
   void insertAllocSites(Iterator begin, Iterator end,
-                        llvm::Optional<DSAllocSite::Step> addStep) {
+                        llvm::Optional<DSAllocSite::CallEdge> addCallEdge) {
     for (DSAllocSite* AS : llvm::make_range(begin, end)) {
       // Every DSAllocSite is local to its graph, even if it was copied over
       // from another graph.
       // Make sure we are not mixing AS from different graphs.
       DSAllocSite *newAS = m_graph->mkAllocSite(AS->getAllocSite());
       newAS->copyPaths(*AS);
-      if (addStep)
-        newAS->addStep(*addStep);
+      if (addCallEdge)
+        newAS->addStep(addCallEdge->first, addCallEdge->second);
       m_alloca_sites.insert(newAS);
     }
   }

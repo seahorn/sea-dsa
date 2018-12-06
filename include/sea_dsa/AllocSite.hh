@@ -1,5 +1,6 @@
 #pragma once
 
+#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -12,7 +13,8 @@ class Graph;
 class DSAllocSite {
 public:
   enum StepKind { Local, BottomUp, TopDown };
-  using Step = std::pair<StepKind, llvm::Function *>;
+  using Step = std::pair<StepKind, const llvm::Function *>;
+  using CallEdge = std::pair<StepKind, llvm::ImmutableCallSite>;
 
 private:
   llvm::Value *m_allocSite;
@@ -30,12 +32,16 @@ public:
     return m_owner;
   }
 
-  void addStep(const Step& s);
+  const std::vector<std::vector<Step>>& getPaths() const {return m_callPaths;}
+
+  void setLocalStep(const llvm::Function *f);
+  void addStep(StepKind kind, llvm::ImmutableCallSite cs);
   void copyPaths(const DSAllocSite& other);
+
+  bool hasCallPaths() const { return !m_callPaths.empty(); }
 
   void print(llvm::raw_ostream &os = llvm::errs()) const;
   void printCallPaths(llvm::raw_ostream &os = llvm::errs()) const;
-
 
   friend llvm::raw_ostream &operator<<(llvm::raw_ostream& os,
                                        const DSAllocSite& AS) {
