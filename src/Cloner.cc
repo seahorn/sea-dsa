@@ -30,6 +30,9 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
     if (m_strip_allocas && forceAlloca &&
         nNode.getAllocSites().size() < n.getAllocSites().size()) {
       nNode.resetAllocSites();
+      /// XXX should be:
+      /// XXX for each allocation site, find it in the graph, add new call paths
+      /// XXX then copy Value as previously
       nNode.insertAllocSites(n.getAllocSites().begin(), n.getAllocSites().end(),
                              optCloningEdge);
     }
@@ -65,6 +68,14 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
   //    }
   //  }
 
+  /// XXX Allocation sites of n have to be imported into allocation sites known to the
+  /// XXX current graph before cloning begins to maintain an invariant that each
+  /// XXX allocation site is known before use
+
+  /// XXX If cloneNode is changed, it can also be taught to filter allocation
+  /// XXX sites to clone. Alternatively, cloneNode can have an option to ignore
+  /// XXX cloning allocation sites and they are then added as they are now.
+  /// XXX Then there is no need to first clone, then reset, then re-populate
   // -- clone the node (except for the links)
   Node &nNode = m_graph.cloneNode(n);
 

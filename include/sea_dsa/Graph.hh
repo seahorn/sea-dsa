@@ -160,6 +160,7 @@ public:
 
   virtual const Cell &getRetCell(const llvm::Function &fn) const;
 
+  /// XXX using OrNone suffix adds more typing while carrying 0 content
   llvm::Optional<DSAllocSite *> getAllocSiteOrNone(const llvm::Value &v) const {
     auto it = m_valueToAllocSite.find(&v);
     if (it != m_valueToAllocSite.end())
@@ -495,9 +496,15 @@ private:
   unsigned m_size;
 
   /// allocation sites for the node
+  /// XXX since DSAllocSites are stored in the graph and are indexed by Value
+  /// XXX it is simpler to not change the implementation of Node at all
+  /// XXX but get DSAllocaSite from Value using Graph::getAllocSiteOrNone()
+  /// XXX as necessary
   typedef boost::container::flat_set<DSAllocSite *> AllocaSet;
   AllocaSet m_alloca_sites;
 
+  /// XXX This is ugly. Ids should probably be unique per-graph, not
+  /// XXX unique overall. Check with @jnavas before changing this though...
   static uint64_t m_id_factory;
 
   uint64_t m_id; // global id for the node

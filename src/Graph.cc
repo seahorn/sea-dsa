@@ -460,8 +460,11 @@ llvm::Optional<sea_dsa::DSAllocSite *>
 sea_dsa::Node::getAllocSiteOrNone(const llvm::Value &v) const {
   llvm::Optional<DSAllocSite *> optAS = m_graph->getAllocSiteOrNone(v);
   if (!optAS.hasValue())
+    /// XXX it is not equivalent to llvm::None?
     return optAS;
 
+  /// XXX There is only one allocation site per graph. How can this ever
+  /// XXX return anything but llvm::None or the exact same thing as optAS?
   DSAllocSite *AS = *optAS;
   auto it = m_alloca_sites.find(AS);
   if (it == m_alloca_sites.end())
@@ -474,7 +477,19 @@ void sea_dsa::Node::joinAllocSites(const AllocaSet &set) {
   for (DSAllocSite *as : set) {
     // as might come from another graph. Make a local copy of the alloc site,
     // but copy over path from the original one.
+    /// XXX as->getAllocSite() is confusing. Should be as->getValue()
     DSAllocSite *localAS = m_graph->mkAllocSite(as->getAllocSite());
+
+    /// XXX This logic is too hard for me. We usually have an allocation site
+    /// XXX in exactly one node. Except for a intermediate steps when nodes
+    /// XXX are cloned in, merged, and discarded
+    /// XXX I can't tell what this code will do in this case.
+
+    /// XXX Simpler design is to store Value as allocators in nodes, and DSAllocSite
+    /// XXX that provides local meta information for the value in the graph.
+    /// XXX Whenever a value is used as an allocation site, it must be in DSAllocSites
+    /// XXX already. The cloner is responsible for updating the info in the graph
+    /// XXX being cloned into
     auto it = m_alloca_sites.find(localAS);
     if (it != m_alloca_sites.end())
       (*it)->copyPaths(*as);
@@ -491,6 +506,7 @@ unsigned sea_dsa::Node::mergeAllocSites(Node &n) {
   return mergeAllocSites(n, seen);
 }
 
+/// XXX This method needs a comment. @jnavas
 template <typename Cache>
 unsigned sea_dsa::Node::mergeAllocSites(Node &n, Cache &seen) {
   unsigned res = 0x0;
@@ -959,7 +975,9 @@ sea_dsa::DSAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   if (!v.hasName()) {
     if (isIntToPtrConstant(v)) {
       // XXX break const
-      const_cast<llvm::Value*>(&v)->setName("ag.inttoptr");
+      /// XXX setName trick did not work. DsaInfo requires a name.
+      /// XXX Moved work-arround into DsaInfo instead
+      /// const_cast<llvm::Value*>(&v)->setName("ag.inttoptr");
     }
     else {
       errs() << "ERROR: Unnamed allocation site:\t";
@@ -968,6 +986,7 @@ sea_dsa::DSAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
     }
   }
 
+  /// XXX Why not use getAllocSiteOrNone() since it is already defined?
   auto it = m_valueToAllocSite.find(&v);
   if (it != m_valueToAllocSite.end())
     return it->second;
