@@ -18,10 +18,20 @@ static llvm::cl::opt<bool>
 
 namespace sea_dsa {
 
+  /// XXX DSAllocSite is unique and global to a Graph. It does not
+  /// XXX make sense  to have a method to copy call-paths from one
+  /// XXX DSAllocSite to another -- there is only one and its unique.
+  ///
+  /// XXX Instead, have a method 'portPaths' that takes a DSAllocSite from
+  /// XXX a different graph and a CallEdge, checks that the call-edge is correct
+  /// XXX copies all the paths extending them with a call-edge before copying.
 void DSAllocSite::copyPaths(const DSAllocSite &other) {
+  // XXX This should be an assertion, not silent ignore
   if (this == &other)
     return;
 
+  /// XXX if not tracked then callPaths are empty, nothing to copy
+  /// XXX at least have an assertion to check for that
   if (m_allocSite->getName() != TrackAllocSite && !TrackAllAllocSites)
     return;
 
@@ -74,6 +84,13 @@ void DSAllocSite::addStep(StepKind kind, llvm::ImmutableCallSite cs) {
   if (m_callPaths.empty())
     assert(false); // setLocalStep(pred);
 
+
+  /// XXX Too complex. A path is extended only when an allocation site is
+  /// XXX copied from one graph to another. Extend the path during copying
+  /// XXX ensure that every copy is due to an appropriate call-site.
+  /// XXX Don't break this into more complex than it has to be.
+  /// XXX This also assumes that every function appears only once on a call-path
+  /// XXX while this might be true right now, the assumption is not justified.
   for (auto &Path : m_callPaths) {
     assert(!Path.empty() && "Local step missing");
     assert(Path.front().first == Local && "First step must be Local");
