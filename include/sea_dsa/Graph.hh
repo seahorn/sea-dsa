@@ -16,6 +16,7 @@
 #include "llvm/ADT/ImmutableSet.h"
 
 #include "sea_dsa/FieldType.hh"
+#include "sea_dsa/AllocSite.hh"
 
 #include <functional>
 
@@ -29,6 +30,7 @@ namespace sea_dsa {
 
 class Node;
 class Cell;
+class Graph;
 class SimulationMapper;
 typedef std::unique_ptr<Cell> CellRef;
 
@@ -65,6 +67,12 @@ protected:
   typedef llvm::DenseMap<const llvm::Function *, CellRef> ReturnMap;
   ReturnMap m_returns;
 
+  using AllocSites = std::vector<std::unique_ptr<DSAllocSite>>;
+  AllocSites m_allocSites;
+
+  using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DSAllocSite *>;
+  ValueToAllocSite m_valueToAllocSite;
+
   //  Whether the graph is flat or not
   bool m_is_flat;
 
@@ -88,6 +96,10 @@ public:
       global_const_iterator;
   typedef ArgumentMap::const_iterator formal_const_iterator;
   typedef ReturnMap::const_iterator return_const_iterator;
+  using alloc_site_iterator
+    = boost::indirect_iterator<typename AllocSites::iterator>;
+  using alloc_site_const_iterator
+    = boost::indirect_iterator<typename AllocSites::const_iterator>;
 
   Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false)
       : m_dl(dl), m_setFactory(sf), m_is_flat(is_flat) {}
@@ -144,6 +156,32 @@ public:
   virtual Cell &getRetCell(const llvm::Function &fn);
 
   virtual const Cell &getRetCell(const llvm::Function &fn) const;
+
+  llvm::Optional<DSAllocSite*> getAllocSite(const llvm::Value &v) const {
+    auto it = m_valueToAllocSite.find(&v);
+    if (it != m_valueToAllocSite.end())
+      return it->second;
+
+    return llvm::None;
+  }
+
+  DSAllocSite *mkAllocSite(const llvm::Value &v);
+
+  llvm::iterator_range<alloc_site_iterator> alloc_sites() {
+    alloc_site_iterator begin = m_allocSites.begin();
+    alloc_site_iterator end = m_allocSites.end();
+    return llvm::make_range(begin, end);
+  }
+
+  llvm::iterator_range<alloc_site_const_iterator> alloc_sites() const {
+    alloc_site_const_iterator begin = m_allocSites.begin();
+    alloc_site_const_iterator end = m_allocSites.end();
+    return llvm::make_range(begin, end);
+  }
+
+  bool hasAllocSiteForValue(const llvm::Value &v) const {
+    return m_valueToAllocSite.count(&v) > 0;
+  }
 
   /// compute a map from callee nodes to caller nodes
   //
@@ -457,6 +495,8 @@ private:
   typedef boost::container::flat_set<const llvm::Value *> AllocaSet;
   AllocaSet m_alloca_sites;
 
+  /// XXX This is ugly. Ids should probably be unique per-graph, not
+  /// XXX unique overall. Check with @jnavas before changing this though...
   static uint64_t m_id_factory;
 
   uint64_t m_id; // global id for the node
