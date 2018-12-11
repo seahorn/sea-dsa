@@ -464,6 +464,7 @@ unsigned sea_dsa::Node::mergeAllocSites(Node &n) {
   return mergeAllocSites(n, seen);
 }
 
+/// XXX This method needs a comment. @jnavas
 template <typename Cache>
 unsigned sea_dsa::Node::mergeAllocSites(Node &n, Cache &seen) {
   unsigned res = 0x0;
@@ -919,13 +920,13 @@ static bool isIntToPtrConstant(const llvm::Value &v) {
   return false;
 }
 
-/* XXX Resurrect when DSAllocSite comes back
 sea_dsa::DSAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   // skip IntToPtr constants. These are used in vtables as markers.
   if (!v.hasName()) {
     if (isIntToPtrConstant(v)) {
-      // XXX break const
-      const_cast<llvm::Value*>(&v)->setName("ag.inttoptr");
+      /// XXX setName trick did not work. DsaInfo requires a name.
+      /// XXX Moved work-arround into DsaInfo instead
+      /// const_cast<llvm::Value*>(&v)->setName("ag.inttoptr");
     }
     else {
       errs() << "ERROR: Unnamed allocation site:\t";
@@ -934,15 +935,14 @@ sea_dsa::DSAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
     }
   }
 
-  auto it = m_valueToAllocSite.find(&v);
-  if (it != m_valueToAllocSite.end())
-    return it->second;
+  auto res = getAllocSite(v);
+  if (res.hasValue()) return res.getValue();
 
   m_allocSites.emplace_back(new DSAllocSite(*this, v));
   DSAllocSite *as = m_allocSites.back().get();
-  m_valueToAllocSite[&v] = as;
+  m_valueToAllocSite.insert(std::make_pair(&v, as));
   return as;
-}*/
+}
 
 void sea_dsa::Cell::write(raw_ostream &o) const {
   getNode();
