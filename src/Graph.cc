@@ -442,8 +442,9 @@ unsigned sea_dsa::Node::mergeUniqueScalar(Node &n, Cache &seen) {
   return res;
 }
 
-void sea_dsa::Node::addAllocSite(const DsaAllocSite &v)
-{m_alloca_sites.insert(&v.getValue());}
+void sea_dsa::Node::addAllocSite(const DsaAllocSite &v) {
+  m_alloca_sites.insert(&v.getValue());
+}
 
 void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
   using namespace boost;
@@ -931,8 +932,7 @@ sea_dsa::DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
       /// XXX setName trick did not work. DsaInfo requires a name.
       /// XXX Moved work-arround into DsaInfo instead
       /// const_cast<llvm::Value*>(&v)->setName("ag.inttoptr");
-    }
-    else {
+    } else {
       errs() << "ERROR: Unnamed allocation site:\t";
       errs() << v << "\n";
       assert(false);
@@ -940,7 +940,8 @@ sea_dsa::DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   }
 
   auto res = getAllocSite(v);
-  if (res.hasValue()) return res.getValue();
+  if (res.hasValue())
+    return res.getValue();
 
   m_allocSites.emplace_back(new DsaAllocSite(*this, v));
   DsaAllocSite *as = m_allocSites.back().get();
@@ -1035,7 +1036,7 @@ bool sea_dsa::Graph::computeCalleeCallerMapping(
 }
 
 void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
-  Cloner C(*this, CloningContext::mkNoContext(), Cloner::CloningOptions::Basic);
+  Cloner C(*this, CloningContext::mkNoContext(), Cloner::Options::Basic);
   for (auto &kv : g.m_values) {
     // -- clone node
     Node &n = C.clone(*kv.second->getNode());
