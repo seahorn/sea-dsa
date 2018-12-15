@@ -291,7 +291,9 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   assert(!m_graph.hasCell(AI));
   Node &n = m_graph.mkNode();
   // -- record allocation site
-  n.addAllocSite(AI);
+  sea_dsa::DSAllocSite* site = m_graph.mkAllocSite(AI);
+  assert(site);
+  n.addAllocSite(*site);
   // -- mark node as a stack node
   n.setAlloca();
 
@@ -584,7 +586,9 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
-    n.addAllocSite(I);
+    sea_dsa::DSAllocSite *site = m_graph.mkAllocSite(I);
+    assert(site);
+    n.addAllocSite(*site);
     // -- mark node as a stack node
     n.setAlloca();
     // -- create a node for the aggregate
@@ -617,7 +621,9 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
     // -- record allocation site
-    n.addAllocSite(I);
+    sea_dsa::DSAllocSite *site = m_graph.mkAllocSite(I);
+    assert(site);
+    n.addAllocSite(*site);
     // -- mark node as a stack node
     n.setAlloca();
     op = m_graph.mkCell(*I.getAggregateOperand(), Cell(n, 0));
@@ -640,7 +646,9 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
       FieldType nType = opType;
       in.setLink(InstType, Cell(&n, 0));
       // -- record allocation site
-      n.addAllocSite(I);
+      sea_dsa::DSAllocSite *site = m_graph.mkAllocSite(I);
+      assert(site);
+      n.addAllocSite(*site);
       // -- mark node as a stack node
       n.setAlloca();
     }
@@ -659,7 +667,9 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     assert(CS.getInstruction());
     Node &n = m_graph.mkNode();
     // -- record allocation site
-    n.addAllocSite(*(CS.getInstruction()));
+    sea_dsa::DSAllocSite *site = m_graph.mkAllocSite(*(CS.getInstruction()));
+    assert(site);
+    n.addAllocSite(*site);
     // -- mark node as a heap node
     n.setHeap();
 
@@ -711,8 +721,11 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
         c.getNode()->setExternal();
         // -- treat external function as allocation
         // XXX: we ignore external calls created by AbstractMemory pass
-        if (!callee->getName().startswith("verifier.nondet.abstract.memory"))
-          c.getNode()->addAllocSite(*inst);
+        if (!callee->getName().startswith("verifier.nondet.abstract.memory")) {
+          sea_dsa::DSAllocSite *site = m_graph.mkAllocSite(*inst);
+          assert(site);
+          c.getNode()->addAllocSite(*site);
+        }
 
         // TODO: many more things can be done to handle external
         // TODO: functions soundly and precisely.  An absolutely
@@ -893,7 +906,9 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   sea_dsa::Node &n = m_graph.mkNode();
   n.setIntToPtr();
   // -- record allocation site
-  n.addAllocSite(dest);
+  sea_dsa::DSAllocSite *site = m_graph.mkAllocSite(dest);
+  assert(site);
+  n.addAllocSite(*site);
   // -- mark node as an alloca node
   n.setAlloca();
   m_graph.mkCell(dest, sea_dsa::Cell(n, 0));
@@ -993,8 +1008,11 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
       else
         g.mkCell(a, Cell(n, 0));
       // -- XXX: hook to record allocation site if F is main
-      if (F.getName() == "main")
-        n.addAllocSite(a);
+      if (F.getName() == "main") {
+        sea_dsa::DSAllocSite *site = g.mkAllocSite(a);
+        assert(site);
+        n.addAllocSite(*site);
+      }
       // -- mark node as a stack node
       n.setAlloca();
     }
