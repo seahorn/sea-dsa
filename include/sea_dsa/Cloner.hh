@@ -1,17 +1,16 @@
-#ifndef __DSA__CLONER__HH_
-#define __DSA__CLONER__HH_
+#pragma once
 
 #include "sea_dsa/Graph.hh"
 
 namespace sea_dsa {
 
 struct CloningContext {
-  llvm::Optional<const llvm::Instruction*> m_cs;
+  llvm::Optional<const llvm::Instruction *> m_cs;
   enum DirectionKind { Unset, BottomUp, TopDown };
   DirectionKind m_dir;
 
-  CloningContext(const llvm::Instruction &cs, DirectionKind dir) :
-    m_cs(&cs), m_dir(dir) {}
+  CloningContext(const llvm::Instruction &cs, DirectionKind dir)
+      : m_cs(&cs), m_dir(dir) {}
 
   static CloningContext mkNoContext() { return {}; }
 
@@ -24,33 +23,41 @@ private:
  */
 class Cloner {
 public:
-  enum CloningOptions : unsigned {
+  enum Options : unsigned {
     Basic = 0,
     StripAllocas = 1 << 0,
     TrackAllocaCallPaths = 1 << 1,
   };
 
-  template<typename... Os>
-  static CloningOptions BuildOptions(Os... os) {
-    CloningOptions options = Basic;
-    CloningOptions unpacked[] = {os...};
-    for (CloningOptions o : unpacked)
-      options = CloningOptions(options | o);
+  template <typename... Os> static Options BuildOptions(Os... os) {
+    Options options = Basic;
+    Options unpacked[] = {os...};
+    for (Options o : unpacked)
+      options = Options(options | o);
     return options;
   }
 
 private:
   Graph &m_graph;
   llvm::DenseMap<const Node *, Node *> m_map;
-  CloningContext m_cloningContext;
+  CloningContext m_context;
   bool m_track_call_paths;
   bool m_strip_allocas;
 
+  bool isTopDown() const { return m_context.m_dir == CloningContext::TopDown; }
+  bool isBottomUp() const {
+    return m_context.m_dir == CloningContext::BottomUp;
+  }
+  bool isUnset() const { return !(isTopDown() || isBottomUp()); }
+
+  void importCallPaths(DsaAllocSite &site,
+                       llvm::Optional<DsaAllocSite *> other);
+
 public:
-  Cloner(Graph &g, CloningContext context, CloningOptions options)
-    : m_graph(g), m_cloningContext(context),
-      m_strip_allocas(options & CloningOptions::StripAllocas),
-      m_track_call_paths(options & CloningOptions::TrackAllocaCallPaths) {}
+  Cloner(Graph &g, CloningContext context, Cloner::Options options)
+      : m_graph(g), m_context(context),
+        m_strip_allocas(options & Cloner::Options::StripAllocas),
+        m_track_call_paths(options & Cloner::Options::TrackAllocaCallPaths) {}
 
   /// Returns a clone of a given node in the new graph
   /// Recursive clones nodes linked by this node as necessary
@@ -68,5 +75,3 @@ public:
   bool hasNode(const Node &n) { return m_map.count(&n) > 0; }
 };
 } // namespace sea_dsa
-
-#endif

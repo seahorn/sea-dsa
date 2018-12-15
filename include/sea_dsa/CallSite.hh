@@ -23,7 +23,7 @@ class DsaCallSite {
     bool operator()(const llvm::Argument &a);
   };
 
-  const llvm::ImmutableCallSite &m_cs;
+  const llvm::ImmutableCallSite m_cs;
 
 public:
   typedef boost::filter_iterator<isPointerTy,
@@ -34,6 +34,8 @@ public:
       const_actual_iterator;
 
   DsaCallSite(const llvm::ImmutableCallSite &cs);
+  DsaCallSite(const llvm::Instruction &cs);
+  DsaCallSite(const llvm::Value &cs);
 
   bool operator==(const DsaCallSite &o) const {
     return getInstruction() == o.getInstruction();

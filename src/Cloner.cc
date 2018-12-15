@@ -1,7 +1,28 @@
 #include "sea_dsa/Cloner.hh"
+#include "sea_dsa/CallSite.hh"
 #include "sea_dsa/support/Debug.h"
 #include "llvm/IR/Instructions.h"
 using namespace sea_dsa;
+
+void Cloner::importCallPaths(DsaAllocSite &site,
+                             llvm::Optional<DsaAllocSite *> other) {
+  if (isUnset())
+    return;
+  assert(otehr.hasValue());
+  if (!other.hasValue())
+    return;
+
+  site.importCallPaths(*other.getValue(),
+                       DsaCallSite(*m_context.m_cs.getValue()), isBottomUp());
+  return;
+}
+
+/// Return true if the instruction allocates memory on the stack
+static bool isStackAllocation(const llvm::Value *v) {
+  // XXX Check whether there are other ways to allocate stack, like
+  // insertvalue/extractvalue
+  return llvm::isa<llvm::AllocaInst>(v);
+}
 
 Node &Cloner::clone(const Node &n, bool forceAlloca) {
   // -- don't clone nodes that are already in the graph
@@ -16,33 +37,40 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
     // then ensure that all allocas of n are copied over to nNode
     if (m_strip_allocas && forceAlloca &&
         nNode.getAllocSites().size() < n.getAllocSites().size()) {
-      nNode.insertAllocSites(n.getAllocSites().begin(),
-                             n.getAllocSites().end());
+      for (const llvm::Value *as : n.getAllocSites()) {
+        DsaAllocSite *site = m_graph.mkAllocSite(*as);
+        assert(site);
+        nNode.addAllocSite(*site);
+
+        // -- update call paths on the cloned allocation site
+        importCallPaths(*site, n.getGraph()->getAllocSite(*as));
+      }
     }
     return nNode;
   }
 
   // -- clone the node (except for the links)
-  Node &nNode = m_graph.cloneNode(n);
+  Node &nNode = m_graph.cloneNode(n, false /* cpAllocSites */);
 
-  // if not forcing allocas and stripping allocas is enabled, remove
-  // all alloca instructions from the new node
-  if (!forceAlloca && m_strip_allocas) {
-    unsigned sz = nNode.getAllocSites().size();
-    nNode.resetAllocSites();
-    llvm::SmallVector<const llvm::Value *, 16> sites;
-    for (const llvm::Value *val : n.getAllocSites()) {
-      if (!llvm::isa<llvm::AllocaInst>(val))
-        sites.push_back(val);
+  // -- copy allocation sites, except stack based, unless requested
+  for (const llvm::Value *as : n.getAllocSites()) {
+    if (isStackAllocation(as)) {
+      if (!forceAlloca && m_strip_allocas)
+        continue;
     }
-    nNode.insertAllocSites(sites.begin(), sites.end());
-    LOG("cloner", if (nNode.getAllocSites().size() < sz) llvm::errs()
-                      << "Clone: reduced allocas from " << sz << " to "
-                      << nNode.getAllocSites().size() << "\n";);
+
+    DsaAllocSite *site = m_graph.mkAllocSite(*as);
+    assert(site);
+    nNode.addAllocSite(*site);
+
+    // -- update call paths on cloned allocation site
+    importCallPaths(*site, n.getGraph()->getAllocSite(*as));
   }
+
   // -- update cache
   m_map.insert(std::make_pair(&n, &nNode));
 
+  // -- recursively clone reachable nodes
   for (auto &kv : n.links()) {
     // dummy link (should not happen)
     if (kv.second->isNull())
