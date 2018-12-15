@@ -14,7 +14,6 @@ class DsaAllocSite {
 public:
   enum StepKind { Local, BottomUp, TopDown };
   using Step = std::pair<StepKind, const llvm::Function *>;
-  using CallEdge = std::pair<StepKind, llvm::ImmutableCallSite>;
   using CallPath = std::vector<Step>;
   using CallPaths = std::vector<CallPath>;
 
@@ -39,6 +38,11 @@ public:
   const Graph &getOwner() const {
     return m_owner;
   }
+
+  /// \brief Import call paths from the other site through the given
+  /// call site The direction is bottom-up (callee-to-caller) if bu is
+  /// true and top-down (caller-to-callee) otherwise.
+  void importCallPaths(const DsaAllocSite &other, const DsaCallSite &cs, bool bu);
 
   const CallPaths& getCallPaths() const {return m_callPaths;}
 
