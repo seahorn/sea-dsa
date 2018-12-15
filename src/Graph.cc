@@ -441,7 +441,8 @@ unsigned sea_dsa::Node::mergeUniqueScalar(Node &n, Cache &seen) {
   return res;
 }
 
-void sea_dsa::Node::addAllocSite(const Value &v) { m_alloca_sites.insert(&v); }
+void sea_dsa::Node::addAllocSite(const DSAllocSite &v)
+{m_alloca_sites.insert(&v.getValue());}
 
 void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
   using namespace boost;
@@ -832,7 +833,9 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   // Pretend that global values are always present
   if (isa<GlobalValue>(&v) && c.isNull()) {
     sea_dsa::Node &n = mkNode();
-    n.addAllocSite(v);
+    DSAllocSite *site = mkAllocSite(v);
+    assert(site);
+    n.addAllocSite(*site);
     return mkCell(v, Cell(n, 0));
   }
 
