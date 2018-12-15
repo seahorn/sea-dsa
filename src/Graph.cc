@@ -40,7 +40,7 @@ sea_dsa::Node::Node(Graph &g)
     setTypeCollapsed(true);
 }
 
-sea_dsa::Node::Node(Graph &g, const Node &n, bool copyLinks)
+sea_dsa::Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
     : m_graph(&g), m_unique_scalar(n.m_unique_scalar), m_size(n.m_size) {
   assert(!n.isForwarding());
 
@@ -54,10 +54,11 @@ sea_dsa::Node::Node(Graph &g, const Node &n, bool copyLinks)
   joinAccessedTypes(0, n);
 
   // -- copy allocation sites
-  joinAllocSites(n.m_alloca_sites);
+  if (cpAllocSites)
+    joinAllocSites(n.m_alloca_sites);
 
   // -- copy links
-  if (copyLinks) {
+  if (cpLinks) {
     assert(n.m_graph == m_graph);
     for (auto &kv : n.m_links)
       m_links[kv.first].reset(new Cell(*kv.second));
@@ -667,12 +668,12 @@ unsigned sea_dsa::Node::getRawOffset() const {
 }
 
 sea_dsa::Node &sea_dsa::Graph::mkNode() {
-  m_nodes.push_back(std::unique_ptr<Node>(new Node(*this)));
+  m_nodes.emplace_back(new Node(*this));
   return *m_nodes.back();
 }
 
-sea_dsa::Node &sea_dsa::Graph::cloneNode(const Node &n) {
-  m_nodes.push_back(std::unique_ptr<Node>(new Node(*this, n, false)));
+sea_dsa::Node &sea_dsa::Graph::cloneNode(const Node &n, bool cpAllocSites) {
+  m_nodes.emplace_back(new Node(*this, n, false, cpAllocSites));
   return *m_nodes.back();
 }
 

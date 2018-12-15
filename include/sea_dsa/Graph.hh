@@ -115,7 +115,7 @@ public:
   /// -- allocates a new node
   virtual Node &mkNode();
 
-  virtual Node &cloneNode(const Node &n);
+  virtual Node &cloneNode(const Node &n, bool cpAllocSites = true);
 
   /// iterate over nodes
   virtual const_iterator begin() const;
@@ -502,7 +502,7 @@ private:
   uint64_t m_id; // global id for the node
 
   Node(Graph &g);
-  Node(Graph &g, const Node &n, bool copyLinks = false);
+  Node(Graph &g, const Node &n, bool cpLinks = false, bool cpAllocSites = true);
 
   void compress() {
     m_accessedTypes.shrink_to_fit();
