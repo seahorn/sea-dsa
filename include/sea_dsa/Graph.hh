@@ -67,10 +67,10 @@ protected:
   typedef llvm::DenseMap<const llvm::Function *, CellRef> ReturnMap;
   ReturnMap m_returns;
 
-  using AllocSites = std::vector<std::unique_ptr<DSAllocSite>>;
+  using AllocSites = std::vector<std::unique_ptr<DsaAllocSite>>;
   AllocSites m_allocSites;
 
-  using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DSAllocSite *>;
+  using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DsaAllocSite *>;
   ValueToAllocSite m_valueToAllocSite;
 
   //  Whether the graph is flat or not
@@ -157,7 +157,7 @@ public:
 
   virtual const Cell &getRetCell(const llvm::Function &fn) const;
 
-  llvm::Optional<DSAllocSite*> getAllocSite(const llvm::Value &v) const {
+  llvm::Optional<DsaAllocSite*> getAllocSite(const llvm::Value &v) const {
     auto it = m_valueToAllocSite.find(&v);
     if (it != m_valueToAllocSite.end())
       return it->second;
@@ -165,7 +165,7 @@ public:
     return llvm::None;
   }
 
-  DSAllocSite *mkAllocSite(const llvm::Value &v);
+  DsaAllocSite *mkAllocSite(const llvm::Value &v);
 
   llvm::iterator_range<alloc_site_iterator> alloc_sites() {
     alloc_site_iterator begin = m_allocSites.begin();
@@ -703,7 +703,7 @@ public:
   void collapseTypes(int tag /*= -2*/);
 
   /// Add a new allocation site
-  void addAllocSite(const DSAllocSite &v);
+  void addAllocSite(const DsaAllocSite &v);
   /// get all allocation sites
   const AllocaSet &getAllocSites() const { return m_alloca_sites; }
   void resetAllocSites() { m_alloca_sites.clear(); }
