@@ -542,8 +542,6 @@ private:
   }
 
   void writeAccessedTypes(llvm::raw_ostream &o) const;
-  /// Add a new allocation site
-  void addAllocSite(const llvm::Value &v);
 
 public:
   /// delete copy constructor
@@ -705,7 +703,7 @@ public:
   void collapseTypes(int tag /*= -2*/);
 
   /// Add a new allocation site
-  void addAllocSite(const DSAllocSite &v) {addAllocSite(v.getValue());}
+  void addAllocSite(const DSAllocSite &v);
   /// get all allocation sites
   const AllocaSet &getAllocSites() const { return m_alloca_sites; }
   void resetAllocSites() { m_alloca_sites.clear(); }
