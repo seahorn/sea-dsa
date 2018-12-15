@@ -1035,7 +1035,7 @@ bool sea_dsa::Graph::computeCalleeCallerMapping(
 }
 
 void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
-  Cloner C(*this);
+  Cloner C(*this, CloningContext::mkNoContext(), Cloner::CloningOptions::Basic);
   for (auto &kv : g.m_values) {
     // -- clone node
     Node &n = C.clone(*kv.second->getNode());
