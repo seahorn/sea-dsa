@@ -18,6 +18,37 @@ static llvm::cl::opt<bool>
 
 namespace sea_dsa {
 
+void DsaAllocSite::importCallPaths(const DsaAllocSite &other,
+                                   const DsaCallSite &cs,
+                                   bool bu) {
+  // only copy paths from an allocation site corresponding to the same value
+  assert(&m_value == &other.m_value);
+
+  if (!TrackAllAllocSites && m_value.getName() != TrackAllocSite) return;
+
+  if (others.getCallPaths().empty()) {
+    m_callPaths.emplace_back();
+    CallPath &ncp = m_callPaths.back();
+    // -- if other had no call paths, then it is local to the function
+    // -- we are importing it from
+    ncp.emplace_back(Local, bu ? cs.getCallee() : cs.getCaller());
+    ncp.emplace_back(bu ? BottomUp : TopDown,
+                     bu ? cs.getCaller() : cs.getCallee());
+  }
+  else {
+    // -- copy all call paths and add last function
+    for (CallPath &cp : other.getCallPaths()) {
+      m_callPaths.emplace_back(cp);
+      CallPath &ncp = m_callPaths.back();
+      ncp.emplace_back(bu ? BottomUp : TopDown,
+                       bu ? cs.getCaller() : cs.getCallee());
+    }
+    // -- unique call paths
+    std::sort(m_callPaths.begin(), m_callPaths.end());
+    m_callPaths.erase(std::unique(m_callPaths.begin(), m_callPaths.end()),
+                      m_callPaths.end());
+  }
+}
 void DsaAllocSite::print(llvm::raw_ostream &os) const {
   using namespace llvm;
   if (isa<Function>(m_value) || isa<BasicBlock>(m_value)) {
