@@ -18,7 +18,7 @@ static llvm::cl::opt<bool>
 
 namespace sea_dsa {
 
-void DSAllocSite::print(llvm::raw_ostream &os) const {
+void DsaAllocSite::print(llvm::raw_ostream &os) const {
   using namespace llvm;
   if (isa<Function>(m_value) || isa<BasicBlock>(m_value)) {
     assert(m_value->hasName());
@@ -29,7 +29,7 @@ void DSAllocSite::print(llvm::raw_ostream &os) const {
   printCallPaths(os);
 }
 
-void DSAllocSite::printCallPaths(llvm::raw_ostream &os) const {
+void DsaAllocSite::printCallPaths(llvm::raw_ostream &os) const {
   for (const auto &Path : m_callPaths) {
     os << "\n\t\t(";
     for (const Step &step : Path) {
