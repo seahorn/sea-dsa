@@ -442,7 +442,7 @@ unsigned sea_dsa::Node::mergeUniqueScalar(Node &n, Cache &seen) {
   return res;
 }
 
-void sea_dsa::Node::addAllocSite(const DSAllocSite &v)
+void sea_dsa::Node::addAllocSite(const DsaAllocSite &v)
 {m_alloca_sites.insert(&v.getValue());}
 
 void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
@@ -834,7 +834,7 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   // Pretend that global values are always present
   if (isa<GlobalValue>(&v) && c.isNull()) {
     sea_dsa::Node &n = mkNode();
-    DSAllocSite *site = mkAllocSite(v);
+    DsaAllocSite *site = mkAllocSite(v);
     assert(site);
     n.addAllocSite(*site);
     return mkCell(v, Cell(n, 0));
@@ -924,7 +924,7 @@ static bool isIntToPtrConstant(const llvm::Value &v) {
   return false;
 }
 
-sea_dsa::DSAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
+sea_dsa::DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   // skip IntToPtr constants. These are used in vtables as markers.
   if (!v.hasName()) {
     if (isIntToPtrConstant(v)) {
@@ -942,8 +942,8 @@ sea_dsa::DSAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   auto res = getAllocSite(v);
   if (res.hasValue()) return res.getValue();
 
-  m_allocSites.emplace_back(new DSAllocSite(*this, v));
-  DSAllocSite *as = m_allocSites.back().get();
+  m_allocSites.emplace_back(new DsaAllocSite(*this, v));
+  DsaAllocSite *as = m_allocSites.back().get();
   m_valueToAllocSite.insert(std::make_pair(&v, as));
   return as;
 }
