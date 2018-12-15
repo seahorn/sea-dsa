@@ -26,7 +26,7 @@ void DsaAllocSite::importCallPaths(const DsaAllocSite &other,
 
   if (!TrackAllAllocSites && m_value.getName() != TrackAllocSite) return;
 
-  if (others.getCallPaths().empty()) {
+  if (other.getCallPaths().empty()) {
     m_callPaths.emplace_back();
     CallPath &ncp = m_callPaths.back();
     // -- if other had no call paths, then it is local to the function
@@ -37,7 +37,7 @@ void DsaAllocSite::importCallPaths(const DsaAllocSite &other,
   }
   else {
     // -- copy all call paths and add last function
-    for (CallPath &cp : other.getCallPaths()) {
+    for (const CallPath &cp : other.getCallPaths()) {
       m_callPaths.emplace_back(cp);
       CallPath &ncp = m_callPaths.back();
       ncp.emplace_back(bu ? BottomUp : TopDown,
