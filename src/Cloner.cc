@@ -14,7 +14,7 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
     Node &nNode = *(it->second);
     // if alloca are stripped but this call forces them,
     // then ensure that all allocas of n are copied over to nNode
-    if (m_strip_alloca && forceAlloca &&
+    if (m_strip_allocas && forceAlloca &&
         nNode.getAllocSites().size() < n.getAllocSites().size()) {
       nNode.insertAllocSites(n.getAllocSites().begin(),
                              n.getAllocSites().end());
@@ -27,7 +27,7 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
 
   // if not forcing allocas and stripping allocas is enabled, remove
   // all alloca instructions from the new node
-  if (!forceAlloca && m_strip_alloca) {
+  if (!forceAlloca && m_strip_allocas) {
     unsigned sz = nNode.getAllocSites().size();
     nNode.resetAllocSites();
     llvm::SmallVector<const llvm::Value *, 16> sites;

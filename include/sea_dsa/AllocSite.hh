@@ -9,6 +9,7 @@
 namespace sea_dsa {
 
 class Graph;
+class DsaCallSite;
 
 class DsaAllocSite {
 public:
@@ -30,29 +31,26 @@ private:
 
 public:
   /// \brief Return the llmv::Value corresponding to this DsaAllocSite
-  const llvm::Value &getValue() const {
-    return m_value;
-  }
+  const llvm::Value &getValue() const { return m_value; }
 
   /// \brief Return the owning graph
-  const Graph &getOwner() const {
-    return m_owner;
-  }
+  const Graph &getOwner() const { return m_owner; }
 
   /// \brief Import call paths from the other site through the given
   /// call site The direction is bottom-up (callee-to-caller) if bu is
   /// true and top-down (caller-to-callee) otherwise.
-  void importCallPaths(const DsaAllocSite &other, const DsaCallSite &cs, bool bu);
+  void importCallPaths(const DsaAllocSite &other, const DsaCallSite &cs,
+                       bool bu);
 
-  const CallPaths& getCallPaths() const {return m_callPaths;}
+  const CallPaths &getCallPaths() const { return m_callPaths; }
 
   bool hasCallPaths() const { return !m_callPaths.empty(); }
 
   void print(llvm::raw_ostream &os = llvm::errs()) const;
   void printCallPaths(llvm::raw_ostream &os = llvm::errs()) const;
 
-  friend llvm::raw_ostream &operator<<(llvm::raw_ostream& os,
-                                       const DsaAllocSite& AS) {
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
+                                       const DsaAllocSite &AS) {
     AS.print(os);
     return os;
   }
@@ -67,9 +65,7 @@ public:
     return &m_value == &other.m_value;
   }
 
-  bool operator!=(const DsaAllocSite &other) const {
-    return !(*this == other);
-  }
+  bool operator!=(const DsaAllocSite &other) const { return !(*this == other); }
 
   bool operator>(const DsaAllocSite &other) const {
     return (other != *this) && !(other < *this);
@@ -83,4 +79,4 @@ private:
       : m_value(v), m_owner(g) {}
 };
 
-}
+} // namespace sea_dsa
