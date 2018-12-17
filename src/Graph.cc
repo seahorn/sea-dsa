@@ -932,7 +932,8 @@ sea_dsa::DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
       /// XXX setName trick did not work. DsaInfo requires a name.
       /// XXX Moved work-arround into DsaInfo instead
       /// const_cast<llvm::Value*>(&v)->setName("ag.inttoptr");
-    } else {
+      // We can assign sequential names to function arguments.
+    } else if (!isa<Argument>(v)) {
       errs() << "ERROR: Unnamed allocation site:\t";
       errs() << v << "\n";
       assert(false);
