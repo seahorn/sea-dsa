@@ -56,12 +56,12 @@ public:
   }
 
   bool operator<(const DsaAllocSite &other) const {
-    assert(m_owner == other.m_owner);
+    assert(&m_owner == &other.m_owner);
     return &m_value < &other.m_value;
   }
 
   bool operator==(const DsaAllocSite &other) const {
-    assert(m_owner == other.m_owner);
+    assert(&m_owner == &other.m_owner);
     return &m_value == &other.m_value;
   }
 
