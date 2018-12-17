@@ -52,7 +52,7 @@ void DsaAllocSite::importCallPaths(const DsaAllocSite &other,
 void DsaAllocSite::print(llvm::raw_ostream &os) const {
   using namespace llvm;
   if (isa<Function>(m_value) || isa<BasicBlock>(m_value)) {
-    assert(m_value->hasName());
+    assert(m_value.hasName());
     os << m_value.getName();
   } else {
     m_value.print(os);

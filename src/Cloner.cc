@@ -8,7 +8,8 @@ void Cloner::importCallPaths(DsaAllocSite &site,
                              llvm::Optional<DsaAllocSite *> other) {
   if (isUnset())
     return;
-  assert(otehr.hasValue());
+
+  assert(other.hasValue());
   if (!other.hasValue())
     return;
 
