@@ -157,7 +157,7 @@ public:
 
   virtual const Cell &getRetCell(const llvm::Function &fn) const;
 
-  llvm::Optional<DsaAllocSite*> getAllocSite(const llvm::Value &v) const {
+  llvm::Optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
     auto it = m_valueToAllocSite.find(&v);
     if (it != m_valueToAllocSite.end())
       return it->second;
@@ -706,6 +706,7 @@ public:
   void addAllocSite(const DsaAllocSite &v);
   /// get all allocation sites
   const AllocaSet &getAllocSites() const { return m_alloca_sites; }
+
   void resetAllocSites() { m_alloca_sites.clear(); }
 
   template <typename Iterator>
