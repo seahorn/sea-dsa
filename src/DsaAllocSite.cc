@@ -5,7 +5,6 @@
 #include "sea_dsa/CallSite.hh"
 
 #include <algorithm>
-#include <set>
 
 static llvm::cl::opt<std::string>
     TrackAllocSite("sea-dsa-track-alloc-site",
@@ -21,10 +20,11 @@ namespace sea_dsa {
 void DsaAllocSite::importCallPaths(const DsaAllocSite &other,
                                    const DsaCallSite &cs,
                                    bool bu) {
-  // only copy paths from an allocation site corresponding to the same value
+  // Only copy paths from an allocation site corresponding to the same value.
   assert(&m_value == &other.m_value);
 
-  if (!TrackAllAllocSites && m_value.getName() != TrackAllocSite) return;
+  if (!TrackAllAllocSites && m_value.getName() != TrackAllocSite)
+    return;
 
   if (other.getCallPaths().empty()) {
     m_callPaths.emplace_back();
@@ -34,8 +34,7 @@ void DsaAllocSite::importCallPaths(const DsaAllocSite &other,
     ncp.emplace_back(Local, bu ? cs.getCallee() : cs.getCaller());
     ncp.emplace_back(bu ? BottomUp : TopDown,
                      bu ? cs.getCaller() : cs.getCallee());
-  }
-  else {
+  } else {
     // -- copy all call paths and add last function
     for (const CallPath &cp : other.getCallPaths()) {
       m_callPaths.emplace_back(cp);
