@@ -42,6 +42,13 @@ bool NameValues::runOnFunction(Function &F) {
   if (boost::starts_with(*line_iter, "; Function Attrs:"))
     ++line_iter;
 
+  unsigned ArgIdx = 0;
+  for (Argument &arg : F.args()) {
+    ++ArgIdx;
+    if (!arg.hasName())
+      arg.setName("_arg" + std::to_string(ArgIdx));
+  }
+
   // -- skip function definition line
   ++line_iter;
 
