@@ -10,7 +10,7 @@ namespace sea_dsa {
 static llvm::cl::opt<bool>
     OmnipotentChar("sea-dsa-omnipotent-char",
                    llvm::cl::desc("Enable SeaDsa omnipotent char"),
-                   llvm::cl::init(true));
+                   llvm::cl::init(false));
 
 namespace sea_dsa {
   bool IsTypeAware;
@@ -43,9 +43,8 @@ FieldType::FieldType(llvm::Type *Ty) {
   assert(Ty);
 
   static bool WarnTypeAware = true;
-  if (WarnTypeAware) {
-    llvm::errs() << "Sea-Dsa " << (IsTypeAware ? "" : "not ")
-                 << "type aware!\n";
+  if (WarnTypeAware && IsTypeAware) {
+    llvm::errs() << "Sea-Dsa type aware!\n";
     WarnTypeAware = false;
   }
 
