@@ -215,32 +215,6 @@ public:
 //        writeEdge(Node, 64, EI);
   }
 
-  void writeEdge(NodeType *Node, unsigned edgeidx, child_iterator EI) {
-    if (NodeType *TargetNode = *EI) {
-      int DestPort = -1;
-
-#if 0 
-	  // MODIFICATION
-	  // if (DTraits.edgeTargetsEdgeSource(Node, EI)) {
-	  //   child_iterator TargetIt = DTraits.getEdgeTarget(Node, EI);
-	  //   // Figure out which edge this targets...
-	  //   unsigned Offset =
-	  //     (unsigned)std::distance(GTraits::child_begin(TargetNode), TargetIt);
-	  //   DestPort = static_cast<int>(Offset);
-	  // }
-#else
-      DestPort = DTraits.getIndex(TargetNode, EI.getOffset());
-#endif
-
-      if (DTraits.getEdgeSourceLabel(Node, EI).empty())
-        edgeidx = -1;
-
-      emitEdge(static_cast<const void *>(Node), edgeidx,
-               static_cast<const void *>(TargetNode), DestPort,
-               DTraits.getEdgeAttributes(Node, EI, G));
-    }
-  }
-
   /// emitSimpleNode - Outputs a simple (non-record) node
   void
   emitSimpleNode(const void *ID, const std::string &Attr,
@@ -273,8 +247,11 @@ public:
                 int DestNodePort, llvm::Twine Attrs) {
     if (SrcNodePort > 64)
       return; // Eminating from truncated part?
-    if (DestNodePort > 64)
-      DestNodePort = 64; // Targeting the truncated part?
+//    if (DestNodePort > 64)
+//      DestNodePort = 64; // Targeting the truncated part?
+
+    // Ignore DestNodePort and point to the whole node instead.
+    DestNodePort = -1;
 
     O << "\tNode" << SrcNodeID;
     if (SrcNodePort >= 0)
@@ -284,13 +261,7 @@ public:
     // Edges that go to cells with zero offset do not
     // necessarily point to field 0. This makes graphs nicer.
     if (DestNodePort > 0 && DTraits.hasEdgeDestLabels()) {
-// if (DestNodePort >= 0 && DTraits.hasEdgeDestLabels()) {
-#if 0
-	  // MODIFICATION
-	  //O << ":d" << DestNodePort;
-#else
       O << ":s" << DestNodePort;
-#endif
     }
 
     if (!Attrs.isTriviallyEmpty())
@@ -532,11 +503,19 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     typedef sea_dsa::Field Field;
     typedef sea_dsa::Graph::const_iterator node_const_iterator;
 
-    auto EmitLinkTypeSuffix = [](const sea_dsa::Cell &C) {
+    auto EmitLinkTypeSuffix = [](const sea_dsa::Cell &C,
+                                 sea_dsa::FieldType Ty =
+                                                   FIELD_TYPE_NOT_IMPLEMENTED) {
       std::string Buff;
       llvm::raw_string_ostream OS(Buff);
 
-      OS << ",label=\"" << C.getOffset() << "\",fontsize=8";
+      OS << ",label=\"" << C.getOffset();
+      if (!Ty.isUnknown()) {
+        OS << ", ";
+        Ty.dump(OS);
+      }
+
+      OS << "\",fontsize=8";
 
       return OS.str();
     };
@@ -603,18 +582,18 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
       }
     }
 
-    // print forwarding edges
+    // print node edges
     {
       for (node_const_iterator it = g->begin(), e = g->end(); it != e; ++it) {
         const Node &N = *it;
         if (!N.isForwarding()) {
 
           for (auto &OffLink : N.getLinks()) {
+            const int EdgeSrc = getIndex(&N, OffLink.first);
             const sea_dsa::Cell &C = *OffLink.second.get();
-            int EdgeDest = getIndex(C.getNode(), OffLink.first);
-
-            GW.emitEdge(&N, -1, C.getNode(), EdgeDest, Twine("arrowtail=tee",
-                                                       EmitLinkTypeSuffix(C)));
+            const int EdgeDest = getIndex(C.getNode(), OffLink.first);
+            GW.emitEdge(&N, EdgeSrc, C.getNode(), EdgeDest, Twine("arrowtail=tee",
+                        EmitLinkTypeSuffix(C, OffLink.first.getType())));
           }
 
           continue;
