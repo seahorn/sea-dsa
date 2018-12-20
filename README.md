@@ -49,19 +49,19 @@ project's `CMakeLists.txt`:
 If you already installed `llvm-5.0` in your machine:
 
     mkdir build && cd build
-	cmake -DCMAKE_INSTALL_PREFIX=__dir__ -DLLVM_DIR=__here_llvm-5.0__/share/llvm/cmake  ..
+	cmake -DCMAKE_INSTALL_PREFIX=$(pwd)/run -DLLVM_DIR=__here_llvm-5.0__/share/llvm/cmake  ..
    	cmake --build . --target install
 	cmake --build . --target test-sea-dsa
 	
 Otherwise:
 
     mkdir build && cd build
-	cmake -DCMAKE_INSTALL_PREFIX=__dir__ ..
+	cmake -DCMAKE_INSTALL_PREFIX=$(pwd)/run ..
     cmake --build . --target install
 
 To run tests:
 
-    export SEADSA=__dir__/bin
+    export SEADSA=$(pwd)/run/bin
 	cmake --build . --target test-sea-dsa
 
 ## Dealing with C/C++ library and external calls ##
