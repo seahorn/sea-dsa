@@ -291,7 +291,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   assert(!m_graph.hasCell(AI));
   Node &n = m_graph.mkNode();
   // -- record allocation site
-  sea_dsa::DsaAllocSite* site = m_graph.mkAllocSite(AI);
+  sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(AI);
   assert(site);
   n.addAllocSite(*site);
   // -- mark node as a stack node
@@ -418,8 +418,8 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
    a gcd of the variable offset.
  */
 std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
-                                               ArrayRef<Value *> Indicies,
-                                               const DataLayout &dl) {
+                                              ArrayRef<Value *> Indicies,
+                                              const DataLayout &dl) {
   Type *Ty = ptrTy;
   assert(Ty->isPointerTy());
 
@@ -542,8 +542,8 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 
   auto off = computeGepOffset(ptr.getType(), indicies, m_dl);
   if (off.first < 0) {
-    errs() << "Negative GEP: " << "(" << off.first << ", " << off.second << ") "
-           << gep << "\n";
+    errs() << "Negative GEP: "
+           << "(" << off.first << ", " << off.second << ") " << gep << "\n";
     // XXX current work-around
     // XXX If the offset is negative, convert to an array of stride 1
     off = std::make_pair(0, 1);
@@ -660,6 +660,15 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
 
 void IntraBlockBuilder::visitCallSite(CallSite CS) {
   using namespace sea_dsa;
+  LOG("dsa-callsite",
+      errs() << "dsa-callsite in:" << CS->getParent()->getParent()->getName()
+             << "\n");
+  LOG("dsa-callsite", errs()
+                          << "\tdsa-callsite name:" << CS->getName() << "\n");
+
+  // -- record callsite
+  sea_dsa::DsaCallSite *dsaCallSite =
+      m_graph.mkDsaCallSite(*(CS.getInstruction()));
   Function *callee =
       dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts());
   if (llvm::isAllocationFn(CS.getInstruction(), &m_tli, true) ||
@@ -678,6 +687,10 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   }
 
   if (callee) {
+    LOG("dsa-callsite", errs() << "\tcallee:" << callee->getName() << "\n");
+    // is a direct call
+    dsaCallSite->set_direct_call(true);
+
     /**
         sea_dsa_alias(p1,...,pn)
         unify the cells of p1,...,pn
@@ -711,7 +724,13 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
       }
       return;
     }
+
   }
+
+  LOG("dsa-callsite",
+      errs() << "\tcreated a new dsaCallSite:" << dsaCallSite->getInstruction()
+             << " is_direct_call: " << dsaCallSite->is_direct_call()
+             << " is_resolved: " << dsaCallSite->is_resolved() << "\n");
 
   Instruction *inst = CS.getInstruction();
   if (inst && !isSkip(*inst)) {
@@ -875,7 +894,8 @@ bool shouldBeTrackedIntToPtr(const Value &def) {
   //      getUser() to get the actual user.
   // if (def.hasOneUse () && isa<CmpInst> (*(def.use_begin ()))) return false;
 
-  if (def.hasNUses(0)) return false;
+  if (def.hasNUses(0))
+    return false;
 
   if (def.hasOneUse()) {
     const Value *v = dyn_cast<Value>(def.use_begin()->getUser());
@@ -986,7 +1006,8 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
 }
 
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
-  if (!isEscapingPtrToInt(I)) return;
+  if (!isEscapingPtrToInt(I))
+    return;
 
   assert(m_graph.hasCell(*I.getOperand(0)));
   sea_dsa::Cell c = valueCell(*I.getOperand(0));

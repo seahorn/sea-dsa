@@ -16,9 +16,9 @@ bool DsaCallSite::isPointerTy::operator()(const Argument &a) {
   return a.getType()->isPointerTy();
 }
 
-DsaCallSite::DsaCallSite(const ImmutableCallSite &cs) : m_cs(cs) {}
-DsaCallSite::DsaCallSite(const Instruction &cs) : m_cs(&cs) {}
-DsaCallSite::DsaCallSite(const Value &cs) : m_cs(&cs) {}
+DsaCallSite::DsaCallSite(const ImmutableCallSite &cs) : m_cs(cs), resolved(false), directCall(false) {}
+DsaCallSite::DsaCallSite(const Instruction &cs) : m_cs(&cs), resolved(false), directCall(false) {}
+DsaCallSite::DsaCallSite(const Value &cs) : m_cs(&cs), resolved(false), directCall(false) {}
 
 const Value *DsaCallSite::getRetVal() const {
   if (const Function *F = getCallee()) {

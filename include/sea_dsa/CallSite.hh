@@ -24,7 +24,8 @@ class DsaCallSite {
   };
 
   const llvm::ImmutableCallSite m_cs;
-
+  bool resolved;
+  bool directCall;
 public:
   typedef boost::filter_iterator<isPointerTy,
                                  typename llvm::Function::const_arg_iterator>
@@ -55,6 +56,23 @@ public:
 
   const_actual_iterator actual_begin() const;
   const_actual_iterator actual_end() const;
+
+  bool is_resolved(){
+    return this->resolved;
+  }
+
+  void set_resolved(bool v){
+    this->resolved = v;
+  }
+
+  bool is_direct_call(){
+    return this->directCall;
+  }
+
+  void set_direct_call(bool v){
+    this->directCall = v;
+  }
+
 };
 } // namespace sea_dsa
 #endif
