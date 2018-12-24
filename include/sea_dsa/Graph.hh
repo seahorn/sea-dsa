@@ -17,7 +17,7 @@
 
 #include "sea_dsa/FieldType.hh"
 #include "sea_dsa/AllocSite.hh"
-
+#include "sea_dsa/CallSite.hh"
 #include <functional>
 
 namespace llvm {
@@ -34,7 +34,6 @@ class Graph;
 class SimulationMapper;
 typedef std::unique_ptr<Cell> CellRef;
 
-class DsaCallSite;
 
 extern bool IsTypeAware;
 
@@ -69,6 +68,12 @@ protected:
 
   using AllocSites = std::vector<std::unique_ptr<DsaAllocSite>>;
   AllocSites m_allocSites;
+
+  using DsaCallSites = std::vector<std::unique_ptr<DsaCallSite>>;
+  DsaCallSites m_dsaCallSites;
+
+  using ValueToDsaCallSite = llvm::DenseMap<const llvm::Value *, DsaCallSite *>;
+  ValueToDsaCallSite m_valueToDsaCallSite;
 
   using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DsaAllocSite *>;
   ValueToAllocSite m_valueToAllocSite;
@@ -166,6 +171,9 @@ public:
   }
 
   DsaAllocSite *mkAllocSite(const llvm::Value &v);
+
+  /// create a DsaCallsite
+  DsaCallSite  *mkDsaCallSite(const llvm::Value &v);
 
   llvm::iterator_range<alloc_site_iterator> alloc_sites() {
     alloc_site_iterator begin = m_allocSites.begin();
@@ -581,6 +589,20 @@ public:
     return *this;
   }
 
+  Node &setIncomplete(bool v = true) {
+    m_nodeType.incomplete = v;
+    return *this;
+  }
+
+  Node &setGlobal(bool v = true) {
+    m_nodeType.global = v;
+    return *this;
+  }
+
+  Node &markIncomplete(bool v = true){
+
+    return *this;
+  }
   bool isAlloca() const { return m_nodeType.alloca; }
   bool isHeap() const { return m_nodeType.heap; }
   bool isRead() const { return m_nodeType.read; }

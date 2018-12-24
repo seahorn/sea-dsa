@@ -950,6 +950,14 @@ sea_dsa::DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   return as;
 }
 
+//add mkCallSite
+/// NOTE: may need to add m_owner like AllocSite
+sea_dsa::DsaCallSite *sea_dsa::Graph::mkDsaCallSite(const llvm::Value &v) {
+    m_dsaCallSites.emplace_back(new DsaCallSite(v));
+    DsaCallSite *dc = m_dsaCallSites.back().get();
+    return dc;
+}
+
 void sea_dsa::Cell::write(raw_ostream &o) const {
   getNode();
   o << "<" << m_offset << ", ";
