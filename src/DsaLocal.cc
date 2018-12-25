@@ -689,8 +689,6 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   if (callee) {
     LOG("dsa-callsite", errs() << "\tcallee:" << callee->getName() << "\n");
     // is a direct call
-    dsaCallSite->set_direct_call(true);
-
     /**
         sea_dsa_alias(p1,...,pn)
         unify the cells of p1,...,pn
@@ -729,8 +727,8 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
 
   LOG("dsa-callsite",
       errs() << "\tcreated a new dsaCallSite:" << dsaCallSite->getInstruction()
-             << " is_direct_call: " << dsaCallSite->is_direct_call()
-             << " is_resolved: " << dsaCallSite->is_resolved() << "\n");
+             << " isIndirectCall: " << dsaCallSite->isIndirectCall()
+             << " isResolved: " << dsaCallSite->isResolved() << "\n");
 
   Instruction *inst = CS.getInstruction();
   if (inst && !isSkip(*inst)) {

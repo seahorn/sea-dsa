@@ -15,7 +15,6 @@ class Instruction;
 } // namespace llvm
 
 namespace sea_dsa {
-
 class DsaCallSite {
 
   struct isPointerTy {
@@ -24,8 +23,7 @@ class DsaCallSite {
   };
 
   const llvm::ImmutableCallSite m_cs;
-  bool resolved;
-  bool directCall;
+  bool m_resolved;
 public:
   typedef boost::filter_iterator<isPointerTy,
                                  typename llvm::Function::const_arg_iterator>
@@ -57,21 +55,27 @@ public:
   const_actual_iterator actual_begin() const;
   const_actual_iterator actual_end() const;
 
-  bool is_resolved(){
-    return this->resolved;
+  bool isResolved(){
+    return this->m_resolved;
   }
 
-  void set_resolved(bool v){
-    this->resolved = v;
+  void setResolved(bool v){
+    this->m_resolved = v;
   }
 
-  bool is_direct_call(){
-    return this->directCall;
+  bool isIndirectCall(){
+    const llvm::Value *V = m_cs.getCalledValue();
+    if (!V)
+      return false;
+    if (llvm::isa<const llvm::Function>(V) || llvm::isa<llvm::Constant>(V))
+      return false;
+    if (const llvm::CallInst *CI = llvm::dyn_cast<llvm::CallInst>(m_cs.getInstruction())) {
+      if (CI->isInlineAsm())
+          return false;
+    }
+    return true;
   }
 
-  void set_direct_call(bool v){
-    this->directCall = v;
-  }
 
 };
 } // namespace sea_dsa
