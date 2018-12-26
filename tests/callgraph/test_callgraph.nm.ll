@@ -36,8 +36,8 @@ bb:
   %tmp1 = alloca i32, align 4
   store i32 (i32, i32)* %arg, i32 (i32, i32)** %tmp, align 8
   %tmp2 = load i32 (i32, i32)*, i32 (i32, i32)** %tmp, align 8
-  %tmp3 = call i32 %tmp2(i32 10, i32 20)
-  store i32 %tmp3, i32* %tmp1, align 4
+  %callsite_in_use = call i32 %tmp2(i32 10, i32 20)
+  store i32 %callsite_in_use, i32* %tmp1, align 4
   %tmp4 = load i32, i32* %tmp1, align 4
   ret i32 %tmp4
 }
@@ -49,10 +49,10 @@ bb:
   %tmp1 = alloca i32, align 4
   %tmp2 = alloca i32, align 4
   store i32 0, i32* %tmp, align 4
-  %tmp3 = call i32 @use(i32 (i32, i32)* @add)
-  store i32 %tmp3, i32* %tmp1, align 4
-  %tmp4 = call i32 @use(i32 (i32, i32)* @sub)
-  store i32 %tmp4, i32* %tmp2, align 4
+  %callsite_in_main_1 = call i32 @use(i32 (i32, i32)* @add)
+  store i32 %callsite_in_main_1, i32* %tmp1, align 4
+  %callsite_in_main_2 = call i32 @use(i32 (i32, i32)* @sub)
+  store i32 %callsite_in_main_2, i32* %tmp2, align 4
   %tmp5 = load i32, i32* %tmp1, align 4
   %tmp6 = load i32, i32* %tmp2, align 4
   %tmp7 = add nsw i32 %tmp5, %tmp6
