@@ -72,8 +72,8 @@ protected:
   using DsaCallSites = std::vector<std::unique_ptr<DsaCallSite>>;
   DsaCallSites m_dsaCallSites;
 
-  using ValueToDsaCallSite = llvm::DenseMap<const llvm::Value *, DsaCallSite *>;
-  ValueToDsaCallSite m_valueToDsaCallSite;
+  using InstructionToDsaCallSite = llvm::DenseMap<const llvm::Instruction *, DsaCallSite *>;
+  InstructionToDsaCallSite m_instructionToDsaCallSite;
 
   using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DsaAllocSite *>;
   ValueToAllocSite m_valueToAllocSite;
@@ -504,8 +504,9 @@ private:
   AllocaSet m_alloca_sites;
 
   /// dsa callsites for the node
-  typedef boost::container::flat_set<const llvm::Value *> DsaCSSet;
-  DsaCSSet m_dsa_callsites;
+  typedef boost::container::flat_set<const llvm::Instruction *> DsaCallSiteSet;
+  DsaCallSiteSet m_dsa_call_sites;
+
 
   /// XXX This is ugly. Ids should probably be unique per-graph, not
   /// XXX unique overall. Check with @jnavas before changing this though...
@@ -730,6 +731,9 @@ public:
 
   /// Add a new allocation site
   void addAllocSite(const DsaAllocSite &v);
+
+  /// Add a new dsa call site
+  void addDsaCallSite(const DsaCallSite &v);
   /// get all allocation sites
   const AllocaSet &getAllocSites() const { return m_alloca_sites; }
 
