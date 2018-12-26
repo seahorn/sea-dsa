@@ -503,6 +503,10 @@ private:
   typedef boost::container::flat_set<const llvm::Value *> AllocaSet;
   AllocaSet m_alloca_sites;
 
+  /// dsa callsites for the node
+  typedef boost::container::flat_set<const llvm::Value *> DsaCSSet;
+  DsaCSSet m_dsa_callsites;
+
   /// XXX This is ugly. Ids should probably be unique per-graph, not
   /// XXX unique overall. Check with @jnavas before changing this though...
   static uint64_t m_id_factory;
