@@ -673,6 +673,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
       dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts());
   if (llvm::isAllocationFn(CS.getInstruction(), &m_tli, true) ||
       (callee && m_allocInfo.isAllocWrapper(*callee))) {
+    LOG("dsa-callsite", errs() << "\tis Allocation Fn\n");
     assert(CS.getInstruction());
     Node &n = m_graph.mkNode();
     // -- record allocation site
@@ -688,7 +689,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
 
   if (callee) {
     LOG("dsa-callsite", errs() << "\tcallee:" << callee->getName() << "\n");
-    // is a direct call
+
     /**
         sea_dsa_alias(p1,...,pn)
         unify the cells of p1,...,pn
@@ -731,7 +732,18 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
              << " isResolved: " << dsaCallSite->isResolved() << "\n");
 
   Instruction *inst = CS.getInstruction();
+  LOG("dsa-callsite", errs()<<"Inst:"<<inst->getName()<<"\n");
+  //TODO: not clear if we should create a new node or find an existing one in local graph
+  Node &n = m_graph.mkNode();
+  n.setIncomplete(true);
+  Cell &c_dsa_callsite = m_graph.mkCell(*inst, Cell(n, 0));
+
+  sea_dsa::DsaCallSite *callsite = m_graph.mkDsaCallSite(*inst);
+  assert(callsite);
+  n.addDsaCallSite(*callsite);
+
   if (inst && !isSkip(*inst)) {
+    LOG("dsa-callsite", errs() << "make cell\n");
     Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
     if (Function *callee = CS.getCalledFunction()) {
       if (callee->isDeclaration()) {
