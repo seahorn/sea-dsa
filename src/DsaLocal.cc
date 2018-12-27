@@ -1055,13 +1055,6 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   for (const BasicBlock *bb : bbs)
     interBuilder.visit(*const_cast<BasicBlock *>(bb));
 
-    for (auto &kv: llvm::make_range(g.scalar_begin(), g.scalar_end()))
-        if (kv.second->isRead() || kv.second->isModified())
-            if (kv.second->getNode()->getAllocSites().empty()) {
-                errs() << "SCALAR " << *(kv.first) << "\n";
-                errs() << "WARNING: a node has no allocation site\n";
-            }
-
   g.compress();
   g.remove_dead();
 
