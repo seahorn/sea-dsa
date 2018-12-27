@@ -734,13 +734,8 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   Instruction *inst = CS.getInstruction();
   LOG("dsa-callsite", errs()<<"Inst:"<<inst->getName()<<"\n");
   //TODO: not clear if we should create a new node or find an existing one in local graph
-  Node &n = m_graph.mkNode();
-  n.setIncomplete(true);
-  Cell &c_dsa_callsite = m_graph.mkCell(*inst, Cell(n, 0));
 
   sea_dsa::DsaCallSite *callsite = m_graph.mkDsaCallSite(*inst);
-  assert(callsite);
-  n.addDsaCallSite(*callsite);
 
   if (inst && !isSkip(*inst)) {
     LOG("dsa-callsite", errs() << "make cell\n");
@@ -1054,10 +1049,18 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
 
   IntraBlockBuilder intraBuilder(F, g, m_dl, m_tli, m_allocInfo);
   InterBlockBuilder interBuilder(F, g, m_dl, m_tli, m_allocInfo);
+
   for (const BasicBlock *bb : bbs)
     intraBuilder.visit(*const_cast<BasicBlock *>(bb));
   for (const BasicBlock *bb : bbs)
     interBuilder.visit(*const_cast<BasicBlock *>(bb));
+
+    for (auto &kv: llvm::make_range(g.scalar_begin(), g.scalar_end()))
+        if (kv.second->isRead() || kv.second->isModified())
+            if (kv.second->getNode()->getAllocSites().empty()) {
+                errs() << "SCALAR " << *(kv.first) << "\n";
+                errs() << "WARNING: a node has no allocation site\n";
+            }
 
   g.compress();
   g.remove_dead();
@@ -1083,6 +1086,46 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
       }
   );
   // clang-format on
+
+  /// Mark incompelete nodes after the pass
+  /// based on the code in remove_dead
+  /// TODO: doing it inside remove_dead maybe more efficient
+  std::set<const Node *> reachable;
+  // --- collect all nodes referenced by formal parameters
+  for (auto &kv : llvm::make_range(g.formal_begin(), g.formal_end())) {
+    const Cell *C = kv.second.get();
+    if (C->isNull())
+      continue;
+    if (reachable.insert(C->getNode()).second) {
+      LOG("dsa-callsite", errs() << "\treachable formal parameter nodes " << C->getNode() << "\n";);
+      C->getNode()->setIncomplete(true);
+    }
+  }
+
+  // --- collect all nodes referenced by return parameters
+  for (auto &kv : llvm::make_range(g.return_begin(), g.return_end())) {
+    const Cell *C = kv.second.get();
+    if (C->isNull())
+      continue;
+    if (reachable.insert(C->getNode()).second) {
+      LOG("dsa-dead", errs() << "\treachable return parameter nodes " << C->getNode() << "\n";);
+      C->getNode()->setIncomplete(true);
+    }
+  }
+
+  // --- collect all nodes referenced by global parameters
+  if(F.getName()!="main"){
+    for (auto &kv : llvm::make_range(g.globals_begin(), g.globals_end())){
+      const Cell *C = kv.second.get();
+      if (C->isNull())
+        continue;
+      if (reachable.insert(C->getNode()).second) {
+        LOG("dsa-dead", errs() << "\treachable global parameter nodes " << C->getNode() << "\n";);
+        C->getNode()->setIncomplete(true);
+      }
+    }
+  }
+
 
   LOG("dsa-local-graph",
       errs() << "### Local Dsa graph after " << F.getName() << "\n";
