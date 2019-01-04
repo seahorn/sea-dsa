@@ -99,12 +99,15 @@ public:
       const_iterator;
   typedef boost::indirect_iterator<typename NodeVector::iterator> iterator;
   typedef ValueMap::const_iterator scalar_const_iterator;
+
   typedef boost::filter_iterator<IsGlobal, typename ValueMap::const_iterator>
       global_const_iterator;
   typedef ArgumentMap::const_iterator formal_const_iterator;
   typedef ReturnMap::const_iterator return_const_iterator;
   using alloc_site_iterator
     = boost::indirect_iterator<typename AllocSites::iterator>;
+  using dsa_call_site_iterator
+    = boost::indirect_iterator<typename DsaCallSites::iterator>;
   using alloc_site_const_iterator
     = boost::indirect_iterator<typename AllocSites::const_iterator>;
 
@@ -180,6 +183,12 @@ public:
   llvm::iterator_range<alloc_site_iterator> alloc_sites() {
     alloc_site_iterator begin = m_allocSites.begin();
     alloc_site_iterator end = m_allocSites.end();
+    return llvm::make_range(begin, end);
+  }
+
+  llvm::iterator_range<dsa_call_site_iterator> dsa_call_sites(){
+    dsa_call_site_iterator begin = m_dsaCallSites.begin();
+    dsa_call_site_iterator end   = m_dsaCallSites.end();
     return llvm::make_range(begin, end);
   }
 
