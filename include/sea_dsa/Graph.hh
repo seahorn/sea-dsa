@@ -18,6 +18,8 @@
 #include "sea_dsa/FieldType.hh"
 #include "sea_dsa/AllocSite.hh"
 #include "sea_dsa/CallSite.hh"
+#include "sea_dsa/support/Debug.h"
+
 #include <functional>
 
 namespace llvm {
@@ -599,13 +601,22 @@ public:
     return *this;
   }
 
+
+
   Node &setGlobal(bool v = true) {
     m_nodeType.global = v;
     return *this;
   }
 
   Node &markIncomplete(bool v = true){
-
+    setIncomplete();
+    auto it = links().begin();
+    auto et = links().end();
+    for (; it != et; ++it) {
+      const Cell &C = *it->second.get();
+      LOG("dsa-callsite", llvm::errs() << "\ttravel child node " << C.getNode() << "\n";);
+      C.getNode()->markIncomplete();
+    }
     return *this;
   }
   bool isAlloca() const { return m_nodeType.alloca; }
