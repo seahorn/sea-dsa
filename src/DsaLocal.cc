@@ -1083,15 +1083,16 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   /// Mark incompelete nodes after the pass
   /// based on the code in remove_dead
   /// TODO: doing it inside remove_dead maybe more efficient
-  std::set<const Node *> reachable;
   // --- collect all nodes referenced by formal parameters
   for (auto &kv : llvm::make_range(g.formal_begin(), g.formal_end())) {
     const Cell *C = kv.second.get();
     if (C->isNull())
       continue;
-    if (reachable.insert(C->getNode()).second) {
+    if (C->getNode()->isIncomplete()) {
+      continue;
+    }else{
       LOG("dsa-callsite", errs() << "\treachable formal parameter nodes " << C->getNode() << "\n";);
-      C->getNode()->setIncomplete(true);
+      C->getNode()->markIncomplete();
     }
   }
 
@@ -1100,9 +1101,11 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
     const Cell *C = kv.second.get();
     if (C->isNull())
       continue;
-    if (reachable.insert(C->getNode()).second) {
-      LOG("dsa-dead", errs() << "\treachable return parameter nodes " << C->getNode() << "\n";);
-      C->getNode()->setIncomplete(true);
+    if (C->getNode()->isIncomplete()) {
+      continue;
+    }else{
+      LOG("dsa-callsite", errs() << "\treachable return parameter nodes " << C->getNode() << "\n";);
+      C->getNode()->markIncomplete();
     }
   }
 
@@ -1112,9 +1115,11 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
       const Cell *C = kv.second.get();
       if (C->isNull())
         continue;
-      if (reachable.insert(C->getNode()).second) {
-        LOG("dsa-dead", errs() << "\treachable global parameter nodes " << C->getNode() << "\n";);
-        C->getNode()->setIncomplete(true);
+      if (C->getNode()->isIncomplete()) {
+        continue;
+      }else{
+        LOG("dsa-callsite", errs() << "\treachable global parameter nodes " << C->getNode() << "\n";);
+        C->getNode()->markIncomplete();
       }
     }
   }

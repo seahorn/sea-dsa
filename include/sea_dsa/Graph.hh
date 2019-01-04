@@ -626,6 +626,7 @@ public:
   bool isExternal() const { return m_nodeType.external; }
   bool isIntToPtr() const { return m_nodeType.inttoptr; }
   bool isPtrToInt() const { return m_nodeType.ptrtoint; }
+  bool isIncomplete() const {return m_nodeType.incomplete;}
 
   Node &setArraySize(unsigned sz) {
     assert(!isArray());
