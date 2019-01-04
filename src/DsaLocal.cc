@@ -735,10 +735,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   LOG("dsa-callsite", errs()<<"Inst:"<<inst->getName()<<"\n");
   //TODO: not clear if we should create a new node or find an existing one in local graph
 
-  sea_dsa::DsaCallSite *callsite = m_graph.mkDsaCallSite(*inst);
-
   if (inst && !isSkip(*inst)) {
-    LOG("dsa-callsite", errs() << "make cell\n");
     Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
     if (Function *callee = CS.getCalledFunction()) {
       if (callee->isDeclaration()) {
