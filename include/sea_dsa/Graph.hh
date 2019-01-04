@@ -609,6 +609,7 @@ public:
   }
 
   Node &markIncomplete(bool v = true){
+    if(isIncomplete()) return *this;
     setIncomplete();
     auto it = links().begin();
     auto et = links().end();
