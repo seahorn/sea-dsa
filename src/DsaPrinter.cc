@@ -520,6 +520,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
       return OS.str();
     };
 
+
+
     // print edges from scalar (local and global) variables to cells
     {
       scalar_const_iterator it = g->scalar_begin();
@@ -539,6 +541,32 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         GW.emitEdge(it->first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee", EmitLinkTypeSuffix(*it->second)) +
                           ",color=purple");
+      }
+    }
+
+    // print edges from call sites to cells
+    //TODO: BUG: the callsite is drawn twice. One as a callsite and one as a value
+    {
+      for (auto &C : g->dsa_call_sites()) {
+        std::string OS_str;
+        llvm::raw_string_ostream OS(OS_str);
+        OS<<"callsite:";
+        if(C.isIndirectCall()){
+          const llvm::Value *v = C.getCallSite().getCalledValue();
+          if(v->hasName())
+            OS << v->getName();
+          else
+            OS << *v;
+          LOG("dsa-callsite", errs()<<OS.str()<<"\n");
+
+          GW.emitSimpleNode(v, "shape=egg", OS.str());
+          Node *DestNode = g->getCell(*v).getNode();
+          Field DestField(g->getCell(*v).getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
+          int EdgeDest = getIndex(DestNode, DestField);
+          GW.emitEdge(v, -1, DestNode, EdgeDest,
+                      Twine("arrowtail=tee", EmitLinkTypeSuffix(g->getCell(*v))) +
+                      ",color=green");
+        }
       }
     }
 
