@@ -618,14 +618,14 @@ public:
   }
 
   Node &markIncomplete(bool v = true){
-    if(isIncomplete()) return *this;
-    setIncomplete();
+    if(isIncomplete()==v) return *this;
+    setIncomplete(v);
     auto it = links().begin();
     auto et = links().end();
     for (; it != et; ++it) {
       const Cell &C = *it->second.get();
       LOG("dsa-callsite", llvm::errs() << "\ttravel child node " << C.getNode() << "\n";);
-      C.getNode()->markIncomplete();
+      C.getNode()->markIncomplete(v);
     }
     return *this;
   }
