@@ -64,6 +64,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
     if (calleeG.hasCell(*fml)) {
+      ///TODO: not sure if this is deep enough
       const Node *caller_arg_node = callerG.getCell(*arg).getNode();
       LOG("dsa-bu", errs() << "argument node from caller\n"
                            << "node: " << caller_arg_node << ".\n"
