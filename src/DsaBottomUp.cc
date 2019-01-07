@@ -64,14 +64,25 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
     if (calleeG.hasCell(*fml)) {
+      const Node *caller_arg_node = callerG.getCell(*arg).getNode();
+      LOG("dsa-bu", errs() << "argument node from caller\n"
+                           << "node: " << caller_arg_node << ".\n"
+                           << "This node is Incomplete:"
+                           << caller_arg_node->isIncomplete() << "\n");
+
       const Cell &formalC = calleeG.getCell(*fml);
+      if (!caller_arg_node->isIncomplete()) {
+        LOG("dsa-bu", errs()
+                          << "The argument is resolved by a complete node.\n");
+        formalC.getNode()->markIncomplete(false);
+
+      }
       Node &n = C.clone(*formalC.getNode());
       Cell c(n, formalC.getRawOffset());
       Cell &nc = callerG.mkCell(*arg, Cell());
       nc.unify(c);
     }
   }
-
   callerG.compress();
 }
 
@@ -154,12 +165,15 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         fGraph = graphs[fn];
         assert(fGraph);
       }
-
+      LOG("dsa-bu",
+          errs() << "** Run local phase on " << fn->getName() << "\n");
       la.runOnFunction(*fn, *fGraph);
+
       graphs[fn] = fGraph;
     }
 
     for (CallGraphNode *cgn : scc) {
+      LOG("dsa-bu", errs() << "cgn:\n"; cgn->print(errs()));
       Function *fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty())
         continue;
