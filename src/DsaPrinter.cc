@@ -559,13 +559,13 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
             OS << *v;
           LOG("dsa-callsite", errs()<<OS.str()<<"\n");
 
-          GW.emitSimpleNode(v, "shape=egg", OS.str());
+          GW.emitSimpleNode(&C, "shape=egg", OS.str());
           Node *DestNode = g->getCell(*v).getNode();
           Field DestField(g->getCell(*v).getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
           int EdgeDest = getIndex(DestNode, DestField);
-          GW.emitEdge(v, -1, DestNode, EdgeDest,
+          GW.emitEdge(&C, -1, DestNode, EdgeDest,
                       Twine("arrowtail=tee", EmitLinkTypeSuffix(g->getCell(*v))) +
-                      ",color=green");
+                      ",color=brown");
         }
       }
     }
