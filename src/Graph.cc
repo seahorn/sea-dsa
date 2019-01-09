@@ -446,9 +446,6 @@ void sea_dsa::Node::addAllocSite(const DsaAllocSite &v) {
   m_alloca_sites.insert(&v.getValue());
 }
 
-void sea_dsa::Node::addDsaCallSite(const DsaCallSite &v) {
-  m_dsa_call_sites.insert(v.getInstruction());
-}
 
 void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
   using namespace boost;

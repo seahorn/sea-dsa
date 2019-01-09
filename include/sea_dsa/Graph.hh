@@ -514,9 +514,6 @@ private:
   typedef boost::container::flat_set<const llvm::Value *> AllocaSet;
   AllocaSet m_alloca_sites;
 
-  /// dsa callsites for the node
-  typedef boost::container::flat_set<const llvm::Instruction *> DsaCallSiteSet;
-  DsaCallSiteSet m_dsa_call_sites;
 
 
   /// XXX This is ugly. Ids should probably be unique per-graph, not
@@ -761,11 +758,6 @@ public:
 
   void resetAllocSites() { m_alloca_sites.clear(); }
 
-  /// Add a new dsa call site
-  void addDsaCallSite(const DsaCallSite &v);
-
-  /// get all dsa call sites
-  const DsaCallSiteSet &getDsaCallSites() const {return m_dsa_call_sites;}
 
 
   template <typename Iterator>
