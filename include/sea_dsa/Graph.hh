@@ -18,7 +18,7 @@
 #include "sea_dsa/FieldType.hh"
 #include "sea_dsa/AllocSite.hh"
 #include "sea_dsa/support/Debug.h"
-
+#include "sea_dsa/CallSite.hh"
 #include <functional>
 
 namespace llvm {
@@ -33,9 +33,8 @@ class Node;
 class Cell;
 class Graph;
 class SimulationMapper;
-class CallSite;
-typedef std::unique_ptr<Cell> CellRef;
 
+typedef std::unique_ptr<Cell> CellRef;
 
 extern bool IsTypeAware;
 

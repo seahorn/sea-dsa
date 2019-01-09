@@ -3,7 +3,7 @@
 #include "llvm/IR/Module.h"
 
 #include "sea_dsa/CallSite.hh"
-
+#include "sea_dsa/Graph.hh"
 using namespace llvm;
 
 namespace sea_dsa {
@@ -16,11 +16,11 @@ bool DsaCallSite::isPointerTy::operator()(const Argument &a) {
   return a.getType()->isPointerTy();
 }
 
-DsaCallSite::DsaCallSite(const ImmutableCallSite &cs) : m_cs(cs), m_cell(llvm::None) {}
-DsaCallSite::DsaCallSite(const Instruction &cs) : m_cs(&cs), m_cell(llvm::None) {}
-DsaCallSite::DsaCallSite(const Value &cs) : m_cs(&cs), m_cell(llvm::None) {}
+DsaCallSite::DsaCallSite(const ImmutableCallSite &cs) : m_cs(cs), m_cell(nullptr) {}
+DsaCallSite::DsaCallSite(const Instruction &cs) : m_cs(&cs), m_cell(nullptr) {}
+DsaCallSite::DsaCallSite(const Value &cs) : m_cs(&cs), m_cell(nullptr) {}
 
-DsaCallSite::DsaCallSite(const llvm::Value &cs, Cell &c): m_cs(&cs), m_cell(c) {}
+DsaCallSite::DsaCallSite(const llvm::Value &cs, Cell &c): m_cs(&cs), m_cell(&c) {}
 
 const Value *DsaCallSite::getRetVal() const {
   if (const Function *F = getCallee()) {
@@ -31,8 +31,8 @@ const Value *DsaCallSite::getRetVal() const {
   return nullptr;
 }
 
-bool DsaCallSite::hasCell() const { return m_cell.hasValue();}
-Cell &DsaCallSite::getCell() const {return m_cell.getValue();}
+bool DsaCallSite::hasCell() const { return m_cell; }
+Cell &DsaCallSite::getCell() const {return *m_cell; }
 
 const Function *DsaCallSite::getCallee() const {
   return m_cs.getCalledFunction();
@@ -66,6 +66,10 @@ DsaCallSite::const_actual_iterator DsaCallSite::actual_begin() const {
 DsaCallSite::const_actual_iterator DsaCallSite::actual_end() const {
   isPointerTy p;
   return boost::make_filter_iterator(p, m_cs.arg_end(), m_cs.arg_end());
+}
+
+bool DsaCallSite::isResolved(){
+  return hasCell() && !getCell().getNode()->isIncomplete();
 }
 
 } // namespace sea_dsa
