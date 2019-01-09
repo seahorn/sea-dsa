@@ -969,22 +969,6 @@ sea_dsa::DsaCallSite *sea_dsa::Graph::mkExtDsaCallSite(const llvm::Value &v, Cel
   return m_dsaCallSites.back().get();
 }
 
-sea_dsa::DsaCallSite *cloneDsaCallSite(const sea_dsa::Graph &g, const sea_dsa::DsaCallSite &cs){
-  const llvm::Value *v = cs.getCallSite().getCalledValue();
-  const sea_dsa::Cell &dsaCell = g->getCell(*v);
-  sea_dsa::Node &n = C.clone(*dsaCell.getNode());
-  LOG("dsa-bu", errs()<<"cloned node";n.write(errs()));
-  Cell c(n, dsaCell.getRawOffset());
-  Cell &nc = callerG.mkCell(*v, Cell());
-  LOG("dsa-bu", errs() <<"Before unify nc:\n"; nc.write(errs()));
-  nc.unify(c);
-  LOG("dsa-bu", errs() <<"After  unify nc:\n"; nc.write(errs()));
-  LOG("dsa-bu", errs() << "v:" << v->getName() << "\n");
-  if (v) {
-    LOG("dsa-bu", errs() << "is not null\n");
-    callerG.mkDsaCallSite(*v);
-  }
-}
 
 void sea_dsa::Cell::write(raw_ostream &o) const {
   getNode();

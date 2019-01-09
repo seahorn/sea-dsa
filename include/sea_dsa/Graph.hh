@@ -180,7 +180,6 @@ public:
   /// create a DsaCallsite
   DsaCallSite  *mkDsaCallSite(const llvm::Value &v);
   DsaCallSite *mkExtDsaCallSite(const llvm::Value &v, Cell &c);
-  DsaCallSite  *cloneDsaCallSite(const sea_dsa::Graph &g, const sea_dsa::DsaCallSite &cs);
   llvm::iterator_range<alloc_site_iterator> alloc_sites() {
     alloc_site_iterator begin = m_allocSites.begin();
     alloc_site_iterator end = m_allocSites.end();
