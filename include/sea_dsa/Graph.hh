@@ -17,7 +17,6 @@
 
 #include "sea_dsa/FieldType.hh"
 #include "sea_dsa/AllocSite.hh"
-#include "sea_dsa/CallSite.hh"
 #include "sea_dsa/support/Debug.h"
 
 #include <functional>
@@ -34,6 +33,7 @@ class Node;
 class Cell;
 class Graph;
 class SimulationMapper;
+class CallSite;
 typedef std::unique_ptr<Cell> CellRef;
 
 
@@ -179,7 +179,8 @@ public:
 
   /// create a DsaCallsite
   DsaCallSite  *mkDsaCallSite(const llvm::Value &v);
-
+  DsaCallSite *mkExtDsaCallSite(const llvm::Value &v, Cell &c);
+  DsaCallSite  *cloneDsaCallSite(const sea_dsa::Graph &g, const sea_dsa::DsaCallSite &cs);
   llvm::iterator_range<alloc_site_iterator> alloc_sites() {
     alloc_site_iterator begin = m_allocSites.begin();
     alloc_site_iterator end = m_allocSites.end();
@@ -617,6 +618,7 @@ public:
     return *this;
   }
 
+  //TODO: may need to change to markComplete instead.
   Node &markIncomplete(bool v = true){
     if(isIncomplete()==v) return *this;
     setIncomplete(v);
@@ -754,12 +756,18 @@ public:
   /// Add a new allocation site
   void addAllocSite(const DsaAllocSite &v);
 
-  /// Add a new dsa call site
-  void addDsaCallSite(const DsaCallSite &v);
+
   /// get all allocation sites
   const AllocaSet &getAllocSites() const { return m_alloca_sites; }
 
   void resetAllocSites() { m_alloca_sites.clear(); }
+
+  /// Add a new dsa call site
+  void addDsaCallSite(const DsaCallSite &v);
+
+  /// get all dsa call sites
+  const DsaCallSiteSet &getDsaCallSites() const {return m_dsa_call_sites;}
+
 
   template <typename Iterator>
   void insertAllocSites(Iterator begin, Iterator end) {

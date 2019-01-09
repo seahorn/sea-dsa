@@ -64,7 +64,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
     if (calleeG.hasCell(*fml)) {
-      ///TODO: not sure if this is deep enough
+      /// TODO: not sure if this is deep enough
       const Node *caller_arg_node = callerG.getCell(*arg).getNode();
       LOG("dsa-bu", errs() << "argument node from caller\n"
                            << "node: " << caller_arg_node << ".\n"
@@ -76,7 +76,6 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
         LOG("dsa-bu", errs()
                           << "The argument is resolved by a complete node.\n");
         formalC.getNode()->markIncomplete(false);
-
       }
       Node &n = C.clone(*formalC.getNode());
       Cell c(n, formalC.getRawOffset());
@@ -84,7 +83,27 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
       nc.unify(c);
     }
   }
+
+  //  // inline call sites of calleeG to callerG
+  for (auto &cs : calleeG.dsa_call_sites()) {
+    if (!cs.isIndirectCall())
+      continue;
+    LOG("dsa-bu", errs() << "Inlining call site\n");
+
+    const llvm::Value *v = cs.getCallSite().getCalledValue();
+    const Cell &dsaCell = calleeG.getCell(*v);
+    Node &n = C.clone(*dsaCell.getNode());
+    LOG("dsa-bu", errs() << "cloned node"; n.write(errs()));
+    Cell c(n, dsaCell.getRawOffset());
+    callerG.mkExtDsaCallSite(*v, c);
+  }
+
   callerG.compress();
+  for (auto &cs : callerG.dsa_call_sites()) {
+    LOG("dsa-bu", errs() << "callsite in callerG:"
+                         << cs.getCallSite().getCalledValue()->getName()
+                         << "\n");
+  }
 }
 
 template <typename Set>

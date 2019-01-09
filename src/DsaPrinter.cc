@@ -545,7 +545,6 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     }
 
     // print edges from call sites to cells
-    //TODO: BUG: the callsite is drawn twice. One as a callsite and one as a value
     {
       for (auto &C : g->dsa_call_sites()) {
         std::string OS_str;

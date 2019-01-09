@@ -957,9 +957,33 @@ sea_dsa::DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
 //add mkCallSite
 /// NOTE: may need to add m_owner like AllocSite
 sea_dsa::DsaCallSite *sea_dsa::Graph::mkDsaCallSite(const llvm::Value &v) {
+    // XXX Brittle if an instruction is added multiple times
     m_dsaCallSites.emplace_back(new DsaCallSite(v));
     DsaCallSite *dc = m_dsaCallSites.back().get();
     return dc;
+}
+
+sea_dsa::DsaCallSite *sea_dsa::Graph::mkExtDsaCallSite(const llvm::Value &v, Cell &c) {
+  /// XXX same external call site might be added multiple times!!!
+  m_dsaCallSites.emplace_back(new DsaCallSite(v, c));
+  return m_dsaCallSites.back().get();
+}
+
+sea_dsa::DsaCallSite *cloneDsaCallSite(const sea_dsa::Graph &g, const sea_dsa::DsaCallSite &cs){
+  const llvm::Value *v = cs.getCallSite().getCalledValue();
+  const sea_dsa::Cell &dsaCell = g->getCell(*v);
+  sea_dsa::Node &n = C.clone(*dsaCell.getNode());
+  LOG("dsa-bu", errs()<<"cloned node";n.write(errs()));
+  Cell c(n, dsaCell.getRawOffset());
+  Cell &nc = callerG.mkCell(*v, Cell());
+  LOG("dsa-bu", errs() <<"Before unify nc:\n"; nc.write(errs()));
+  nc.unify(c);
+  LOG("dsa-bu", errs() <<"After  unify nc:\n"; nc.write(errs()));
+  LOG("dsa-bu", errs() << "v:" << v->getName() << "\n");
+  if (v) {
+    LOG("dsa-bu", errs() << "is not null\n");
+    callerG.mkDsaCallSite(*v);
+  }
 }
 
 void sea_dsa::Cell::write(raw_ostream &o) const {

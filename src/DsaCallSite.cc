@@ -16,9 +16,11 @@ bool DsaCallSite::isPointerTy::operator()(const Argument &a) {
   return a.getType()->isPointerTy();
 }
 
-DsaCallSite::DsaCallSite(const ImmutableCallSite &cs) : m_cs(cs), m_resolved(false){}
-DsaCallSite::DsaCallSite(const Instruction &cs) : m_cs(&cs), m_resolved(false){}
-DsaCallSite::DsaCallSite(const Value &cs) : m_cs(&cs), m_resolved(false){}
+DsaCallSite::DsaCallSite(const ImmutableCallSite &cs) : m_cs(cs), m_cell(llvm::None) {}
+DsaCallSite::DsaCallSite(const Instruction &cs) : m_cs(&cs), m_cell(llvm::None) {}
+DsaCallSite::DsaCallSite(const Value &cs) : m_cs(&cs), m_cell(llvm::None) {}
+
+DsaCallSite::DsaCallSite(const llvm::Value &cs, Cell &c): m_cs(&cs), m_cell(c) {}
 
 const Value *DsaCallSite::getRetVal() const {
   if (const Function *F = getCallee()) {
@@ -28,6 +30,9 @@ const Value *DsaCallSite::getRetVal() const {
   }
   return nullptr;
 }
+
+bool DsaCallSite::hasCell() const { return m_cell.hasValue();}
+Cell &DsaCallSite::getCell() const {return m_cell.getValue();}
 
 const Function *DsaCallSite::getCallee() const {
   return m_cs.getCalledFunction();

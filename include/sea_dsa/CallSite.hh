@@ -7,6 +7,9 @@
 #include "llvm/Pass.h"
 
 #include "boost/iterator/filter_iterator.hpp"
+#include "llvm/ADT/Optional.h"
+
+#include "sea_dsa/Graph.hh"
 
 namespace llvm {
 class Value;
@@ -23,7 +26,8 @@ class DsaCallSite {
   };
 
   const llvm::ImmutableCallSite m_cs;
-  bool m_resolved;
+  llvm::Optional<sea_dsa::Cell> m_cell;
+
 public:
   typedef boost::filter_iterator<isPointerTy,
                                  typename llvm::Function::const_arg_iterator>
@@ -36,6 +40,7 @@ public:
   DsaCallSite(const llvm::Instruction &cs);
   DsaCallSite(const llvm::Value &cs);
 
+  DsaCallSite(const llvm::Value &cs, sea_dsa::Cell &c);
   bool operator==(const DsaCallSite &o) const {
     return getInstruction() == o.getInstruction();
   }
@@ -55,12 +60,11 @@ public:
   const_actual_iterator actual_begin() const;
   const_actual_iterator actual_end() const;
 
-  bool isResolved(){
-    return this->m_resolved;
-  }
+  bool hasCell() const;
+  sea_dsa::Cell &getCell() const;
 
-  void setResolved(bool v){
-    this->m_resolved = v;
+  bool isResolved(){
+    return hasCell() && !getCell().getNode()->isIncomplete();
   }
 
   bool isIndirectCall(){
