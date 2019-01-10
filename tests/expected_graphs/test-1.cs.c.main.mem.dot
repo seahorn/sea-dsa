@@ -2,20 +2,19 @@ digraph unnamed {
 	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
 	node  [fontname=Helvetica, fontsize=11];
 
-	Node0x3641690 [shape=record,label="{\{void\}:S}"];
-	Node0x3641740 [shape=record,label="{\{0:i32\}:SMR}"];
-	Node0x36413e0 [shape=record,label="{\{0:i32\}:SMR}"];
-	Node0x3644360 [shape=record,label="{\{0:i32\}:SMR}"];
-	Node0x3630438[ shape=plaintext, label ="z"];
-	Node0x3630438 -> Node0x3644360[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
-	Node0x3630828[ shape=plaintext, label ="x.y"];
-	Node0x3630828 -> Node0x3641740[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
-	Node0x36302a8[ shape=plaintext, label ="x"];
-	Node0x36302a8 -> Node0x3641740[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
-	Node0x3630318[ shape=plaintext, label ="y"];
-	Node0x3630318 -> Node0x3641740[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
-	Node0x36303a8[ shape=plaintext, label ="w"];
-	Node0x36303a8 -> Node0x36413e0[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
-	Node0x362ff90[ shape=plaintext,fontcolor=blue, label ="main#1"];
-	Node0x362ff90 -> Node0x3641690[tailclip=false,color=gray63,label="0, unknown",fontsize=8];
+	Node0x13b7f90 [shape=record,label="{\{void\}:S}"];
+	Node0x13b7cf0 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x13b8ed0 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x139f298[ shape=plaintext, label ="z"];
+	Node0x139f298 -> Node0x13b8ed0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x139f218[ shape=plaintext, label ="w"];
+	Node0x139f218 -> Node0x13b8ed0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x139f628[ shape=plaintext, label ="x.y"];
+	Node0x139f628 -> Node0x13b7cf0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x139f198[ shape=plaintext, label ="y"];
+	Node0x139f198 -> Node0x13b7cf0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x139f138[ shape=plaintext, label ="x"];
+	Node0x139f138 -> Node0x13b7cf0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x139ee28[ shape=plaintext,fontcolor=blue, label ="main#1"];
+	Node0x139ee28 -> Node0x13b7f90[tailclip=false,color=dodgerblue3,label="0",fontsize=8];
 }

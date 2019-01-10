@@ -9,6 +9,6 @@ add_lit_testsuite(test-sea-dsa "Regression test for sea dsa"
   test_dir=${CMAKE_CURRENT_BINARY_DIR}
   ARGS
   --path=${CMAKE_INSTALL_PREFIX}/bin
-  DEPENDS seadsa
+  DEPENDS seadsa install
   )
 endif()
