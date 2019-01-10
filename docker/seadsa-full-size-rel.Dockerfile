@@ -19,7 +19,7 @@ ARG TRAVIS
 # always copy, and, if needed, remove and clone instead
 COPY . /sea-dsa
 RUN if [ "$TRAVIS" != "true" ] ; \
-      then cd / && rm -rf /sea-dsa && git clone https://github.com/seahorn/sea-dsa -b types-5.0 --depth=10 ; \
+      then cd / && rm -rf /sea-dsa && git clone https://github.com/seahorn/sea-dsa -b llvm-5.0 --depth=10 ; \
     fi && \
     mkdir -p /sea-dsa/build
 WORKDIR /sea-dsa/build
