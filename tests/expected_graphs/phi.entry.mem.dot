@@ -2,20 +2,20 @@ digraph unnamed {
 	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
 	node  [fontname=Helvetica, fontsize=11];
 
-	Node0x22aca70 [shape=record,label="{\{0:i32\}:SMR}"];
-	Node0x22acd60 [shape=record,label="{\{0:i32*\}:SMR|{<s0>\<0, i32*\>}}"];
-	Node0x22adf10 [shape=record,label="{\{0:i32\}:SMR}"];
-	Node0x229dab8[ shape=plaintext, label ="tmp6"];
-	Node0x229dab8 -> Node0x22adf10[arrowtail=tee,label="0, i32*",fontsize=8,color=gray63];
-	Node0x229de48[ shape=plaintext, label ="tmp7"];
-	Node0x229de48 -> Node0x22adf10[arrowtail=tee,label="0, i32*",fontsize=8,color=gray63];
-	Node0x229d678[ shape=plaintext, label ="b"];
-	Node0x229d678 -> Node0x22adf10[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
-	Node0x229cf28[ shape=plaintext, label ="tmp"];
-	Node0x229cf28 -> Node0x22aca70[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
-	Node0x229d708[ shape=plaintext, label ="res"];
-	Node0x229d708 -> Node0x22acd60[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
-	Node0x229d5e8[ shape=plaintext, label ="a"];
-	Node0x229d5e8 -> Node0x22adf10[arrowtail=tee,label="0, unknown",fontsize=8,color=purple];
-	Node0x22acd60 -> Node0x22adf10[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x1e77ce0 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x1e897c0 [shape=record,label="{\{0:i32*\}:SMR|{<s0>\<0, i32*\>}}"];
+	Node0x1e8be00 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x1e73d38[ shape=plaintext, label ="tmp"];
+	Node0x1e73d38 -> Node0x1e77ce0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x1e74b38[ shape=plaintext, label ="tmp6"];
+	Node0x1e74b38 -> Node0x1e8be00[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x1e743d8[ shape=plaintext, label ="a"];
+	Node0x1e743d8 -> Node0x1e8be00[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x1e74458[ shape=plaintext, label ="b"];
+	Node0x1e74458 -> Node0x1e8be00[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x1e744d8[ shape=plaintext, label ="res"];
+	Node0x1e744d8 -> Node0x1e897c0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x1e748b8[ shape=plaintext, label ="tmp7"];
+	Node0x1e748b8 -> Node0x1e8be00[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x1e897c0:s0 -> Node0x1e8be00[arrowtail=tee,label="0, i32*",fontsize=8];
 }
