@@ -21,6 +21,7 @@
 #include "boost/range/iterator_range.hpp"
 #include "boost/unordered_set.hpp"
 #include "boost/version.hpp"
+#include <boost/pool/pool.hpp>
 
 using namespace llvm;
 
@@ -33,14 +34,60 @@ static llvm::cl::opt<bool, true>
                llvm::cl::desc("Enable SeaDsa type awareness"),
                llvm::cl::location(sea_dsa::IsTypeAware), llvm::cl::init(false));
 
-sea_dsa::Node::Node(Graph &g)
+namespace sea_dsa {
+
+class DsaAllocator {
+  boost::pool<> m_pool;
+
+public:
+  DsaAllocator()
+      : m_pool(256 /* size of chunk */, 65536 /* number of chunks to grow by */){};
+  DsaAllocator(const DsaAllocator &o) = delete;
+  void *alloc(size_t n) {
+    if (n <= m_pool.get_requested_size()) {
+      return m_pool.malloc();
+    }
+    return static_cast<void *>(new char[n]);
+  }
+
+  void free(void *block) {
+    if (m_pool.is_from(block)) {
+      m_pool.free(block);
+    } else {
+      delete[] static_cast<char *const>(block);
+    }
+  }
+
+  DsaAllocatorDeleter getDeleter() { return DsaAllocatorDeleter(*this); }
+};
+} // namespace sea_dsa
+
+inline void *operator new(size_t n, sea_dsa::DsaAllocator &allocator) {
+  return allocator.alloc(n);
+}
+
+inline void operator delete(void *p, sea_dsa::DsaAllocator &allocator) {
+  allocator.free(p);
+}
+
+namespace sea_dsa {
+void DsaAllocatorDeleter::operator()(void *block) {
+  operator delete(block, m_allocator);
+}
+
+Graph::Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat)
+    : m_dl(dl), m_setFactory(sf), m_allocator(new DsaAllocator()),
+      m_is_flat(is_flat) {}
+
+Graph::~Graph() = default;
+Node::Node(Graph &g)
     : m_graph(&g), m_unique_scalar(nullptr), m_has_once_unique_scalar(false),
       m_size(0), m_id(++m_id_factory) {
   if (!IsTypeAware)
     setTypeCollapsed(true);
 }
 
-sea_dsa::Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
+Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
     : m_graph(&g), m_unique_scalar(n.m_unique_scalar), m_size(n.m_size) {
   assert(!n.isForwarding());
 
@@ -70,7 +117,7 @@ sea_dsa::Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
 /// adjust offset based on type of the node Collapsed nodes
 /// always have offset 0; for array nodes the offset is modulo
 /// array size; otherwise offset is not adjusted
-unsigned sea_dsa::Node::Offset::getNumericOffset() const {
+unsigned Node::Offset::getNumericOffset() const {
   // XXX: m_node can be forward to another node since the constructor
   // of Offset was called so we grab here the non-forwarding node
   Node *n = const_cast<Node *>(m_node.getNode());
@@ -84,7 +131,7 @@ unsigned sea_dsa::Node::Offset::getNumericOffset() const {
   return offset;
 }
 
-void sea_dsa::Node::growSize(unsigned v) {
+void Node::growSize(unsigned v) {
   if (isOffsetCollapsed())
     m_size = 1;
   else if (v > m_size) {
@@ -96,7 +143,7 @@ void sea_dsa::Node::growSize(unsigned v) {
   }
 }
 
-void sea_dsa::Node::growSize(const Offset &offset, const llvm::Type *t) {
+void Node::growSize(const Offset &offset, const llvm::Type *t) {
   if (!t)
     return;
   if (t->isVoidTy())
@@ -110,14 +157,14 @@ void sea_dsa::Node::growSize(const Offset &offset, const llvm::Type *t) {
   growSize(tSz + offset.getNumericOffset());
 }
 
-bool sea_dsa::Node::isEmtpyAccessedType() const {
+bool Node::isEmtpyAccessedType() const {
   return std::all_of(std::begin(m_accessedTypes), std::end(m_accessedTypes),
                      [](const accessed_types_type::value_type &v) {
                        return v.second.isEmpty();
                      });
 }
 
-bool sea_dsa::Node::hasAccessedType(unsigned o) const {
+bool Node::hasAccessedType(unsigned o) const {
   if (isOffsetCollapsed())
     return false;
   Offset offset(*this, o);
@@ -126,7 +173,7 @@ bool sea_dsa::Node::hasAccessedType(unsigned o) const {
   return it != m_accessedTypes.end() && !it->second.isEmpty();
 }
 
-void sea_dsa::Node::addAccessedType(unsigned off, llvm::Type *type) {
+void Node::addAccessedType(unsigned off, llvm::Type *type) {
   // Recursion replaced with iteration -- profiles showed this function as a hot
   // spot.
   using WorkList = llvm::SmallVector<std::pair<unsigned, llvm::Type *>, 6>;
@@ -203,14 +250,14 @@ void sea_dsa::Node::addAccessedType(unsigned off, llvm::Type *type) {
   }
 }
 
-void sea_dsa::Node::addAccessedType(const Offset &offset, Set types) {
+void Node::addAccessedType(const Offset &offset, Set types) {
   if (isOffsetCollapsed())
     return;
   for (const llvm::Type *t : types)
     addAccessedType(offset.getNumericOffset(), const_cast<llvm::Type *>(t));
 }
 
-void sea_dsa::Node::joinAccessedTypes(unsigned offset, const Node &n) {
+void Node::joinAccessedTypes(unsigned offset, const Node &n) {
   if (isOffsetCollapsed() || n.isOffsetCollapsed())
     return;
   for (auto &kv : n.m_accessedTypes) {
@@ -220,7 +267,7 @@ void sea_dsa::Node::joinAccessedTypes(unsigned offset, const Node &n) {
 }
 
 /// collapse the current node. Looses all offset-based field sensitivity
-void sea_dsa::Node::collapseOffsets(int tag) {
+void Node::collapseOffsets(int tag) {
   if (isOffsetCollapsed())
     return;
 
@@ -251,7 +298,7 @@ void sea_dsa::Node::collapseOffsets(int tag) {
 }
 
 /// collapse the current node. Looses all type-based field sensitivity
-void sea_dsa::Node::collapseTypes(int tag) {
+void Node::collapseTypes(int tag) {
   if (isTypeCollapsed())
     return;
 
@@ -274,7 +321,7 @@ void sea_dsa::Node::collapseTypes(int tag) {
   pointTo(n, Offset(n, 0));
 }
 
-void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
+void Node::pointTo(Node &node, const Offset &offset) {
   assert(&node == &offset.node());
   assert(&node != this);
   assert(!isForwarding());
@@ -333,7 +380,7 @@ void sea_dsa::Node::pointTo(Node &node, const Offset &offset) {
   m_nodeType.reset();
 }
 
-void sea_dsa::Node::addLink(Field f, Cell &c) {
+void Node::addLink(Field f, Cell &c) {
   Offset offset(*this, f.getOffset());
   const Field adjustedField = offset.getAdjustedField(f);
 
@@ -350,7 +397,7 @@ void sea_dsa::Node::addLink(Field f, Cell &c) {
 
 /// Unify a given node into the current node at a specified offset.
 /// Might cause collapse.
-void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
+void Node::unifyAt(Node &n, unsigned o) {
   assert(!isForwarding());
   assert(!n.isForwarding());
 
@@ -431,13 +478,13 @@ void sea_dsa::Node::unifyAt(Node &n, unsigned o) {
 }
 
 /// pre: this simulated by n
-unsigned sea_dsa::Node::mergeUniqueScalar(Node &n) {
+unsigned Node::mergeUniqueScalar(Node &n) {
   boost::unordered_set<Node *> seen;
   return mergeUniqueScalar(n, seen);
 }
 
 template <typename Cache>
-unsigned sea_dsa::Node::mergeUniqueScalar(Node &n, Cache &seen) {
+unsigned Node::mergeUniqueScalar(Node &n, Cache &seen) {
   unsigned res = 0x0;
 
   auto it = seen.find(&n);
@@ -472,11 +519,11 @@ unsigned sea_dsa::Node::mergeUniqueScalar(Node &n, Cache &seen) {
   return res;
 }
 
-void sea_dsa::Node::addAllocSite(const DsaAllocSite &v) {
+void Node::addAllocSite(const DsaAllocSite &v) {
   m_alloca_sites.insert(&v.getValue());
 }
 
-void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
+void Node::joinAllocSites(const AllocaSet &s) {
   using namespace boost;
 #if BOOST_VERSION / 100 % 100 < 68
   m_alloca_sites.insert(s.begin(), s.end());
@@ -492,14 +539,13 @@ void sea_dsa::Node::joinAllocSites(const AllocaSet &s) {
 }
 
 // pre: this simulated by n
-unsigned sea_dsa::Node::mergeAllocSites(Node &n) {
+unsigned Node::mergeAllocSites(Node &n) {
   boost::unordered_set<Node *> seen;
   return mergeAllocSites(n, seen);
 }
 
 /// XXX This method needs a comment. @jnavas
-template <typename Cache>
-unsigned sea_dsa::Node::mergeAllocSites(Node &n, Cache &seen) {
+template <typename Cache> unsigned Node::mergeAllocSites(Node &n, Cache &seen) {
   unsigned res = 0x0;
 
   auto it = seen.find(&n);
@@ -537,7 +583,7 @@ unsigned sea_dsa::Node::mergeAllocSites(Node &n, Cache &seen) {
   return res;
 }
 
-void sea_dsa::Node::writeAccessedTypes(raw_ostream &o) const {
+void Node::writeAccessedTypes(raw_ostream &o) const {
   if (isOffsetCollapsed())
     o << "collapsed";
   else {
@@ -572,7 +618,7 @@ void sea_dsa::Node::writeAccessedTypes(raw_ostream &o) const {
   // if (isArray()) o << " array";
 }
 
-void sea_dsa::Node::write(raw_ostream &o) const {
+void Node::write(raw_ostream &o) const {
   if (isForwarding())
     m_forward.write(o);
   else {
@@ -606,18 +652,18 @@ void sea_dsa::Node::write(raw_ostream &o) const {
   }
 }
 
-void sea_dsa::Cell::dump() const {
+void Cell::dump() const {
   write(errs());
   errs() << "\n";
 }
 
-void sea_dsa::Cell::setRead(bool v) { getNode()->setRead(v); }
-void sea_dsa::Cell::setModified(bool v) { getNode()->setModified(v); }
+void Cell::setRead(bool v) { getNode()->setRead(v); }
+void Cell::setModified(bool v) { getNode()->setModified(v); }
 
-bool sea_dsa::Cell::isRead() const { return getNode()->isRead(); }
-bool sea_dsa::Cell::isModified() const { return getNode()->isModified(); }
+bool Cell::isRead() const { return getNode()->isRead(); }
+bool Cell::isModified() const { return getNode()->isModified(); }
 
-void sea_dsa::Cell::unify(Cell &c) {
+void Cell::unify(Cell &c) {
   if (isNull()) {
     assert(!c.isNull());
     Node *n = c.getNode();
@@ -641,7 +687,7 @@ void sea_dsa::Cell::unify(Cell &c) {
   }
 }
 
-sea_dsa::Node *sea_dsa::Cell::getNode() const {
+Node *Cell::getNode() const {
   if (isNull())
     return nullptr;
 
@@ -656,14 +702,14 @@ sea_dsa::Node *sea_dsa::Cell::getNode() const {
   return m_node;
 }
 
-unsigned sea_dsa::Cell::getRawOffset() const {
+unsigned Cell::getRawOffset() const {
   // -- resolve forwarding
   getNode();
   // -- return current offset
   return m_offset;
 }
 
-unsigned sea_dsa::Cell::getOffset() const {
+unsigned Cell::getOffset() const {
   // -- adjust the offset based on the kind of node
   if (isNull() || getNode()->isOffsetCollapsed())
     return 0;
@@ -673,7 +719,7 @@ unsigned sea_dsa::Cell::getOffset() const {
     return getRawOffset();
 }
 
-void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
+void Cell::pointTo(Node &n, unsigned offset) {
   assert(!n.isForwarding());
   // n.viewGraph();
   m_node = &n;
@@ -691,79 +737,80 @@ void sea_dsa::Cell::pointTo(Node &n, unsigned offset) {
   }
 }
 
-unsigned sea_dsa::Node::getRawOffset() const {
+unsigned Node::getRawOffset() const {
   if (!isForwarding())
     return 0;
   m_forward.getNode();
   return m_forward.getRawOffset();
 }
 
-sea_dsa::Node &sea_dsa::Graph::mkNode() {
-  m_nodes.emplace_back(new Node(*this));
+Node &Graph::mkNode() {
+  m_nodes.emplace_back(new (*m_allocator) Node(*this),
+                       m_allocator->getDeleter());
   return *m_nodes.back();
 }
 
-sea_dsa::Node &sea_dsa::Graph::cloneNode(const Node &n, bool cpAllocSites) {
-  m_nodes.emplace_back(new Node(*this, n, false, cpAllocSites));
+Node &Graph::cloneNode(const Node &n, bool cpAllocSites) {
+  m_nodes.emplace_back(new (*m_allocator) Node(*this, n, false, cpAllocSites),
+                       m_allocator->getDeleter());
   return *m_nodes.back();
 }
 
-sea_dsa::Graph::iterator sea_dsa::Graph::begin() {
+Graph::iterator Graph::begin() {
   return boost::make_indirect_iterator(m_nodes.begin());
 }
 
-sea_dsa::Graph::iterator sea_dsa::Graph::end() {
+Graph::iterator Graph::end() {
   return boost::make_indirect_iterator(m_nodes.end());
 }
 
-sea_dsa::Graph::const_iterator sea_dsa::Graph::begin() const {
+Graph::const_iterator Graph::begin() const {
   return boost::make_indirect_iterator(m_nodes.begin());
 }
 
-sea_dsa::Graph::const_iterator sea_dsa::Graph::end() const {
+Graph::const_iterator Graph::end() const {
   return boost::make_indirect_iterator(m_nodes.end());
 }
 
-sea_dsa::Graph::scalar_const_iterator sea_dsa::Graph::scalar_begin() const {
+Graph::scalar_const_iterator Graph::scalar_begin() const {
   return m_values.begin();
 }
 
-sea_dsa::Graph::scalar_const_iterator sea_dsa::Graph::scalar_end() const {
+Graph::scalar_const_iterator Graph::scalar_end() const {
   return m_values.end();
 }
 
-sea_dsa::Graph::formal_const_iterator sea_dsa::Graph::formal_begin() const {
+Graph::formal_const_iterator Graph::formal_begin() const {
   return m_formals.begin();
 }
 
-sea_dsa::Graph::formal_const_iterator sea_dsa::Graph::formal_end() const {
+Graph::formal_const_iterator Graph::formal_end() const {
   return m_formals.end();
 }
 
-sea_dsa::Graph::return_const_iterator sea_dsa::Graph::return_begin() const {
+Graph::return_const_iterator Graph::return_begin() const {
   return m_returns.begin();
 }
 
-sea_dsa::Graph::return_const_iterator sea_dsa::Graph::return_end() const {
+Graph::return_const_iterator Graph::return_end() const {
   return m_returns.end();
 }
 
-bool sea_dsa::Graph::IsGlobal::
-operator()(const ValueMap::value_type &kv) const {
+bool Graph::IsGlobal::operator()(const ValueMap::value_type &kv) const {
   return kv.first != nullptr && isa<GlobalValue>(kv.first);
 }
 
-sea_dsa::Graph::global_const_iterator sea_dsa::Graph::globals_begin() const {
+Graph::global_const_iterator Graph::globals_begin() const {
   return boost::make_filter_iterator(IsGlobal(), m_values.begin(),
                                      m_values.end());
 }
 
-sea_dsa::Graph::global_const_iterator sea_dsa::Graph::globals_end() const {
+Graph::global_const_iterator Graph::globals_end() const {
   return boost::make_filter_iterator(IsGlobal(), m_values.end(),
                                      m_values.end());
 }
 
-void sea_dsa::Graph::compress() {
+void Graph::compress() {
   // -- resolve all forwarding
   for (auto &n : m_nodes) {
     // resolve the node
@@ -789,15 +836,16 @@ void sea_dsa::Graph::compress() {
   // they have no referrers.
 
   // -- remove forwarding nodes using remove-erase idiom
-  m_nodes.erase(std::remove_if(m_nodes.begin(), m_nodes.end(),
-                               [](const std::unique_ptr<Node> &n) {
-                                 return n->isForwarding();
-                               }),
-                m_nodes.end());
+  m_nodes.erase(
+      std::remove_if(m_nodes.begin(), m_nodes.end(),
+                     [](const std::unique_ptr<Node, DsaAllocatorDeleter> &n) {
+                       return n->isForwarding();
+                     }),
+      m_nodes.end());
 }
 
 // pre: the graph has been compressed already
-void sea_dsa::Graph::remove_dead() {
+void Graph::remove_dead() {
   LOG("dsa-dead", errs() << "Removing dead nodes ...\n";);
 
   std::set<const Node *> reachable;
@@ -850,21 +898,22 @@ void sea_dsa::Graph::remove_dead() {
   }
 
   // -- remove unreachable nodes using remove-erase idiom
-  m_nodes.erase(std::remove_if(m_nodes.begin(), m_nodes.end(),
-                               [reachable](const std::unique_ptr<Node> &n) {
-                                 LOG("dsa-dead",
-                                     if (reachable.count(&*n) == 0) errs()
-                                         << "\tremoving dead " << &*n << "\n";);
-                                 return (reachable.count(&*n) == 0);
-                               }),
-                m_nodes.end());
+  m_nodes.erase(
+      std::remove_if(
+          m_nodes.begin(), m_nodes.end(),
+          [reachable](const std::unique_ptr<Node, DsaAllocatorDeleter> &n) {
+            LOG("dsa-dead", if (reachable.count(&*n) == 0) errs()
+                                << "\tremoving dead " << &*n << "\n";);
+            return (reachable.count(&*n) == 0);
+          }),
+      m_nodes.end());
 }
 
-sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
+Cell &Graph::mkCell(const llvm::Value &u, const Cell &c) {
   auto &v = *u.stripPointerCasts();
   // Pretend that global values are always present
   if (isa<GlobalValue>(&v) && c.isNull()) {
-    sea_dsa::Node &n = mkNode();
+    Node &n = mkNode();
     DsaAllocSite *site = mkAllocSite(v);
     assert(site);
     n.addAllocSite(*site);
@@ -901,28 +950,26 @@ sea_dsa::Cell &sea_dsa::Graph::mkCell(const llvm::Value &u, const Cell &c) {
   return *res;
 }
 
-sea_dsa::Cell &sea_dsa::Graph::mkRetCell(const llvm::Function &fn,
-                                         const Cell &c) {
+Cell &Graph::mkRetCell(const llvm::Function &fn, const Cell &c) {
   auto &res = m_returns[&fn];
   if (!res)
     res.reset(new Cell(c));
   return *res;
 }
 
-sea_dsa::Cell &sea_dsa::Graph::getRetCell(const llvm::Function &fn) {
+Cell &Graph::getRetCell(const llvm::Function &fn) {
   auto it = m_returns.find(&fn);
   assert(it != m_returns.end());
   return *(it->second);
 }
 
-const sea_dsa::Cell &
-sea_dsa::Graph::getRetCell(const llvm::Function &fn) const {
+const Cell &Graph::getRetCell(const llvm::Function &fn) const {
   auto it = m_returns.find(&fn);
   assert(it != m_returns.end());
   return *(it->second);
 }
 
-const sea_dsa::Cell &sea_dsa::Graph::getCell(const llvm::Value &u) {
+const Cell &Graph::getCell(const llvm::Value &u) {
   const llvm::Value &v = *(u.stripPointerCasts());
   // -- try m_formals first
   if (const llvm::Argument *arg = dyn_cast<const Argument>(&v)) {
@@ -938,7 +985,7 @@ const sea_dsa::Cell &sea_dsa::Graph::getCell(const llvm::Value &u) {
   }
 }
 
-bool sea_dsa::Graph::hasCell(const llvm::Value &u) const {
+bool Graph::hasCell(const llvm::Value &u) const {
   auto &v = *u.stripPointerCasts();
   return
       // -- globals are always implicitly present
@@ -955,7 +1002,7 @@ static bool isIntToPtrConstant(const llvm::Value &v) {
   return false;
 }
 
-sea_dsa::DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
+DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   auto res = getAllocSite(v);
   if (res.hasValue())
     return res.getValue();
@@ -966,7 +1013,7 @@ sea_dsa::DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   return as;
 }
 
-void sea_dsa::Cell::write(raw_ostream &o) const {
+void Cell::write(raw_ostream &o) const {
   getNode();
   o << "<" << m_offset << ", ";
   if (m_node)
@@ -976,14 +1023,14 @@ void sea_dsa::Cell::write(raw_ostream &o) const {
   o << ">";
 }
 
-void sea_dsa::Node::dump() const {
+void Node::dump() const {
   write(errs());
   errs() << "\n";
 }
 
-bool sea_dsa::Graph::computeCalleeCallerMapping(
-    const DsaCallSite &cs, Graph &calleeG, Graph &callerG,
-    SimulationMapper &simMap, const bool reportIfSanityCheckFailed) {
+bool Graph::computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
+                                       Graph &callerG, SimulationMapper &simMap,
+                                       const bool reportIfSanityCheckFailed) {
   // XXX: to be removed
   const bool onlyModified = false;
 
@@ -1052,7 +1099,7 @@ bool sea_dsa::Graph::computeCalleeCallerMapping(
   return true;
 }
 
-void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
+void Graph::import(const Graph &g, bool withFormals) {
   Cloner C(*this, CloningContext::mkNoContext(), Cloner::Options::Basic);
   for (auto &kv : g.m_values) {
     // -- clone node
@@ -1087,7 +1134,7 @@ void sea_dsa::Graph::import(const Graph &g, bool withFormals) {
   compress();
 }
 
-void sea_dsa::Graph::write(raw_ostream &o) const {
+void Graph::write(raw_ostream &o) const {
 
   typedef std::set<const llvm::Value *> ValSet;
   typedef std::set<const llvm::Argument *> ArgSet;
@@ -1180,12 +1227,14 @@ void sea_dsa::Graph::write(raw_ostream &o) const {
   }
 }
 
-sea_dsa::Node &sea_dsa::FlatGraph::mkNode() {
+Node &FlatGraph::mkNode() {
   if (m_nodes.empty())
-    m_nodes.push_back(std::unique_ptr<Node>(new Node(*this)));
+    m_nodes.emplace_back(new (*m_allocator) Node(*this),
+                         m_allocator->getDeleter());
 
   return *m_nodes.back();
 }
 
 // Initialization of static data
-uint64_t sea_dsa::Node::m_id_factory = 0;
+uint64_t Node::m_id_factory = 0;
+} // namespace sea_dsa

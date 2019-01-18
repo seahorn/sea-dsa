@@ -15,8 +15,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ImmutableSet.h"
 
-#include "sea_dsa/FieldType.hh"
 #include "sea_dsa/AllocSite.hh"
+#include "sea_dsa/FieldType.hh"
 
 #include <functional>
 
@@ -35,11 +35,19 @@ class SimulationMapper;
 typedef std::unique_ptr<Cell> CellRef;
 
 class DsaCallSite;
-
+class DsaAllocator;
 extern bool IsTypeAware;
 
 // Data structure graph traversal iterator
 template <typename T> class NodeIterator;
+
+struct DsaAllocatorDeleter {
+  DsaAllocator *m_allocator;
+  DsaAllocatorDeleter(DsaAllocator &allocator) : m_allocator(&allocator) {}
+  DsaAllocatorDeleter(const DsaAllocatorDeleter &o) = default;
+  DsaAllocatorDeleter &operator=(const DsaAllocatorDeleter &o) = default;
+  void operator()(void *block);
+};
 
 class Graph {
   friend class Node;
@@ -51,8 +59,10 @@ public:
 protected:
   const llvm::DataLayout &m_dl;
   SetFactory &m_setFactory;
+
+  std::unique_ptr<DsaAllocator> m_allocator;
   /// DSA nodes owned by this graph
-  typedef std::vector<std::unique_ptr<Node>> NodeVector;
+  typedef std::vector<std::unique_ptr<Node, DsaAllocatorDeleter>> NodeVector;
   NodeVector m_nodes;
 
   /// Map from scalars to cells in this graph
@@ -96,15 +106,13 @@ public:
       global_const_iterator;
   typedef ArgumentMap::const_iterator formal_const_iterator;
   typedef ReturnMap::const_iterator return_const_iterator;
-  using alloc_site_iterator
-    = boost::indirect_iterator<typename AllocSites::iterator>;
-  using alloc_site_const_iterator
-    = boost::indirect_iterator<typename AllocSites::const_iterator>;
+  using alloc_site_iterator =
+      boost::indirect_iterator<typename AllocSites::iterator>;
+  using alloc_site_const_iterator =
+      boost::indirect_iterator<typename AllocSites::const_iterator>;
 
-  Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false)
-      : m_dl(dl), m_setFactory(sf), m_is_flat(is_flat) {}
-
-  virtual ~Graph() {}
+  Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false);
+  virtual ~Graph();
 
   /// remove all forwarding nodes
   virtual void compress();
