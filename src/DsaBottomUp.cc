@@ -19,6 +19,7 @@
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Local.hh"
 #include "sea_dsa/config.h"
+#include "sea_dsa/support/Brunch.hh"
 #include "sea_dsa/support/Debug.h"
 
 using namespace llvm;
@@ -135,10 +136,21 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   const bool do_sanity_checks = true;
 #endif
 
+  BrunchTimer buTime("BU_AND_LOCAL");
+  BrunchTimer localTime("LOCAL");
+  localTime.pause();
+
   LocalAnalysis la(m_dl, m_tli, m_allocInfo);
+
+  const size_t totalFunctions = M.getFunctionList().size();
+  size_t functionsProcessed = 0;
 
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
+
+    SEA_DSA_BRUNCH_PROGRESS("BU_FUNCTIONS_PROCESSED", functionsProcessed,
+                            totalFunctions);
+    functionsProcessed += scc.size();
 
     // -- compute a local graph shared between all functions in the scc
     GraphRef fGraph = nullptr;
@@ -153,8 +165,10 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         assert(fGraph);
       }
 
+      localTime.resume();
       la.runOnFunction(*fn, *fGraph);
       graphs[fn] = fGraph;
+      localTime.pause();
     }
 
     for (CallGraphNode *cgn : scc) {
@@ -215,6 +229,9 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     if (fGraph)
       fGraph->compress();
   }
+
+  localTime.stop();
+  buTime.stop();
 
   LOG("dsa-bu-graph", for (auto &kv
                            : graphs) {

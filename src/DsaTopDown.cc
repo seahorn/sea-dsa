@@ -19,6 +19,7 @@
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Local.hh"
 #include "sea_dsa/config.h"
+#include "sea_dsa/support/Brunch.hh"
 #include "sea_dsa/support/Debug.h"
 
 using namespace llvm;
@@ -96,9 +97,17 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     postorder_scc.push_back(*it);
   }
 
+  const size_t totalFunctions = M.getFunctionList().size();
+  size_t functionsProcessed = 0;
+  BrunchTimer tdTimer("TD");
+
   for (auto it = postorder_scc.rbegin(), et = postorder_scc.rend(); it != et;
        ++it) {
     auto &scc = *it;
+
+    SEA_DSA_BRUNCH_PROGRESS("TD_FUNCTIONS_PROCESSED", functionsProcessed,
+                            totalFunctions);
+    functionsProcessed += scc.size();
 
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
@@ -134,6 +143,8 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       }
     }
   }
+
+  tdTimer.stop();
 
   LOG("dsa-td-graph", for (auto &kv
                            : graphs) {

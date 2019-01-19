@@ -11,7 +11,12 @@
 #include "sea_dsa/Global.hh"
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Stats.hh"
+#include "sea_dsa/support/Brunch.hh"
 #include "sea_dsa/support/RemovePtrToInt.hh"
+
+namespace sea_dsa {
+extern bool IsTypeAware;
+}
 
 using namespace sea_dsa;
 using namespace llvm;
@@ -59,6 +64,8 @@ bool DsaAnalysis::runOnModule(Module &M) {
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
+  BrunchTimer dsaTime("DSA_TOTAL");
+
   switch (DsaGlobalAnalysis) {
   case CONTEXT_INSENSITIVE:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
@@ -78,6 +85,9 @@ bool DsaAnalysis::runOnModule(Module &M) {
   }
 
   m_ga->runOnModule(M);
+  dsaTime.stop();
+  SEA_DSA_BRUNCH_STAT("SEA_DSA_TYPE_AWARE", sea_dsa::IsTypeAware ? 1 : 0);
+  SEA_DSA_BRUNCH_STAT("SEA_DSA_RSS_KB", sea_dsa::GetCurrentMemoryUsageKb());
 
   if (DsaStats) {
     DsaInfo i(*m_dl, *m_tli, getDsaAnalysis());
