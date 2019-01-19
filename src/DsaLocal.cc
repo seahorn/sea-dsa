@@ -521,18 +521,6 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     return;
   }
 
-  static unsigned i = 0;
-  // errs() << "GEP " << (++i);
-  // gep.dump();
-  // errs() << "\n\tLLVM type: ";
-  // gep.getType()->dump();
-
-  if (i == 16)
-    errs();
-
-  const sea_dsa::FieldType gepType(gep.getType());
-  // errs() << "\n\tSeaDsa type: " << gepType << "\n";
-
   assert(!m_graph.hasCell(gep));
   sea_dsa::Node *baseNode = base.getNode();
   if (baseNode->isOffsetCollapsed()) {
@@ -542,8 +530,9 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 
   auto off = computeGepOffset(ptr.getType(), indicies, m_dl);
   if (off.first < 0) {
-    errs() << "Negative GEP: " << "(" << off.first << ", " << off.second << ") "
-           << gep << "\n";
+    //    errs() << "Negative GEP: " << "(" << off.first << ", " << off.second
+    //    << ") "
+    //           << gep << "\n";
     // XXX current work-around
     // XXX If the offset is negative, convert to an array of stride 1
     off = std::make_pair(0, 1);
@@ -789,7 +778,7 @@ static bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
     errs() << "WARNING: MemTransfer past object size!\n"
            << "\tTransfer:  ";
-    MI.print(errs());
+    LOG("dsa", MI.print(errs()));
     errs() << "\n\tLength:  " << length
            << "\n\tType size:  " << (DL.getTypeSizeInBits(srcTy) / 8) << "\n";
     return false;
@@ -914,7 +903,12 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   m_graph.mkCell(dest, sea_dsa::Cell(n, 0));
   if (shouldBeTrackedIntToPtr(dest)) {
     if (!m_graph.isFlat()) {
-      llvm::errs() << "WARNING: " << dest << " is allocating a new cell.\n";
+      llvm::errs() << "WARNING: ";
+      bool printAddress = true;
+      LOG("dsa", llvm::errs() << dest; printAddress = false);
+      if (printAddress)
+        llvm::errs() << intptr_t(&dest);
+      llvm::errs() << " is allocating a new cell.\n";
     }
   }
 }
@@ -991,7 +985,12 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
   assert(m_graph.hasCell(*I.getOperand(0)));
   sea_dsa::Cell c = valueCell(*I.getOperand(0));
   if (!c.isNull()) {
-    llvm::errs() << "WARNING: " << I << " may be escaping.\n";
+    llvm::errs() << "WARNING: ";
+    bool printAddress = true;
+    LOG("dsa", llvm::errs() << I; printAddress = false);
+    if (printAddress)
+      llvm::errs() << intptr_t(&I);
+    llvm::errs() << " may be escaping.\n";
   }
 }
 

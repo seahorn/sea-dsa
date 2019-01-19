@@ -443,7 +443,8 @@ private:
 
 public:
   typedef Graph::Set Set;
-  typedef boost::container::flat_map<unsigned, Set> accessed_types_type;
+  // TODO: Investigate why flat_map is slower for accessed_types_type.
+  typedef llvm::DenseMap<unsigned, Set> accessed_types_type;
   typedef boost::container::flat_map<Field, CellRef> links_type;
 
   // Iterator for graph interface... Defined in GraphTraits.h
@@ -505,7 +506,8 @@ private:
   Node(Graph &g, const Node &n, bool cpLinks = false, bool cpAllocSites = true);
 
   void compress() {
-    m_accessedTypes.shrink_to_fit();
+    m_accessedTypes = accessed_types_type(m_accessedTypes.begin(),
+                                          m_accessedTypes.end());
     m_links.shrink_to_fit();
     m_alloca_sites.shrink_to_fit();
   }
@@ -679,8 +681,11 @@ public:
 
   const Set getAccessedType(unsigned o) const {
     Offset offset(*this, o);
-    return m_accessedTypes.at(offset.getNumericOffset());
+    auto it = m_accessedTypes.find(offset.getNumericOffset());
+    assert(it != m_accessedTypes.end());
+    return it->second;
   }
+
   bool isVoid() const { return m_accessedTypes.empty(); }
   bool isEmtpyAccessedType() const;
 

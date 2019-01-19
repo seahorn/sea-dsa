@@ -1,6 +1,7 @@
 #include "sea_dsa/FieldType.hh"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/TypeUtils.hh"
@@ -16,27 +17,53 @@ namespace sea_dsa {
   bool IsTypeAware;
 }
 
+namespace {
+using SeenTypes = llvm::SmallDenseSet<llvm::Type *, 8>;
 
-llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty) {
+llvm::Type *GetInnermostTypeImpl(llvm::Type *const Ty, SeenTypes &seen) {
   assert(Ty);
 
-  if (Ty->isPointerTy()) {
-    auto *ElemTy = Ty->getPointerElementType();
-    return GetFirstPrimitiveTy(ElemTy)->getPointerTo(
-        Ty->getPointerAddressSpace());
+  static llvm::DenseMap<llvm::Type *, llvm::Type *> cachedInnermostTypes;
+  if (cachedInnermostTypes.count(Ty) > 0)
+    return cachedInnermostTypes[Ty];
+
+  llvm::Type *currentTy = Ty;
+  while (seen.count(currentTy) == 0) {
+    seen.insert(currentTy);
+
+    if (currentTy->isPointerTy()) {
+      auto *ElemTy = currentTy->getPointerElementType();
+      currentTy = GetInnermostTypeImpl(ElemTy, seen)->getPointerTo(
+          currentTy->getPointerAddressSpace());
+      break;
+    }
+
+    auto It = AggregateIterator::mkBegin(currentTy, /* DL = */ nullptr);
+    auto *FirstTy = It->Ty;
+    if (!FirstTy)
+      break;
+
+    if (FirstTy->isPointerTy() && FirstTy->getPointerElementType() == currentTy)
+      break;
+
+    if (FirstTy == currentTy)
+      break;
+
+    currentTy = FirstTy;
   }
 
-  auto It = AggregateIterator::mkBegin(Ty, /* DL = */ nullptr);
-  auto *FirstTy = It->Ty;
-  if (!FirstTy)
-    return Ty;
-  if (FirstTy->isPointerTy() && FirstTy->getPointerElementType() == Ty)
-    return Ty;
+  cachedInnermostTypes[Ty] = currentTy;
+  return currentTy;
+}
+} // namespace
 
-  if (FirstTy == Ty)
-    return FirstTy;
+/// This is intended to be used within a single llvm::Context. When there's more
+/// than one context, the caching might misbehave.
+llvm::Type *GetFirstPrimitiveTy(llvm::Type *const Ty) {
+  assert(Ty);
 
-  return GetFirstPrimitiveTy(FirstTy);
+  SeenTypes seen;
+  return GetInnermostTypeImpl(Ty, seen);
 }
 
 FieldType::FieldType(llvm::Type *Ty) {

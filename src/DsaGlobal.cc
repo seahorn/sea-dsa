@@ -26,8 +26,6 @@
 // #include "ufo/Stats.hh"
 #include "sea_dsa/support/Debug.h"
 
-#include "boost/range/iterator_range.hpp"
-
 #include <queue>
 
 static llvm::cl::opt<bool> normalizeUniqueScalars(
@@ -270,8 +268,8 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   /// push in the worklist callsites for which two different
   /// callee nodes are mapped to the same caller node
-  for (auto &kv : boost::make_iterator_range(bu.callee_caller_mapping_begin(),
-                                             bu.callee_caller_mapping_end())) {
+  for (auto &kv : llvm::make_range(bu.callee_caller_mapping_begin(),
+                                   bu.callee_caller_mapping_end())) {
     auto const &simMapper = *(kv.second);
     assert(simMapper.isFunction());
 
@@ -468,7 +466,6 @@ bool ContextSensitiveGlobalAnalysis::hasGraph(const Function &fn) const {
 }
 
 bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
-
   LOG("dsa-global",
       errs() << "Started bottom-up + top-down global analysis ... \n");
 
@@ -489,7 +486,7 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
   // -- callees.
   TopDownAnalysis td(m_dl, m_tli, m_allocInfo, m_cg);
   td.runOnModule(M, m_graphs);
-  
+
   // Removing dead nodes (if any)
   for (auto &kv : m_graphs)
     kv.second->remove_dead();
@@ -665,8 +662,8 @@ template <class GA, class Op>
 void CallGraphClosure<GA, Op>::exec_callsite(const DsaCallSite &cs,
                                              Graph &calleeG, Graph &callerG) {
   // globals
-  for (auto &kv : boost::make_iterator_range(calleeG.globals_begin(),
-                                             calleeG.globals_end())) {
+  for (auto &kv :
+       llvm::make_range(calleeG.globals_begin(), calleeG.globals_end())) {
     Cell &c = *kv.second;
     Cell &nc = callerG.mkCell(*kv.first, Cell());
     Op op(m_dsaCG, m_w);

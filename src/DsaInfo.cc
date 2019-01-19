@@ -58,9 +58,34 @@ static StringRef valueToStr(const Value*v) {
   }
   
   if (!v->hasName() && !isIntToPtrConstant(*v)) {
-    errs () << "DsaInfo requires " << *v << " to have a name\n";
+    static bool warned = false;
+    if (!warned) {
+      errs() << "Warning: DsaInfo requires " << *v << " to have a name\n";
+      warned = true;
+    }
+
+    // Use addresses when instruction has no name but we want to sort it anyway.
+    // IDs are stable as long as the invocations of this functions are stable,
+    // so this can potentially result in non-determinism in results.
+    static llvm::DenseMap<const Value *, std::string> adHocNameCache;
+    static size_t adHocId = 0;
+    auto it = adHocNameCache.find(v);
+    if (it == adHocNameCache.end()) {
+      std::string name;
+      raw_string_ostream rso(name);
+      if (auto *i = dyn_cast<const Instruction>(v))
+        rso << i->getFunction()->getName() << "_";
+
+      rso << (adHocId++);
+      rso.flush();
+
+      adHocNameCache[v] = std::move(name);
+      return adHocNameCache[v];
+    }
+
+    return it->second;
   }
-  assert(isIntToPtrConstant(*v) || v->hasName());
+
   return v->getName();
 }
 

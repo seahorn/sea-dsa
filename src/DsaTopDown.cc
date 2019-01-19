@@ -21,8 +21,6 @@
 #include "sea_dsa/config.h"
 #include "sea_dsa/support/Debug.h"
 
-#include "boost/range/iterator_range.hpp"
-
 using namespace llvm;
 
 namespace sea_dsa {
@@ -38,8 +36,8 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
   Cloner C(calleeG, context, options);
 
   // clone and unify globals
-  for (auto &kv : boost::make_iterator_range(callerG.globals_begin(),
-                                             callerG.globals_end())) {
+  for (auto &kv :
+       llvm::make_range(callerG.globals_begin(), callerG.globals_end())) {
     Node &n = C.clone(*kv.second->getNode());
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
@@ -77,7 +75,6 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 }
 
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
-
   LOG("dsa-td", errs() << "Started top-down analysis ... \n");
 
   // The SCC iterator has the property that the graph is traversed in
@@ -102,6 +99,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   for (auto it = postorder_scc.rbegin(), et = postorder_scc.rend(); it != et;
        ++it) {
     auto &scc = *it;
+
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty())

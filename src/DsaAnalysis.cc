@@ -11,7 +11,6 @@
 #include "sea_dsa/Global.hh"
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Stats.hh"
-#include "sea_dsa/support/NameValues.hh"
 #include "sea_dsa/support/RemovePtrToInt.hh"
 
 using namespace sea_dsa;
@@ -33,7 +32,6 @@ static llvm::cl::opt<bool>
 
 void DsaAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<RemovePtrToInt>();
-  AU.addRequired<NameValues>();
   AU.addRequired<CallGraphWrapperPass>();
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();

@@ -121,55 +121,85 @@ bool sea_dsa::Node::hasAccessedType(unsigned o) const {
   if (isOffsetCollapsed())
     return false;
   Offset offset(*this, o);
-  return m_accessedTypes.count(offset.getNumericOffset()) > 0 &&
-         !m_accessedTypes.at(offset.getNumericOffset()).isEmpty();
+
+  auto it = m_accessedTypes.find(offset.getNumericOffset());
+  return it != m_accessedTypes.end() && !it->second.isEmpty();
 }
 
-void sea_dsa::Node::addAccessedType(unsigned o, llvm::Type *t) {
-  if (isOffsetCollapsed())
-    return;
-  Offset offset(*this, o);
-  growSize(offset, t);
-  if (isOffsetCollapsed())
-    return;
+void sea_dsa::Node::addAccessedType(unsigned off, llvm::Type *type) {
+  // Recursion replaced with iteration -- profiles showed this function as a hot
+  // spot.
+  using WorkList = llvm::SmallVector<std::pair<unsigned, llvm::Type *>, 6>;
+  WorkList workList;
+  workList.push_back({off, type});
 
-  // -- recursively expand structures
-  if (const StructType *sty = dyn_cast<const StructType>(t)) {
-    const StructLayout *sl =
-        m_graph->getDataLayout().getStructLayout(const_cast<StructType *>(sty));
-    unsigned idx = 0;
-    for (auto it = sty->element_begin(), end = sty->element_end(); it != end;
-         ++it, ++idx) {
-      if (getNode()->isOffsetCollapsed())
-        return;
-      unsigned fldOffset = sl->getElementOffset(idx);
-      addAccessedType(o + fldOffset, *it);
+  while (!workList.empty()) {
+    std::pair<unsigned, llvm::Type *> offsetType = workList.back();
+    workList.pop_back();
+
+    if (isOffsetCollapsed())
+      return;
+
+    unsigned o = offsetType.first;
+    llvm::Type *t = offsetType.second;
+
+    Offset offset(*this, o);
+    growSize(offset, t);
+    if (isOffsetCollapsed())
+      return;
+
+    // -- recursively expand structures
+    if (const StructType *sty = dyn_cast<const StructType>(t)) {
+      const StructLayout *sl = m_graph->getDataLayout().getStructLayout(
+          const_cast<StructType *>(sty));
+      unsigned idx = 0;
+
+      WorkList tmp;
+      tmp.reserve(sty->getStructNumElements());
+      for (auto it = sty->element_begin(), end = sty->element_end(); it != end;
+           ++it, ++idx) {
+        unsigned fldOffset = sl->getElementOffset(idx);
+        tmp.push_back({o + fldOffset, *it});
+      }
+
+      // Append in reverse order to cancel-out reverse caused by the workList
+      // stack.
+      workList.insert(workList.end(), tmp.rbegin(), tmp.rend());
     }
-  }
-  // expand array type
-  else if (const ArrayType *aty = dyn_cast<const ArrayType>(t)) {
-    uint64_t sz =
-        m_graph->getDataLayout().getTypeStoreSize(aty->getElementType());
-    for (unsigned i = 0, e = aty->getNumElements(); i < e; ++i) {
-      if (getNode()->isOffsetCollapsed())
-        return;
-      addAccessedType(o + i * sz, aty->getElementType());
+    // expand array type
+    else if (const ArrayType *aty = dyn_cast<const ArrayType>(t)) {
+      uint64_t sz =
+          m_graph->getDataLayout().getTypeStoreSize(aty->getElementType());
+      WorkList tmp;
+      const size_t numElements = aty->getNumElements();
+      tmp.reserve(numElements);
+      llvm::Type *const elementTy = aty->getElementType();
+
+      for (unsigned i = 0; i != numElements; ++i)
+        tmp.push_back({o + i * sz, elementTy});
+
+      workList.insert(workList.end(), tmp.rbegin(), tmp.rend());
+    } else if (const VectorType *vty = dyn_cast<const VectorType>(t)) {
+      uint64_t sz = vty->getElementType()->getPrimitiveSizeInBits() / 8;
+      WorkList tmp;
+      const size_t numElements(vty->getNumElements());
+      tmp.reserve(numElements);
+      llvm::Type *const elementTy = vty->getElementType();
+
+      for (size_t i = 0; i != numElements; ++i)
+        tmp.push_back({o + i * sz, elementTy});
+
+      workList.insert(workList.end(), tmp.rbegin(), tmp.rend());
     }
-  } else if (const VectorType *vty = dyn_cast<const VectorType>(t)) {
-    uint64_t sz = vty->getElementType()->getPrimitiveSizeInBits() / 8;
-    for (unsigned i = 0, e = vty->getNumElements(); i < e; ++i) {
-      if (getNode()->isOffsetCollapsed())
-        return;
-      addAccessedType(o + i * sz, vty->getElementType());
+    // -- add primitive type
+    else {
+      Set types = m_graph->emptySet();
+      auto it = m_accessedTypes.find(offset.getNumericOffset());
+      if (it != m_accessedTypes.end())
+        types = it->second;
+      types = m_graph->mkSet(types, t);
+      m_accessedTypes.insert(std::make_pair(offset.getNumericOffset(), types));
     }
-  }
-  // -- add primitive type
-  else {
-    Set types = m_graph->emptySet();
-    if (m_accessedTypes.count(offset.getNumericOffset()) > 0)
-      types = m_accessedTypes.at(offset.getNumericOffset());
-    types = m_graph->mkSet(types, t);
-    m_accessedTypes.insert(std::make_pair(offset.getNumericOffset(), types));
   }
 }
 
@@ -926,20 +956,6 @@ static bool isIntToPtrConstant(const llvm::Value &v) {
 }
 
 sea_dsa::DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
-  // skip IntToPtr constants. These are used in vtables as markers.
-  if (!v.hasName()) {
-    if (isIntToPtrConstant(v)) {
-      /// XXX setName trick did not work. DsaInfo requires a name.
-      /// XXX Moved work-arround into DsaInfo instead
-      /// const_cast<llvm::Value*>(&v)->setName("ag.inttoptr");
-      // We can assign sequential names to function arguments.
-    } else if (true || !isa<Argument>(v)) {
-      errs() << "ERROR: Unnamed allocation site:\t";
-      errs() << v << "\n";
-      assert(false);
-    }
-  }
-
   auto res = getAllocSite(v);
   if (res.hasValue())
     return res.getValue();
