@@ -210,8 +210,10 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         SimulationMapperRef sm(new SimulationMapper());
         bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
                                                      *sm, do_sanity_checks);
-        (void)res;
-        assert(res); // the simulation map was successfully built.
+        if (!res) {
+          continue;
+          // llvm_unreachable("Simulation mapping check failed");
+        }
         m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
 
         if (do_sanity_checks) {

@@ -506,10 +506,17 @@ private:
   Node(Graph &g, const Node &n, bool cpLinks = false, bool cpAllocSites = true);
 
   void compress() {
-    m_accessedTypes = accessed_types_type(m_accessedTypes.begin(),
-                                          m_accessedTypes.end());
-    m_links.shrink_to_fit();
-    m_alloca_sites.shrink_to_fit();
+    constexpr unsigned shrinkThreshold = 4;
+    if (m_accessedTypes.size() * shrinkThreshold <
+        m_accessedTypes.getMemorySize())
+      m_accessedTypes = accessed_types_type(m_accessedTypes.begin(),
+                                            m_accessedTypes.end());
+
+    if (m_links.size() * shrinkThreshold < m_links.capacity())
+      m_links.shrink_to_fit();
+
+    if (m_alloca_sites.size() * shrinkThreshold < m_alloca_sites.capacity())
+      m_alloca_sites.shrink_to_fit();
   }
   /// Unify a given node with a specified offset of the current node
   /// post-condition: the given node points to the current node.
