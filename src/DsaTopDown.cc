@@ -72,7 +72,8 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
       nc.unify(c);
     }
   }
-  calleeG.compress();
+
+  // Don't compress here -- caller should take care of it.
 }
 
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
@@ -85,19 +86,19 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   // SCC iterator on the Inverse graph but it requires to implement
   // some wrappers around CallGraph. Instead, we store the postorder
   // SCC in a vector and traverse in reversed order.
-  typedef scc_iterator<CallGraph *> scc_iterator_t;
-  typedef std::vector<typename GraphTraits<CallGraph *>::NodeRef> scc_t;
+  using scc_iterator_t = scc_iterator<CallGraph *>;
+  using scc_t = std::vector<typename GraphTraits<CallGraph *>::NodeRef>;
 
+  const size_t totalFunctions = M.getFunctionList().size();
+  // The total number of function is an upper bound for the number of SCC nodes.
   std::vector<scc_t> postorder_scc;
+  postorder_scc.reserve(totalFunctions);
 
   // copy all SCC elements in the vector
   // XXX: this is inefficient
-  postorder_scc.reserve(std::distance(m_cg.begin(), m_cg.end()));
-  for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
+  for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it)
     postorder_scc.push_back(*it);
-  }
 
-  const size_t totalFunctions = M.getFunctionList().size();
   size_t functionsProcessed = 0;
   BrunchTimer tdTimer("TD");
 
@@ -110,9 +111,24 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     functionsProcessed += scc.size();
 
     for (CallGraphNode *cgn : scc) {
-      Function *fn = cgn->getFunction();
+      Function *const fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty())
         continue;
+
+      auto it = graphs.find(fn);
+      if (it == graphs.end()) {
+        errs() << "ERROR: top-down analysis could not find dsa graph for "
+                  "caller\n";
+        continue;
+      }
+
+      Graph &callerG = *it->second;
+      // Compress before pushing down the graph to all callees. We know that
+      // it's sufficient to compress only once -- the call graph nodes are
+      // processed in topological order, so all callers must have already pushed
+      // their graph into callerG.
+      callerG.compress();
+
       // -- resolve all function calls in the SCC
       for (auto &callRecord : *cgn) {
         ImmutableCallSite CS(callRecord.first);
@@ -124,19 +140,14 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         // XXX: We assume that `graphs` has been already populated by
         // the bottom-up pass. We report an error and skip the
         // callsite otherwise.
-        auto it = graphs.find(dsaCS.getCaller());
-        if (it == graphs.end()) {
-          errs() << "ERROR: top-down analysis could not find dsa graph for "
-                    "caller\n";
-          continue;
-        }
-        Graph &callerG = *(it->second);
-        it = graphs.find(dsaCS.getCallee());
+
+        auto it = graphs.find(dsaCS.getCallee());
         if (it == graphs.end()) {
           errs() << "ERROR: top-down analysis could not find dsa graph for "
                     "callee\n";
           continue;
         }
+
         Graph &calleeG = *(it->second);
         // propagate from the caller to the callee
         cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);

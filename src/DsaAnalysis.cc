@@ -64,30 +64,35 @@ bool DsaAnalysis::runOnModule(Module &M) {
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-  BrunchTimer dsaTime("DSA_TOTAL");
+  StringRef analysisName;
+  BrunchTimer dsaTime("PTA");
 
   switch (DsaGlobalAnalysis) {
   case CONTEXT_INSENSITIVE:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
                                                     cg, m_setFactory, false));
+    analysisName = "_CI";
     break;
   case FLAT_MEMORY:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
         *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory, true /* use flat*/));
+    analysisName = "_Flat";
     break;
   case BUTD_CONTEXT_SENSITIVE:
     m_ga.reset(new BottomUpTopDownGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
                                                  cg, m_setFactory));
+    analysisName = "_BUTD";
     break;
   default: /* CONTEXT_SENSITIVE */
     m_ga.reset(new ContextSensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
                                                   cg, m_setFactory));
+    analysisName = "_CS";
   }
 
+  SEA_DSA_BRUNCH_STAT(
+      "PTA_KIND", llvm::Twine(IsTypeAware ? "TeaDsa" : "SeaDsa", analysisName));
   m_ga->runOnModule(M);
   dsaTime.stop();
-  SEA_DSA_BRUNCH_STAT("SEA_DSA_TYPE_AWARE", sea_dsa::IsTypeAware ? 1 : 0);
-  SEA_DSA_BRUNCH_STAT("SEA_DSA_RSS_KB", sea_dsa::GetCurrentMemoryUsageKb());
 
   if (DsaStats) {
     DsaInfo i(*m_dl, *m_tli, getDsaAnalysis());
