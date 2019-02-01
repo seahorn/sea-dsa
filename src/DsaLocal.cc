@@ -554,13 +554,14 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
   Value &ptr = *I.getPointerOperand();
 
-  //  // Visit nested constant GEP first.
-  //  if (isa<ConstantExpr>(&ptr))
-  //    if (auto *g = dyn_cast<GEPOperator>(&ptr)) {
-  //      llvm::errs() << "Visiting nested constant GEP first\n";
-  //      SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
-  //      visitGep(*g, *g->getPointerOperand(), indicies);
-  //    }
+   // Visit nested constant GEP first.
+  if (isa<ConstantExpr>(&ptr)) {
+    if (auto *g = dyn_cast<GEPOperator>(&ptr)) {
+      //errs() << "Visiting nested constant GEP first\n";
+      SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
+      visitGep(*g, *g->getPointerOperand(), indicies);
+    }
+  }
 
   SmallVector<Value *, 8> indicies(I.op_begin() + 1, I.op_end());
   visitGep(I, ptr, indicies);

@@ -36,6 +36,7 @@ private:
   const llvm::TargetLibraryInfo &m_tli;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
+  bool m_computeSimMap;
   CalleeCallerMapping m_callee_caller_map;
 
   // true if assume that alloca allocated (stack) memory does not escape
@@ -56,9 +57,10 @@ public:
   BottomUpAnalysis(const llvm::DataLayout &dl,
                    const llvm::TargetLibraryInfo &tli,
                    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
+		   bool computeSimMap,
                    bool noescape = true /* TODO: CLI*/)
       : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
-        m_noescape(noescape) {}
+	m_computeSimMap(computeSimMap), m_noescape(noescape) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 
