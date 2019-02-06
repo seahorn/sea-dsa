@@ -72,7 +72,7 @@ inline void operator delete(void *p, sea_dsa::DsaAllocator &allocator) {
 
 namespace sea_dsa {
 void DsaAllocatorDeleter::operator()(void *block) {
-  operator delete(block, m_allocator);
+  operator delete(block, *m_allocator);
 }
 
 Graph::Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat)
