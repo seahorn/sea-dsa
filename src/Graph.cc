@@ -38,20 +38,25 @@ namespace sea_dsa {
 
 class DsaAllocator {
   boost::pool<> m_pool;
-
+  bool m_use_pool;
 public:
-  DsaAllocator()
-      : m_pool(256 /* size of chunk */, 65536 /* number of chunks to grow by */){};
+  // XXX: by default, memory pool is disabled.
+  DsaAllocator(bool use_pool = false)
+      : m_pool(256 /* size of chunk */, 65536 /* number of chunks to grow by */)
+      , m_use_pool(use_pool) {};
   DsaAllocator(const DsaAllocator &o) = delete;
   void *alloc(size_t n) {
-    if (n <= m_pool.get_requested_size()) {
-      return m_pool.malloc();
+    if (m_use_pool) {
+      if (n <= m_pool.get_requested_size()) {
+	return m_pool.malloc();
+      }
     }
+    
     return static_cast<void *>(new char[n]);
   }
 
   void free(void *block) {
-    if (m_pool.is_from(block)) {
+    if (m_use_pool && m_pool.is_from(block)) {
       m_pool.free(block);
     } else {
       delete[] static_cast<char *const>(block);
@@ -663,7 +668,7 @@ void Cell::setModified(bool v) { getNode()->setModified(v); }
 bool Cell::isRead() const { return getNode()->isRead(); }
 bool Cell::isModified() const { return getNode()->isModified(); }
 
-void Cell::unify(Cell &c) {
+void Cell::unify(Cell &c) {  
   if (isNull()) {
     assert(!c.isNull());
     Node *n = c.getNode();
@@ -719,7 +724,7 @@ unsigned Cell::getOffset() const {
     return getRawOffset();
 }
 
-void Cell::pointTo(Node &n, unsigned offset) {
+void Cell::pointTo(Node &n, unsigned offset) {  
   assert(!n.isForwarding());
   // n.viewGraph();
   m_node = &n;
@@ -924,7 +929,7 @@ Cell &Graph::mkCell(const llvm::Value &u, const Cell &c) {
       isa<Argument>(v) ? m_formals[cast<const Argument>(&v)] : m_values[&v];
   if (!res) {
     res.reset(new Cell(c));
-
+    
     if (res->getRawOffset() == 0 && res->getNode()) {
       if (!(res->getNode()->hasOnceUniqueScalar()))
         res->getNode()->setUniqueScalar(&v);
@@ -947,7 +952,112 @@ Cell &Graph::mkCell(const llvm::Value &u, const Cell &c) {
       res->getNode()->setUniqueScalar(nullptr);
     }
   }
+
   return *res;
+}
+
+// Remove any _direct_ link from n to another cell whose node satisfies p.
+void Graph::removeLinks(Node* n, std::function<bool(const Node*)> p) {
+  assert(!n->isForwarding());
+
+  std::set<unsigned> removed_offsets;
+  auto& links = n->getLinks();
+  links.erase(
+    	std::remove_if(links.begin(), links.end(),
+    		       [p, &removed_offsets](const std::pair<Field,CellRef>& link) {
+    			 const CellRef& next = link.second;
+  			 if (p(&*(next->getNode())))  {
+			   removed_offsets.insert(link.first.getOffset());
+  			   return true;
+  			 } else {
+			   return false;
+			 }}),
+  	links.end());
+
+  // @jakub: make sure this ok and we don't miss anything else related
+  // to types.
+  auto& types = n->types();
+  for(auto it = types.begin(), et = types.end(); it!=et; ) {
+    if (removed_offsets.count(it->first)) {
+      auto cur_it = it;
+      ++it;
+      types.erase(cur_it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+// Remove all nodes that satisfy p and links to nodes that satisfy p.
+void Graph::removeNodes(std::function<bool(const Node*)> p) {
+  if (m_nodes.empty()) return;
+  
+  // remove entry if it references to a node that satisfies p
+  for(auto it = m_values.begin(), et = m_values.end(); it!=et; ) {
+    Cell *C = it->second.get();
+    assert(!C->isNull());    
+    if (p(C->getNode())) {
+      auto cur_it = it;
+      ++it;
+      m_values.erase(cur_it);
+    } else {
+      ++it;
+    }
+  }
+
+  // remove entry if it references to a node that satisfies p  
+  for(auto it = m_formals.begin(), et = m_formals.end(); it!=et; ) {
+    Cell *C = it->second.get();
+    assert(!C->isNull());
+    if (p(C->getNode())) {
+      auto cur_it = it;
+      ++it;
+      m_formals.erase(cur_it);
+    } else {
+      ++it;
+    }
+  }
+
+  // remove entry if it references to a node that satisfies p    
+  for(auto it = m_returns.begin(), et = m_returns.end(); it!=et; ) {
+    Cell *C = it->second.get();
+    assert(!C->isNull());
+    if (p(C->getNode())) {
+      auto cur_it = it;
+      ++it;
+      m_returns.erase(cur_it);
+    } else {
+      ++it;
+    }
+  }
+
+  // -- remove references to nodes that satisfy p
+  for (auto& n : m_nodes) {
+    if (!n->isForwarding()) {
+      removeLinks(&*n, p);
+    }
+  }
+
+  
+  // -- remove nodes that satisfy p
+
+  // (**) At this point we should have either unreachable nodes
+  // satisfying p or unreachable nodes forwarding to nodes satisfying
+  // p.
+  
+  m_nodes.erase(
+  	std::remove_if(m_nodes.begin(), m_nodes.end(),
+  		       [p](const std::unique_ptr<Node, DsaAllocatorDeleter> &n) {
+			 // resolve node so that we also remove a node
+			 // if it's forwarding to a node that satifies
+			 // p.
+  			 return (p(n->getNode()));}),
+  	m_nodes.end());
+
+  // FIXME: the assumption (**) probably is not true because if we
+  // don't call remove_dead() we crash later because some dangling
+  // node. 
+  remove_dead();
 }
 
 Cell &Graph::mkRetCell(const llvm::Function &fn, const Cell &c) {
@@ -1225,6 +1335,10 @@ void Graph::write(raw_ostream &o) const {
       }
     }
   }
+}
+
+void Graph::dump() const {
+  write(errs());
 }
 
 Node &FlatGraph::mkNode() {

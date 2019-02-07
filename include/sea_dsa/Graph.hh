@@ -157,6 +157,10 @@ public:
   /// return true iff the value has a cel
   virtual bool hasCell(const llvm::Value &v) const;
 
+  virtual bool hasScalarCell(const llvm::Value &v) {
+    return  m_values.count(&v) > 0;
+  }
+  
   virtual bool hasRetCell(const llvm::Function &fn) const {
     return m_returns.count(&fn) > 0;
   }
@@ -207,11 +211,19 @@ public:
   /// pretty-printer of a graph
   virtual void write(llvm::raw_ostream &o) const;
 
+  /// for gdb
+  void dump() const;
+  
   friend void ShowDsaGraph(Graph &g);
   /// view the Dsa graph using GraphViz. (For debugging.)
   void viewGraph() { ShowDsaGraph(*this); }
 
   bool isFlat() const { return m_is_flat; }
+
+  void removeLinks(Node* n, std::function<bool(const Node*)> pred);
+  
+  void removeNodes(std::function<bool(const Node*)> pred);
+
 };
 
 /**
@@ -346,6 +358,7 @@ class Node {
 public:
   struct NodeType {
     unsigned shadow : 1;
+    unsigned foreign : 1; // for internal use
     unsigned alloca : 1;
     unsigned heap : 1;
     unsigned global : 1;
@@ -366,8 +379,10 @@ public:
     unsigned null : 1;
 
     NodeType() { reset(); }
+    
     void join(const NodeType &n) {
       shadow |= n.shadow;
+      foreign &= n.foreign; 
       alloca |= n.alloca;
       heap |= n.heap;
       global |= n.global;
@@ -466,6 +481,9 @@ public:
   NodeType getNodeType() const { return m_nodeType; }
 
   const links_type &getLinks() const { return m_links; }
+
+private:
+  links_type &getLinks() { return m_links; }
 
 protected:
   class Offset;
@@ -605,7 +623,7 @@ public:
   bool isExternal() const { return m_nodeType.external; }
   bool isIntToPtr() const { return m_nodeType.inttoptr; }
   bool isPtrToInt() const { return m_nodeType.ptrtoint; }
-
+  
   Node &setArraySize(unsigned sz) {
     assert(!isArray());
     assert(!isForwarding());
@@ -631,6 +649,13 @@ public:
     return *this;
   }
   bool isTypeCollapsed() const { return m_nodeType.type_collapsed; }
+
+  bool isForeign() const { return m_nodeType.foreign; }
+  
+  Node &setForeign(bool v = true) {
+    m_nodeType.foreign = v;
+    return *this;
+  }
 
   bool isUnique() const { return m_unique_scalar; }
   const llvm::Value *getUniqueScalar() const { return m_unique_scalar; }

@@ -39,6 +39,9 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
   // clone and unify globals
   for (auto &kv :
        llvm::make_range(callerG.globals_begin(), callerG.globals_end())) {
+    if (!calleeG.hasScalarCell(*kv.first))
+      continue;
+    
     Node &n = C.clone(*kv.second->getNode());
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
@@ -78,7 +81,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   LOG("dsa-td", errs() << "Started top-down analysis ... \n");
-
+  
   // The SCC iterator has the property that the graph is traversed in
   // post-order.
   //
@@ -128,7 +131,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       // processed in topological order, so all callers must have already pushed
       // their graph into callerG.
       callerG.compress();
-
+      
       // -- resolve all function calls in the SCC
       for (auto &callRecord : *cgn) {
         ImmutableCallSite CS(callRecord.first);
@@ -151,6 +154,8 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         Graph &calleeG = *(it->second);
         // propagate from the caller to the callee
         cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);
+	// remove foreign nodes
+	calleeG.removeNodes([](const Node*n) {return n->isForeign();});
       }
     }
   }

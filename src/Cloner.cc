@@ -44,7 +44,8 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
         nNode.addAllocSite(*site);
 
         // -- update call paths on the cloned allocation site
-        importCallPaths(*site, n.getGraph()->getAllocSite(*as));
+	// JN: commented for now, otherwise the analysis is too slow.
+        // importCallPaths(*site, n.getGraph()->getAllocSite(*as));
       }
     }
     return nNode;
@@ -52,7 +53,11 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
 
   // -- clone the node (except for the links)
   Node &nNode = m_graph.cloneNode(n, false /* cpAllocSites */);
-
+  
+  // used by bottom-up/top-down analysis: ignored by the rest of
+  // analyses.
+  nNode.setForeign(true);
+  
   // -- copy allocation sites, except stack based, unless requested
   for (const llvm::Value *as : n.getAllocSites()) {
     if (isStackAllocation(as)) {
@@ -65,7 +70,8 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
     nNode.addAllocSite(*site);
 
     // -- update call paths on cloned allocation site
-    importCallPaths(*site, n.getGraph()->getAllocSite(*as));
+    // JN: commented for now, otherwise the analysis is too slow.
+    //importCallPaths(*site, n.getGraph()->getAllocSite(*as));
   }
 
   // -- update cache
