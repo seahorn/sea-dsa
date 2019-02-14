@@ -41,7 +41,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
        llvm::make_range(callerG.globals_begin(), callerG.globals_end())) {
     if (!calleeG.hasScalarCell(*kv.first))
       continue;
-    
+
     Node &n = C.clone(*kv.second->getNode());
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
@@ -154,8 +154,8 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         Graph &calleeG = *(it->second);
         // propagate from the caller to the callee
         cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);
-	// remove foreign nodes
-	calleeG.removeNodes([](const Node*n) {return n->isForeign();});
+        // remove foreign nodes
+        calleeG.removeNodes([](const Node *n) { return n->isForeign(); });
       }
     }
   }

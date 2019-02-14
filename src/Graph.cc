@@ -957,27 +957,27 @@ Cell &Graph::mkCell(const llvm::Value &u, const Cell &c) {
 }
 
 // Remove any _direct_ link from n to another cell whose node satisfies p.
-void Graph::removeLinks(Node* n, std::function<bool(const Node*)> p) {
+void Graph::removeLinks(Node *n, std::function<bool(const Node *)> p) {
   assert(!n->isForwarding());
 
   std::set<unsigned> removed_offsets;
-  auto& links = n->getLinks();
-  links.erase(
-    	std::remove_if(links.begin(), links.end(),
-    		       [p, &removed_offsets](const std::pair<Field,CellRef>& link) {
-    			 const CellRef& next = link.second;
-  			 if (p(&*(next->getNode())))  {
-			   removed_offsets.insert(link.first.getOffset());
-  			   return true;
-  			 } else {
-			   return false;
-			 }}),
-  	links.end());
+  auto &links = n->getLinks();
+  links.erase(std::remove_if(
+                  links.begin(), links.end(),
+                  [p, &removed_offsets](const std::pair<Field, CellRef> &link) {
+                    const CellRef &next = link.second;
+                    if (p(&*(next->getNode()))) {
+                      removed_offsets.insert(link.first.getOffset());
+                      return true;
+                    } else {
+                      return false;
+                    }
+                  }),
+              links.end());
 
-  // @jakub: make sure this ok and we don't miss anything else related
-  // to types.
-  auto& types = n->types();
-  for(auto it = types.begin(), et = types.end(); it!=et; ) {
+  // Remove accessed types, not link types.
+  auto &types = n->types();
+  for (auto it = types.begin(), et = types.end(); it != et;) {
     if (removed_offsets.count(it->first)) {
       auto cur_it = it;
       ++it;
