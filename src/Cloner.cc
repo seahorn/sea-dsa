@@ -15,7 +15,6 @@ void Cloner::importCallPaths(DsaAllocSite &site,
 
   site.importCallPaths(*other.getValue(),
                        DsaCallSite(*m_context.m_cs.getValue()), isBottomUp());
-  return;
 }
 
 /// Return true if the instruction allocates memory on the stack
@@ -44,8 +43,7 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
         nNode.addAllocSite(*site);
 
         // -- update call paths on the cloned allocation site
-	// JN: commented for now, otherwise the analysis is too slow.
-        // importCallPaths(*site, n.getGraph()->getAllocSite(*as));
+        importCallPaths(*site, n.getGraph()->getAllocSite(*as));
       }
     }
     return nNode;
@@ -70,8 +68,7 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
     nNode.addAllocSite(*site);
 
     // -- update call paths on cloned allocation site
-    // JN: commented for now, otherwise the analysis is too slow.
-    //importCallPaths(*site, n.getGraph()->getAllocSite(*as));
+    importCallPaths(*site, n.getGraph()->getAllocSite(*as));
   }
 
   // -- update cache
