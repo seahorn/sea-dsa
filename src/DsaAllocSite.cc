@@ -74,14 +74,30 @@ void DsaAllocSite::importCallPaths(const DsaAllocSite &other,
                       m_callPaths.end());
   }
 }
+
 void DsaAllocSite::print(llvm::raw_ostream &os) const {
   using namespace llvm;
-  if (isa<Function>(m_value) || isa<BasicBlock>(m_value)) {
-    assert(m_value.hasName());
-    os << m_value.getName();
-  } else {
-    m_value.print(os);
-  }
+
+  auto getCachedValueStr = [](const Value &V) -> std::string & {
+    static DenseMap<const Value *, std::string> cache;
+    auto it = cache.find(&V);
+    if (it != cache.end())
+      return it->second;
+
+    std::string &buff = cache[&V];
+    raw_string_ostream rso(buff);
+
+    if (isa<Function>(V) || isa<BasicBlock>(V)) {
+      assert(V.hasName());
+      rso << V.getName();
+    } else
+      V.print(rso);
+
+    rso.flush();
+    return buff;
+  };
+
+  os << getCachedValueStr(m_value);
   printCallPaths(os);
 }
 

@@ -103,15 +103,19 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     postorder_scc.push_back(*it);
 
   size_t functionsProcessed = 0;
+  size_t percentageProcessed = 0;
   BrunchTimer tdTimer("TD");
 
   for (auto it = postorder_scc.rbegin(), et = postorder_scc.rend(); it != et;
        ++it) {
     auto &scc = *it;
 
-    SEA_DSA_BRUNCH_PROGRESS("TD_FUNCTIONS_PROCESSED", functionsProcessed,
-                            totalFunctions);
     functionsProcessed += scc.size();
+    const size_t oldProgress = percentageProcessed;
+    percentageProcessed = 100 *functionsProcessed / totalFunctions;
+    if (percentageProcessed != oldProgress)
+      SEA_DSA_BRUNCH_PROGRESS("TD_FUNCTIONS_PROCESSED_PERCENT",
+                              percentageProcessed, 100ul);
 
     for (CallGraphNode *cgn : scc) {
       Function *const fn = cgn->getFunction();

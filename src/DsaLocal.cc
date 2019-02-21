@@ -195,10 +195,10 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitIntToPtrInst(IntToPtrInst &I);
   void visitPtrToIntInst(PtrToIntInst &I);
   void visitBitCastInst(BitCastInst &I);
-  void visitCmpInst(CmpInst &I) { /* do nothing */
-  }
+  void visitCmpInst(CmpInst &I) { /* do nothing */ }
   void visitInsertValueInst(InsertValueInst &I);
   void visitExtractValueInst(ExtractValueInst &I);
+  void visitShuffleVectorInst(ShuffleVectorInst &I);
 
   void visitGetElementPtrInst(GetElementPtrInst &I);
   void visitInstruction(Instruction &I);
@@ -208,6 +208,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   void visitCallSite(CallSite CS);
   // void visitVAStart(CallSite CS);
+
 
   static bool isSeaDsaAliasFn(const Function *F) {
     return (F->getName().equals("sea_dsa_alias"));
@@ -226,18 +227,18 @@ public:
 
 sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   using namespace sea_dsa;
-  assert(v.getType()->isPointerTy() || v.getType()->isAggregateType());
+  const auto &vType = *v.getType();
+  assert(vType.isPointerTy() || vType.isAggregateType() || vType.isVectorTy());
+  (void)vType;
 
   if (isNullConstant(v)) {
-    LOG("dsa", errs() << "WARNING: not handled constant: " << v << "\n";);
+    LOG("dsa", errs() << "WARNING: constant not handled: " << v << "\n";);
     return Cell();
   }
 
   if (m_graph.hasCell(v)) {
     Cell &c = m_graph.mkCell(v, Cell());
     assert(!c.isNull());
-    //  errs() << "Already has cell: ";
-    //  c.dump();
     return c;
   }
 
@@ -248,9 +249,10 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
 
   if (isa<ConstantStruct>(&v) || isa<ConstantArray>(&v) ||
       isa<ConstantDataSequential>(&v) || isa<ConstantDataArray>(&v) ||
-      isa<ConstantDataVector>(&v)) {
+      isa<ConstantVector>(&v) || isa<ConstantDataVector>(&v)) {
     // XXX Handle properly
-    assert(false);
+    LOG("dsa", errs() << "WARNING: constant not handled: " << v << "\n";);
+    // llvm_unreachable("Constant not handled!");
     return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
   }
 
@@ -275,7 +277,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   }
 
   errs() << v << "\n";
-  assert(false && "Not handled expression");
+  llvm_unreachable("Expression not handled");
   return Cell();
 }
 
@@ -504,7 +506,19 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
       return;
   }
 
-  assert(m_graph.hasCell(ptr) || isa<GlobalValue>(&ptr));
+  if (!m_graph.hasCell(ptr) && !isa<GlobalValue>(&ptr)) {
+    errs() << "Cell not found for gep:\t";
+    gep.print(errs());
+    if (auto *gepI = dyn_cast<Instruction>(&gep))
+      errs() << "\n\t\tin " << gepI->getFunction()->getName() << "\n";
+
+    errs() << "\n\tptr: ";
+    ptr.print(errs());
+    if (auto *ptrI = dyn_cast<Instruction>(&ptr))
+      errs() << "\n\t\tin " << ptrI->getFunction()->getName() << "\n";
+
+    llvm_unreachable("No cell for gep'd ptr");
+  }
 
   // -- empty gep that points directly to the base
   if (gep.stripPointerCasts() == &ptr)
@@ -734,6 +748,15 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   // Value *callee = CS.getCalledValue()->stripPointerCasts();
   // TODO: handle inline assembly
   // TODO: handle variable argument functions
+}
+
+void IntraBlockBuilder::visitShuffleVectorInst(ShuffleVectorInst &I) {
+  using namespace sea_dsa;
+
+  // XXX: TODO: handle properly.
+  errs() << "WARNING: shuffle vector inst is allocationg a new cell: "
+         << &I << "\n";
+  m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
 }
 
 void IntraBlockBuilder::visitMemSetInst(MemSetInst &I) {
@@ -999,6 +1022,8 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
 namespace sea_dsa {
 
 void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
+  LOG("dsa-progress", errs() << "Running sea_dsa::Local on "
+                             << F.getName() << "\n");
   // create cells and nodes for formal arguments
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
