@@ -23,10 +23,15 @@ template <typename T> void PrintBrunchStat(llvm::Twine key, const T &value) {
   llvm::errs() << "BRUNCH_STAT " << key << " " << value << "\n";
 }
 
-template <typename T>
-void PrintBrunchProgress(llvm::Twine key, const T &value, const T &max = "") {
+template <typename T, typename U>
+void PrintBrunchProgress(llvm::Twine key, const T &value, const U &max) {
   llvm::errs() << "BRUNCH_PROGRESS " << key << " " << value << " / " << max
                << "\n";
+}
+
+template <typename T>
+void PrintBrunchProgress(llvm::Twine key, const T &value) {
+  PrintBrunchProgress(key, value, "");
 }
 
 long GetCurrentMemoryUsageKb();

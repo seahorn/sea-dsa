@@ -67,13 +67,24 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
        FI != FE && AI != AE; ++FI, ++AI) {
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
-    if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
-      const Cell &callerCell = callerG.getCell(*arg);
-      Node &n = C.clone(*callerCell.getNode(), noescape);
-      Cell c(n, callerCell.getRawOffset());
-      Cell &nc = calleeG.mkCell(*fml, Cell());
-      nc.unify(c);
+
+    if (!callerG.hasCell(*arg) || !calleeG.hasCell(*fml))
+      continue;
+
+    // If the passed actual is a global, pass it directly, even if it's
+    // _locally_ merged with something else.
+    if (const auto *constantArg = dyn_cast<Constant>(arg)) {
+      Cell &calleeGlobal = calleeG.mkCell(*constantArg, Cell());
+      Cell &calleeFml = calleeG.mkCell(*fml, Cell());
+      calleeFml.unify(calleeGlobal);
+      continue;
     }
+
+    const Cell &callerCell = callerG.getCell(*arg);
+    Node &n = C.clone(*callerCell.getNode(), noescape);
+    Cell c(n, callerCell.getRawOffset());
+    Cell &nc = calleeG.mkCell(*fml, Cell());
+    nc.unify(c);
   }
 
   // Don't compress here -- caller should take care of it.
