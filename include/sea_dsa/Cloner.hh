@@ -59,7 +59,7 @@ public:
   bool hasNode(const Node &n) { return m_map.count(&n) > 0; }
 
 private:
-  enum CachingLevel { SingleAlloca, NoAllocas, Full };
+  enum CachingLevel { SingleAllocSite, NoAllocas, Full };
 
   Graph &m_graph;
   llvm::DenseMap<const Node *, std::pair<Node *, CachingLevel>> m_map;
