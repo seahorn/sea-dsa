@@ -24,20 +24,62 @@ static bool isStackAllocation(const llvm::Value *v) {
   return llvm::isa<llvm::AllocaInst>(v);
 }
 
-Node &Cloner::clone(const Node &n, bool forceAlloca) {
+/// Return true if the value is a constant with no pointers.
+static bool isConstantNoPtr(const llvm::Value *v) {
+  assert(v);
+  if (!llvm::isa<llvm::Constant>(v))
+    return false;
+
+  // Cheaply check if the global value has a string-like name.
+  if (v->hasName() && v->getName().startswith(".str."))
+    return true;
+
+  if (!v->getType()->isPointerTy())
+    return false;
+
+  auto *type = v->getType()->getPointerElementType();
+  if (type->isIntegerTy() || type->isFloatingPointTy())
+    return true;
+
+  auto *compositeTy = llvm::dyn_cast<llvm::CompositeType>(type);
+  if (!compositeTy)
+    return false;
+
+  return std::all_of(compositeTy->subtype_begin(), compositeTy->subtype_end(),
+                     [](const llvm::Type *ty) {
+                       return ty->isIntegerTy() || ty->isFloatingPointTy();
+                     });
+}
+
+Node &Cloner::clone(const Node &n, bool forceAddAlloca,
+                    const llvm::Value *onlyAllocSite) {
   // -- don't clone nodes that are already in the graph
   if (n.getGraph() == &m_graph)
     return *const_cast<Node *>(&n);
 
+  CachingLevel currentLevel = CachingLevel::Full;
+  if (onlyAllocSite)
+    currentLevel = CachingLevel::SingleAlloca;
+  else if (m_strip_allocas && forceAddAlloca)
+    currentLevel = CachingLevel::NoAllocas;
+
   // check the cache
   auto it = m_map.find(&n);
   if (it != m_map.end()) {
-    Node &nNode = *(it->second);
-    // if alloca are stripped but this call forces them,
-    // then ensure that all allocas of n are copied over to nNode
-    if (m_strip_allocas && forceAlloca &&
+    Node &nNode = *(it->second.first);
+    const CachingLevel cachedLevel = it->second.second;
+
+    // if cloning was done in a more restricted case before,
+    // then ensure that all allocas of n are now copied over to nNode
+    if (currentLevel > cachedLevel &&
         nNode.getAllocSites().size() < n.getAllocSites().size()) {
       for (const llvm::Value *as : n.getAllocSites()) {
+        if (onlyAllocSite && as != onlyAllocSite)
+          continue;
+
+        if (m_strip_allocas && !forceAddAlloca && isStackAllocation(as))
+          continue;
+
         DsaAllocSite *site = m_graph.mkAllocSite(*as);
         assert(site);
         nNode.addAllocSite(*site);
@@ -46,6 +88,10 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
         importCallPaths(*site, n.getGraph()->getAllocSite(*as));
       }
     }
+
+    // Remember that we updated the cache and potentially added more allocation
+    // sites.
+    it->second.second = currentLevel;
     return nNode;
   }
 
@@ -59,9 +105,12 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
   // -- copy allocation sites, except stack based, unless requested
   for (const llvm::Value *as : n.getAllocSites()) {
     if (isStackAllocation(as)) {
-      if (!forceAlloca && m_strip_allocas)
+      if (!forceAddAlloca && m_strip_allocas)
         continue;
     }
+
+    if (onlyAllocSite && as != onlyAllocSite)
+      continue;
 
     DsaAllocSite *site = m_graph.mkAllocSite(*as);
     assert(site);
@@ -72,7 +121,12 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
   }
 
   // -- update cache
-  m_map.insert(std::make_pair(&n, &nNode));
+  m_map.insert({&n, {&nNode, currentLevel}});
+
+  // Determine if we have to copy recursively if the exact allocation site
+  // object is known.
+  if (onlyAllocSite && isConstantNoPtr(onlyAllocSite))
+    return nNode;
 
   // -- recursively clone reachable nodes
   for (auto &kv : n.links()) {

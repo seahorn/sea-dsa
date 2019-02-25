@@ -22,6 +22,7 @@
 #include "sea_dsa/support/Brunch.hh"
 #include "sea_dsa/support/Debug.h"
 
+
 using namespace llvm;
 
 namespace sea_dsa {
@@ -42,7 +43,8 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     if (!calleeG.hasScalarCell(*kv.first))
       continue;
 
-    Node &n = C.clone(*kv.second->getNode());
+    // Copy only the allocation site that matches the global.
+    Node &n = C.clone(*kv.second->getNode(), false, kv.first);
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
     nc.unify(c);
@@ -71,17 +73,16 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     if (!callerG.hasCell(*arg) || !calleeG.hasCell(*fml))
       continue;
 
-    // If the passed actual is a global, pass it directly, even if it's
-    // _locally_ merged with something else.
-    if (const auto *constantArg = dyn_cast<Constant>(arg)) {
-      Cell &calleeGlobal = calleeG.mkCell(*constantArg, Cell());
-      Cell &calleeFml = calleeG.mkCell(*fml, Cell());
-      calleeFml.unify(calleeGlobal);
-      continue;
-    }
+    // Actuals that directly correspond to allocation sites only should only
+    // bring a single allocation site, regardless of the unifications in the
+    // caller graph.
+    const Value *onlyAllocSite = nullptr;
+    const Value *argStripped = arg->stripPointerCastsNoFollowAliases();
+    if (callerG.hasAllocSiteForValue(*argStripped))
+      onlyAllocSite = argStripped;
 
     const Cell &callerCell = callerG.getCell(*arg);
-    Node &n = C.clone(*callerCell.getNode(), noescape);
+    Node &n = C.clone(*callerCell.getNode(), noescape, onlyAllocSite);
     Cell c(n, callerCell.getRawOffset());
     Cell &nc = calleeG.mkCell(*fml, Cell());
     nc.unify(c);

@@ -37,9 +37,32 @@ public:
     return options;
   }
 
+  Cloner(Graph &g, CloningContext context, Cloner::Options options)
+      : m_graph(g), m_context(context),
+        m_strip_allocas(options & Cloner::Options::StripAllocas),
+        m_track_call_paths(options & Cloner::Options::TrackAllocaCallPaths) {}
+
+  /// Returns a clone of a given node in the new graph
+  /// Recursive clones nodes linked by this node as necessary
+  Node &clone(const Node &n, bool forceAddAlloca = false,
+              const llvm::Value *onlyAllocSite = nullptr);
+
+  /// Returns a cloned node that corresponds to the given node
+  Node &at(const Node &n) {
+    assert(hasNode(n));
+    auto it = m_map.find(&n);
+    assert(it != m_map.end());
+    return *(it->second.first);
+  }
+
+  /// Returns true if the node has already been cloned
+  bool hasNode(const Node &n) { return m_map.count(&n) > 0; }
+
 private:
+  enum CachingLevel { SingleAlloca, NoAllocas, Full };
+
   Graph &m_graph;
-  llvm::DenseMap<const Node *, Node *> m_map;
+  llvm::DenseMap<const Node *, std::pair<Node *, CachingLevel>> m_map;
   CloningContext m_context;
   bool m_track_call_paths;
   bool m_strip_allocas;
@@ -52,26 +75,5 @@ private:
 
   void importCallPaths(DsaAllocSite &site,
                        llvm::Optional<DsaAllocSite *> other);
-
-public:
-  Cloner(Graph &g, CloningContext context, Cloner::Options options)
-      : m_graph(g), m_context(context),
-        m_strip_allocas(options & Cloner::Options::StripAllocas),
-        m_track_call_paths(options & Cloner::Options::TrackAllocaCallPaths) {}
-
-  /// Returns a clone of a given node in the new graph
-  /// Recursive clones nodes linked by this node as necessary
-  Node &clone(const Node &n, bool force = false);
-
-  /// Returns a cloned node that corresponds to the given node
-  Node &at(const Node &n) {
-    assert(hasNode(n));
-    auto it = m_map.find(&n);
-    assert(it != m_map.end());
-    return *(it->second);
-  }
-
-  /// Returns true if the node has already been cloned
-  bool hasNode(const Node &n) { return m_map.count(&n) > 0; }
 };
 } // namespace sea_dsa
