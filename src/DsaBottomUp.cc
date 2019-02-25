@@ -198,39 +198,40 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       }
 
       if (m_computeSimMap) {
-	// -- store the simulation maps from the SCC
-	for (auto &callRecord : *cgn) {
-	  ImmutableCallSite CS(callRecord.first);
-	  DsaCallSite dsaCS(CS);
-	  const Function *callee = dsaCS.getCallee();
-	  if (!callee || callee->isDeclaration() || callee->empty())
-	    continue;
-	  
-	  assert(graphs.count(dsaCS.getCaller()) > 0);
-	  assert(graphs.count(dsaCS.getCallee()) > 0);
-	  
-	  Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
-	  Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
-	  
-	  SimulationMapperRef sm(new SimulationMapper());
-	  bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
-						       *sm, do_sanity_checks);
-	  if (!res) {
-	    //continue;
-	    llvm_unreachable("Simulation mapping check failed");
-	  }
-	  m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
-	  
-	  if (do_sanity_checks) {
-	    // Check the simulation map is a function
-	    if (!sm->isFunction())
-	      errs() << "ERROR: simulation map for " << *dsaCS.getInstruction()
-		     << " is not a function!\n";
-	    // Check that all nodes in the callee are mapped to one
-	    // node in the caller graph
-	    checkAllNodesAreMapped(*callee, calleeG, *sm);
-	  }
-	}
+        // -- store the simulation maps from the SCC
+        for (auto &callRecord : *cgn) {
+          ImmutableCallSite CS(callRecord.first);
+          DsaCallSite dsaCS(CS);
+          const Function *callee = dsaCS.getCallee();
+          if (!callee || callee->isDeclaration() || callee->empty())
+            continue;
+
+          assert(graphs.count(dsaCS.getCaller()) > 0);
+          assert(graphs.count(dsaCS.getCallee()) > 0);
+
+          Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
+          Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
+
+          SimulationMapperRef sm(new SimulationMapper());
+          bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
+                                                       *sm, do_sanity_checks);
+          if (!res) {
+            // continue;
+            llvm_unreachable("Simulation mapping check failed");
+          }
+          m_callee_caller_map.insert(
+              std::make_pair(dsaCS.getInstruction(), sm));
+
+          if (do_sanity_checks) {
+            // Check the simulation map is a function
+            if (!sm->isFunction())
+              errs() << "ERROR: simulation map for " << *dsaCS.getInstruction()
+                     << " is not a function!\n";
+            // Check that all nodes in the callee are mapped to one
+            // node in the caller graph
+            checkAllNodesAreMapped(*callee, calleeG, *sm);
+          }
+        }
       }
     }
 
@@ -267,8 +268,7 @@ bool BottomUp::runOnModule(Module &M) {
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg,
-		      true /*sim map*/);
+  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg, true /*sim map*/);
   for (auto &F : M) { // XXX: the graphs must be created here
     if (F.isDeclaration() || F.empty())
       continue;
