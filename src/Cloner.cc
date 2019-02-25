@@ -69,9 +69,13 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
     Node &nNode = *(it->second.first);
     const CachingLevel cachedLevel = it->second.second;
 
-    // if cloning was done in a more restricted case before,
-    // then ensure that all allocas of n are now copied over to nNode
-    if (currentLevel > cachedLevel &&
+    // If cloning was done in a more restricted case before,
+    // then ensure that all allocas of n are now copied over to nNode.
+    // It may happen that the same node is being cloned multiple times, each
+    // with a different onlyAllocSite.
+    if ((currentLevel > cachedLevel ||
+         (currentLevel == CachingLevel::SingleAlloca &&
+          currentLevel == cachedLevel)) &&
         nNode.getAllocSites().size() < n.getAllocSites().size()) {
       for (const llvm::Value *as : n.getAllocSites()) {
         if (onlyAllocSite && as != onlyAllocSite)
