@@ -26,6 +26,25 @@ using namespace llvm;
 
 namespace sea_dsa {
 
+static const Value *findUniqueReturnValue(const Function &F) {
+  const Value *onlyRetVal = nullptr;
+
+  for (const auto &BB : F) {
+    auto *TI = BB.getTerminator();
+    auto *RI = dyn_cast<ReturnInst>(TI);
+    if (!RI)
+      continue;
+
+    const Value *rv = RI->getOperand(0)->stripPointerCastsNoFollowAliases();
+    if (onlyRetVal && onlyRetVal != rv)
+      return nullptr;
+
+    onlyRetVal = rv;
+  }
+
+  return onlyRetVal;
+}
+
 // Clone callee nodes into caller and resolve arguments
 void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
                                                 Graph &calleeG, Graph &callerG,
@@ -47,10 +66,17 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   // clone and unify return
   const Function &callee = *CS.getCallee();
   if (calleeG.hasRetCell(callee)) {
-    const Cell &ret = calleeG.getRetCell(callee);
-    Node &n = C.clone(*ret.getNode());
-    Cell c(n, ret.getRawOffset());
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
+
+    // Clone the return value directly, if we know that it corresponds to a
+    // single allocation site (e.g., return value of a malloc, a global, etv.).
+    const Value *onlyAllocSite = findUniqueReturnValue(callee);
+    if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
+      onlyAllocSite = nullptr;
+
+    const Cell &ret = calleeG.getRetCell(callee);
+    Node &n = C.clone(*ret.getNode(), false, onlyAllocSite);
+    Cell c(n, ret.getRawOffset());
     nc.unify(c);
   }
 
