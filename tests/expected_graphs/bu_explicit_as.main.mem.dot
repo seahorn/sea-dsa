@@ -1,0 +1,11 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x24b8a30 [shape=record,label="{\{void\}:S\nAS: unnamed\n}"];
+	Node0x24b88f0 [shape=record,label="{\{void\}:\nAS: str1\n}"];
+	Node0x24a2b30 [shape=plaintext, label ="  %3 = call i8* @foo(i32 %0)"];
+	Node0x24a2b30 -> Node0x24b88f0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x24a2758 [shape=plaintext,fontcolor=blue, label ="main#1"];
+	Node0x24a2758 -> Node0x24b8a30[tailclip=false,color=dodgerblue3,label="0",fontsize=8];
+}

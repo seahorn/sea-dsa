@@ -78,8 +78,10 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     // caller graph.
     const Value *onlyAllocSite = nullptr;
     const Value *argStripped = arg->stripPointerCastsNoFollowAliases();
-    if (callerG.hasAllocSiteForValue(*argStripped))
+
+    if (callerG.hasAllocSiteForValue(*argStripped)) {
       onlyAllocSite = argStripped;
+    }
 
     const Cell &callerCell = callerG.getCell(*arg);
     Node &n = C.clone(*callerCell.getNode(), noescape, onlyAllocSite);

@@ -57,7 +57,13 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   // clone and unify globals
   for (auto &kv :
        llvm::make_range(calleeG.globals_begin(), calleeG.globals_end())) {
-    Node &n = C.clone(*kv.second->getNode());
+    Node &calleeN = *kv.second->getNode();
+    // We don't care if globals got unified together, but have to respect the
+    // points-to relations introduced by the callee introduced.
+    if (calleeN.getNumLinks() == 0 || llvm::isa<ConstantData>(kv.first))
+      continue;
+
+    Node &n = C.clone(calleeN, false, kv.first);
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
     nc.unify(c);
