@@ -19,6 +19,11 @@ static llvm::cl::opt<std::string>
               llvm::cl::desc("DSA: output directory for dot files"),
               llvm::cl::init(""), llvm::cl::value_desc("DIR"));
 
+static llvm::cl::opt<bool>
+    PrintAllocSites("sea-dsa-dot-print-as",
+                    llvm::cl::desc("Print allocation sites for DSA nodes"),
+                    llvm::cl::init(false));
+
 using namespace llvm;
 
 namespace sea_dsa {
@@ -184,35 +189,7 @@ public:
         O << "|" << DOT::EscapeString(NodeDesc);
     }
 
-#if 0 
-        // XXX: MODIFICATION
-        // if (DTraits.hasEdgeDestLabels()) {
-        // 	O << "|{";
-	
-        // 	unsigned i = 0, e = DTraits.numEdgeDestLabels(Node);
-        // 	for (; i != e && i != 64; ++i) {
-        // 	  if (i) O << "|";
-        // 	  O << "<d" << i << ">"
-        // 	    << DOT::EscapeString(DTraits.getEdgeDestLabel(Node, i));
-        // 	}
-	
-        // 	if (i != e)
-        // 	  O << "|<d64>truncated...";
-        // 	O << "}";
-        // }
-#endif
-
     O << "}\"];\n"; // Finish printing the "node" line
-
-    // Output all of the edges now
-//    child_iterator EI = GTraits::child_begin(Node);
-//    child_iterator EE = GTraits::child_end(Node);
-//    for (unsigned i = 0; EI != EE && i != 64; ++EI, ++i)
-//      if (!DTraits.isNodeHidden(*EI))
-//        writeEdge(Node, i, EI);
-//    for (; EI != EE; ++EI)
-//      if (!DTraits.isNodeHidden(*EI))
-//        writeEdge(Node, 64, EI);
   }
 
   /// emitSimpleNode - Outputs a simple (non-record) node
@@ -220,7 +197,7 @@ public:
   emitSimpleNode(const void *ID, const std::string &Attr,
                  const std::string &Label, unsigned NumEdgeSources = 0,
                  const std::vector<std::string> *EdgeSourceLabels = nullptr) {
-    O << "\tNode" << ID << "[ ";
+    O << "\tNode" << ID << " [";
     if (!Attr.empty())
       O << Attr << ",";
     O << " label =\"";
@@ -323,6 +300,21 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     return OS.str();
   }
 
+  static void writeAllocSites(const sea_dsa::Node &Node,
+                              llvm::raw_string_ostream &O) {
+    O << "\nAS:";
+    const size_t numAllocSites = Node.getAllocSites().size();
+    size_t i = 0;
+    for (const llvm::Value *AS : Node.getAllocSites()) {
+      assert(AS);
+      ++i;
+      O << " " << DOT::EscapeString(AS->hasName() ? AS->getName() : "unnamed");
+      if (i != numAllocSites)
+        O << ",";
+    }
+    O << "\n";
+  }
+
   static std::string getNodeLabel(const sea_dsa::Node *N,
                                   const sea_dsa::Graph *G) {
     std::string empty;
@@ -396,8 +388,10 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         OS << "V";
       if (node_type.dead)
         OS << "D";
-      // OS << " " << N->size() << " ";
     }
+
+    if (PrintAllocSites)
+      writeAllocSites(*N, OS);
 
     return OS.str();
   }
