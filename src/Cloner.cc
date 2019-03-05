@@ -63,6 +63,22 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
   else if (m_strip_allocas && forceAddAlloca)
     currentLevel = CachingLevel::NoAllocas;
 
+  if (currentLevel != SingleAllocSite) {
+    auto it = m_deferredUnify.find(&n);
+    if (it != m_deferredUnify.end()) {
+      // We found a backedge and need to merge all these node together.
+      const auto &nodeSet = it->second;
+      assert(!nodeSet.empty());
+      Node *first = *nodeSet.begin();
+      for (Node *split : nodeSet)
+        if (split != first)
+          first->unify(*split);
+
+      m_deferredUnify.erase(it);
+      m_map.insert({&n, {first, SingleAllocSite}});
+    }
+  }
+
   // check the cache
   auto it = m_map.find(&n);
   if (it != m_map.end()) {
@@ -73,9 +89,7 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
     // then ensure that all allocas of n are now copied over to nNode.
     // It may happen that the same node is being cloned multiple times, each
     // with a different onlyAllocSite.
-    if (currentLevel > cachedLevel ||
-         (currentLevel == CachingLevel::SingleAllocSite &&
-          currentLevel == cachedLevel)) {
+    if (currentLevel > cachedLevel) {
       for (const llvm::Value *as : n.getAllocSites()) {
         if (onlyAllocSite && as != onlyAllocSite)
           continue;
@@ -104,7 +118,7 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
   // used by bottom-up/top-down analysis: ignored by the rest of
   // analyses.
   nNode.setForeign(true);
-  
+
   // -- copy allocation sites, except stack based, unless requested
   for (const llvm::Value *as : n.getAllocSites()) {
     if (isStackAllocation(as)) {
@@ -124,7 +138,17 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
   }
 
   // -- update cache
-  m_map.insert({&n, {&nNode, currentLevel}});
+  // Don't cache single alloc sites -- they will be initially split and cloned
+  // into separate nodes.
+  if (currentLevel != SingleAllocSite)
+    m_map.insert({&n, {&nNode, currentLevel}});
+  else {
+    // It may be necessary to unify this newly created node with another
+    // node if they both originated from spliting the same original node.
+    // Unification is necessary when we find an incoming edge to the original
+    // node.
+    m_deferredUnify[&n].insert(&nNode);
+  }
 
   // Determine if we have to copy recursively if the exact allocation site
   // object is known.

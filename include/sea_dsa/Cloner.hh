@@ -63,6 +63,7 @@ private:
 
   Graph &m_graph;
   llvm::DenseMap<const Node *, std::pair<Node *, CachingLevel>> m_map;
+  llvm::DenseMap<const Node *, llvm::SmallDenseSet<Node *, 4>> m_deferredUnify;
   CloningContext m_context;
   bool m_track_call_paths;
   bool m_strip_allocas;

@@ -42,6 +42,9 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     if (!calleeG.hasScalarCell(*kv.first))
       continue;
 
+    if (!kv.second->isModified())
+      continue;
+
     // Copy only the allocation site that matches the global.
     Node &n = C.clone(*kv.second->getNode(), false, kv.first);
     Cell c(n, kv.second->getRawOffset());

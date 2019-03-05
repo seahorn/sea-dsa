@@ -1,0 +1,17 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x2d2b580 [shape=record,label="{\{0:i8*\}:MR\nAS: A, B\n|{<s0>\<0, i8*\>}}"];
+	Node0x2d2ba70 [shape=record,label="{\{0:i8*\}:M\nAS: C\n|{<s0>\<0, i8*\>}}"];
+	Node0x2d0cf08 [shape=plaintext, label ="A"];
+	Node0x2d0cf08 -> Node0x2d2b580[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x2d105f8 [shape=plaintext, label ="tmp"];
+	Node0x2d105f8 -> Node0x2d2ba70[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x2d0d498 [shape=plaintext, label ="B"];
+	Node0x2d0d498 -> Node0x2d2b580[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x2d0d538 [shape=plaintext, label ="C"];
+	Node0x2d0d538 -> Node0x2d2ba70[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x2d2b580:s0 -> Node0x2d2ba70[arrowtail=tee,label="0, i8*",fontsize=8];
+	Node0x2d2ba70:s0 -> Node0x2d2b580[arrowtail=tee,label="0, i8*",fontsize=8];
+}
