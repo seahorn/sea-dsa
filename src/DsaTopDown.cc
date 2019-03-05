@@ -38,8 +38,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
   Cloner C(calleeG, context, options);
 
   // clone and unify globals
-  for (auto &kv :
-       llvm::make_range(callerG.globals_begin(), callerG.globals_end())) {
+  for (auto &kv : callerG.globals()) {
     if (!calleeG.hasScalarCell(*kv.first))
       continue;
 

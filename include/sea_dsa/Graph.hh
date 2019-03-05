@@ -134,17 +134,29 @@ public:
   /// iterate over scalars
   virtual scalar_const_iterator scalar_begin() const;
   virtual scalar_const_iterator scalar_end() const;
+  llvm::iterator_range<scalar_const_iterator> scalars() const {
+    return llvm::make_range(scalar_begin(), scalar_end());
+  }
 
   virtual global_const_iterator globals_begin() const;
   virtual global_const_iterator globals_end() const;
+  llvm::iterator_range<global_const_iterator> globals() const {
+    return llvm::make_range(globals_begin(), globals_end());
+  }
 
   /// iterate over formal parameters of functions
   virtual formal_const_iterator formal_begin() const;
   virtual formal_const_iterator formal_end() const;
+  llvm::iterator_range<formal_const_iterator> formals() const {
+    return llvm::make_range(formal_begin(), formal_end());
+  }
 
   /// iterate over returns of functions
   virtual return_const_iterator return_begin() const;
   virtual return_const_iterator return_end() const;
+  llvm::iterator_range<return_const_iterator> returns() const {
+    return llvm::make_range(return_begin(), return_end());
+  }
 
   /// creates a cell for the value or returns existing cell if
   /// present
@@ -475,6 +487,7 @@ public:
   typedef NodeIterator<const Node> const_iterator;
   iterator begin();
   iterator end();
+
   const_iterator begin() const;
   const_iterator end() const;
 

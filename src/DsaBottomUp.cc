@@ -55,8 +55,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   assert(context.m_cs);
 
   // clone and unify globals
-  for (auto &kv :
-       llvm::make_range(calleeG.globals_begin(), calleeG.globals_end())) {
+  for (auto &kv : calleeG.globals()) {
     Node &calleeN = *kv.second->getNode();
     // We don't care if globals got unified together, but have to respect the
     // points-to relations introduced by the callee introduced.
