@@ -71,11 +71,14 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
       assert(!nodeSet.empty());
       Node *first = *nodeSet.begin();
       for (Node *split : nodeSet)
-        if (split != first)
-          first->unify(*split);
+        if (split != first) {
+          split->getNode()->unify(*first->getNode());
+          first = first->getNode();
+        }
 
       m_deferredUnify.erase(it);
       m_map.insert({&n, {first, SingleAllocSite}});
+      return *first;
     }
   }
 
@@ -169,8 +172,7 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
     nNode.setLink(kv.first, nCell);
   }
 
-  // -- don't expect the new node to collapse
-  assert(!nNode.isForwarding());
-
-  return nNode;
+  // nNode can be forwarding if the original node was collapsed and the new one
+  // was initially split into multiple onlyAllocSites.
+  return *nNode.getNode();
 }
