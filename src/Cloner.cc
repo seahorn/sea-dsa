@@ -70,39 +70,16 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
       const auto &nodeSet = it->second;
       assert(!nodeSet.empty());
 
-      llvm::SmallVector<Node *, 4> toUnion;
-      toUnion.reserve(nodeSet.size());
-
-      for (Node *unionCandidate : nodeSet) {
-        const auto &allocSites = unionCandidate->getAllocSites();
-        if (allocSites.empty() || allocSites.size() > 1) {
-          toUnion.push_back(unionCandidate);
-          continue;
-        }
-
-        // We don't have to merge constants that definetely don't point
-        // anywhere.
-        const llvm::Value *onlyAS = *allocSites.begin();
-        if (!isConstantNoPtr(onlyAS))
-          toUnion.push_back(unionCandidate);
-      }
-
-      Node *first = toUnion.empty() ? nullptr : toUnion.front();
-      for (Node *split : toUnion)
+      Node *first = *nodeSet.begin();
+      for (Node *split : nodeSet)
         if (split != first) {
           split->getNode()->unify(*first->getNode());
           first = first->getNode();
         }
 
       m_deferredUnify.erase(it);
-      if (first) {
-        m_map.insert({&n, {first, SingleAllocSite}});
-        return *first;
-      }
-
-      // Fallback to full clone.
-      onlyAllocSite = nullptr;
-      currentLevel = CachingLevel::Full;
+      m_map.insert({&n, {first, SingleAllocSite}});
+      return *first;
     }
   }
 
