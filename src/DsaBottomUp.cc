@@ -64,10 +64,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
       continue;
 
     const Value &global = *kv.first;
-    errs() << "Clone global " << (global.hasName() ? global.getName() : "unnamed") << "\n";
     Node &n = C.clone(calleeN, false, kv.first);
-    errs() << "New node: ";
-    n.dump();
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
     nc.unify(c);
