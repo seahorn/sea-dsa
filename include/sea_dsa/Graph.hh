@@ -228,7 +228,7 @@ public:
   
   friend void ShowDsaGraph(Graph &g);
   /// view the Dsa graph using GraphViz. (For debugging.)
-  void viewGraph() { ShowDsaGraph(*this); }
+  void viewGraph();
 
   bool isFlat() const { return m_is_flat; }
 
@@ -414,8 +414,8 @@ public:
       dead |= n.dead;
       null |= n.null;
 
-      // XXX: cannot be collapsed and array at the same time
-      if ((offset_collapsed || type_collapsed) && array)
+      // XXX: cannot be offset-collapsed and array at the same time
+      if (offset_collapsed && array)
         array = 0;
     }
     void reset() { memset(this, 0, sizeof(*this)); }
@@ -791,7 +791,7 @@ public:
   void dump() const;
 
   // Shows the Dsa graph using GraphViz. (For debugging.)
-  void viewGraph() { getGraph()->viewGraph(); }
+  void viewGraph();
 };
 
 bool Node::isForwarding() const { return !m_forward.isNull(); }

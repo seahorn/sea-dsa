@@ -4,6 +4,11 @@
 #include "llvm/IR/Instructions.h"
 using namespace sea_dsa;
 
+static llvm::cl::opt<bool> NoAllocSiteOpt(
+    "sea-dsa-no-single-as-opt",
+    llvm::cl::desc("Disable node splitting optimization in cloner"),
+    llvm::cl::init(false), llvm::cl::Hidden);
+
 void Cloner::importCallPaths(DsaAllocSite &site,
                              llvm::Optional<DsaAllocSite *> other) {
   if (isUnset())
@@ -56,6 +61,9 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
   // -- don't clone nodes that are already in the graph
   if (n.getGraph() == &m_graph)
     return *const_cast<Node *>(&n);
+
+  if (NoAllocSiteOpt)
+    onlyAllocSite = nullptr;
 
   CachingLevel currentLevel = CachingLevel::Full;
   if (onlyAllocSite)

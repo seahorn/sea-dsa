@@ -280,6 +280,10 @@ void Node::collapseOffsets(int tag) {
       if (m_unique_scalar) errs()
           << "KILL due to offset-collapse: " << *m_unique_scalar << "\n";);
 
+  static int cnt = 0;
+  ++cnt;
+  LOG("dsa-collapse", errs() << "Offset-Collapse #" << cnt << "\n");
+
   m_unique_scalar = nullptr;
   assert(!isForwarding());
   // if the node is already of smallest size, just mark it
@@ -1138,6 +1142,10 @@ void Node::dump() const {
   errs() << "\n";
 }
 
+void Node::viewGraph() {
+  getGraph()->viewGraph();
+}
+
 bool Graph::computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
                                        Graph &callerG, SimulationMapper &simMap,
                                        const bool reportIfSanityCheckFailed) {
@@ -1330,8 +1338,7 @@ void Graph::write(raw_ostream &o) const {
     if (kv.second.begin() != kv.second.end()) {
       o << "cell=(" << C->getNode() << "," << C->getRawOffset() << ")\n";
       for (const Function *F : kv.second) {
-        o << "\t"
-          << "ret(" << F->getName() << ")\n";
+        o << "\tret(" << F->getName() << ")\n";
       }
     }
   }
@@ -1339,6 +1346,10 @@ void Graph::write(raw_ostream &o) const {
 
 void Graph::dump() const {
   write(errs());
+}
+
+void Graph::viewGraph() {
+  ShowDsaGraph(*this);
 }
 
 Node &FlatGraph::mkNode() {

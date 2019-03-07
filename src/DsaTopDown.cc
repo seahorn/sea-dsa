@@ -22,8 +22,12 @@
 #include "sea_dsa/support/Brunch.hh"
 #include "sea_dsa/support/Debug.h"
 
-
 using namespace llvm;
+
+static llvm::cl::opt<bool> NoTDFlowSensitiveOpt(
+    "sea-dsa-no-td-flow-sensitive-opt",
+    llvm::cl::desc("Disable partial flow sensitivity in top down"),
+    llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace sea_dsa {
 
@@ -42,8 +46,9 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     if (!calleeG.hasScalarCell(*kv.first))
       continue;
 
-    if (!kv.second->isModified())
-      continue;
+    if (!NoTDFlowSensitiveOpt)
+      if (!kv.second->isModified())
+        continue;
 
     // Copy only the allocation site that matches the global.
     Node &n = C.clone(*kv.second->getNode(), false, kv.first);
@@ -84,6 +89,9 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     if (callerG.hasAllocSiteForValue(*argStripped)) {
       onlyAllocSite = argStripped;
     }
+
+    if (NoTDFlowSensitiveOpt)
+      onlyAllocSite = nullptr;
 
     const Cell &callerCell = callerG.getCell(*arg);
     Node &n = C.clone(*callerCell.getNode(), noescape, onlyAllocSite);

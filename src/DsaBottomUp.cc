@@ -24,6 +24,11 @@
 
 using namespace llvm;
 
+static llvm::cl::opt<bool> NoBUFlowSensitiveOpt(
+    "sea-dsa-no-bu-flow-sensitive-opt",
+    llvm::cl::desc("Disable partial flow sensitivity in bottom up"),
+    llvm::cl::init(false), llvm::cl::Hidden);
+
 namespace sea_dsa {
 
 static const Value *findUniqueReturnValue(const Function &F) {
@@ -59,9 +64,10 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     Node &calleeN = *kv.second->getNode();
     // We don't care if globals got unified together, but have to respect the
     // points-to relations introduced by the callee introduced.
-    if (calleeN.getNumLinks() == 0 || !calleeN.isModified() ||
-        llvm::isa<ConstantData>(kv.first))
-      continue;
+    if (!NoBUFlowSensitiveOpt)
+      if (calleeN.getNumLinks() == 0 || !calleeN.isModified() ||
+          llvm::isa<ConstantData>(kv.first))
+        continue;
 
     const Value &global = *kv.first;
     Node &n = C.clone(calleeN, false, kv.first);
@@ -79,6 +85,8 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     // single allocation site (e.g., return value of a malloc, a global, etv.).
     const Value *onlyAllocSite = findUniqueReturnValue(callee);
     if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
+      onlyAllocSite = nullptr;
+    if (NoBUFlowSensitiveOpt)
       onlyAllocSite = nullptr;
 
     const Cell &ret = calleeG.getRetCell(callee);
@@ -122,9 +130,7 @@ template <typename Set>
 static void reachableNodes(const Function &fn, Graph &g, Set &inputReach,
                            Set &retReach) {
   // formal parameters
-  for (Function::const_arg_iterator I = fn.arg_begin(), E = fn.arg_end();
-       I != E; ++I) {
-    const Value &arg = *I;
+  for (const Value &arg : fn.args()) {
     if (g.hasCell(arg)) {
       Cell &c = g.mkCell(arg, Cell());
       markReachableNodes(c.getNode(), inputReach);
@@ -132,7 +138,7 @@ static void reachableNodes(const Function &fn, Graph &g, Set &inputReach,
   }
 
   // globals
-  for (auto &kv : llvm::make_range(g.globals_begin(), g.globals_end()))
+  for (auto &kv : g.globals())
     markReachableNodes(kv.second->getNode(), inputReach);
 
   // return value
