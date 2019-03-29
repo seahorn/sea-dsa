@@ -504,6 +504,13 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
       return;
   }
 
+  // -- ignore ShuffleVector instruction
+  if (!m_graph.hasCell(ptr) && !isa<GlobalValue>(&ptr)) {
+    if (isa<ShuffleVectorInst>(ptr)) {
+      return;
+    }
+  }
+
   assert(m_graph.hasCell(ptr) || isa<GlobalValue>(&ptr));
 
   // -- empty gep that points directly to the base
@@ -633,7 +640,6 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // -- create a new node if there is no link at this offset yet
     if (!in.hasLink(InstType)) {
       Node &n = m_graph.mkNode();
-      FieldType nType = opType;
       in.setLink(InstType, Cell(&n, 0));
       // -- record allocation site
       sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(I);
