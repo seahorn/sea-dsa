@@ -612,7 +612,6 @@ public:
 
   Node &setTypeCollapsed(bool v = true) {
     m_nodeType.type_collapsed = v;
-    setArray(false);
     return *this;
   }
   bool isTypeCollapsed() const { return m_nodeType.type_collapsed; }
