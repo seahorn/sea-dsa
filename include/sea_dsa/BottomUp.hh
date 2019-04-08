@@ -46,10 +46,6 @@ private:
                               const SimulationMapper &sm);
 
 public:
-  static bool computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
-                                         Graph &callerG,
-                                         const bool onlyModified,
-                                         SimulationMapper &simMap);
 
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &calleeG,
                                        Graph &callerG, bool noescape = true);
