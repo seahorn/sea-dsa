@@ -647,7 +647,6 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // -- create a new node if there is no link at this offset yet
     if (!in.hasLink(InstType)) {
       Node &n = m_graph.mkNode();
-      FieldType nType = opType;
       in.setLink(InstType, Cell(&n, 0));
       // -- record allocation site
       sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(I);

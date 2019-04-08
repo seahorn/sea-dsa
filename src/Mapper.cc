@@ -54,8 +54,12 @@ bool SimulationMapper::insert(const Cell &c1, Cell &c2) {
   Node::Offset o2(*c2.getNode(), c2.getRawOffset());
 
   if (o2.getNumericOffset() < o1.getNumericOffset()) {
-    m_sim.clear();
-    return false;
+    if (!c1.getNode()->isArray() && c2.getNode()->isArray()) {
+      // do nothing: covered below
+    } else {
+      m_sim.clear();
+      return false;
+    }
   }
 
   Field f(o2.getNumericOffset() - o1.getNumericOffset(),
