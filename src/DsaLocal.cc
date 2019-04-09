@@ -460,7 +460,7 @@ std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
         }
         noffset += (uint64_t)arrayIdx * sz;
       } else
-        divisor = divisor == 0 ? sz : gcd(divisor, sz < 0 ? -sz : sz);
+        divisor = divisor == 0 ? sz : gcd(divisor, sz);
     }
   }
 
