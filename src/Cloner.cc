@@ -94,7 +94,7 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
   // check the cache
   auto it = m_map.find(&n);
   if (it != m_map.end()) {
-    Node &nNode = *(it->second.first);
+    Node &nNode = *(it->second.first->getNode());
     const CachingLevel cachedLevel = it->second.second;
 
     // If cloning was done in a more restricted case before,
