@@ -1,7 +1,7 @@
 ; RUN: %seadsa %s %butd_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-type-aware=true --sea-dsa-dot-print-as --sea-dsa-dot-outdir=%T/td_explicit_as.ll
 ; RUN: %cmp-graphs %tests/td_explicit_as.entry.mem.dot %T/td_explicit_as.ll/entry.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
-
+; XFAIL: *
 
 ; ModuleID = 'td_explicit_as.c'
 source_filename = "td_explicit_as.c"

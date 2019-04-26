@@ -1,6 +1,7 @@
 ; RUN: %seadsa %s %butd_dsa --sea-dsa-dot -sea-dsa-stats --sea-dsa-type-aware=true --sea-dsa-dot-print-as --sea-dsa-dot-outdir=%T/bu_explicit_as.ll
 ; RUN: %cmp-graphs %tests/bu_explicit_as.main.mem.dot %T/bu_explicit_as.ll/main.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
+; XFAIL: *
 
 ; ModuleID = 'bu_explicit_as.ll'
 source_filename = "bu_explicit_as.c"
