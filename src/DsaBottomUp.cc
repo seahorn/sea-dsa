@@ -64,10 +64,12 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     Node &calleeN = *kv.second->getNode();
     // We don't care if globals got unified together, but have to respect the
     // points-to relations introduced by the callee introduced.
+#if 0    
     if (!NoBUFlowSensitiveOpt)
       if (calleeN.getNumLinks() == 0 || !calleeN.isModified() ||
           llvm::isa<ConstantData>(kv.first))
         continue;
+#endif     
 
     const Value &global = *kv.first;
     Node &n = C.clone(calleeN, false, kv.first);

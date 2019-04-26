@@ -43,9 +43,11 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 
   // clone and unify globals
   for (auto &kv : callerG.globals()) {
+#if 0    
     if (!NoTDFlowSensitiveOpt)
       if (!kv.second->isModified())
         continue;
+#endif     
 
     // Copy only the allocation site that matches the global.
     Node &n = C.clone(*kv.second->getNode(), false, kv.first);
