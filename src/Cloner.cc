@@ -33,7 +33,7 @@ Node &Cloner::clone(const Node &n, bool forceAlloca) {
   // check the cache
   auto it = m_map.find(&n);
   if (it != m_map.end()) {
-    Node &nNode = *(it->second);
+    Node &nNode = *(it->second->getNode());
     // if alloca are stripped but this call forces them,
     // then ensure that all allocas of n are copied over to nNode
     if (m_strip_allocas && forceAlloca &&
