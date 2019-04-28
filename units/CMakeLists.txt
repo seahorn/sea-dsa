@@ -16,6 +16,6 @@ add_executable(units_sea_dsa EXCLUDE_FROM_ALL
   )
 llvm_config (units_sea_dsa ${LLVM_LINK_COMPONENTS})
 
-target_link_libraries(units_sea_dsa ${USED_LIBS_SEA_DSA_UNITS})
+target_link_libraries(units_sea_dsa PUBLIC ${USED_LIBS_SEA_DSA_UNITS})
 add_custom_target(sea-dsa-units units_sea_dsa DEPENDS units_sea_dsa)
 add_test(NAME SeaDsaTests COMMAND units_sea_dsa)
