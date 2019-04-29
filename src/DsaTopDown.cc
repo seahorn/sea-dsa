@@ -43,7 +43,11 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 
   // clone and unify globals
   for (auto &kv : callerG.globals()) {
-#if 0    
+    // Don't propagate the global down if it's not used by the callee.
+     if (!calleeG.hasScalarCell(*kv.first))
+      continue;
+
+#if 0
     if (!NoTDFlowSensitiveOpt)
       if (!kv.second->isModified())
         continue;

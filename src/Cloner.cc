@@ -86,8 +86,9 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
         }
 
       m_deferredUnify.erase(it);
-      m_map.insert({&n, {first, SingleAllocSite}});
-      return *first;
+
+      m_map.insert({&n, {first->getNode(), SingleAllocSite}});
+      return *first->getNode();
     }
   }
 
