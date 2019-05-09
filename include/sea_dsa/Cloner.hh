@@ -74,6 +74,8 @@ private:
   }
   bool isUnset() const { return !(isTopDown() || isBottomUp()); }
 
+  void copyAllocationSites(const Node &from, Node &to, bool forceAddAlloca,
+                           const llvm::Value *onlyAllocSite = nullptr);
   void importCallPaths(DsaAllocSite &site,
                        llvm::Optional<DsaAllocSite *> other);
 };

@@ -61,9 +61,11 @@ void DsaAllocSite::importCallPaths(const DsaAllocSite &other,
     ncp.emplace_back(bu ? BottomUp : TopDown,
                      bu ? cs.getCaller() : cs.getCallee());
   } else {
-    // -- copy all call paths and add last function
-    for (const CallPath &cp : other.getCallPaths()) {
-      m_callPaths.emplace_back(cp);
+    // -- copy all call paths and add last function. Copy the whole vector first
+    // as `this` may be the same object as `other`.
+    auto otherCP = other.m_callPaths;
+    for (CallPath &cp : otherCP) {
+      m_callPaths.emplace_back(std::move(cp));
       CallPath &ncp = m_callPaths.back();
       ncp.emplace_back(bu ? BottomUp : TopDown,
                        bu ? cs.getCaller() : cs.getCallee());

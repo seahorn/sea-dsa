@@ -9,19 +9,6 @@ static llvm::cl::opt<bool> NoAllocSiteOpt(
     llvm::cl::desc("Disable node splitting optimization in cloner"),
     llvm::cl::init(false), llvm::cl::Hidden);
 
-void Cloner::importCallPaths(DsaAllocSite &site,
-                             llvm::Optional<DsaAllocSite *> other) {
-  if (isUnset())
-    return;
-
-  assert(other.hasValue());
-  if (!other.hasValue())
-    return;
-
-  site.importCallPaths(*other.getValue(),
-                       DsaCallSite(*m_context.m_cs.getValue()), isBottomUp());
-}
-
 /// Return true if the instruction allocates memory on the stack
 static bool isStackAllocation(const llvm::Value *v) {
   // XXX Check whether there are other ways to allocate stack, like
@@ -65,10 +52,12 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
   if (NoAllocSiteOpt)
     onlyAllocSite = nullptr;
 
+  const bool skipAllocas = m_strip_allocas && !forceAddAlloca;
+
   CachingLevel currentLevel = CachingLevel::Full;
   if (onlyAllocSite)
     currentLevel = CachingLevel::SingleAllocSite;
-  else if (m_strip_allocas && forceAddAlloca)
+  else if (skipAllocas)
     currentLevel = CachingLevel::NoAllocas;
 
   if (currentLevel != SingleAllocSite) {
@@ -86,8 +75,14 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
         }
 
       m_deferredUnify.erase(it);
+      const CachingLevel level =
+          skipAllocas ? CachingLevel::NoAllocas : CachingLevel::Full;
+      m_map.insert({&n, {first->getNode(), level}});
+      first = first->getNode();
+      // Copy other allocation sites -- deferred nodes may not know about all
+      // of them.
+      copyAllocationSites(n, *first, forceAddAlloca);
 
-      m_map.insert({&n, {first->getNode(), SingleAllocSite}});
       return *first->getNode();
     }
   }
@@ -102,22 +97,8 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
     // then ensure that all allocas of n are now copied over to nNode.
     // It may happen that the same node is being cloned multiple times, each
     // with a different onlyAllocSite.
-    if (currentLevel > cachedLevel) {
-      for (const llvm::Value *as : n.getAllocSites()) {
-        if (onlyAllocSite && as != onlyAllocSite)
-          continue;
-
-        if (m_strip_allocas && !forceAddAlloca && isStackAllocation(as))
-          continue;
-
-        DsaAllocSite *site = m_graph.mkAllocSite(*as);
-        assert(site);
-        nNode.addAllocSite(*site);
-
-        // -- update call paths on the cloned allocation site
-        importCallPaths(*site, n.getGraph()->getAllocSite(*as));
-      }
-    }
+    if (currentLevel > cachedLevel)
+      copyAllocationSites(n, nNode, forceAddAlloca, onlyAllocSite);
 
     // Remember that we updated the cache and potentially added more allocation
     // sites.
@@ -132,23 +113,7 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
   // analyses.
   nNode.setForeign(true);
 
-  // -- copy allocation sites, except stack based, unless requested
-  for (const llvm::Value *as : n.getAllocSites()) {
-    if (isStackAllocation(as)) {
-      if (!forceAddAlloca && m_strip_allocas)
-        continue;
-    }
-
-    if (onlyAllocSite && as != onlyAllocSite)
-      continue;
-
-    DsaAllocSite *site = m_graph.mkAllocSite(*as);
-    assert(site);
-    nNode.addAllocSite(*site);
-
-    // -- update call paths on cloned allocation site
-    importCallPaths(*site, n.getGraph()->getAllocSite(*as));
-  }
+  copyAllocationSites(n, nNode, forceAddAlloca, onlyAllocSite);
 
   // -- update cache
   // Don't cache single alloc sites -- they will be initially split and cloned
@@ -190,4 +155,41 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
   // nNode can be forwarding if the original node was collapsed and the new one
   // was initially split into multiple onlyAllocSites.
   return *nNode.getNode();
+}
+
+void Cloner::copyAllocationSites(
+    const Node &from, Node &to, bool forceAddAlloca,
+    const llvm::Value *onlyAllocSite /* = nullptr */) {
+  // -- copy allocation sites, except stack based, unless requested
+  for (const llvm::Value *as : from.getAllocSites()) {
+    assert(as);
+    if (isStackAllocation(as) && !forceAddAlloca && m_strip_allocas)
+        continue;
+
+    if (onlyAllocSite && as != onlyAllocSite)
+      continue;
+
+    if (to.hasAllocSite(*as))
+      continue;
+
+    DsaAllocSite *site = m_graph.mkAllocSite(*as);
+    assert(site);
+    to.addAllocSite(*site);
+
+    // -- update call paths on cloned allocation site
+    importCallPaths(*site, to.getGraph()->getAllocSite(*as));
+  }
+}
+
+void Cloner::importCallPaths(DsaAllocSite &site,
+                             llvm::Optional<DsaAllocSite *> other) {
+  if (isUnset())
+    return;
+
+  assert(other.hasValue());
+  if (!other.hasValue())
+    return;
+
+  site.importCallPaths(*other.getValue(),
+                       DsaCallSite(*m_context.m_cs.getValue()), isBottomUp());
 }
