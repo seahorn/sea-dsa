@@ -29,6 +29,11 @@ static llvm::cl::opt<bool> NoTDFlowSensitiveOpt(
     llvm::cl::desc("Disable partial flow sensitivity in top down"),
     llvm::cl::init(false), llvm::cl::Hidden);
 
+static llvm::cl::opt<bool> NoTDCopyingOpt(
+    "sea-dsa-no-td-copying-opt",
+    llvm::cl::desc("Disable copying optimizations in top down"),
+    llvm::cl::init(false), llvm::cl::Hidden);
+
 namespace sea_dsa {
 
 // Clone caller nodes into callee and resolve arguments
@@ -44,7 +49,8 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
   // clone and unify globals
   for (auto &kv : callerG.globals()) {
     // Don't propagate the global down if it's not used by the callee.
-     if (!calleeG.hasScalarCell(*kv.first))
+    if (!NoTDCopyingOpt)
+      if (!calleeG.hasScalarCell(*kv.first))
       continue;
 
 #if 0
@@ -186,7 +192,9 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         // propagate from the caller to the callee
         cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);
         // remove foreign nodes
-        calleeG.removeNodes([](const Node *n) { return n->isForeign(); });
+
+        if (!NoTDCopyingOpt)
+          calleeG.removeNodes([](const Node *n) { return n->isForeign(); });
       }
     }
   }
