@@ -20,7 +20,7 @@ framework and its analyses.
 
 ## Requirements ## 
 
-`sea-dsa` is written in C++ and uses the Boost library. The main requirements
+`TeaDsa` is written in C++ and uses the Boost library. The main requirements
 are: 
 
 - C++ compiler supporting c++11
