@@ -1,23 +1,27 @@
-# sea-dsa: A Heap Analysis for Verification of Low-level C/C++ #
+# TeaDsa: A Points-to Analysis for Verification of Low-level C/C++ #
 
-<a href="https://travis-ci.org/seahorn/sea-dsa"><img src="https://travis-ci.org/seahorn/sea-dsa.svg?branch=master" title="Ubuntu 12.04 LTS 64bit, g++-4.8"/></a>
+<a href="https://travis-ci.org/seahorn/sea-dsa">
+    <img src="https://travis-ci.org/seahorn/sea-dsa.svg?branch=master" title="Ubuntu 14.04 LTS 64bit, g++-5"/>
+</a>
 
 
-`sea-dsa` is a context-, field-, and array-sensitive heap analysis for
-LLVM bitcode inspired
-by [DSA](http://llvm.org/pubs/2003-11-15-DataStructureAnalysisTR.ps).
+`TeaDsa` is a context-, field-, and array-sensitive unification-based points-to
+analysis for LLVM bitcode inspired
+by [DSA](http://llvm.org/pubs/2003-11-15-DataStructureAnalysisTR.ps), and based
+on [SeaDsa](https://github.com/seahorn/sea-dsa). `TeaDsa` is an order of
+magnitude more scalable and precise than `SeaDsa` thanks to improved handling of
+context sensitivity, addition of partial flow-sensitivity, and type-awareness.  
 
-Although `sea-dsa` can analyze arbitrary LLVM bitcode, it has been
-designed with the only purpose of assisting logic-based verification
-tools that target C/C++ programs. The goal of `sea-dsa` is to produce
-a finer-grained partition of the heap so that verifiers can generate
-verification conditions involving complex low-level pointers and
-arrays constraints but yet they can be solved efficiently.
+Although `TeaDsa` can analyze arbitrary LLVM bitcode, it has been
+tailored for use in program verification of C/C++ programs. It can be used as a
+stand-alone tool or together with the
+[SeaHorn](https://github.com/seahorn/seahorn/tree/tea-dsa) verification
+framework and its analyses.
 
 ## Requirements ## 
 
-`sea-dsa` is written in C++ and uses heavily the Boost library. The
-main requirements are:
+`sea-dsa` is written in C++ and uses the Boost library. The main requirements
+are: 
 
 - C++ compiler supporting c++11
 - Boost >= 1.55
@@ -30,38 +34,55 @@ To run tests, install the following packages:
 - `sudo apt-get install libgraphviz-dev`
 - `sudo easy_install pygraphviz`
 
+## Project Structure ##
+1. The main Points-To Graph data structures, `Graph`, `Cell`, and `Node`, are
+   defined in `include/Graph.hh` and `src/Graph.cc`.
+2. The *Local* analysis is in `include/Local.hh` and `src/DsaLocal.cc`.
+3. The *Bottom-Up* analysis is in `include/BottomUp.hh` and
+   `src/DsaBottomUp.cc`.
+4. The *Top-Down* analysis is in `include/TopDown.hh` and `src/DsaTopDown.cc`.
+5. The interprocedural node cloner is in `include/Cloner.hh` and
+   `src/Clonner.cc`.
+6. Type handling code is in `include/FieldType.hh`, `include/TypeUtils.hh`, 
+   `src/FieldType.cc`, and `src/TypeUtils.cc`.
+7. The allocator function discovery is in `include/AllocWrapInfo.hh` and
+   `src/AllocWrapInfo.cc`.
+
 ## Compilation and Usage ##
+
+### Program Verification benchmarks ###
+Instructions on running program verification benchmarks, together with recipes
+for building real-world projects and our results, can be found in
+[tea-dsa-extras](https://github.com/kuhar/tea-dsa-extras).
 
 ### Integration in other C++ projects (for users) ## 
 
-`sea-dsa` contains two directories: `include` and `src`. Since
-`sea-dsa` analyzes LLVM bitcode, LLVM header files and libraries must
-be accessible when building with `sea-dsa`.
+`TeaDsa` contains two directories: `include` and `src`. Since
+`TeaDsa` analyzes LLVM bitcode, LLVM header files and libraries must
+be accessible when building with `TeaDsa`.
 
 If your project uses `cmake` then you just need to add in your
 project's `CMakeLists.txt`:
 
-	 include_directories (sea_dsa/include)
+	 include_directories(sea_dsa/include)
 	 add_subdirectory(sea_dsa)
 
 ### Standalone (for developers) ###
 
-If you already installed `llvm-5.0` in your machine:
+If you already installed `llvm-5.0` on your machine:
 
     mkdir build && cd build
-	cmake -DCMAKE_INSTALL_PREFIX=__dir__ -DLLVM_DIR=__here_llvm-5.0__/share/llvm/cmake  ..
+	cmake -DCMAKE_INSTALL_PREFIX=run -DLLVM_DIR=__here_llvm-5.0__/share/llvm/cmake  ..
    	cmake --build . --target install
-	cmake --build . --target test-sea-dsa
 	
 Otherwise:
 
     mkdir build && cd build
-	cmake -DCMAKE_INSTALL_PREFIX=__dir__ ..
+	cmake -DCMAKE_INSTALL_PREFIX=run ..
     cmake --build . --target install
 
 To run tests:
 
-    export SEADSA=__dir__/bin
 	cmake --build . --target test-sea-dsa
 
 ## Dealing with C/C++ library and external calls ##
@@ -99,7 +120,9 @@ defined in `sea_dsa/sea_dsa.h`.
 ## References ## 
 
 1. "A Context-Sensitive Memory Model for Verification of C/C++
-   Programs" by A. Gurfinkel and J. A. Navas. In SAS'17. ([Paper](https://jorgenavas.github.io/papers/sea-dsa-SAS17.pdf)) | ([Slides](https://jorgenavas.github.io/slides/sea-dsa-SAS17-slides.pdf))
+   Programs" by A. Gurfinkel and J. A. Navas. In SAS'17.
+   ([Paper](https://jorgenavas.github.io/papers/sea-dsa-SAS17.pdf))
+   | ([Slides](https://jorgenavas.github.io/slides/sea-dsa-SAS17-slides.pdf))
 
 
 
