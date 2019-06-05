@@ -49,7 +49,7 @@ if (TOP_LEVEL)
   include(ExternalProject)
   # if top-level, offer to build llvm
   ExternalProject_Add (llvm
-    SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_500/final/
+    SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_800/final/
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/llvm
     INSTALL_DIR ${CMAKE_BINARY_DIR}/run
     CMAKE_ARGS
@@ -69,7 +69,7 @@ if (TOP_LEVEL)
     LOG_BUILD 1
     LOG_INSTALL 1)
 
-  find_package (LLVM 5.0.0 CONFIG NO_DEFAULT_PATH)
+  find_package (LLVM 8.0 CONFIG NO_DEFAULT_PATH)
   if (NOT LLVM_FOUND)
     ExternalProject_Get_Property (llvm INSTALL_DIR)
     set (LLVM_ROOT ${INSTALL_DIR})
