@@ -169,6 +169,14 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
     if (isa<Constant>(&v) && cast<Constant>(&v)->isNullValue())
       continue;
 
+    // -- skip load of null
+    if (LoadInst* LI = dyn_cast<LoadInst>(&v)) {
+      if (BlockBuilderBase::isNullConstant(
+	   *LI->getPointerOperand()->stripPointerCasts())) {
+	continue;
+      }
+    }
+    
     // -- skip undef
     if (isa<Constant>(&v) && isa<UndefValue>(&v))
       continue;
