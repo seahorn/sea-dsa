@@ -34,12 +34,19 @@ RUN cmake -GNinja \
           -DCMAKE_CXX_COMPILER=g++-5 \
           -DCMAKE_EXPORT_COMPILE_COMMANDS=1 \
           ../ && \
-    cmake --build . --target install && \
-    ln -s /clang-8.0/bin/clang run/bin/clang && \
+    cmake --build . --target install
+
+
+RUN ln -s /clang-8.0/bin/clang run/bin/clang && \
     ln -s /clang-8.0/bin/clang++ run/bin/clang++
 
-# RUN tests when they are ready to go
-RUN cmake --build . --target test-sea-dsa
-RUN cmake --build . --target sea-dsa-units
+RUN ln -s /usr/local/bin/lit bin/llvm-lit
+
+ENV PATH "/deps/LLVM-8.0.1-Linux/bin:$PATH"
+ENV PATH "/crabllvm/build/run/bin:$PATH"
+
+# run tests when they are ready to go
+RUN cmake --build . --target test-sea-dsa && \ 
+    cmake --build . --target sea-dsa-units
 
 WORKDIR /sea-dsa
