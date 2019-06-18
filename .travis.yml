@@ -16,7 +16,7 @@ before_install:
    - sudo apt-get install --yes python-pip
    - sudo pip install lit
    - sudo pip install OutputCheck
-   - sudo easy_install networkx
+   - sudo pip install 'networkx==2.2'
    - sudo apt-get install libgraphviz-dev
    - sudo easy_install pygraphviz
 
