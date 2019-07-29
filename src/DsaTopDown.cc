@@ -189,12 +189,23 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         }
 
         Graph &calleeG = *(it->second);
+
+        static int cnt = 0;
+        ++cnt;
+        LOG("dsa-td", llvm::errs() << "TD #" << cnt << ": " << dsaCS.getCaller()->getName() << " -> " << dsaCS.getCallee()->getName() << "\n");
+        LOG("dsa-td", llvm::errs() << "\tCallee size: " << calleeG.numNodes() << ", caller size:\t" << callerG.numNodes() << "\n");
+        LOG("dsa-td", llvm::errs() << "\tCallee collapsed: " << calleeG.numCollapsed() << ", caller collapsed:\t" << callerG.numCollapsed() << "\n");
         // propagate from the caller to the callee
         cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);
         // remove foreign nodes
 
         if (!NoTDCopyingOpt)
           calleeG.removeNodes([](const Node *n) { return n->isForeign(); });
+
+        LOG("dsa-td", llvm::errs() << "\tCallee size after clone: " << calleeG.numNodes() << ", collapsed: " << calleeG.numCollapsed() << "\n");
+        if (cnt == 38) {
+          calleeG.viewGraph();
+        }
       }
     }
   }

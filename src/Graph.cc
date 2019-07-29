@@ -283,6 +283,9 @@ void Node::collapseOffsets(int tag) {
   static int cnt = 0;
   ++cnt;
   LOG("dsa-collapse", errs() << "Offset-Collapse #" << cnt << "\n");
+  if (cnt == 53) {
+    errs() << "\n~~~~NOW~~~~\n";
+  }
 
   m_unique_scalar = nullptr;
   assert(!isForwarding());
@@ -1342,6 +1345,12 @@ void Graph::write(raw_ostream &o) const {
       }
     }
   }
+}
+
+size_t Graph::numCollapsed() const {
+  return std::count_if(
+      m_nodes.begin(), m_nodes.end(),
+      [](const NodeVectorElemTy &N) { return N->isOffsetCollapsed(); });
 }
 
 void Graph::dump() const {

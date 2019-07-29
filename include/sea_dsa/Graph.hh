@@ -63,6 +63,7 @@ protected:
   std::unique_ptr<DsaAllocator> m_allocator;
   /// DSA nodes owned by this graph
   typedef std::vector<std::unique_ptr<Node, DsaAllocatorDeleter>> NodeVector;
+  typedef std::unique_ptr<Node, DsaAllocatorDeleter> NodeVectorElemTy;
   NodeVector m_nodes;
 
   /// Map from scalars to cells in this graph
@@ -130,111 +131,112 @@ public:
   virtual const_iterator end() const;
   virtual iterator begin();
   virtual iterator end();
+  size_t numNodes() const { return m_nodes.size(); };
+  size_t numCollapsed() const;
 
-  /// iterate over scalars
-  virtual scalar_const_iterator scalar_begin() const;
-  virtual scalar_const_iterator scalar_end() const;
-  llvm::iterator_range<scalar_const_iterator> scalars() const {
-    return llvm::make_range(scalar_begin(), scalar_end());
-  }
+    /// iterate over scalars
+    virtual scalar_const_iterator scalar_begin() const;
+    virtual scalar_const_iterator scalar_end() const;
+    llvm::iterator_range<scalar_const_iterator> scalars() const {
+      return llvm::make_range(scalar_begin(), scalar_end());
+    }
 
-  virtual global_const_iterator globals_begin() const;
-  virtual global_const_iterator globals_end() const;
-  llvm::iterator_range<global_const_iterator> globals() const {
-    return llvm::make_range(globals_begin(), globals_end());
-  }
+    virtual global_const_iterator globals_begin() const;
+    virtual global_const_iterator globals_end() const;
+    llvm::iterator_range<global_const_iterator> globals() const {
+      return llvm::make_range(globals_begin(), globals_end());
+    }
 
-  /// iterate over formal parameters of functions
-  virtual formal_const_iterator formal_begin() const;
-  virtual formal_const_iterator formal_end() const;
-  llvm::iterator_range<formal_const_iterator> formals() const {
-    return llvm::make_range(formal_begin(), formal_end());
-  }
+    /// iterate over formal parameters of functions
+    virtual formal_const_iterator formal_begin() const;
+    virtual formal_const_iterator formal_end() const;
+    llvm::iterator_range<formal_const_iterator> formals() const {
+      return llvm::make_range(formal_begin(), formal_end());
+    }
 
-  /// iterate over returns of functions
-  virtual return_const_iterator return_begin() const;
-  virtual return_const_iterator return_end() const;
-  llvm::iterator_range<return_const_iterator> returns() const {
-    return llvm::make_range(return_begin(), return_end());
-  }
+    /// iterate over returns of functions
+    virtual return_const_iterator return_begin() const;
+    virtual return_const_iterator return_end() const;
+    llvm::iterator_range<return_const_iterator> returns() const {
+      return llvm::make_range(return_begin(), return_end());
+    }
 
-  /// creates a cell for the value or returns existing cell if
-  /// present
-  virtual Cell &mkCell(const llvm::Value &v, const Cell &c);
-  virtual Cell &mkRetCell(const llvm::Function &fn, const Cell &c);
+    /// creates a cell for the value or returns existing cell if
+    /// present
+    virtual Cell &mkCell(const llvm::Value &v, const Cell &c);
+    virtual Cell &mkRetCell(const llvm::Function &fn, const Cell &c);
 
-  /// return a cell for the value
-  virtual const Cell &getCell(const llvm::Value &v);
+    /// return a cell for the value
+    virtual const Cell &getCell(const llvm::Value &v);
 
-  /// return true iff the value has a cel
-  virtual bool hasCell(const llvm::Value &v) const;
+    /// return true iff the value has a cel
+    virtual bool hasCell(const llvm::Value &v) const;
 
-  virtual bool hasScalarCell(const llvm::Value &v) {
-    return  m_values.count(&v) > 0;
-  }
-  
-  virtual bool hasRetCell(const llvm::Function &fn) const {
-    return m_returns.count(&fn) > 0;
-  }
+    virtual bool hasScalarCell(const llvm::Value &v) {
+      return m_values.count(&v) > 0;
+    }
 
-  virtual Cell &getRetCell(const llvm::Function &fn);
+    virtual bool hasRetCell(const llvm::Function &fn) const {
+      return m_returns.count(&fn) > 0;
+    }
 
-  virtual const Cell &getRetCell(const llvm::Function &fn) const;
+    virtual Cell &getRetCell(const llvm::Function &fn);
 
-  llvm::Optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
-    auto it = m_valueToAllocSite.find(&v);
-    if (it != m_valueToAllocSite.end())
-      return it->second;
+    virtual const Cell &getRetCell(const llvm::Function &fn) const;
 
-    return llvm::None;
-  }
+    llvm::Optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
+      auto it = m_valueToAllocSite.find(&v);
+      if (it != m_valueToAllocSite.end())
+        return it->second;
 
-  DsaAllocSite *mkAllocSite(const llvm::Value &v);
+      return llvm::None;
+    }
 
-  llvm::iterator_range<alloc_site_iterator> alloc_sites() {
-    alloc_site_iterator begin = m_allocSites.begin();
-    alloc_site_iterator end = m_allocSites.end();
-    return llvm::make_range(begin, end);
-  }
+    DsaAllocSite *mkAllocSite(const llvm::Value &v);
 
-  llvm::iterator_range<alloc_site_const_iterator> alloc_sites() const {
-    alloc_site_const_iterator begin = m_allocSites.begin();
-    alloc_site_const_iterator end = m_allocSites.end();
-    return llvm::make_range(begin, end);
-  }
+    llvm::iterator_range<alloc_site_iterator> alloc_sites() {
+      alloc_site_iterator begin = m_allocSites.begin();
+      alloc_site_iterator end = m_allocSites.end();
+      return llvm::make_range(begin, end);
+    }
 
-  bool hasAllocSiteForValue(const llvm::Value &v) const {
-    return m_valueToAllocSite.count(&v) > 0;
-  }
+    llvm::iterator_range<alloc_site_const_iterator> alloc_sites() const {
+      alloc_site_const_iterator begin = m_allocSites.begin();
+      alloc_site_const_iterator end = m_allocSites.end();
+      return llvm::make_range(begin, end);
+    }
 
-  /// compute a map from callee nodes to caller nodes
-  //
-  /// XXX: we might want to make the last argument a template
-  /// parameter but then the definition should be in a header file.
-  static bool
-  computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
-                             Graph &callerG, SimulationMapper &simMap,
-                             const bool reportIfSanityCheckFailed = true);
+    bool hasAllocSiteForValue(const llvm::Value &v) const {
+      return m_valueToAllocSite.count(&v) > 0;
+    }
 
-  /// import the given graph into the current one
-  /// copies all nodes from g and unifies all common scalars
-  virtual void import(const Graph &g, bool withFormals = false);
+    /// compute a map from callee nodes to caller nodes
+    //
+    /// XXX: we might want to make the last argument a template
+    /// parameter but then the definition should be in a header file.
+    static bool computeCalleeCallerMapping(
+        const DsaCallSite &cs, Graph &calleeG, Graph &callerG,
+        SimulationMapper &simMap, const bool reportIfSanityCheckFailed = true);
 
-  /// pretty-printer of a graph
-  virtual void write(llvm::raw_ostream &o) const;
+    /// import the given graph into the current one
+    /// copies all nodes from g and unifies all common scalars
+    virtual void import(const Graph &g, bool withFormals = false);
 
-  /// for gdb
-  void dump() const;
-  
-  friend void ShowDsaGraph(Graph &g);
-  /// view the Dsa graph using GraphViz. (For debugging.)
-  void viewGraph();
+    /// pretty-printer of a graph
+    virtual void write(llvm::raw_ostream & o) const;
 
-  bool isFlat() const { return m_is_flat; }
+    /// for gdb
+    void dump() const;
 
-  void removeLinks(Node* n, std::function<bool(const Node*)> pred);
-  
-  void removeNodes(std::function<bool(const Node*)> pred);
+    friend void ShowDsaGraph(Graph & g);
+    /// view the Dsa graph using GraphViz. (For debugging.)
+    void viewGraph();
+
+    bool isFlat() const { return m_is_flat; }
+
+    void removeLinks(Node * n, std::function<bool(const Node *)> pred);
+
+    void removeNodes(std::function<bool(const Node *)> pred);
 
 };
 

@@ -166,6 +166,57 @@ bool BottomUpAnalysis::checkAllNodesAreMapped(const Function &fn, Graph &fnG,
   return true;
 }
 
+template <typename T> std::vector<CallGraphNode *> SortedCGNs(const T &t) {
+  std::vector<CallGraphNode *> cgns;
+  for (CallGraphNode *cgn : t) {
+    Function *fn = cgn->getFunction();
+    if (!fn || fn->isDeclaration() || fn->empty())
+      continue;
+
+    cgns.push_back(cgn);
+  }
+
+  std::stable_sort(
+      cgns.begin(), cgns.end(), [](CallGraphNode *first, CallGraphNode *snd) {
+        return first->getFunction()->getName() < snd->getFunction()->getName();
+      });
+
+  return cgns;
+}
+
+std::vector<const llvm::Value *> SortedCallSites(CallGraphNode *cgn) {
+  std::vector<const llvm::Value *> res;
+  res.reserve(cgn->size());
+
+  for (auto &callRecord : *cgn) {
+    ImmutableCallSite CS(callRecord.first);
+    DsaCallSite dsaCS(CS);
+    const Function *callee = dsaCS.getCallee();
+    if (!callee || callee->isDeclaration() || callee->empty())
+      continue;
+
+    res.push_back(callRecord.first);
+  }
+
+  std::stable_sort(res.begin(), res.end(),
+                   [](const Value *first, const Value *snd) {
+                     ImmutableCallSite CS1(first);
+                     DsaCallSite dsaCS1(CS1);
+                     StringRef callerN1 = dsaCS1.getCaller()->getName();
+                     StringRef calleeN1 = dsaCS1.getCallee()->getName();
+
+                     ImmutableCallSite CS2(snd);
+                     DsaCallSite dsaCS2(CS2);
+                     StringRef callerN2 = dsaCS2.getCaller()->getName();
+                     StringRef calleeN2 = dsaCS2.getCallee()->getName();
+
+                     return std::make_pair(callerN1, calleeN1) <
+                            std::make_pair(callerN2, calleeN2);
+                   });
+
+  return res;
+}
+
 bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
   LOG("dsa-bu", errs() << "Started bottom-up analysis ... \n");
@@ -216,14 +267,16 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       localTime.pause();
     }
 
-    for (CallGraphNode *cgn : scc) {
+    std::vector<CallGraphNode *> cgns = SortedCGNs(scc);
+    for (CallGraphNode *cgn : cgns) {
       Function *fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty())
         continue;
 
       // -- resolve all function calls in the SCC
-      for (auto &callRecord : *cgn) {
-        ImmutableCallSite CS(callRecord.first);
+      auto callRecords = SortedCallSites(cgn);
+      for (auto *callRecord : callRecords) {
+        ImmutableCallSite CS(callRecord);
         DsaCallSite dsaCS(CS);
         const Function *callee = dsaCS.getCallee();
         if (!callee || callee->isDeclaration() || callee->empty())
@@ -235,7 +288,14 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
         Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
 
+        static int cnt = 0;
+        ++cnt;
+        LOG("dsa-bu", llvm::errs() << "BU #" << cnt << ": " << dsaCS.getCaller()->getName() << " <- " << dsaCS.getCallee()->getName() << "\n");
+        LOG("dsa-bu", llvm::errs() << "\tCallee size: " << calleeG.numNodes() << ", caller size:\t" << callerG.numNodes() << "\n");
+        LOG("dsa-bu", llvm::errs() << "\tCallee collapsed: " << calleeG.numCollapsed() << ", caller collapsed:\t" << callerG.numCollapsed() << "\n");
+
         cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape);
+        LOG("dsa-bu", llvm::errs() << "\tCaller size after clone: " << callerG.numNodes() << ", collapsed: " << callerG.numCollapsed() << "\n");
       }
 
       if (m_computeSimMap) {
