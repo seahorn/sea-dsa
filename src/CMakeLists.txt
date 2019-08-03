@@ -18,5 +18,6 @@ add_llvm_library (SeaDsaAnalysis
   NameValues.cc
   RemovePtrToInt.cc
   AllocWrapInfo.cc
+  AllocSiteInfo.cc
   DsaAllocSite.cc
   )
