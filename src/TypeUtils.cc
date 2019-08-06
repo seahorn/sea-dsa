@@ -13,8 +13,7 @@
 using namespace llvm;
 
 unsigned sea_dsa::getTypeSizeInBytes(const Type &ty, const DataLayout &dl) {
-  unsigned sz = dl.getTypeSizeInBits(&const_cast<Type &>(ty));
-  return sz < 8 ? 1 : sz / 8;
+  return dl.getTypeStoreSize(&const_cast<Type &>(ty));
 }
 
 namespace sea_dsa {
