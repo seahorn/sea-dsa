@@ -16,6 +16,7 @@
 #include "llvm/ADT/ImmutableSet.h"
 
 #include "sea_dsa/AllocSite.hh"
+#include "sea_dsa/CallSite.hh"
 #include "sea_dsa/FieldType.hh"
 
 #include <functional>
@@ -34,7 +35,6 @@ class Graph;
 class SimulationMapper;
 typedef std::unique_ptr<Cell> CellRef;
 
-class DsaCallSite;
 class DsaAllocator;
 extern bool IsTypeAware;
 
@@ -78,11 +78,25 @@ protected:
   typedef llvm::DenseMap<const llvm::Function *, CellRef> ReturnMap;
   ReturnMap m_returns;
 
+  /// Allocation sites owned by this graph
   using AllocSites = std::vector<std::unique_ptr<DsaAllocSite>>;
   AllocSites m_allocSites;
 
+  /// Map from values to allocation sites
   using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DsaAllocSite *>;
   ValueToAllocSite m_valueToAllocSite;
+
+  /// Indirect call sites owned by this graph
+  ///
+  /// The call site can be defined in the current function or any
+  /// direct or indirect callee. Call sites are copied from callees to
+  /// callers during bottom-up propagation.
+  using CallSites = std::vector<std::unique_ptr<DsaCallSite>>;
+  CallSites m_callSites;
+
+  /// Map from values to call sites
+  using ValueToCallSite = llvm::DenseMap<const llvm::Value *, DsaCallSite *>;
+  ValueToCallSite m_valueToCallSite;
 
   //  Whether the graph is flat or not
   bool m_is_flat;
@@ -111,6 +125,10 @@ public:
       boost::indirect_iterator<typename AllocSites::iterator>;
   using alloc_site_const_iterator =
       boost::indirect_iterator<typename AllocSites::const_iterator>;
+  using callsite_iterator =
+      boost::indirect_iterator<typename CallSites::iterator>;
+  using callsite_const_iterator =
+      boost::indirect_iterator<typename CallSites::const_iterator>;
 
   Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false);
   virtual ~Graph();
@@ -124,7 +142,8 @@ public:
   /// -- allocates a new node
   virtual Node &mkNode();
 
-  virtual Node &cloneNode(const Node &n, bool cpAllocSites = true);
+  virtual Node &cloneNode(const Node &n, bool cpAllocSites = true,
+                          bool cpCallSites = true);
 
   /// iterate over nodes
   virtual const_iterator begin() const;
@@ -134,110 +153,128 @@ public:
   size_t numNodes() const { return m_nodes.size(); };
   size_t numCollapsed() const;
 
-    /// iterate over scalars
-    virtual scalar_const_iterator scalar_begin() const;
-    virtual scalar_const_iterator scalar_end() const;
-    llvm::iterator_range<scalar_const_iterator> scalars() const {
-      return llvm::make_range(scalar_begin(), scalar_end());
-    }
+  /// iterate over scalars
+  virtual scalar_const_iterator scalar_begin() const;
+  virtual scalar_const_iterator scalar_end() const;
+  llvm::iterator_range<scalar_const_iterator> scalars() const {
+    return llvm::make_range(scalar_begin(), scalar_end());
+  }
 
-    virtual global_const_iterator globals_begin() const;
-    virtual global_const_iterator globals_end() const;
-    llvm::iterator_range<global_const_iterator> globals() const {
-      return llvm::make_range(globals_begin(), globals_end());
-    }
+  virtual global_const_iterator globals_begin() const;
+  virtual global_const_iterator globals_end() const;
+  llvm::iterator_range<global_const_iterator> globals() const {
+    return llvm::make_range(globals_begin(), globals_end());
+  }
 
-    /// iterate over formal parameters of functions
-    virtual formal_const_iterator formal_begin() const;
-    virtual formal_const_iterator formal_end() const;
-    llvm::iterator_range<formal_const_iterator> formals() const {
-      return llvm::make_range(formal_begin(), formal_end());
-    }
+  /// iterate over formal parameters of functions
+  virtual formal_const_iterator formal_begin() const;
+  virtual formal_const_iterator formal_end() const;
+  llvm::iterator_range<formal_const_iterator> formals() const {
+    return llvm::make_range(formal_begin(), formal_end());
+  }
 
-    /// iterate over returns of functions
-    virtual return_const_iterator return_begin() const;
-    virtual return_const_iterator return_end() const;
-    llvm::iterator_range<return_const_iterator> returns() const {
-      return llvm::make_range(return_begin(), return_end());
-    }
+  /// iterate over returns of functions
+  virtual return_const_iterator return_begin() const;
+  virtual return_const_iterator return_end() const;
+  llvm::iterator_range<return_const_iterator> returns() const {
+    return llvm::make_range(return_begin(), return_end());
+  }
 
-    /// creates a cell for the value or returns existing cell if
-    /// present
-    virtual Cell &mkCell(const llvm::Value &v, const Cell &c);
-    virtual Cell &mkRetCell(const llvm::Function &fn, const Cell &c);
+  /// creates a cell for the value or returns existing cell if
+  /// present
+  virtual Cell &mkCell(const llvm::Value &v, const Cell &c);
+  virtual Cell &mkRetCell(const llvm::Function &fn, const Cell &c);
 
-    /// return a cell for the value
-    virtual const Cell &getCell(const llvm::Value &v);
+  /// return a cell for the value
+  virtual const Cell &getCell(const llvm::Value &v);
 
-    /// return true iff the value has a cel
-    virtual bool hasCell(const llvm::Value &v) const;
+  /// return true iff the value has a cel
+  virtual bool hasCell(const llvm::Value &v) const;
 
-    virtual bool hasScalarCell(const llvm::Value &v) {
-      return m_values.count(&v) > 0;
-    }
+  virtual bool hasScalarCell(const llvm::Value &v) {
+    return m_values.count(&v) > 0;
+  }
 
-    virtual bool hasRetCell(const llvm::Function &fn) const {
-      return m_returns.count(&fn) > 0;
-    }
+  virtual bool hasRetCell(const llvm::Function &fn) const {
+    return m_returns.count(&fn) > 0;
+  }
 
-    virtual Cell &getRetCell(const llvm::Function &fn);
+  virtual Cell &getRetCell(const llvm::Function &fn);
 
-    virtual const Cell &getRetCell(const llvm::Function &fn) const;
+  virtual const Cell &getRetCell(const llvm::Function &fn) const;
 
-    llvm::Optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
-      auto it = m_valueToAllocSite.find(&v);
-      if (it != m_valueToAllocSite.end())
-        return it->second;
+  llvm::Optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
+    auto it = m_valueToAllocSite.find(&v);
+    if (it != m_valueToAllocSite.end())
+      return it->second;
 
-      return llvm::None;
-    }
+    return llvm::None;
+  }
 
-    DsaAllocSite *mkAllocSite(const llvm::Value &v);
+  DsaAllocSite *mkAllocSite(const llvm::Value &v);
 
-    llvm::iterator_range<alloc_site_iterator> alloc_sites() {
-      alloc_site_iterator begin = m_allocSites.begin();
-      alloc_site_iterator end = m_allocSites.end();
-      return llvm::make_range(begin, end);
-    }
+  llvm::iterator_range<alloc_site_iterator> alloc_sites() {
+    alloc_site_iterator begin = m_allocSites.begin();
+    alloc_site_iterator end = m_allocSites.end();
+    return llvm::make_range(begin, end);
+  }
 
-    llvm::iterator_range<alloc_site_const_iterator> alloc_sites() const {
-      alloc_site_const_iterator begin = m_allocSites.begin();
-      alloc_site_const_iterator end = m_allocSites.end();
-      return llvm::make_range(begin, end);
-    }
+  llvm::iterator_range<alloc_site_const_iterator> alloc_sites() const {
+    alloc_site_const_iterator begin = m_allocSites.begin();
+    alloc_site_const_iterator end = m_allocSites.end();
+    return llvm::make_range(begin, end);
+  }
 
-    bool hasAllocSiteForValue(const llvm::Value &v) const {
-      return m_valueToAllocSite.count(&v) > 0;
-    }
+  bool hasAllocSiteForValue(const llvm::Value &v) const {
+    return m_valueToAllocSite.count(&v) > 0;
+  }
 
-    /// compute a map from callee nodes to caller nodes
-    //
-    /// XXX: we might want to make the last argument a template
-    /// parameter but then the definition should be in a header file.
-    static bool computeCalleeCallerMapping(
-        const DsaCallSite &cs, Graph &calleeG, Graph &callerG,
-        SimulationMapper &simMap, const bool reportIfSanityCheckFailed = true);
+  llvm::Optional<DsaCallSite *> getCallSite(const llvm::Value &v) const {
+    auto it = m_valueToCallSite.find(&v);
+    if (it != m_valueToCallSite.end())
+      return it->second;
 
-    /// import the given graph into the current one
-    /// copies all nodes from g and unifies all common scalars
-    virtual void import(const Graph &g, bool withFormals = false);
+    return llvm::None;
+  }
 
-    /// pretty-printer of a graph
-    virtual void write(llvm::raw_ostream & o) const;
+  DsaCallSite *mkCallSite(const llvm::Value &cs, Cell &c);
 
-    /// for gdb
-    void dump() const;
+  llvm::iterator_range<callsite_iterator> callsites() {
+    return llvm::make_range(m_callSites.begin(), m_callSites.end());
+  }
 
-    friend void ShowDsaGraph(Graph & g);
-    /// view the Dsa graph using GraphViz. (For debugging.)
-    void viewGraph();
+  llvm::iterator_range<callsite_const_iterator> callsites() const {
+    return llvm::make_range(m_callSites.begin(), m_callSites.end());
+  }
 
-    bool isFlat() const { return m_is_flat; }
+  /// compute a map from callee nodes to caller nodes
+  //
+  /// XXX: we might want to make the last argument a template
+  /// parameter but then the definition should be in a header file.
+  static bool
+  computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
+                             Graph &callerG, SimulationMapper &simMap,
+                             const bool reportIfSanityCheckFailed = true);
 
-    void removeLinks(Node * n, std::function<bool(const Node *)> pred);
+  /// import the given graph into the current one
+  /// copies all nodes from g and unifies all common scalars
+  virtual void import(const Graph &g, bool withFormals = false);
 
-    void removeNodes(std::function<bool(const Node *)> pred);
+  /// pretty-printer of a graph
+  virtual void write(llvm::raw_ostream &o) const;
 
+  /// for gdb
+  void dump() const;
+
+  friend void ShowDsaGraph(Graph &g);
+  /// view the Dsa graph using GraphViz. (For debugging.)
+  void viewGraph();
+
+  bool isFlat() const { return m_is_flat; }
+
+  void removeLinks(Node *n, std::function<bool(const Node *)> pred);
+
+  void removeNodes(std::function<bool(const Node *)> pred);
 };
 
 /**
@@ -338,6 +375,7 @@ public:
 
   inline bool hasLink(Field offset) const;
   inline const Cell &getLink(Field offset) const;
+  inline Cell &getLink(Field offset);
   inline void setLink(Field offset, const Cell &c);
   inline void addLink(Field offset, Cell &c);
   inline void addAccessedType(unsigned offset, llvm::Type *t);
@@ -393,10 +431,10 @@ public:
     unsigned null : 1;
 
     NodeType() { reset(); }
-    
+
     void join(const NodeType &n) {
       shadow |= n.shadow;
-      foreign &= n.foreign; 
+      foreign &= n.foreign;
       alloca |= n.alloca;
       heap |= n.heap;
       global |= n.global;
@@ -483,6 +521,7 @@ public:
   // TODO: Investigate why flat_map is slower for accessed_types_type.
   typedef llvm::DenseMap<unsigned, Set> accessed_types_type;
   typedef boost::container::flat_map<Field, CellRef> links_type;
+  typedef boost::container::flat_set<const llvm::Value *> ValueSet;
 
   // Iterator for graph interface... Defined in GraphTraits.h
   typedef NodeIterator<Node> iterator;
@@ -529,29 +568,27 @@ private:
   accessed_types_type m_accessedTypes;
   /// destination of every offset/field
   links_type m_links;
-
   /// known size
   unsigned m_size;
-
   /// allocation sites for the node
-  typedef boost::container::flat_set<const llvm::Value *> AllocaSet;
-  AllocaSet m_alloca_sites;
-
+  ValueSet m_alloca_sites;
+  /// call sites for the node
+  ValueSet m_call_sites;
   /// XXX This is ugly. Ids should probably be unique per-graph, not
   /// XXX unique overall. Check with @jnavas before changing this though...
   static uint64_t m_id_factory;
-
   uint64_t m_id; // global id for the node
 
   Node(Graph &g);
-  Node(Graph &g, const Node &n, bool cpLinks = false, bool cpAllocSites = true);
+  Node(Graph &g, const Node &n, bool cpLinks = false, bool cpAllocSites = true,
+       bool cpCallSites = true);
 
   void compress() {
     constexpr unsigned shrinkThreshold = 4;
     if (m_accessedTypes.size() * shrinkThreshold <
         m_accessedTypes.getMemorySize())
-      m_accessedTypes = accessed_types_type(m_accessedTypes.begin(),
-                                            m_accessedTypes.end());
+      m_accessedTypes =
+          accessed_types_type(m_accessedTypes.begin(), m_accessedTypes.end());
 
     if (m_links.size() * shrinkThreshold < m_links.capacity())
       m_links.shrink_to_fit();
@@ -559,6 +596,7 @@ private:
     if (m_alloca_sites.size() * shrinkThreshold < m_alloca_sites.capacity())
       m_alloca_sites.shrink_to_fit();
   }
+
   /// Unify a given node with a specified offset of the current node
   /// post-condition: the given node points to the current node.
   /// might cause a collapse
@@ -569,13 +607,6 @@ private:
   /// one point to the result. Might cause collapse.  Most clients
   /// should use unifyAt() that has less stringent preconditions.
   void pointTo(Node &node, const Offset &offset);
-
-  Cell &getLink(const Field &f) {
-    auto &res = m_links[Offset::getAdjustedField(*this, f)];
-    if (!res)
-      res.reset(new Cell());
-    return *res;
-  }
 
   /// Adds a set of types for a field at a given offset
   void addAccessedType(const Offset &offset, Set types);
@@ -638,7 +669,7 @@ public:
   bool isExternal() const { return m_nodeType.external; }
   bool isIntToPtr() const { return m_nodeType.inttoptr; }
   bool isPtrToInt() const { return m_nodeType.ptrtoint; }
-  
+
   Node &setArraySize(unsigned sz) {
     assert(!isArray());
     assert(!isForwarding());
@@ -665,7 +696,7 @@ public:
   bool isTypeCollapsed() const { return m_nodeType.type_collapsed; }
 
   bool isForeign() const { return m_nodeType.foreign; }
-  
+
   Node &setForeign(bool v = true) {
     m_nodeType.foreign = v;
     return *this;
@@ -725,6 +756,13 @@ public:
     return *m_links.at(Offset::getAdjustedField(*this, f));
   }
 
+  Cell &getLink(const Field &f) {
+    auto &res = m_links[Offset::getAdjustedField(*this, f)];
+    if (!res)
+      res.reset(new Cell());
+    return *res;
+  }
+
   void setLink(Field f, const Cell &c) {
     getLink(Offset::getAdjustedField(*this, f)) = c;
   }
@@ -763,8 +801,9 @@ public:
 
   /// Add a new allocation site
   void addAllocSite(const DsaAllocSite &v);
-  /// get all allocation sites
-  const AllocaSet &getAllocSites() const { return m_alloca_sites; }
+
+  /// Get all allocation sites
+  const ValueSet &getAllocSites() const { return m_alloca_sites; }
 
   void resetAllocSites() { m_alloca_sites.clear(); }
 
@@ -776,7 +815,8 @@ public:
   bool hasAllocSite(const llvm::Value &v) { return m_alloca_sites.count(&v); }
 
   /// joins all the allocation sites
-  void joinAllocSites(const AllocaSet &s);
+  void joinAllocSites(const ValueSet &s);
+
   /// compute a simulation relation between this and n while
   /// propagating allocation sites for all the nodes in the
   /// relation. The result can only be one of these four values:
@@ -784,6 +824,15 @@ public:
   /// (both changed).
   unsigned mergeAllocSites(Node &n);
   template <typename Cache> unsigned mergeAllocSites(Node &n, Cache &seen);
+
+  /// add a new callsite
+  void addCallSite(DsaCallSite &cs);
+
+  /// get all callsites
+  const ValueSet &getCallSites() const { return m_call_sites; }
+
+  /// joins all the callsites
+  void joinCallSites(const ValueSet &s);
 
   /// pretty-printer of a node
   void write(llvm::raw_ostream &o) const;
@@ -805,6 +854,11 @@ bool Cell::hasLink(Field offset) const {
 }
 
 const Cell &Cell::getLink(Field offset) const {
+  assert(m_node);
+  return getNode()->getLink(offset.addOffset(m_offset));
+}
+
+Cell &Cell::getLink(Field offset) {
   assert(m_node);
   return getNode()->getLink(offset.addOffset(m_offset));
 }

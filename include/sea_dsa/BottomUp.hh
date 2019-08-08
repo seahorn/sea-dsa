@@ -45,18 +45,21 @@ private:
   bool checkAllNodesAreMapped(const llvm::Function &callee, Graph &calleeG,
                               const SimulationMapper &sm);
 
-public:
+  static void
+  cloneAndResolveArguments(const DsaCallSite &CS, Graph &calleeG,
+                           Graph &callerG, bool noescape,
+                           std::set<DsaCallSite *> &copiedCallSites);
 
+public:
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &calleeG,
                                        Graph &callerG, bool noescape = true);
 
   BottomUpAnalysis(const llvm::DataLayout &dl,
                    const llvm::TargetLibraryInfo &tli,
                    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-		   bool computeSimMap,
-                   bool noescape = true /* TODO: CLI*/)
+                   bool computeSimMap, bool noescape = true /* TODO: CLI*/)
       : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
-	m_computeSimMap(computeSimMap), m_noescape(noescape) {}
+        m_computeSimMap(computeSimMap), m_noescape(noescape) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 

@@ -195,7 +195,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitIntToPtrInst(IntToPtrInst &I);
   void visitPtrToIntInst(PtrToIntInst &I);
   void visitBitCastInst(BitCastInst &I);
-  void visitCmpInst(CmpInst &I) { /* do nothing */ }
+  void visitCmpInst(CmpInst &I) { /* do nothing */
+  }
   void visitInsertValueInst(InsertValueInst &I);
   void visitExtractValueInst(ExtractValueInst &I);
   void visitShuffleVectorInst(ShuffleVectorInst &I);
@@ -208,7 +209,6 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   void visitCallSite(CallSite CS);
   // void visitVAStart(CallSite CS);
-
 
   static bool isSeaDsaAliasFn(const Function *F) {
     return (F->getName().equals("sea_dsa_alias"));
@@ -293,7 +293,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   assert(!m_graph.hasCell(AI));
   Node &n = m_graph.mkNode();
   // -- record allocation site
-  sea_dsa::DsaAllocSite* site = m_graph.mkAllocSite(AI);
+  sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(AI);
   assert(site);
   n.addAllocSite(*site);
   // -- mark node as a stack node
@@ -420,8 +420,8 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
    a gcd of the variable offset.
  */
 std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
-                                               ArrayRef<Value *> Indicies,
-                                               const DataLayout &dl) {
+                                              ArrayRef<Value *> Indicies,
+                                              const DataLayout &dl) {
   Type *Ty = ptrTy;
   assert(Ty->isPointerTy());
 
@@ -567,17 +567,17 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
   Value &ptr = *I.getPointerOperand();
-    
+
   if (isa<ConstantExpr>(ptr)) {
     if (auto *g = dyn_cast<GEPOperator>(&ptr)) {
-      // Visit nested constant GEP first.          
+      // Visit nested constant GEP first.
       SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
       visitGep(*g, *g->getPointerOperand(), indicies);
     } else if (auto *bc = dyn_cast<BitCastOperator>(&ptr)) {
       if (auto *g = dyn_cast<GEPOperator>(bc->getOperand(0))) {
-	// Visit nested constant GEP first.          
-	SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
-	visitGep(*g, *g->getPointerOperand(), indicies);	
+        // Visit nested constant GEP first.
+        SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
+        visitGep(*g, *g->getPointerOperand(), indicies);
       }
     }
   }
@@ -722,7 +722,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   }
 
   Instruction *inst = CS.getInstruction();
-  if (inst && !isSkip(*inst)) {
+  if (inst /*&& !isSkip(*inst)*/) {
     Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
     if (Function *callee = CS.getCalledFunction()) {
       if (callee->isDeclaration()) {
@@ -745,7 +745,14 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
         // solution is okay for now.
       }
     } else {
-      // TODO: handle indirect call
+      const Value &calledV = *CS.getCalledValue();
+      if (m_graph.hasCell(calledV)) {
+        Cell &calledC = m_graph.mkCell(calledV, Cell(m_graph.mkNode(), 0));
+        DsaCallSite *site = m_graph.mkCallSite(*inst, calledC);
+        calledC.getNode()->addCallSite(*site);
+      } else {
+        errs() << "WARNING: no cell found for callee in indirect call.\n";
+      }
     }
   }
 
@@ -758,8 +765,8 @@ void IntraBlockBuilder::visitShuffleVectorInst(ShuffleVectorInst &I) {
   using namespace sea_dsa;
 
   // XXX: TODO: handle properly.
-  errs() << "WARNING: shuffle vector inst is allocationg a new cell: "
-         << &I << "\n";
+  errs() << "WARNING: shuffle vector inst is allocationg a new cell: " << &I
+         << "\n";
   m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
 }
 
@@ -892,7 +899,8 @@ bool shouldBeTrackedIntToPtr(const Value &def) {
   //      getUser() to get the actual user.
   // if (def.hasOneUse () && isa<CmpInst> (*(def.use_begin ()))) return false;
 
-  if (def.hasNUses(0)) return false;
+  if (def.hasNUses(0))
+    return false;
 
   if (def.hasOneUse()) {
     const Value *v = dyn_cast<Value>(def.use_begin()->getUser());
@@ -1008,7 +1016,8 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
 }
 
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
-  if (!isEscapingPtrToInt(I)) return;
+  if (!isEscapingPtrToInt(I))
+    return;
 
   assert(m_graph.hasCell(*I.getOperand(0)));
   sea_dsa::Cell c = valueCell(*I.getOperand(0));
@@ -1026,8 +1035,8 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
 namespace sea_dsa {
 
 void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
-  LOG("dsa-progress", errs() << "Running sea_dsa::Local on "
-                             << F.getName() << "\n");
+  LOG("dsa-progress",
+      errs() << "Running sea_dsa::Local on " << F.getName() << "\n");
   // create cells and nodes for formal arguments
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {

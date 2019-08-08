@@ -2,14 +2,15 @@
 // seadsda -- Print heap graph computed by DSA
 ///
 
-#include "llvm/LinkAllPasses.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
-#include "llvm/Support/FileSystem.h"
+#include "llvm/LinkAllPasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
@@ -17,55 +18,50 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/IR/Verifier.h"
 
 #include "sea_dsa/DsaAnalysis.hh"
 #include "sea_dsa/support/Debug.h"
 
 static llvm::cl::opt<std::string>
-InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
-              llvm::cl::Required, llvm::cl::value_desc("filename"));
+    InputFilename(llvm::cl::Positional,
+                  llvm::cl::desc("<input LLVM bitcode file>"),
+                  llvm::cl::Required, llvm::cl::value_desc("filename"));
 
 static llvm::cl::opt<std::string>
-AsmOutputFilename("oll", llvm::cl::desc("Output analyzed bitcode"),
-               llvm::cl::init(""), llvm::cl::value_desc("filename"));
+    AsmOutputFilename("oll", llvm::cl::desc("Output analyzed bitcode"),
+                      llvm::cl::init(""), llvm::cl::value_desc("filename"));
 
-static llvm::cl::opt<std::string>
-DefaultDataLayout("data-layout",
-        llvm::cl::desc("data layout string to use if not specified by module"),
-        llvm::cl::init(""), llvm::cl::value_desc("layout-string"));
+static llvm::cl::opt<std::string> DefaultDataLayout(
+    "data-layout",
+    llvm::cl::desc("data layout string to use if not specified by module"),
+    llvm::cl::init(""), llvm::cl::value_desc("layout-string"));
 
-static llvm::cl::opt<bool> 
-PrintDsaStats ("dsa-stats",
-               llvm::cl::desc ("Print Dsa statistics"), 
-               llvm::cl::init(false));
-
-static llvm::cl::opt<bool>
-MemDot("sea-dsa-dot",
-       llvm::cl::desc("Print memory graph of each function to dot format"),
-       llvm::cl::init(false));
+static llvm::cl::opt<bool> PrintDsaStats("dsa-stats",
+                                         llvm::cl::desc("Print Dsa statistics"),
+                                         llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-MemViewer("sea-dsa-viewer",
-	  llvm::cl::desc("View memory graph of each function to dot format"),
-	  llvm::cl::init(false));
+    MemDot("sea-dsa-dot",
+           llvm::cl::desc("Print memory graph of each function to dot format"),
+           llvm::cl::init(false));
 
+static llvm::cl::opt<bool> MemViewer(
+    "sea-dsa-viewer",
+    llvm::cl::desc("View memory graph of each function to dot format"),
+    llvm::cl::init(false));
 
-namespace sea_dsa
-{
-  SeaDsaLogOpt loc;
+namespace sea_dsa {
+SeaDsaLogOpt loc;
 }
 
-static llvm::cl::opt<sea_dsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string> > 
-LogClOption ("log",
-             llvm::cl::desc ("Enable specified log level"),
-             llvm::cl::location (sea_dsa::loc),
-             llvm::cl::value_desc ("string"),
-             llvm::cl::ValueRequired, llvm::cl::ZeroOrMore);
-
+static llvm::cl::opt<sea_dsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string>>
+    LogClOption("log", llvm::cl::desc("Enable specified log level"),
+                llvm::cl::location(sea_dsa::loc),
+                llvm::cl::value_desc("string"), llvm::cl::ValueRequired,
+                llvm::cl::ZeroOrMore);
 
 int main(int argc, char **argv) {
-  llvm::llvm_shutdown_obj shutdown;  // calls llvm_shutdown() on exit
+  llvm::llvm_shutdown_obj shutdown; // calls llvm_shutdown() on exit
   llvm::cl::ParseCommandLineOptions(argc, argv, "Heap Analysis");
 
   llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
@@ -79,32 +75,34 @@ int main(int argc, char **argv) {
   std::unique_ptr<llvm::tool_output_file> asmOutput;
 
   module = llvm::parseIRFile(InputFilename, err, context);
-  if (module.get() == 0)
-  {
-    if (llvm::errs().has_colors()) llvm::errs().changeColor(llvm::raw_ostream::RED);
+  if (module.get() == 0) {
+    if (llvm::errs().has_colors())
+      llvm::errs().changeColor(llvm::raw_ostream::RED);
     llvm::errs() << "error: "
-                 << "Bitcode was not properly read; " << err.getMessage() << "\n";
-    if (llvm::errs().has_colors()) llvm::errs().resetColor();
+                 << "Bitcode was not properly read; " << err.getMessage()
+                 << "\n";
+    if (llvm::errs().has_colors())
+      llvm::errs().resetColor();
     return 3;
   }
 
-  if (!AsmOutputFilename.empty ())
-    asmOutput =
-      llvm::make_unique<llvm::tool_output_file>(AsmOutputFilename.c_str(), error_code,
-                                                llvm::sys::fs::F_Text);
+  if (!AsmOutputFilename.empty())
+    asmOutput = llvm::make_unique<llvm::tool_output_file>(
+        AsmOutputFilename.c_str(), error_code, llvm::sys::fs::F_Text);
   if (error_code) {
     if (llvm::errs().has_colors())
       llvm::errs().changeColor(llvm::raw_ostream::RED);
     llvm::errs() << "error: Could not open " << AsmOutputFilename << ": "
-                 << error_code.message () << "\n";
-    if (llvm::errs().has_colors()) llvm::errs().resetColor();
+                 << error_code.message() << "\n";
+    if (llvm::errs().has_colors())
+      llvm::errs().resetColor();
     return 3;
   }
 
   ///////////////////////////////
   // initialise and run passes //
   ///////////////////////////////
-  
+
   llvm::legacy::PassManager pass_manager;
 
   llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
@@ -112,39 +110,48 @@ int main(int argc, char **argv) {
 
   /// call graph and other IPA passes
   // llvm::initializeIPA (Registry);
-  // XXX: porting to 3.8 
+  // XXX: porting to 3.8
   llvm::initializeCallGraphWrapperPassPass(Registry);
   // XXX: porting to 5.0
   //  llvm::initializeCallGraphPrinterPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
-  llvm::initializeGlobalsAAWrapperPassPass(Registry);  
+  llvm::initializeGlobalsAAWrapperPassPass(Registry);
 
   // add an appropriate DataLayout instance for the module
-  const llvm::DataLayout *dl = &module->getDataLayout ();
-  if (!dl && !DefaultDataLayout.empty ()) {
-    module->setDataLayout (DefaultDataLayout);
-    dl = &module->getDataLayout ();
+  const llvm::DataLayout *dl = &module->getDataLayout();
+  if (!dl && !DefaultDataLayout.empty()) {
+    module->setDataLayout(DefaultDataLayout);
+    dl = &module->getDataLayout();
   }
 
-  assert (dl && "Could not find Data Layout for the module");  
+  assert(dl && "Could not find Data Layout for the module");
 
-  if (MemDot)
-    pass_manager.add (sea_dsa::createDsaPrinterPass ());
-  
-  if (MemViewer)
-    pass_manager.add (sea_dsa::createDsaViewerPass ());
+  if (MemDot || MemViewer || PrintDsaStats) {
+    if (MemDot) {
+      pass_manager.add(sea_dsa::createDsaPrinterPass());
+    }
 
-  if (PrintDsaStats)
-    pass_manager.add (sea_dsa::createDsaPrintStatsPass ());    
-    
-  if (!AsmOutputFilename.empty ())
-    pass_manager.add (createPrintModulePass (asmOutput->os ()));
-  
+    if (MemViewer) {
+      pass_manager.add(sea_dsa::createDsaViewerPass());
+    }
+
+    if (PrintDsaStats) {
+      pass_manager.add(sea_dsa::createDsaPrintStatsPass());
+    }
+
+  } else {
+    // In case we just want to print log messages
+    pass_manager.add(new sea_dsa::DsaAnalysis());
+  }
+
+  if (!AsmOutputFilename.empty())
+    pass_manager.add(createPrintModulePass(asmOutput->os()));
+
   pass_manager.run(*module.get());
 
-  if (!AsmOutputFilename.empty ())
-    asmOutput->keep ();
-  
+  if (!AsmOutputFilename.empty())
+    asmOutput->keep();
+
   return 0;
 }

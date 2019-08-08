@@ -50,73 +50,6 @@ static const Value *findUniqueReturnValue(const Function &F) {
   return onlyRetVal;
 }
 
-// Clone callee nodes into caller and resolve arguments
-void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
-                                                Graph &calleeG, Graph &callerG,
-                                                bool noescape) {
-  CloningContext context(*CS.getInstruction(), CloningContext::BottomUp);
-  auto options = Cloner::BuildOptions(Cloner::StripAllocas);
-  Cloner C(callerG, context, options);
-  assert(context.m_cs);
-
-  // clone and unify globals
-  for (auto &kv : calleeG.globals()) {
-    Node &calleeN = *kv.second->getNode();
-    // We don't care if globals got unified together, but have to respect the
-    // points-to relations introduced by the callee introduced.
-#if 0    
-    if (!NoBUFlowSensitiveOpt)
-      if (calleeN.getNumLinks() == 0 || !calleeN.isModified() ||
-          llvm::isa<ConstantData>(kv.first))
-        continue;
-#endif     
-
-    const Value &global = *kv.first;
-    Node &n = C.clone(calleeN, false, kv.first);
-    Cell c(n, kv.second->getRawOffset());
-    Cell &nc = callerG.mkCell(*kv.first, Cell());
-    nc.unify(c);
-  }
-
-  // clone and unify return
-  const Function &callee = *CS.getCallee();
-  if (calleeG.hasRetCell(callee)) {
-    Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
-
-    // Clone the return value directly, if we know that it corresponds to a
-    // single allocation site (e.g., return value of a malloc, a global, etv.).
-    const Value *onlyAllocSite = findUniqueReturnValue(callee);
-    if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
-      onlyAllocSite = nullptr;
-    if (NoBUFlowSensitiveOpt)
-      onlyAllocSite = nullptr;
-
-    const Cell &ret = calleeG.getRetCell(callee);
-    Node &n = C.clone(*ret.getNode(), false, onlyAllocSite);
-    Cell c(n, ret.getRawOffset());
-    nc.unify(c);
-  }
-
-  // clone and unify actuals and formals
-  DsaCallSite::const_actual_iterator AI = CS.actual_begin(),
-                                     AE = CS.actual_end();
-  for (DsaCallSite::const_formal_iterator FI = CS.formal_begin(),
-                                          FE = CS.formal_end();
-       FI != FE && AI != AE; ++FI, ++AI) {
-    const Value *arg = (*AI).get();
-    const Value *fml = &*FI;
-    if (calleeG.hasCell(*fml)) {
-      const Cell &formalC = calleeG.getCell(*fml);
-      Node &n = C.clone(*formalC.getNode());
-      Cell c(n, formalC.getRawOffset());
-      Cell &nc = callerG.mkCell(*arg, Cell());
-      nc.unify(c);
-    }
-  }
-
-  callerG.compress();
-}
-
 template <typename Set>
 static void markReachableNodes(const Node *n, Set &set) {
   if (!n)
@@ -146,6 +79,145 @@ static void reachableNodes(const Function &fn, Graph &g, Set &inputReach,
   // return value
   if (g.hasRetCell(fn))
     markReachableNodes(g.getRetCell(fn).getNode(), retReach);
+}
+
+// Copy (recursively) all callsites owned by calleeC to graph callerG.
+// Precondition: callerC simulates calleeC.
+static void copyCallSites(Graph &calleeG, const Cell &calleeC, Graph &callerG,
+                          Cell &callerC, std::set<Node *> &visited,
+                          std::set<DsaCallSite *> &copiedCallSites) {
+
+  // break cycles
+  if (!visited.insert(calleeC.getNode()).second) {
+    return;
+  }
+
+  // Copy callsite from current cell
+  Node *calleeN = calleeC.getNode();
+  Node *callerN = callerC.getNode();
+  for (const Value *cs : calleeN->getCallSites()) {
+    llvm::Optional<DsaCallSite *> DsaCs = calleeG.getCallSite(*cs);
+    if (!DsaCs.hasValue())
+      continue;
+
+    assert(DsaCs.getValue()->hasCell() &&
+           "The indirect callsite should have a cell");
+
+    copiedCallSites.insert(DsaCs.getValue());
+
+    llvm::Optional<DsaCallSite *> callerCS =
+        callerG.getCallSite(*(DsaCs.getValue()->getInstruction()));
+    if (callerCS.hasValue()) {
+      assert(callerCS.getValue()->hasCell());
+      callerCS.getValue()->getCell().unify(callerC);
+    } else {
+      callerG.mkCallSite(*(DsaCs.getValue()->getInstruction()), callerC);
+    }
+  }
+
+  // Copy recursively callsites from reachable cells
+  for (auto &kv : calleeN->links()) {
+    if (kv.second->isNull())
+      continue;
+
+    Cell &succCalleeC = *kv.second;
+    Field j = kv.first;
+    assert(callerN->hasLink(j));
+    Cell &succCallerC = callerN->getLink(j);
+    copyCallSites(calleeG, succCalleeC, callerG, succCallerC, visited,
+                  copiedCallSites);
+  }
+}
+
+static void copyCallSites(Graph &calleeG, const Cell &calleeC, Graph &callerG,
+                          Cell &callerC,
+                          std::set<DsaCallSite *> &copiedCallSites) {
+  std::set<Node *> visited;
+  copyCallSites(calleeG, calleeC, callerG, callerC, visited, copiedCallSites);
+}
+
+// Clone callee nodes into caller and resolve arguments
+void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
+                                                Graph &calleeG, Graph &callerG,
+                                                bool noescape) {
+  std::set<DsaCallSite *> copiedCallSites /*unused*/;
+  cloneAndResolveArguments(CS, calleeG, callerG, noescape, copiedCallSites);
+}
+
+// Clone callee nodes into caller and resolve arguments
+void BottomUpAnalysis::cloneAndResolveArguments(
+    const DsaCallSite &CS, Graph &calleeG, Graph &callerG, bool noescape,
+    std::set<DsaCallSite *> &copiedCallSites) {
+  CloningContext context(*CS.getInstruction(), CloningContext::BottomUp);
+  auto options = Cloner::BuildOptions(Cloner::StripAllocas);
+  Cloner C(callerG, context, options);
+  assert(context.m_cs);
+
+  // clone and unify globals
+  for (auto &kv : calleeG.globals()) {
+    Node &calleeN = *kv.second->getNode();
+    // We don't care if globals got unified together, but have to respect the
+    // points-to relations introduced by the callee introduced.
+#if 0    
+    if (!NoBUFlowSensitiveOpt)
+      if (calleeN.getNumLinks() == 0 || !calleeN.isModified() ||
+          llvm::isa<ConstantData>(kv.first))
+        continue;
+#endif
+
+    const Value &global = *kv.first;
+    Node &n = C.clone(calleeN, false, kv.first);
+    Cell c(n, kv.second->getRawOffset());
+    Cell &nc = callerG.mkCell(*kv.first, Cell());
+    nc.unify(c);
+
+    // copy call sites owned by the callee node into the caller graph
+    copyCallSites(calleeG, *kv.second, callerG, nc, copiedCallSites);
+  }
+
+  // clone and unify return
+  const Function &callee = *CS.getCallee();
+  if (calleeG.hasRetCell(callee)) {
+    Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
+
+    // Clone the return value directly, if we know that it corresponds to a
+    // single allocation site (e.g., return value of a malloc, a global, etv.).
+    const Value *onlyAllocSite = findUniqueReturnValue(callee);
+    if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
+      onlyAllocSite = nullptr;
+    if (NoBUFlowSensitiveOpt)
+      onlyAllocSite = nullptr;
+
+    const Cell &ret = calleeG.getRetCell(callee);
+    Node &n = C.clone(*ret.getNode(), false, onlyAllocSite);
+    Cell c(n, ret.getRawOffset());
+    nc.unify(c);
+
+    // copy call sites owned by the callee node into the caller graph
+    copyCallSites(calleeG, ret, callerG, nc, copiedCallSites);
+  }
+
+  // clone and unify actuals and formals
+  DsaCallSite::const_actual_iterator AI = CS.actual_begin(),
+                                     AE = CS.actual_end();
+  for (DsaCallSite::const_formal_iterator FI = CS.formal_begin(),
+                                          FE = CS.formal_end();
+       FI != FE && AI != AE; ++FI, ++AI) {
+    const Value *arg = (*AI).get();
+    const Value *fml = &*FI;
+    if (calleeG.hasCell(*fml)) {
+      const Cell &formalC = calleeG.getCell(*fml);
+      Node &n = C.clone(*formalC.getNode());
+      Cell c(n, formalC.getRawOffset());
+      Cell &nc = callerG.mkCell(*arg, Cell());
+      nc.unify(c);
+
+      // copy call sites owned by the callee node into the caller graph
+      copyCallSites(calleeG, formalC, callerG, nc, copiedCallSites);
+    }
+  }
+
+  callerG.compress();
 }
 
 bool BottomUpAnalysis::checkAllNodesAreMapped(const Function &fn, Graph &fnG,
@@ -238,6 +310,12 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   size_t functionsProcessed = 0;
   size_t percentageProcessed = 0;
 
+  /// -- keep track of indirect call sites that have been copied to a
+  /// -- caller. This helps us to decide whether or not an indirect
+  /// -- callsite can be resolved: given function F, if a callsite C
+  /// -- is not copied to F's callers and F' address is never taken,
+  /// -- then the callsite C can be resolved.
+  std::set<DsaCallSite *> copiedCallSites;
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
 
@@ -273,14 +351,15 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       if (!fn || fn->isDeclaration() || fn->empty())
         continue;
 
-      // -- resolve all function calls in the SCC
+      // -- resolve all *direct* function calls in the SCC
       auto callRecords = SortedCallSites(cgn);
       for (auto *callRecord : callRecords) {
         ImmutableCallSite CS(callRecord);
         DsaCallSite dsaCS(CS);
         const Function *callee = dsaCS.getCallee();
-        if (!callee || callee->isDeclaration() || callee->empty())
+        if (!callee || callee->isDeclaration() || callee->empty()) {
           continue;
+        }
 
         assert(graphs.count(dsaCS.getCaller()) > 0);
         assert(graphs.count(dsaCS.getCallee()) > 0);
@@ -290,55 +369,125 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
         static int cnt = 0;
         ++cnt;
-        LOG("dsa-bu", llvm::errs() << "BU #" << cnt << ": " << dsaCS.getCaller()->getName() << " <- " << dsaCS.getCallee()->getName() << "\n");
-        LOG("dsa-bu", llvm::errs() << "\tCallee size: " << calleeG.numNodes() << ", caller size:\t" << callerG.numNodes() << "\n");
-        LOG("dsa-bu", llvm::errs() << "\tCallee collapsed: " << calleeG.numCollapsed() << ", caller collapsed:\t" << callerG.numCollapsed() << "\n");
+        LOG("dsa-bu", llvm::errs() << "BU #" << cnt << ": "
+                                   << dsaCS.getCaller()->getName() << " <- "
+                                   << dsaCS.getCallee()->getName() << "\n");
+        LOG("dsa-bu", llvm::errs()
+                          << "\tCallee size: " << calleeG.numNodes()
+                          << ", caller size:\t" << callerG.numNodes() << "\n");
+        LOG("dsa-bu", llvm::errs()
+                          << "\tCallee collapsed: " << calleeG.numCollapsed()
+                          << ", caller collapsed:\t" << callerG.numCollapsed()
+                          << "\n");
 
-        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape);
-        LOG("dsa-bu", llvm::errs() << "\tCaller size after clone: " << callerG.numNodes() << ", collapsed: " << callerG.numCollapsed() << "\n");
+        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape,
+                                 copiedCallSites);
+        LOG("dsa-bu", llvm::errs()
+                          << "\tCaller size after clone: " << callerG.numNodes()
+                          << ", collapsed: " << callerG.numCollapsed() << "\n");
       }
 
-      if (m_computeSimMap) {
-        // -- store the simulation maps from the SCC
-        for (auto &callRecord : *cgn) {
-          ImmutableCallSite CS(callRecord.first);
-          DsaCallSite dsaCS(CS);
-          const Function *callee = dsaCS.getCallee();
-          if (!callee || callee->isDeclaration() || callee->empty())
-            continue;
+      /////
+      /// FIXME: Commenting this code breaks the SAS'17 code.
+      /////
+      // if (m_computeSimMap) {
+      //   // -- store the simulation maps from the SCC
+      //   for (auto &callRecord : *cgn) {
+      //     ImmutableCallSite CS(callRecord.first);
+      //     DsaCallSite dsaCS(CS);
+      //     const Function *callee = dsaCS.getCallee();
+      //     if (!callee || callee->isDeclaration() || callee->empty())
+      //       continue;
 
-          assert(graphs.count(dsaCS.getCaller()) > 0);
-          assert(graphs.count(dsaCS.getCallee()) > 0);
+      //     assert(graphs.count(dsaCS.getCaller()) > 0);
+      //     assert(graphs.count(dsaCS.getCallee()) > 0);
 
-          Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
-          Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
+      //     Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
+      //     Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
 
-          SimulationMapperRef sm(new SimulationMapper());
-          bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
-                                                       *sm, do_sanity_checks);
-          if (!res) {
-            // continue;
-            llvm_unreachable("Simulation mapping check failed");
-          }
-          m_callee_caller_map.insert(
-              std::make_pair(dsaCS.getInstruction(), sm));
+      //     SimulationMapperRef sm(new SimulationMapper());
+      //     bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG,
+      //     callerG,
+      //                                                  *sm,
+      //                                                  do_sanity_checks);
+      //     if (!res) {
+      //       // continue;
+      //       llvm_unreachable("Simulation mapping check failed");
+      //     }
+      //     m_callee_caller_map.insert(
+      //         std::make_pair(dsaCS.getInstruction(), sm));
 
-          if (do_sanity_checks) {
-            // Check the simulation map is a function
-            if (!sm->isFunction())
-              errs() << "ERROR: simulation map for " << *dsaCS.getInstruction()
-                     << " is not a function!\n";
-            // Check that all nodes in the callee are mapped to one
-            // node in the caller graph
-            checkAllNodesAreMapped(*callee, calleeG, *sm);
-          }
-        }
-      }
+      //     if (do_sanity_checks) {
+      //       // Check the simulation map is a function
+      //       if (!sm->isFunction())
+      //         errs() << "ERROR: simulation map for " <<
+      //         *dsaCS.getInstruction()
+      //                << " is not a function!\n";
+      //       // Check that all nodes in the callee are mapped to one
+      //       // node in the caller graph
+      //       checkAllNodesAreMapped(*callee, calleeG, *sm);
+      //     }
+      //   }
+      // }
     }
 
     if (fGraph)
       fGraph->compress();
   }
+
+  /// Compute address-taken functions
+  /// FIXME: improve performance by maybe doing it together with the
+  ///        above loop that inlines graphs.
+  ///
+  /// TODO: this set should be refined by removing functions that have
+  ///       been resolved.
+  std::set<const Function *> addressTakenFunctions;
+  for (auto &kv : graphs) {
+    for (DsaAllocSite &as : kv.second->alloc_sites()) {
+      if (const Function *asF = dyn_cast<const Function>(&(as.getValue()))) {
+        addressTakenFunctions.insert(asF);
+      }
+    }
+  }
+
+  /// Mark non-copied callsites as resolved.
+  for (auto &kv : graphs) {
+    // If the address of a function is taken then it's possible that
+    // its callsites are never copied because they are never inlined.
+    if (addressTakenFunctions.count(kv.first) <= 0) {
+      for (DsaCallSite &dsaCS : kv.second->callsites()) {
+        if (copiedCallSites.count(&dsaCS) <= 0) {
+          dsaCS.markResolved();
+        }
+      }
+    }
+  }
+
+  /// TODO:
+  ///
+  /// Option A:
+  ///   while (true)
+  ///     run the bottom-up pass (the local pass only the first iteration)
+  ///     if not new resolved callsites return;
+  ///     modify the CallGraph to add a new edge from f1 to f2 if there
+  ///     is a new resolved callsite in f1 that calls f2.
+  ///
+  /// When we add a new edge in the callgraph, the edge must be
+  /// attached to some call or invoke instruction. We would need to
+  /// modify the callgraph for that.
+  ///
+  ///
+  /// Option B:
+  ///     1. Modify DsaCallSite API to have a new method getCallees() such
+  ///        that if the call site is indirect and resolve then returns all
+  ///        possible callees. That will require changes in formal_begin()
+  ///        and formal_end() to take a function as parameter.
+  ///     2. Modify the bottom-up pass to call
+  ///        cloneAndResolveArguments on each possible callee graph.
+  ///
+  ///     while (true)
+  ///        run modified bottom-up pass (the local pass only the first
+  ///        iteration) if not new resolved callsites return;
 
   localTime.stop();
   buTime.stop();
@@ -351,6 +500,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   });
 
   LOG("dsa-bu", errs() << "Finished bottom-up analysis\n");
+
   return false;
 }
 
