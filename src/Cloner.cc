@@ -108,7 +108,7 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
 
   // -- clone the node (except for the links)
   Node &nNode = m_graph.cloneNode(n, false /* cpAllocSites */);
-  
+
   // used by bottom-up/top-down analysis: ignored by the rest of
   // analyses.
   nNode.setForeign(true);
@@ -164,7 +164,7 @@ void Cloner::copyAllocationSites(
   for (const llvm::Value *as : from.getAllocSites()) {
     assert(as);
     if (isStackAllocation(as) && !forceAddAlloca && m_strip_allocas)
-        continue;
+      continue;
 
     if (onlyAllocSite && as != onlyAllocSite)
       continue;

@@ -39,19 +39,21 @@ namespace sea_dsa {
 class DsaAllocator {
   boost::pool<> m_pool;
   bool m_use_pool;
+
 public:
   // XXX: by default, memory pool is disabled.
   DsaAllocator(bool use_pool = false)
-      : m_pool(256 /* size of chunk */, 65536 /* number of chunks to grow by */)
-      , m_use_pool(use_pool) {};
+      : m_pool(256 /* size of chunk */,
+               65536 /* number of chunks to grow by */),
+        m_use_pool(use_pool){};
   DsaAllocator(const DsaAllocator &o) = delete;
   void *alloc(size_t n) {
     if (m_use_pool) {
       if (n <= m_pool.get_requested_size()) {
-	return m_pool.malloc();
+        return m_pool.malloc();
       }
     }
-    
+
     return static_cast<void *>(new char[n]);
   }
 
@@ -675,7 +677,7 @@ void Cell::setModified(bool v) { getNode()->setModified(v); }
 bool Cell::isRead() const { return getNode()->isRead(); }
 bool Cell::isModified() const { return getNode()->isModified(); }
 
-void Cell::unify(Cell &c) {  
+void Cell::unify(Cell &c) {
   if (isNull()) {
     assert(!c.isNull());
     Node *n = c.getNode();
@@ -731,7 +733,7 @@ unsigned Cell::getOffset() const {
     return getRawOffset();
 }
 
-void Cell::pointTo(Node &n, unsigned offset) {  
+void Cell::pointTo(Node &n, unsigned offset) {
   assert(!n.isForwarding());
   // n.viewGraph();
   m_node = &n;
@@ -936,7 +938,7 @@ Cell &Graph::mkCell(const llvm::Value &u, const Cell &c) {
       isa<Argument>(v) ? m_formals[cast<const Argument>(&v)] : m_values[&v];
   if (!res) {
     res.reset(new Cell(c));
-    
+
     if (res->getRawOffset() == 0 && res->getNode()) {
       if (!(res->getNode()->hasOnceUniqueScalar()))
         res->getNode()->setUniqueScalar(&v);
@@ -996,13 +998,14 @@ void Graph::removeLinks(Node *n, std::function<bool(const Node *)> p) {
 }
 
 // Remove all nodes that satisfy p and links to nodes that satisfy p.
-void Graph::removeNodes(std::function<bool(const Node*)> p) {
-  if (m_nodes.empty()) return;
-  
+void Graph::removeNodes(std::function<bool(const Node *)> p) {
+  if (m_nodes.empty())
+    return;
+
   // remove entry if it references to a node that satisfies p
-  for(auto it = m_values.begin(), et = m_values.end(); it!=et; ) {
+  for (auto it = m_values.begin(), et = m_values.end(); it != et;) {
     Cell *C = it->second.get();
-    assert(!C->isNull());    
+    assert(!C->isNull());
     if (p(C->getNode())) {
       auto cur_it = it;
       ++it;
@@ -1012,8 +1015,8 @@ void Graph::removeNodes(std::function<bool(const Node*)> p) {
     }
   }
 
-  // remove entry if it references to a node that satisfies p  
-  for(auto it = m_formals.begin(), et = m_formals.end(); it!=et; ) {
+  // remove entry if it references to a node that satisfies p
+  for (auto it = m_formals.begin(), et = m_formals.end(); it != et;) {
     Cell *C = it->second.get();
     assert(!C->isNull());
     if (p(C->getNode())) {
@@ -1025,8 +1028,8 @@ void Graph::removeNodes(std::function<bool(const Node*)> p) {
     }
   }
 
-  // remove entry if it references to a node that satisfies p    
-  for(auto it = m_returns.begin(), et = m_returns.end(); it!=et; ) {
+  // remove entry if it references to a node that satisfies p
+  for (auto it = m_returns.begin(), et = m_returns.end(); it != et;) {
     Cell *C = it->second.get();
     assert(!C->isNull());
     if (p(C->getNode())) {
@@ -1039,31 +1042,31 @@ void Graph::removeNodes(std::function<bool(const Node*)> p) {
   }
 
   // -- remove references to nodes that satisfy p
-  for (auto& n : m_nodes) {
+  for (auto &n : m_nodes) {
     if (!n->isForwarding()) {
       removeLinks(&*n, p);
     }
   }
 
-  
   // -- remove nodes that satisfy p
 
   // (**) At this point we should have either unreachable nodes
   // satisfying p or unreachable nodes forwarding to nodes satisfying
   // p.
-  
+
   m_nodes.erase(
-  	std::remove_if(m_nodes.begin(), m_nodes.end(),
-  		       [p](const std::unique_ptr<Node, DsaAllocatorDeleter> &n) {
-			 // resolve node so that we also remove a node
-			 // if it's forwarding to a node that satifies
-			 // p.
-  			 return (p(n->getNode()));}),
-  	m_nodes.end());
+      std::remove_if(m_nodes.begin(), m_nodes.end(),
+                     [p](const std::unique_ptr<Node, DsaAllocatorDeleter> &n) {
+                       // resolve node so that we also remove a node
+                       // if it's forwarding to a node that satifies
+                       // p.
+                       return (p(n->getNode()));
+                     }),
+      m_nodes.end());
 
   // FIXME: the assumption (**) probably is not true because if we
   // don't call remove_dead() we crash later because some dangling
-  // node. 
+  // node.
   remove_dead();
 }
 
@@ -1145,9 +1148,7 @@ void Node::dump() const {
   errs() << "\n";
 }
 
-void Node::viewGraph() {
-  getGraph()->viewGraph();
-}
+void Node::viewGraph() { getGraph()->viewGraph(); }
 
 bool Graph::computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
                                        Graph &callerG, SimulationMapper &simMap,
@@ -1353,13 +1354,9 @@ size_t Graph::numCollapsed() const {
       [](const NodeVectorElemTy &N) { return N->isOffsetCollapsed(); });
 }
 
-void Graph::dump() const {
-  write(errs());
-}
+void Graph::dump() const { write(errs()); }
 
-void Graph::viewGraph() {
-  ShowDsaGraph(*this);
-}
+void Graph::viewGraph() { ShowDsaGraph(*this); }
 
 Node &FlatGraph::mkNode() {
   if (m_nodes.empty())

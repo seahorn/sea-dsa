@@ -87,7 +87,7 @@ public:
 
   // unify caller/callee nodes within the same graph
   static void resolveArguments(DsaCallSite &cs, Graph &g);
-  
+
   bool runOnModule(llvm::Module &M) override;
 
   const Graph &getGraph(const llvm::Function &fn) const override;
@@ -126,7 +126,7 @@ private:
   typedef boost::container::flat_map<const llvm::Instruction *,
                                      SimulationMapperRef>
       CalleeCallerMapping;
-  
+
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
   const AllocWrapInfo &m_allocInfo;
@@ -139,7 +139,7 @@ public:
   // sanity check
   bool checkAllNodesAreMapped(const llvm::Function &callee, Graph &calleeG,
                               const SimulationMapper &sm);
-  
+
   PropagationKind decidePropagation(const DsaCallSite &cs, Graph &callerG,
                                     Graph &calleeG);
 
