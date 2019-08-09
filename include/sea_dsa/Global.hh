@@ -7,7 +7,7 @@
 #include "llvm/Pass.h"
 
 #include "sea_dsa/BottomUp.hh"
-#include "sea_dsa/CallGraph.hh"
+#include "sea_dsa/CallGraphWrapper.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Mapper.hh"
@@ -312,13 +312,13 @@ public:
 template <class GlobalAnalysis, class Op> class CallGraphClosure {
 
   GlobalAnalysis &m_ga;
-  DsaCallGraph &m_dsaCG;
+  CallGraphWrapper &m_dsaCG;
   WorkList<const llvm::Instruction *> m_w;
 
   void exec_callsite(const DsaCallSite &cs, Graph &calleeG, Graph &callerG);
 
 public:
-  CallGraphClosure(GlobalAnalysis &ga, DsaCallGraph &dsaCG)
+  CallGraphClosure(GlobalAnalysis &ga, CallGraphWrapper &dsaCG)
       : m_ga(ga), m_dsaCG(dsaCG) {}
 
   bool runOnModule(llvm::Module &M);
@@ -326,11 +326,11 @@ public:
 
 // Propagate unique scalar flag across callsites
 class UniqueScalar {
-  DsaCallGraph &m_dsaCG;
+  CallGraphWrapper &m_dsaCG;
   WorkList<const llvm::Instruction *> &m_w;
 
 public:
-  UniqueScalar(DsaCallGraph &dsaCG, WorkList<const llvm::Instruction *> &w)
+  UniqueScalar(CallGraphWrapper &dsaCG, WorkList<const llvm::Instruction *> &w)
       : m_dsaCG(dsaCG), m_w(w) {}
 
   void runOnCallSite(const DsaCallSite &cs, Node &calleeN, Node &callerN);
@@ -338,11 +338,11 @@ public:
 
 // Propagate allocation sites across callsites
 class AllocaSite {
-  DsaCallGraph &m_dsaCG;
+  CallGraphWrapper &m_dsaCG;
   WorkList<const llvm::Instruction *> &m_w;
 
 public:
-  AllocaSite(DsaCallGraph &dsaCG, WorkList<const llvm::Instruction *> &w)
+  AllocaSite(CallGraphWrapper &dsaCG, WorkList<const llvm::Instruction *> &w)
       : m_dsaCG(dsaCG), m_w(w) {}
 
   void runOnCallSite(const DsaCallSite &cs, Node &calleeN, Node &callerN);
