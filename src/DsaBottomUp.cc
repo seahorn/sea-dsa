@@ -117,55 +117,6 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   callerG.compress();
 }
 
-template <typename Set>
-static void markReachableNodes(const Node *n, Set &set) {
-  if (!n)
-    return;
-  assert(!n->isForwarding() && "Cannot mark a forwarded node");
-
-  if (set.insert(n).second)
-    for (auto const &edg : n->links())
-      markReachableNodes(edg.second->getNode(), set);
-}
-
-template <typename Set>
-static void reachableNodes(const Function &fn, Graph &g, Set &inputReach,
-                           Set &retReach) {
-  // formal parameters
-  for (const Value &arg : fn.args()) {
-    if (g.hasCell(arg)) {
-      Cell &c = g.mkCell(arg, Cell());
-      markReachableNodes(c.getNode(), inputReach);
-    }
-  }
-
-  // globals
-  for (auto &kv : g.globals())
-    markReachableNodes(kv.second->getNode(), inputReach);
-
-  // return value
-  if (g.hasRetCell(fn))
-    markReachableNodes(g.getRetCell(fn).getNode(), retReach);
-}
-
-bool BottomUpAnalysis::checkAllNodesAreMapped(const Function &fn, Graph &fnG,
-                                              const SimulationMapper &sm) {
-
-  std::set<const Node *> reach;
-  std::set<const Node *> retReach /*unused*/;
-  reachableNodes(fn, fnG, reach, retReach);
-  for (const Node *n : reach) {
-
-    Cell callerC = sm.get(Cell(const_cast<Node *>(n), 0));
-    if (callerC.isNull()) {
-      errs() << "ERROR: callee node " << *n
-             << " not mapped to a caller node.\n";
-      return false;
-    }
-  }
-  return true;
-}
-
 template <typename T> std::vector<CallGraphNode *> SortedCGNs(const T &t) {
   std::vector<CallGraphNode *> cgns;
   for (CallGraphNode *cgn : t) {
@@ -220,13 +171,6 @@ std::vector<const llvm::Value *> SortedCallSites(CallGraphNode *cgn) {
 bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
   LOG("dsa-bu", errs() << "Started bottom-up analysis ... \n");
-
-// Keep it true until implementation is stable
-#ifndef SANITY_CHECKS
-  const bool do_sanity_checks = true;
-#else
-  const bool do_sanity_checks = true;
-#endif
 
   BrunchTimer buTime("BU_AND_LOCAL");
   BrunchTimer localTime("LOCAL");
@@ -296,43 +240,6 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
         cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape);
         LOG("dsa-bu", llvm::errs() << "\tCaller size after clone: " << callerG.numNodes() << ", collapsed: " << callerG.numCollapsed() << "\n");
-      }
-
-      if (m_computeSimMap) {
-        // -- store the simulation maps from the SCC
-        for (auto &callRecord : *cgn) {
-          ImmutableCallSite CS(callRecord.first);
-          DsaCallSite dsaCS(CS);
-          const Function *callee = dsaCS.getCallee();
-          if (!callee || callee->isDeclaration() || callee->empty())
-            continue;
-
-          assert(graphs.count(dsaCS.getCaller()) > 0);
-          assert(graphs.count(dsaCS.getCallee()) > 0);
-
-          Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
-          Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
-
-          SimulationMapperRef sm(new SimulationMapper());
-          bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
-                                                       *sm, do_sanity_checks);
-          if (!res) {
-            // continue;
-            llvm_unreachable("Simulation mapping check failed");
-          }
-          m_callee_caller_map.insert(
-              std::make_pair(dsaCS.getInstruction(), sm));
-
-          if (do_sanity_checks) {
-            // Check the simulation map is a function
-            if (!sm->isFunction())
-              errs() << "ERROR: simulation map for " << *dsaCS.getInstruction()
-                     << " is not a function!\n";
-            // Check that all nodes in the callee are mapped to one
-            // node in the caller graph
-            checkAllNodesAreMapped(*callee, calleeG, *sm);
-          }
-        }
       }
     }
 

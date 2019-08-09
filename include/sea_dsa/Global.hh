@@ -10,6 +10,7 @@
 #include "sea_dsa/CallGraph.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Graph.hh"
+#include "sea_dsa/Mapper.hh"
 
 #include "boost/container/flat_set.hpp"
 
@@ -121,6 +122,11 @@ private:
   typedef BottomUpAnalysis::GraphMap GraphMap;
   enum PropagationKind { DOWN, UP, NONE };
 
+  typedef std::shared_ptr<SimulationMapper> SimulationMapperRef;
+  typedef boost::container::flat_map<const llvm::Instruction *,
+                                     SimulationMapperRef>
+      CalleeCallerMapping;
+  
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
   const AllocWrapInfo &m_allocInfo;
@@ -130,6 +136,10 @@ private:
 public:
   GraphMap m_graphs;
 
+  // sanity check
+  bool checkAllNodesAreMapped(const llvm::Function &callee, Graph &calleeG,
+                              const SimulationMapper &sm);
+  
   PropagationKind decidePropagation(const DsaCallSite &cs, Graph &callerG,
                                     Graph &calleeG);
 
