@@ -26,7 +26,6 @@ public:
   typedef llvm::DenseMap<const llvm::Function *, GraphRef> GraphMap;
 
 private:
-
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
   const AllocWrapInfo &m_allocInfo;
@@ -35,7 +34,6 @@ private:
   bool m_noescape;
 
 public:
-
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &calleeG,
                                        Graph &callerG, bool noescape = true);
 
@@ -44,7 +42,7 @@ public:
                    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
                    bool noescape = true /* TODO: CLI*/)
       : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
-	m_noescape(noescape) {}
+        m_noescape(noescape) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 };

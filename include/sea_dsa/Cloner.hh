@@ -39,7 +39,7 @@ public:
 
   Cloner(Graph &g, CloningContext context, Cloner::Options options)
       : m_graph(g), m_context(context),
-	m_track_call_paths(options & Cloner::Options::TrackAllocaCallPaths),
+        m_track_call_paths(options & Cloner::Options::TrackAllocaCallPaths),
         m_strip_allocas(options & Cloner::Options::StripAllocas) {}
 
   /// Returns a clone of a given node in the new graph

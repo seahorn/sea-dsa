@@ -69,7 +69,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
       if (calleeN.getNumLinks() == 0 || !calleeN.isModified() ||
           llvm::isa<ConstantData>(kv.first))
         continue;
-#endif     
+#endif
 
     const Value &global = *kv.first;
     Node &n = C.clone(calleeN, false, kv.first);
@@ -234,12 +234,21 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
         static int cnt = 0;
         ++cnt;
-        LOG("dsa-bu", llvm::errs() << "BU #" << cnt << ": " << dsaCS.getCaller()->getName() << " <- " << dsaCS.getCallee()->getName() << "\n");
-        LOG("dsa-bu", llvm::errs() << "\tCallee size: " << calleeG.numNodes() << ", caller size:\t" << callerG.numNodes() << "\n");
-        LOG("dsa-bu", llvm::errs() << "\tCallee collapsed: " << calleeG.numCollapsed() << ", caller collapsed:\t" << callerG.numCollapsed() << "\n");
+        LOG("dsa-bu", llvm::errs() << "BU #" << cnt << ": "
+                                   << dsaCS.getCaller()->getName() << " <- "
+                                   << dsaCS.getCallee()->getName() << "\n");
+        LOG("dsa-bu", llvm::errs()
+                          << "\tCallee size: " << calleeG.numNodes()
+                          << ", caller size:\t" << callerG.numNodes() << "\n");
+        LOG("dsa-bu", llvm::errs()
+                          << "\tCallee collapsed: " << calleeG.numCollapsed()
+                          << ", caller collapsed:\t" << callerG.numCollapsed()
+                          << "\n");
 
         cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape);
-        LOG("dsa-bu", llvm::errs() << "\tCaller size after clone: " << callerG.numNodes() << ", collapsed: " << callerG.numCollapsed() << "\n");
+        LOG("dsa-bu", llvm::errs()
+                          << "\tCaller size after clone: " << callerG.numNodes()
+                          << ", collapsed: " << callerG.numCollapsed() << "\n");
       }
     }
 

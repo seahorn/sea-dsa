@@ -14,13 +14,13 @@
 
 #include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/BottomUp.hh"
-#include "sea_dsa/TopDown.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Cloner.hh"
 #include "sea_dsa/Global.hh"
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/GraphUtils.hh"
 #include "sea_dsa/Local.hh"
+#include "sea_dsa/TopDown.hh"
 #include "sea_dsa/config.h"
 
 // #include "ufo/Stats.hh"
@@ -42,12 +42,12 @@ using namespace llvm;
 
 namespace sea_dsa {
 
-
 //////
 /// Context-insensitive analysis
 /////
 // Unify callsite arguments within the same graph
-void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs, Graph &g) {
+void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs,
+                                                        Graph &g) {
 
   // unify return
   const Function &callee = *cs.getCallee();
@@ -73,7 +73,7 @@ void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs, Graph &
     }
   }
 }
-  
+
 bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   LOG("dsa-global",
@@ -246,7 +246,7 @@ template <typename T> const T &WorkList<T>::dequeue() {
 /// iterative (bottom-up/top-down) propagation on callsites.
 //////
 bool ContextSensitiveGlobalAnalysis::checkAllNodesAreMapped(
-     const Function &fn, Graph &fnG, const SimulationMapper &sm) {
+    const Function &fn, Graph &fnG, const SimulationMapper &sm) {
   std::set<const Node *> reach;
   std::set<const Node *> retReach /*unused*/;
   graph_utils::reachableNodes(fn, fnG, reach, retReach);
@@ -263,18 +263,17 @@ bool ContextSensitiveGlobalAnalysis::checkAllNodesAreMapped(
 
 bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
-  
   LOG("dsa-global",
       errs() << "Started context-sensitive global analysis ... \n");
   // ufo::Stats::resume ("CS-DsaAnalysis");
-  
+
   // Keep checks until implementation is stable
 #ifdef SANITY_CHECKS
   const bool do_sanity_checks = true;
 #else
   const bool do_sanity_checks = true;
-#endif   
-  
+#endif
+
   for (auto &F : M) {
     if (F.isDeclaration() || F.empty())
       continue;
@@ -287,14 +286,14 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   //    and initialize worklist
   BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg, true /*compute sim map*/);
   bu.runOnModule(M, m_graphs);
-  
+
   // -- Compute simulation map so that we can identify which callsites
   // -- require extra top-down propagation. Since bottom-up pass has
   // -- been done already, we assume that the simulation relation is a
   // -- total function (i.e., each callee node is mapped to a single
-  // -- node in the caller).  
+  // -- node in the caller).
   CalleeCallerMapping callee_caller_map;
-  
+
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
     for (CallGraphNode *cgn : scc) {
@@ -304,39 +303,39 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
       }
       // -- store the simulation maps from the SCC
       for (auto &callRecord : *cgn) {
-	ImmutableCallSite CS(callRecord.first);
-	DsaCallSite dsaCS(CS);
-	const Function *callee = dsaCS.getCallee();
-	if (!callee || callee->isDeclaration() || callee->empty()) {
-	  continue;
-	}
-	
-	assert(m_graphs.count(dsaCS.getCaller()) > 0);
-	assert(m_graphs.count(dsaCS.getCallee()) > 0);
-	
-	Graph &callerG = *(m_graphs.find(dsaCS.getCaller())->second);
-	Graph &calleeG = *(m_graphs.find(dsaCS.getCallee())->second);
-	
-	SimulationMapperRef sm(new SimulationMapper());
-	bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
-						     *sm, do_sanity_checks);
-	if (!res) {
-	  llvm_unreachable("Simulation mapping check failed");
-	}
-	callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
-	
-	if (do_sanity_checks) {
-	  // Check the simulation map is a function
-	  if (!sm->isFunction()) {
-	    errs() << "ERROR (sea-dsa): simulation map for " << *dsaCS.getInstruction()
-		   << " is not a function!\n";
-	  } else {
-	    // Check the simulation map is a total function: check
-	    // that all nodes in the callee are mapped to one node in
-	    // the caller graph
-	    checkAllNodesAreMapped(*callee, calleeG, *sm);
-	  }
-	}
+        ImmutableCallSite CS(callRecord.first);
+        DsaCallSite dsaCS(CS);
+        const Function *callee = dsaCS.getCallee();
+        if (!callee || callee->isDeclaration() || callee->empty()) {
+          continue;
+        }
+
+        assert(m_graphs.count(dsaCS.getCaller()) > 0);
+        assert(m_graphs.count(dsaCS.getCallee()) > 0);
+
+        Graph &callerG = *(m_graphs.find(dsaCS.getCaller())->second);
+        Graph &calleeG = *(m_graphs.find(dsaCS.getCallee())->second);
+
+        SimulationMapperRef sm(new SimulationMapper());
+        bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
+                                                     *sm, do_sanity_checks);
+        if (!res) {
+          llvm_unreachable("Simulation mapping check failed");
+        }
+        callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
+
+        if (do_sanity_checks) {
+          // Check the simulation map is a function
+          if (!sm->isFunction()) {
+            errs() << "ERROR (sea-dsa): simulation map for "
+                   << *dsaCS.getInstruction() << " is not a function!\n";
+          } else {
+            // Check the simulation map is a total function: check
+            // that all nodes in the callee are mapped to one node in
+            // the caller graph
+            checkAllNodesAreMapped(*callee, calleeG, *sm);
+          }
+        }
       }
     }
   }
@@ -345,10 +344,10 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   dsaCG.buildDependencies();
 
   /// push in the worklist callsites for which two different
-  /// callee nodes are mapped to the same caller node  
+  /// callee nodes are mapped to the same caller node
   WorkList<const Instruction *> w;
-  for (auto &kv : llvm::make_range(callee_caller_map.begin(),
-                                   callee_caller_map.end())) {
+  for (auto &kv :
+       llvm::make_range(callee_caller_map.begin(), callee_caller_map.end())) {
     auto const &simMapper = *(kv.second);
     assert(simMapper.isFunction());
 
@@ -416,9 +415,9 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
       errs() << "-- Number of bottom-up propagations=" << bu_props << "\n";);
 
   if (do_sanity_checks) {
-    if (!checkNoMorePropagation()){
+    if (!checkNoMorePropagation()) {
       errs() << "ERROR (sea-dsa) sanity check failed: more top-down or "
-	     << "bottom-up propagation is needed\n";
+             << "bottom-up propagation is needed\n";
     }
   }
 
@@ -522,8 +521,9 @@ bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation() {
         PropagationKind pkind = decidePropagation(cs, calleeG, callerG);
         if (pkind != NONE) {
           auto pkind_str = (pkind == UP) ? "bottom-up" : "top-down";
-          errs() << "ERROR (sea-dsa) sanity check failed:" << *(cs.getInstruction())
-                 << " requires " << pkind_str << " propagation.\n";
+          errs() << "ERROR (sea-dsa) sanity check failed:"
+                 << *(cs.getInstruction()) << " requires " << pkind_str
+                 << " propagation.\n";
           return false;
         }
       }

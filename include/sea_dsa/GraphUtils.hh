@@ -37,6 +37,5 @@ static void reachableNodes(const llvm::Function &fn, Graph &g, Set &inputReach,
     markReachableNodes(g.getRetCell(fn).getNode(), retReach);
 }
 
-
-}
-}
+} // namespace graph_utils
+} // namespace sea_dsa

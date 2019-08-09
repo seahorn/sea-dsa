@@ -134,110 +134,110 @@ public:
   size_t numNodes() const { return m_nodes.size(); };
   size_t numCollapsed() const;
 
-    /// iterate over scalars
-    virtual scalar_const_iterator scalar_begin() const;
-    virtual scalar_const_iterator scalar_end() const;
-    llvm::iterator_range<scalar_const_iterator> scalars() const {
-      return llvm::make_range(scalar_begin(), scalar_end());
-    }
+  /// iterate over scalars
+  virtual scalar_const_iterator scalar_begin() const;
+  virtual scalar_const_iterator scalar_end() const;
+  llvm::iterator_range<scalar_const_iterator> scalars() const {
+    return llvm::make_range(scalar_begin(), scalar_end());
+  }
 
-    virtual global_const_iterator globals_begin() const;
-    virtual global_const_iterator globals_end() const;
-    llvm::iterator_range<global_const_iterator> globals() const {
-      return llvm::make_range(globals_begin(), globals_end());
-    }
+  virtual global_const_iterator globals_begin() const;
+  virtual global_const_iterator globals_end() const;
+  llvm::iterator_range<global_const_iterator> globals() const {
+    return llvm::make_range(globals_begin(), globals_end());
+  }
 
-    /// iterate over formal parameters of functions
-    virtual formal_const_iterator formal_begin() const;
-    virtual formal_const_iterator formal_end() const;
-    llvm::iterator_range<formal_const_iterator> formals() const {
-      return llvm::make_range(formal_begin(), formal_end());
-    }
+  /// iterate over formal parameters of functions
+  virtual formal_const_iterator formal_begin() const;
+  virtual formal_const_iterator formal_end() const;
+  llvm::iterator_range<formal_const_iterator> formals() const {
+    return llvm::make_range(formal_begin(), formal_end());
+  }
 
-    /// iterate over returns of functions
-    virtual return_const_iterator return_begin() const;
-    virtual return_const_iterator return_end() const;
-    llvm::iterator_range<return_const_iterator> returns() const {
-      return llvm::make_range(return_begin(), return_end());
-    }
+  /// iterate over returns of functions
+  virtual return_const_iterator return_begin() const;
+  virtual return_const_iterator return_end() const;
+  llvm::iterator_range<return_const_iterator> returns() const {
+    return llvm::make_range(return_begin(), return_end());
+  }
 
-    /// creates a cell for the value or returns existing cell if
-    /// present
-    virtual Cell &mkCell(const llvm::Value &v, const Cell &c);
-    virtual Cell &mkRetCell(const llvm::Function &fn, const Cell &c);
+  /// creates a cell for the value or returns existing cell if
+  /// present
+  virtual Cell &mkCell(const llvm::Value &v, const Cell &c);
+  virtual Cell &mkRetCell(const llvm::Function &fn, const Cell &c);
 
-    /// return a cell for the value
-    virtual const Cell &getCell(const llvm::Value &v);
+  /// return a cell for the value
+  virtual const Cell &getCell(const llvm::Value &v);
 
-    /// return true iff the value has a cel
-    virtual bool hasCell(const llvm::Value &v) const;
+  /// return true iff the value has a cel
+  virtual bool hasCell(const llvm::Value &v) const;
 
-    virtual bool hasScalarCell(const llvm::Value &v) {
-      return m_values.count(&v) > 0;
-    }
+  virtual bool hasScalarCell(const llvm::Value &v) {
+    return m_values.count(&v) > 0;
+  }
 
-    virtual bool hasRetCell(const llvm::Function &fn) const {
-      return m_returns.count(&fn) > 0;
-    }
+  virtual bool hasRetCell(const llvm::Function &fn) const {
+    return m_returns.count(&fn) > 0;
+  }
 
-    virtual Cell &getRetCell(const llvm::Function &fn);
+  virtual Cell &getRetCell(const llvm::Function &fn);
 
-    virtual const Cell &getRetCell(const llvm::Function &fn) const;
+  virtual const Cell &getRetCell(const llvm::Function &fn) const;
 
-    llvm::Optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
-      auto it = m_valueToAllocSite.find(&v);
-      if (it != m_valueToAllocSite.end())
-        return it->second;
+  llvm::Optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
+    auto it = m_valueToAllocSite.find(&v);
+    if (it != m_valueToAllocSite.end())
+      return it->second;
 
-      return llvm::None;
-    }
+    return llvm::None;
+  }
 
-    DsaAllocSite *mkAllocSite(const llvm::Value &v);
+  DsaAllocSite *mkAllocSite(const llvm::Value &v);
 
-    llvm::iterator_range<alloc_site_iterator> alloc_sites() {
-      alloc_site_iterator begin = m_allocSites.begin();
-      alloc_site_iterator end = m_allocSites.end();
-      return llvm::make_range(begin, end);
-    }
+  llvm::iterator_range<alloc_site_iterator> alloc_sites() {
+    alloc_site_iterator begin = m_allocSites.begin();
+    alloc_site_iterator end = m_allocSites.end();
+    return llvm::make_range(begin, end);
+  }
 
-    llvm::iterator_range<alloc_site_const_iterator> alloc_sites() const {
-      alloc_site_const_iterator begin = m_allocSites.begin();
-      alloc_site_const_iterator end = m_allocSites.end();
-      return llvm::make_range(begin, end);
-    }
+  llvm::iterator_range<alloc_site_const_iterator> alloc_sites() const {
+    alloc_site_const_iterator begin = m_allocSites.begin();
+    alloc_site_const_iterator end = m_allocSites.end();
+    return llvm::make_range(begin, end);
+  }
 
-    bool hasAllocSiteForValue(const llvm::Value &v) const {
-      return m_valueToAllocSite.count(&v) > 0;
-    }
+  bool hasAllocSiteForValue(const llvm::Value &v) const {
+    return m_valueToAllocSite.count(&v) > 0;
+  }
 
-    /// compute a map from callee nodes to caller nodes
-    //
-    /// XXX: we might want to make the last argument a template
-    /// parameter but then the definition should be in a header file.
-    static bool computeCalleeCallerMapping(
-        const DsaCallSite &cs, Graph &calleeG, Graph &callerG,
-        SimulationMapper &simMap, const bool reportIfSanityCheckFailed = true);
+  /// compute a map from callee nodes to caller nodes
+  //
+  /// XXX: we might want to make the last argument a template
+  /// parameter but then the definition should be in a header file.
+  static bool
+  computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
+                             Graph &callerG, SimulationMapper &simMap,
+                             const bool reportIfSanityCheckFailed = true);
 
-    /// import the given graph into the current one
-    /// copies all nodes from g and unifies all common scalars
-    virtual void import(const Graph &g, bool withFormals = false);
+  /// import the given graph into the current one
+  /// copies all nodes from g and unifies all common scalars
+  virtual void import(const Graph &g, bool withFormals = false);
 
-    /// pretty-printer of a graph
-    virtual void write(llvm::raw_ostream & o) const;
+  /// pretty-printer of a graph
+  virtual void write(llvm::raw_ostream &o) const;
 
-    /// for gdb
-    void dump() const;
+  /// for gdb
+  void dump() const;
 
-    friend void ShowDsaGraph(Graph & g);
-    /// view the Dsa graph using GraphViz. (For debugging.)
-    void viewGraph();
+  friend void ShowDsaGraph(Graph &g);
+  /// view the Dsa graph using GraphViz. (For debugging.)
+  void viewGraph();
 
-    bool isFlat() const { return m_is_flat; }
+  bool isFlat() const { return m_is_flat; }
 
-    void removeLinks(Node * n, std::function<bool(const Node *)> pred);
+  void removeLinks(Node *n, std::function<bool(const Node *)> pred);
 
-    void removeNodes(std::function<bool(const Node *)> pred);
-
+  void removeNodes(std::function<bool(const Node *)> pred);
 };
 
 /**
@@ -393,10 +393,10 @@ public:
     unsigned null : 1;
 
     NodeType() { reset(); }
-    
+
     void join(const NodeType &n) {
       shadow |= n.shadow;
-      foreign &= n.foreign; 
+      foreign &= n.foreign;
       alloca |= n.alloca;
       heap |= n.heap;
       global |= n.global;
@@ -550,8 +550,8 @@ private:
     constexpr unsigned shrinkThreshold = 4;
     if (m_accessedTypes.size() * shrinkThreshold <
         m_accessedTypes.getMemorySize())
-      m_accessedTypes = accessed_types_type(m_accessedTypes.begin(),
-                                            m_accessedTypes.end());
+      m_accessedTypes =
+          accessed_types_type(m_accessedTypes.begin(), m_accessedTypes.end());
 
     if (m_links.size() * shrinkThreshold < m_links.capacity())
       m_links.shrink_to_fit();
@@ -638,7 +638,7 @@ public:
   bool isExternal() const { return m_nodeType.external; }
   bool isIntToPtr() const { return m_nodeType.inttoptr; }
   bool isPtrToInt() const { return m_nodeType.ptrtoint; }
-  
+
   Node &setArraySize(unsigned sz) {
     assert(!isArray());
     assert(!isForwarding());
@@ -665,7 +665,7 @@ public:
   bool isTypeCollapsed() const { return m_nodeType.type_collapsed; }
 
   bool isForeign() const { return m_nodeType.foreign; }
-  
+
   Node &setForeign(bool v = true) {
     m_nodeType.foreign = v;
     return *this;
