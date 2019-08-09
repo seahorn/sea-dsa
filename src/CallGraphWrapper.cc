@@ -1,5 +1,3 @@
-#include "sea_dsa/CallGraph.hh"
-
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
@@ -8,13 +6,14 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "sea_dsa/CallGraphWrapper.hh"
 #include "sea_dsa/support/Debug.h"
 
 using namespace llvm;
 
 namespace sea_dsa {
   
-  void DsaCallGraph::buildDependencies ()
+  void CallGraphWrapper::buildDependencies ()
   {
     // --- compute immediate predecessors (callsites) for each
     //     function in the call graph (considering only direct

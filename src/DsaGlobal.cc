@@ -15,7 +15,6 @@
 #include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/BottomUp.hh"
 #include "sea_dsa/TopDown.hh"
-#include "sea_dsa/CallGraph.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Cloner.hh"
 #include "sea_dsa/Global.hh"
@@ -342,7 +341,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
     }
   }
 
-  DsaCallGraph dsaCG(m_cg);
+  CallGraphWrapper dsaCG(m_cg);
   dsaCG.buildDependencies();
 
   /// push in the worklist callsites for which two different

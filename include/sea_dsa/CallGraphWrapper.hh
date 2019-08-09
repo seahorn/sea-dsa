@@ -1,20 +1,20 @@
-#ifndef __DSA_CALLGRAPH_HH_
-#define __DSA_CALLGRAPH_HH_
+#pragma once
 
 #include "boost/unordered_map.hpp"
 
-namespace llvm 
-{
-    class Function;
-    class Instruction;
-    class CallGraph;
+namespace llvm  {
+class Function;
+class Instruction;
+class CallGraph;
 }
 
-namespace sea_dsa 
-{
-  
-  class DsaCallGraph
-  {
+namespace sea_dsa {
+  /**
+   * A wrapper for LLVM CallGraph to precompute some dependencies
+   * between callsites.
+   **/ 
+  class CallGraphWrapper {
+    
     // XXX: use a vector to have more control about the ordering
     typedef std::vector<const llvm::Instruction*> CallSiteSet;
     //typedef boost::container::flat_set<const llvm::Instruction*> CallSiteSet;
@@ -34,7 +34,7 @@ namespace sea_dsa
     
   public:
     
-    DsaCallGraph (llvm::CallGraph &cg): m_cg (cg) {}
+    CallGraphWrapper (llvm::CallGraph &cg): m_cg (cg) {}
     
     void buildDependencies ();
     
@@ -60,4 +60,3 @@ namespace sea_dsa
     
   };  
 }
-#endif 
