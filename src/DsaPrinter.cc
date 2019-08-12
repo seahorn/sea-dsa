@@ -14,10 +14,15 @@
    Convert each DSA graph to .dot file.
  */
 
-static llvm::cl::opt<std::string>
-    OutputDir("sea-dsa-dot-outdir",
-              llvm::cl::desc("DSA: output directory for dot files"),
-              llvm::cl::init(""), llvm::cl::value_desc("DIR"));
+namespace sea_dsa {
+std::string DotOutputDir;
+}
+
+static llvm::cl::opt<std::string, true>
+XDotOutputDir("sea-dsa-dot-outdir",
+	   llvm::cl::desc("DSA: output directory for dot files"),
+	   llvm::cl::location(sea_dsa::DotOutputDir),
+	   llvm::cl::init(""), llvm::cl::value_desc("DIR"));
 
 static llvm::cl::opt<bool>
     PrintAllocSites("sea-dsa-dot-print-as",
@@ -601,9 +606,9 @@ namespace sea_dsa {
 using namespace llvm;
 
 static std::string appendOutDir(std::string FileName) {
-  if (!OutputDir.empty()) {
-    if (!llvm::sys::fs::create_directory(OutputDir)) {
-      std::string FullFileName = OutputDir + "/" + FileName;
+  if (!DotOutputDir.empty()) {
+    if (!llvm::sys::fs::create_directory(DotOutputDir)) {
+      std::string FullFileName = DotOutputDir + "/" + FileName;
       return FullFileName;
     }
   }

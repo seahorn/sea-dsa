@@ -1,6 +1,10 @@
 #pragma once
 
-#include "boost/unordered_map.hpp"
+#include "sea_dsa/CallSite.hh"
+
+#include <memory>
+#include <unordered_map>
+#include <vector>
 
 namespace llvm {
 class Function;
@@ -14,20 +18,22 @@ namespace sea_dsa {
  * between callsites.
  **/
 class CallGraphWrapper {
-
+public:
   // XXX: use a vector to have more control about the ordering
-  typedef std::vector<const llvm::Instruction *> CallSiteSet;
   // typedef boost::container::flat_set<const llvm::Instruction*> CallSiteSet;
+  typedef std::vector<DsaCallSite> CallSiteSet;
+  
+private:
   typedef std::shared_ptr<CallSiteSet> CallSiteSetRef;
-  typedef boost::unordered_map<const llvm::Function *, CallSiteSetRef> IndexMap;
+  typedef std::unordered_map<const llvm::Function *, CallSiteSetRef> IndexMap;
 
   llvm::CallGraph &m_cg;
   IndexMap m_uses;
   IndexMap m_defs;
 
-  static void insert(const llvm::Instruction *I, CallSiteSet &s) {
-    if (std::find(s.begin(), s.end(), I) == s.end())
-      s.push_back(I);
+  static void insert(DsaCallSite CS, CallSiteSet &s) {
+    if (std::find(s.begin(), s.end(), CS) == s.end())
+      s.push_back(CS);
   }
 
   template <typename Iter>
@@ -37,6 +43,7 @@ class CallGraphWrapper {
   }
 
 public:
+  
   CallGraphWrapper(llvm::CallGraph &cg) : m_cg(cg) {}
 
   void buildDependencies();

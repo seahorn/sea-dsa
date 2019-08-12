@@ -1,8 +1,9 @@
 ///
-// seadsda -- Print heap graph computed by DSA
+// seadsda -- Print heap graphs and call graph computed by sea-dsa
 ///
 
 #include "llvm/LinkAllPasses.h"
+#include "llvm/Analysis/CallPrinter.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -50,9 +51,12 @@ MemViewer("sea-dsa-viewer",
 	  llvm::cl::desc("View memory graph of each function to dot format"),
 	  llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+CallGraphDot("sea-dsa-callgraph-dot",
+	     llvm::cl::desc("Print call graph computed by sea-dsa to dot format"),
+	     llvm::cl::init(false));
 
-namespace sea_dsa
-{
+namespace sea_dsa {
   SeaDsaLogOpt loc;
 }
 
@@ -129,15 +133,26 @@ int main(int argc, char **argv) {
 
   assert (dl && "Could not find Data Layout for the module");  
 
-  if (MemDot)
+  if (MemDot) {
     pass_manager.add (sea_dsa::createDsaPrinterPass ());
+  }
   
-  if (MemViewer)
+  if (MemViewer) {
     pass_manager.add (sea_dsa::createDsaViewerPass ());
+  }
+  
+  if (PrintDsaStats) {
+    pass_manager.add (sea_dsa::createDsaPrintStatsPass ());
+  }
+  
+  if (CallGraphDot) {
+    pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
+  }
 
-  if (PrintDsaStats)
-    pass_manager.add (sea_dsa::createDsaPrintStatsPass ());    
-    
+  if (!MemDot && !MemViewer && !PrintDsaStats && !CallGraphDot) {
+    llvm::errs() << "No option selected: choose one option\n";
+  }
+  
   if (!AsmOutputFilename.empty ())
     pass_manager.add (createPrintModulePass (asmOutput->os ()));
   

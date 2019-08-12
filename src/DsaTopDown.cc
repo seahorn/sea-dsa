@@ -171,17 +171,24 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       
       // -- resolve all function calls in the SCC
       for (auto &callRecord : *cgn) {
-        ImmutableCallSite CS(callRecord.first);
-        DsaCallSite dsaCS(CS);
-        const Function *callee = dsaCS.getCallee();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
+	const Function* callee = callRecord.second->getFunction();
+	if (!callee || callee->isDeclaration() || callee->empty())
+	  continue;
+	
+	CallSite CS(callRecord.first);
+	std::unique_ptr<DsaCallSite> dsaCS = nullptr;
+	if (CS.isIndirectCall()) {
+	  dsaCS.reset(new DsaCallSite(*CS.getInstruction(), *callee));
+	} else {
+	  dsaCS.reset(new DsaCallSite(*CS.getInstruction()));
+	}
 
-        // XXX: We assume that `graphs` has been already populated by
-        // the bottom-up pass. We report an error and skip the
-        // callsite otherwise.
-
-        auto it = graphs.find(dsaCS.getCallee());
+	// This should not happen ...
+	if (!dsaCS->getCallee()) {
+	  continue;
+	}
+	
+        auto it = graphs.find(dsaCS->getCallee());
         if (it == graphs.end()) {
           errs() << "ERROR: top-down analysis could not find dsa graph for "
                     "callee\n";
@@ -192,20 +199,20 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
         static int cnt = 0;
         ++cnt;
-        LOG("dsa-td", llvm::errs() << "TD #" << cnt << ": " << dsaCS.getCaller()->getName() << " -> " << dsaCS.getCallee()->getName() << "\n");
+        LOG("dsa-td", llvm::errs() << "TD #" << cnt << ": " << dsaCS->getCaller()->getName() << " -> " << dsaCS->getCallee()->getName() << "\n");
         LOG("dsa-td", llvm::errs() << "\tCallee size: " << calleeG.numNodes() << ", caller size:\t" << callerG.numNodes() << "\n");
         LOG("dsa-td", llvm::errs() << "\tCallee collapsed: " << calleeG.numCollapsed() << ", caller collapsed:\t" << callerG.numCollapsed() << "\n");
         // propagate from the caller to the callee
-        cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);
+        cloneAndResolveArguments(*dsaCS, callerG, calleeG, m_noescape);
         // remove foreign nodes
 
         if (!NoTDCopyingOpt)
           calleeG.removeNodes([](const Node *n) { return n->isForeign(); });
 
         LOG("dsa-td", llvm::errs() << "\tCallee size after clone: " << calleeG.numNodes() << ", collapsed: " << calleeG.numCollapsed() << "\n");
-        if (cnt == 38) {
-          calleeG.viewGraph();
-        }
+        // if (cnt == 38) {
+        //   calleeG.viewGraph();
+        // }
       }
     }
   }
