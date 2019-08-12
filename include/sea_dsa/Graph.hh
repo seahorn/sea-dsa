@@ -84,6 +84,18 @@ protected:
   using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DsaAllocSite *>;
   ValueToAllocSite m_valueToAllocSite;
 
+  /// Indirect call sites owned by this graph
+  ///
+  /// The call site can be defined in the current function or any
+  /// direct or indirect callee. Call sites are copied from callees to
+  /// callers during bottom-up propagation.
+  using CallSites = std::vector<std::unique_ptr<DsaCallSite>>;
+  CallSites m_callSites;
+
+  /// Map from instructions to call sites
+  using InstructionToCallSite = llvm::DenseMap<const llvm::Instruction *, DsaCallSite *>;
+  InstructionToCallSite m_instructionToCallSite;
+
   //  Whether the graph is flat or not
   bool m_is_flat;
 
@@ -111,6 +123,10 @@ public:
       boost::indirect_iterator<typename AllocSites::iterator>;
   using alloc_site_const_iterator =
       boost::indirect_iterator<typename AllocSites::const_iterator>;
+  using callsite_iterator =
+      boost::indirect_iterator<typename CallSites::iterator>;
+  using callsite_const_iterator =
+      boost::indirect_iterator<typename CallSites::const_iterator>;
 
   Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false);
   virtual ~Graph();
@@ -194,6 +210,8 @@ public:
 
   DsaAllocSite *mkAllocSite(const llvm::Value &v);
 
+  void clearCallSites();
+  
   llvm::iterator_range<alloc_site_iterator> alloc_sites() {
     alloc_site_iterator begin = m_allocSites.begin();
     alloc_site_iterator end = m_allocSites.end();
@@ -205,11 +223,27 @@ public:
     alloc_site_const_iterator end = m_allocSites.end();
     return llvm::make_range(begin, end);
   }
-
+ 
   bool hasAllocSiteForValue(const llvm::Value &v) const {
     return m_valueToAllocSite.count(&v) > 0;
   }
 
+  // return null if no callsite found
+  DsaCallSite* getCallSite(const llvm::Instruction &cs) {
+    auto it = m_instructionToCallSite.find(&cs);
+    if (it != m_instructionToCallSite.end()) {
+      return &*it->second;
+    } else {
+      return nullptr;
+    }
+  }
+
+  DsaCallSite* mkCallSite(const llvm::Instruction &cs, Cell c);
+  
+  llvm::iterator_range<callsite_iterator> callsites();
+
+  llvm::iterator_range<callsite_const_iterator> callsites() const;
+  
   /// compute a map from callee nodes to caller nodes
   //
   /// XXX: we might want to make the last argument a template

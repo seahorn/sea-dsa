@@ -15,6 +15,7 @@
 
 #include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/CallSite.hh"
+#include "sea_dsa/CallGraphUtils.hh"
 #include "sea_dsa/Cloner.hh"
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Local.hh"
@@ -24,9 +25,14 @@
 
 using namespace llvm;
 
-static llvm::cl::opt<bool> NoBUFlowSensitiveOpt(
+namespace sea_dsa {
+bool NoBUFlowSensitiveOpt;
+}
+
+static llvm::cl::opt<bool, true> XNoBUFlowSensitiveOpt(
     "sea-dsa-no-bu-flow-sensitive-opt",
     llvm::cl::desc("Disable partial flow sensitivity in bottom up"),
+    llvm::cl::location(sea_dsa::NoBUFlowSensitiveOpt),
     llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace sea_dsa {
@@ -117,57 +123,6 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   callerG.compress();
 }
 
-template <typename T> std::vector<CallGraphNode *> SortedCGNs(const T &t) {
-  std::vector<CallGraphNode *> cgns;
-  for (CallGraphNode *cgn : t) {
-    Function *fn = cgn->getFunction();
-    if (!fn || fn->isDeclaration() || fn->empty())
-      continue;
-
-    cgns.push_back(cgn);
-  }
-
-  std::stable_sort(
-      cgns.begin(), cgns.end(), [](CallGraphNode *first, CallGraphNode *snd) {
-        return first->getFunction()->getName() < snd->getFunction()->getName();
-      });
-
-  return cgns;
-}
-
-std::vector<const llvm::Value *> SortedCallSites(CallGraphNode *cgn) {
-  std::vector<const llvm::Value *> res;
-  res.reserve(cgn->size());
-
-  for (auto &callRecord : *cgn) {
-    ImmutableCallSite CS(callRecord.first);
-    DsaCallSite dsaCS(CS);
-    const Function *callee = dsaCS.getCallee();
-    if (!callee || callee->isDeclaration() || callee->empty())
-      continue;
-
-    res.push_back(callRecord.first);
-  }
-
-  std::stable_sort(res.begin(), res.end(),
-                   [](const Value *first, const Value *snd) {
-                     ImmutableCallSite CS1(first);
-                     DsaCallSite dsaCS1(CS1);
-                     StringRef callerN1 = dsaCS1.getCaller()->getName();
-                     StringRef calleeN1 = dsaCS1.getCallee()->getName();
-
-                     ImmutableCallSite CS2(snd);
-                     DsaCallSite dsaCS2(CS2);
-                     StringRef callerN2 = dsaCS2.getCaller()->getName();
-                     StringRef calleeN2 = dsaCS2.getCallee()->getName();
-
-                     return std::make_pair(callerN1, calleeN1) <
-                            std::make_pair(callerN2, calleeN2);
-                   });
-
-  return res;
-}
-
 bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
   LOG("dsa-bu", errs() << "Started bottom-up analysis ... \n");
@@ -211,14 +166,14 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       localTime.pause();
     }
 
-    std::vector<CallGraphNode *> cgns = SortedCGNs(scc);
+    std::vector<CallGraphNode *> cgns = call_graph_utils::SortedCGNs(scc);
     for (CallGraphNode *cgn : cgns) {
       Function *fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty())
         continue;
 
       // -- resolve all function calls in the SCC
-      auto callRecords = SortedCallSites(cgn);
+      auto callRecords = call_graph_utils::SortedCallSites(cgn);
       for (auto *callRecord : callRecords) {
         ImmutableCallSite CS(callRecord);
         DsaCallSite dsaCS(CS);

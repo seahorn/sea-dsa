@@ -51,10 +51,11 @@ public:
 
   virtual bool runOnModule(llvm::Module &M) = 0;
 
+  // return the points-to graph for F
   virtual const Graph &getGraph(const llvm::Function &F) const = 0;
-
   virtual Graph &getGraph(const llvm::Function &F) = 0;
 
+  // return true if F has its own points-to graph
   virtual bool hasGraph(const llvm::Function &F) const = 0;
 };
 
@@ -116,15 +117,14 @@ private:
 class ContextSensitiveGlobalAnalysis : public GlobalAnalysis {
 public:
   typedef typename Graph::SetFactory SetFactory;
-
+  
 private:
   typedef std::shared_ptr<Graph> GraphRef;
   typedef BottomUpAnalysis::GraphMap GraphMap;
   enum PropagationKind { DOWN, UP, NONE };
 
   typedef std::shared_ptr<SimulationMapper> SimulationMapperRef;
-  typedef boost::container::flat_map<const llvm::Instruction *,
-                                     SimulationMapperRef>
+  typedef boost::container::flat_map<DsaCallSite, SimulationMapperRef>
       CalleeCallerMapping;
 
   const llvm::DataLayout &m_dl;
@@ -135,11 +135,7 @@ private:
 
 public:
   GraphMap m_graphs;
-
-  // sanity check
-  bool checkAllNodesAreMapped(const llvm::Function &callee, Graph &calleeG,
-                              const SimulationMapper &sm);
-
+  
   PropagationKind decidePropagation(const DsaCallSite &cs, Graph &callerG,
                                     Graph &calleeG);
 
@@ -147,16 +143,17 @@ public:
 
   void propagateBottomUp(const DsaCallSite &cs, Graph &calleeG, Graph &callerG);
 
-  bool checkNoMorePropagation();
+  // sanity checks
+  bool checkAllNodesAreMapped(const llvm::Function &callee, Graph &calleeG,
+                              const SimulationMapper &sm);
+  bool checkNoMorePropagation(llvm::CallGraph &cg);
 
 public:
   ContextSensitiveGlobalAnalysis(const llvm::DataLayout &dl,
                                  const llvm::TargetLibraryInfo &tli,
                                  const AllocWrapInfo &allocInfo,
-                                 llvm::CallGraph &cg, SetFactory &setFactory)
-      : GlobalAnalysis(CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
-        m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
-
+                                 llvm::CallGraph &cg, SetFactory &setFactory);
+  
   bool runOnModule(llvm::Module &M) override;
 
   const Graph &getGraph(const llvm::Function &fn) const override;
@@ -184,16 +181,13 @@ private:
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
-
   GraphMap m_graphs;
 
 public:
   BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
                                 const llvm::TargetLibraryInfo &tli,
                                 const AllocWrapInfo &allocInfo,
-                                llvm::CallGraph &cg, SetFactory &setFactory)
-      : GlobalAnalysis(BUTD_CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
-        m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
+                                llvm::CallGraph &cg, SetFactory &setFactory);
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -313,7 +307,7 @@ template <class GlobalAnalysis, class Op> class CallGraphClosure {
 
   GlobalAnalysis &m_ga;
   CallGraphWrapper &m_dsaCG;
-  WorkList<const llvm::Instruction *> m_w;
+  WorkList<DsaCallSite> m_w;
 
   void exec_callsite(const DsaCallSite &cs, Graph &calleeG, Graph &callerG);
 
@@ -327,10 +321,10 @@ public:
 // Propagate unique scalar flag across callsites
 class UniqueScalar {
   CallGraphWrapper &m_dsaCG;
-  WorkList<const llvm::Instruction *> &m_w;
+  WorkList<DsaCallSite> &m_w;
 
 public:
-  UniqueScalar(CallGraphWrapper &dsaCG, WorkList<const llvm::Instruction *> &w)
+  UniqueScalar(CallGraphWrapper &dsaCG, WorkList<DsaCallSite> &w)
       : m_dsaCG(dsaCG), m_w(w) {}
 
   void runOnCallSite(const DsaCallSite &cs, Node &calleeN, Node &callerN);
@@ -339,10 +333,10 @@ public:
 // Propagate allocation sites across callsites
 class AllocaSite {
   CallGraphWrapper &m_dsaCG;
-  WorkList<const llvm::Instruction *> &m_w;
+  WorkList<DsaCallSite> &m_w;
 
 public:
-  AllocaSite(CallGraphWrapper &dsaCG, WorkList<const llvm::Instruction *> &w)
+  AllocaSite(CallGraphWrapper &dsaCG, WorkList<DsaCallSite> &w)
       : m_dsaCG(dsaCG), m_w(w) {}
 
   void runOnCallSite(const DsaCallSite &cs, Node &calleeN, Node &callerN);

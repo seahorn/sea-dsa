@@ -1,0 +1,28 @@
+digraph "Call graph" {
+	label="Call graph";
+
+	Node0x7fcc085076f0 [shape=record,label="{external node}"];
+	Node0x7fcc085076f0 -> Node0x7fcc08507780;
+	Node0x7fcc085076f0 -> Node0x7fcc085077e0;
+	Node0x7fcc085076f0 -> Node0x7fcc08507880;
+	Node0x7fcc085076f0 -> Node0x7fcc08507960;
+	Node0x7fcc085076f0 -> Node0x7fcc085079c0;
+	Node0x7fcc085076f0 -> Node0x7fcc085078e0;
+	Node0x7fcc085076f0 -> Node0x7fcc08507ba0;
+	Node0x7fcc08507780 [shape=record,label="{add}"];
+	Node0x7fcc085077e0 [shape=record,label="{sub}"];
+	Node0x7fcc08507880 [shape=record,label="{mul}"];
+	Node0x7fcc08507960 [shape=record,label="{use}"];
+	Node0x7fcc08507960 -> Node0x7fcc085077e0;
+	Node0x7fcc08507960 -> Node0x7fcc08507880;
+	Node0x7fcc08507960 -> Node0x7fcc08507780;
+	Node0x7fcc085079c0 [shape=record,label="{f1}"];
+	Node0x7fcc085079c0 -> Node0x7fcc08507960;
+	Node0x7fcc085079c0 -> Node0x7fcc08507960;
+	Node0x7fcc085078e0 [shape=record,label="{f2}"];
+	Node0x7fcc085078e0 -> Node0x7fcc08507960;
+	Node0x7fcc085078e0 -> Node0x7fcc08507960;
+	Node0x7fcc08507ba0 [shape=record,label="{main}"];
+	Node0x7fcc08507ba0 -> Node0x7fcc085079c0;
+	Node0x7fcc08507ba0 -> Node0x7fcc085078e0;
+}

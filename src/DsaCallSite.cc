@@ -16,9 +16,67 @@ bool DsaCallSite::isPointerTy::operator()(const Argument &a) {
   return a.getType()->isPointerTy();
 }
 
-DsaCallSite::DsaCallSite(const ImmutableCallSite &cs) : m_cs(cs) {}
-DsaCallSite::DsaCallSite(const Instruction &cs) : m_cs(&cs) {}
-DsaCallSite::DsaCallSite(const Value &cs) : m_cs(&cs) {}
+DsaCallSite::DsaCallSite(const ImmutableCallSite &cs)
+  : m_cs(cs)
+  , m_cell(None)
+  , m_cloned(false)
+  , m_callee(m_cs.getCalledFunction()) {}
+DsaCallSite::DsaCallSite(const Instruction &cs)
+  : m_cs(&cs)
+  , m_cell(None)
+  , m_cloned(false)
+  , m_callee(m_cs.getCalledFunction()) {}
+DsaCallSite::DsaCallSite(const Instruction &cs, Cell c)
+  : m_cs(&cs)
+  , m_cell(c)
+  , m_cloned(false)
+  , m_callee(m_cs.getCalledFunction()) {
+  m_cell.getValue().getNode();
+}
+DsaCallSite::DsaCallSite(const Instruction &cs, const Function &callee)
+  : m_cs(&cs)
+  , m_cell(None)
+  , m_cloned(false)
+  , m_callee(&callee) {
+  assert(isIndirectCall() || m_cs.getCalledFunction() == &callee);
+}
+
+bool DsaCallSite::hasCell() const { return m_cell.hasValue(); }
+
+const Cell &DsaCallSite::getCell() const {
+  assert(hasCell());
+  return m_cell.getValue();
+}
+
+Cell &DsaCallSite::getCell() {
+  assert(hasCell());
+  return m_cell.getValue();
+}
+
+const llvm::Value &DsaCallSite::getCalledValue() const {
+  return *(m_cs.getCalledValue());
+}
+
+bool DsaCallSite::isIndirectCall() const {
+  // XXX: this does not compile
+  // return m_cs.isIndirectCall();
+
+  const Value *V = m_cs.getCalledValue();
+  if (!V)
+    return false;
+  if (isa<const Function>(V) || isa<const Constant>(V))
+    return false;
+  if (const CallInst *CI = dyn_cast<const CallInst>(getInstruction())) {
+    if (CI->isInlineAsm())
+      return false;
+  }
+  return true;
+}
+
+bool DsaCallSite::isCloned() const { return m_cloned; }
+
+void DsaCallSite::markCloned(bool v) { m_cloned = v; }
+
 
 const Value *DsaCallSite::getRetVal() const {
   if (const Function *F = getCallee()) {
@@ -30,7 +88,7 @@ const Value *DsaCallSite::getRetVal() const {
 }
 
 const Function *DsaCallSite::getCallee() const {
-  return m_cs.getCalledFunction();
+  return m_callee;
 }
 
 const Function *DsaCallSite::getCaller() const { return m_cs.getCaller(); }
@@ -61,6 +119,13 @@ DsaCallSite::const_actual_iterator DsaCallSite::actual_begin() const {
 DsaCallSite::const_actual_iterator DsaCallSite::actual_end() const {
   isPointerTy p;
   return boost::make_filter_iterator(p, m_cs.arg_end(), m_cs.arg_end());
+}
+
+void DsaCallSite::write(raw_ostream &o) const {
+  o << *m_cs.getInstruction();
+  if (isIndirectCall() && hasCell()) {
+    o << "\nCallee cell " << m_cell.getValue();
+  }
 }
 
 } // namespace sea_dsa

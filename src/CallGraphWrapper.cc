@@ -1,4 +1,5 @@
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
@@ -6,6 +7,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "sea_dsa/CallGraphUtils.hh"
 #include "sea_dsa/CallGraphWrapper.hh"
 #include "sea_dsa/support/Debug.h"
 
@@ -14,14 +16,24 @@ using namespace llvm;
 namespace sea_dsa {
 
 void CallGraphWrapper::buildDependencies() {
-  // --- compute immediate predecessors (callsites) for each
-  //     function in the call graph (considering only direct
-  //     calls).
+  // -- Compute immediate callers of each function in the call graph.
   //
   // XXX: CallGraph cannot be reversed and the CallGraph analysis
   // doesn't seem to compute predecessors so I do not know a
   // better way.
-  boost::unordered_map<const Function *, CallSiteSet> imm_preds;
+  std::unordered_map<const Function *, CallSiteSet> callers;
+
+  auto insertCallers = [&callers](const Function* callee, DsaCallSite CS) {
+    auto it = callers.find(callee);
+    if (it != callers.end())
+      insert(CS, it->second);
+    else {
+      CallSiteSet s;
+      insert(CS, s);
+      callers.insert({callee, s});
+    }
+  };
+  
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
     for (CallGraphNode *cgn : scc) {
@@ -30,19 +42,11 @@ void CallGraphWrapper::buildDependencies() {
         continue;
 
       for (auto &callRecord : *cgn) {
-        ImmutableCallSite CS(callRecord.first);
-        const Function *callee = CS.getCalledFunction();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
-
-        auto predIt = imm_preds.find(callee);
-        if (predIt != imm_preds.end())
-          insert(CS.getInstruction(), predIt->second);
-        else {
-          CallSiteSet s;
-          insert(CS.getInstruction(), s);
-          imm_preds.insert(std::make_pair(callee, s));
-        }
+	llvm::Optional<DsaCallSite> DsaCS =
+	  call_graph_utils::getDsaCallSite(callRecord);
+	if (!DsaCS.hasValue())
+	  continue;
+	insertCallers(DsaCS.getValue().getCallee(), DsaCS.getValue());	
       }
     }
   }
@@ -60,17 +64,17 @@ void CallGraphWrapper::buildDependencies() {
       if (!fn || fn->isDeclaration() || fn->empty())
         continue;
 
-      insert(imm_preds[fn].begin(), imm_preds[fn].end(), *uses);
+      insert(callers[fn].begin(), callers[fn].end(), *uses);
 
       for (auto &callRecord : *cgn) {
-        ImmutableCallSite CS(callRecord.first);
-        auto callee = CS.getCalledFunction();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
-        insert(CS.getInstruction(), *defs);
+	llvm::Optional<DsaCallSite> DsaCS =
+	  call_graph_utils::getDsaCallSite(callRecord);
+	if (!DsaCS.hasValue())
+	  continue;
+        insert(DsaCS.getValue(), *defs);
       }
     }
-
+    
     // store uses and defs
     for (CallGraphNode *cgn : scc) {
       const Function *fn = cgn->getFunction();
@@ -86,16 +90,19 @@ void CallGraphWrapper::buildDependencies() {
       "dsa-cg", errs() << "--- USES ---\n"; for (auto kv
                                                  : m_uses) {
         errs() << kv.first->getName() << " ---> \n";
-        for (auto &CS : *(kv.second)) {
-          errs() << "\t" << CS->getParent()->getParent()->getName() << ":"
-                 << *CS << "\n";
+        for (auto CS : *(kv.second)) {
+          errs() << "\t" << CS.getCaller()->getName() << ":";
+	  CS.write(errs());
+	  errs() << "\n";
         }
       } errs() << "--- DEFS ---\n";
       for (auto kv
            : m_defs) {
         errs() << kv.first->getName() << " ---> \n";
-        for (auto &CS : *(kv.second)) {
-          errs() << "\t" << *CS << "\n";
+        for (auto CS : *(kv.second)) {
+          errs() << "\t";
+	  CS.write(errs());
+	  errs() << "\n";
         }
       });
 }

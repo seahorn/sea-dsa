@@ -1,4 +1,5 @@
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/CallSite.h"
@@ -14,6 +15,7 @@
 
 #include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/BottomUp.hh"
+#include "sea_dsa/CallGraphUtils.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Cloner.hh"
 #include "sea_dsa/Global.hh"
@@ -23,7 +25,6 @@
 #include "sea_dsa/TopDown.hh"
 #include "sea_dsa/config.h"
 
-// #include "ufo/Stats.hh"
 #include "sea_dsa/support/Debug.h"
 
 #include <queue>
@@ -122,17 +123,13 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
       // -- iterate over all call instructions of the current function fn
       // -- they are indexed in the CallGraphNode data structure
-      for (auto &CallRecord : *cgn) {
-        ImmutableCallSite cs(CallRecord.first);
-        DsaCallSite dsa_cs(cs);
-        const Function *callee = dsa_cs.getCallee();
-        // XXX We want to resolve external calls as well.
-        // XXX By not resolving them, we pretend that they have no
-        // XXX side-effects. This should be an option, not the only behavior
-        if (callee && !callee->isDeclaration() && !callee->empty()) {
-          assert(fn == dsa_cs.getCaller());
-          resolveArguments(dsa_cs, *m_graph);
-        }
+      for (auto &callRecord : *cgn) {
+	llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
+	if (!dsaCS.hasValue()) {
+	  continue;
+	}
+	assert(fn == dsaCS.getValue().getCaller());
+	resolveArguments(dsaCS.getValue(), *m_graph);
       }
     }
     m_graph->compress();
@@ -245,6 +242,16 @@ template <typename T> const T &WorkList<T>::dequeue() {
 /// Context-sensitive analysis as described in SAS'17: bottom up +
 /// iterative (bottom-up/top-down) propagation on callsites.
 //////
+
+ContextSensitiveGlobalAnalysis::
+ContextSensitiveGlobalAnalysis(const llvm::DataLayout &dl,
+			       const llvm::TargetLibraryInfo &tli,
+			       const AllocWrapInfo &allocInfo,
+			       llvm::CallGraph &cg, SetFactory &setFactory)
+  : GlobalAnalysis(CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
+    m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
+    
+
 bool ContextSensitiveGlobalAnalysis::checkAllNodesAreMapped(
     const Function &fn, Graph &fnG, const SimulationMapper &sm) {
   std::set<const Node *> reach;
@@ -293,7 +300,6 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   // -- total function (i.e., each callee node is mapped to a single
   // -- node in the caller).
   CalleeCallerMapping callee_caller_map;
-
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
     for (CallGraphNode *cgn : scc) {
@@ -303,37 +309,36 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
       }
       // -- store the simulation maps from the SCC
       for (auto &callRecord : *cgn) {
-        ImmutableCallSite CS(callRecord.first);
-        DsaCallSite dsaCS(CS);
-        const Function *callee = dsaCS.getCallee();
-        if (!callee || callee->isDeclaration() || callee->empty()) {
-          continue;
-        }
 
-        assert(m_graphs.count(dsaCS.getCaller()) > 0);
-        assert(m_graphs.count(dsaCS.getCallee()) > 0);
+	llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
+	if (!dsaCS.hasValue()) {
+	  continue;
+	}
 
-        Graph &callerG = *(m_graphs.find(dsaCS.getCaller())->second);
-        Graph &calleeG = *(m_graphs.find(dsaCS.getCallee())->second);
+        assert(m_graphs.count(dsaCS.getValue().getCaller()) > 0);
+        assert(m_graphs.count(dsaCS.getValue().getCallee()) > 0);
+
+        Graph &callerG = *(m_graphs.find(dsaCS.getValue().getCaller())->second);
+        Graph &calleeG = *(m_graphs.find(dsaCS.getValue().getCallee())->second);
 
         SimulationMapperRef sm(new SimulationMapper());
-        bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
+        bool res = Graph::computeCalleeCallerMapping(dsaCS.getValue(), calleeG, callerG,
                                                      *sm, do_sanity_checks);
         if (!res) {
           llvm_unreachable("Simulation mapping check failed");
         }
-        callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
+        callee_caller_map.insert(std::make_pair(dsaCS.getValue(), sm));
 
         if (do_sanity_checks) {
           // Check the simulation map is a function
           if (!sm->isFunction()) {
             errs() << "ERROR (sea-dsa): simulation map for "
-                   << *dsaCS.getInstruction() << " is not a function!\n";
+                   << *dsaCS.getValue().getInstruction() << " is not a function!\n";
           } else {
             // Check the simulation map is a total function: check
             // that all nodes in the callee are mapped to one node in
             // the caller graph
-            checkAllNodesAreMapped(*callee, calleeG, *sm);
+            checkAllNodesAreMapped(*dsaCS.getValue().getCallee(), calleeG, *sm);
           }
         }
       }
@@ -345,7 +350,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   /// push in the worklist callsites for which two different
   /// callee nodes are mapped to the same caller node
-  WorkList<const Instruction *> w;
+  WorkList<DsaCallSite> w;
   for (auto &kv :
        llvm::make_range(callee_caller_map.begin(), callee_caller_map.end())) {
     auto const &simMapper = *(kv.second);
@@ -363,21 +368,13 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   unsigned td_props = 0;
   unsigned bu_props = 0;
   while (!w.empty()) {
-    const Instruction *I = w.dequeue();
-
-    if (const CallInst *CI = dyn_cast<CallInst>(I))
-      if (CI->isInlineAsm())
-        continue;
-
-    ImmutableCallSite CS(I);
-    DsaCallSite dsaCS(CS);
-
+    DsaCallSite dsaCS = w.dequeue();
     auto callee = dsaCS.getCallee();
     if (!callee || callee->isDeclaration() || callee->empty())
       continue;
 
     LOG("dsa-global", errs()
-                          << "Selected callsite " << *I << " from queue ... ";);
+	<< "Selected callsite " << *(dsaCS.getInstruction()) << " from queue ... ";);
     auto caller = dsaCS.getCaller();
 
     assert(m_graphs.count(caller) > 0);
@@ -393,19 +390,19 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
       td_props++;
       auto &calleeU = dsaCG.getUses(*callee);
       auto &calleeD = dsaCG.getDefs(*callee);
-      for (auto ci : calleeU)
-        w.enqueue(ci); // they might need bottom-up
-      for (auto ci : calleeD)
-        w.enqueue(ci); // they might need top-down
+      for (auto cs : calleeU)  
+        w.enqueue(cs); // they might need bottom-up
+      for (auto cs : calleeD)  
+        w.enqueue(cs); // they might need top-down
     } else if (propKind == UP) {
       propagateBottomUp(dsaCS, calleeG, callerG);
       bu_props++;
       auto &callerU = dsaCG.getUses(*caller);
       auto &callerD = dsaCG.getDefs(*caller);
-      for (auto ci : callerU)
-        w.enqueue(ci); // they might need bottom-up
-      for (auto ci : callerD)
-        w.enqueue(ci); // they might need top-down
+      for (auto cs : callerU) 
+        w.enqueue(cs); // they might need bottom-up
+      for (auto cs : callerD) 
+        w.enqueue(cs); // they might need top-down
     }
     LOG("dsa-global", errs() << "processed\n";);
   }
@@ -415,7 +412,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
       errs() << "-- Number of bottom-up propagations=" << bu_props << "\n";);
 
   if (do_sanity_checks) {
-    if (!checkNoMorePropagation()) {
+    if (!checkNoMorePropagation(m_cg)) {
       errs() << "ERROR (sea-dsa) sanity check failed: more top-down or "
              << "bottom-up propagation is needed\n";
     }
@@ -497,8 +494,8 @@ void ContextSensitiveGlobalAnalysis::propagateBottomUp(const DsaCallSite &cs,
 // Perform some sanity checks:
 // 1) each callee node can be simulated by its corresponding caller node.
 // 2) no two callee nodes are mapped to the same caller node.
-bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation() {
-  for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
+bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation(CallGraph& cg) {
+  for (auto it = scc_begin(&cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
@@ -506,23 +503,20 @@ bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation() {
         continue;
 
       for (auto &callRecord : *cgn) {
-        ImmutableCallSite CS(callRecord.first);
-        DsaCallSite cs(CS);
-
-        const Function *callee = cs.getCallee();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
-
-        assert(m_graphs.count(cs.getCaller()) > 0);
-        assert(m_graphs.count(cs.getCallee()) > 0);
-
-        Graph &callerG = *(m_graphs.find(cs.getCaller())->second);
-        Graph &calleeG = *(m_graphs.find(cs.getCallee())->second);
-        PropagationKind pkind = decidePropagation(cs, calleeG, callerG);
+	llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
+	if (!dsaCS.hasValue()) {
+	  continue;
+	}
+	
+        assert(m_graphs.count(dsaCS.getValue().getCaller()) > 0);
+        assert(m_graphs.count(dsaCS.getValue().getCallee()) > 0);
+        Graph &callerG = *(m_graphs.find(dsaCS.getValue().getCaller())->second);
+        Graph &calleeG = *(m_graphs.find(dsaCS.getValue().getCallee())->second);
+        PropagationKind pkind = decidePropagation(dsaCS.getValue(), calleeG, callerG);
         if (pkind != NONE) {
           auto pkind_str = (pkind == UP) ? "bottom-up" : "top-down";
           errs() << "ERROR (sea-dsa) sanity check failed:"
-                 << *(cs.getInstruction()) << " requires " << pkind_str
+                 << *(dsaCS.getValue().getInstruction()) << " requires " << pkind_str
                  << " propagation.\n";
           return false;
         }
@@ -549,6 +543,14 @@ bool ContextSensitiveGlobalAnalysis::hasGraph(const Function &fn) const {
 ///////
 /// Context-sensitive analysis: bottom-up + top-down
 ///////
+BottomUpTopDownGlobalAnalysis::
+BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
+			      const llvm::TargetLibraryInfo &tli,
+			      const AllocWrapInfo &allocInfo,
+			      llvm::CallGraph &cg, SetFactory &setFactory)
+  : GlobalAnalysis(BUTD_CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
+    m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
+
 bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
   LOG("dsa-global",
       errs() << "Started bottom-up + top-down global analysis ... \n");
@@ -656,20 +658,20 @@ void UniqueScalar::runOnCallSite(const DsaCallSite &cs, Node &calleeN,
   if (changed & 0x01) // calleeN changed
   {
     if (const Function *fn = cs.getCallee()) {
-      for (auto ci : m_dsaCG.getUses(*fn))
-        m_w.enqueue(ci);
-      for (auto ci : m_dsaCG.getDefs(*fn))
-        m_w.enqueue(ci);
+      for (auto cs : m_dsaCG.getUses(*fn))
+        m_w.enqueue(cs);
+      for (auto cs : m_dsaCG.getDefs(*fn))
+        m_w.enqueue(cs);
     }
   }
 
   if (changed & 0x02) // callerN changed
   {
     if (const Function *fn = cs.getCaller()) {
-      for (auto ci : m_dsaCG.getUses(*fn))
-        m_w.enqueue(ci);
-      for (auto ci : m_dsaCG.getDefs(*fn))
-        m_w.enqueue(ci);
+      for (auto cs : m_dsaCG.getUses(*fn))
+        m_w.enqueue(cs);
+      for (auto cs : m_dsaCG.getDefs(*fn))
+        m_w.enqueue(cs);
     }
   }
 }
@@ -681,20 +683,20 @@ void AllocaSite::runOnCallSite(const DsaCallSite &cs, Node &calleeN,
   if (changed & 0x01) // calleeN changed
   {
     if (const Function *fn = cs.getCallee()) {
-      for (auto ci : m_dsaCG.getUses(*fn))
-        m_w.enqueue(ci);
-      for (auto ci : m_dsaCG.getDefs(*fn))
-        m_w.enqueue(ci);
+      for (auto cs : m_dsaCG.getUses(*fn))
+        m_w.enqueue(cs);
+      for (auto cs : m_dsaCG.getDefs(*fn))
+        m_w.enqueue(cs);
     }
   }
 
   if (changed & 0x02) // callerN changed
   {
     if (const Function *fn = cs.getCaller()) {
-      for (auto ci : m_dsaCG.getUses(*fn))
-        m_w.enqueue(ci);
-      for (auto ci : m_dsaCG.getDefs(*fn))
-        m_w.enqueue(ci);
+      for (auto cs : m_dsaCG.getUses(*fn))
+        m_w.enqueue(cs);
+      for (auto cs : m_dsaCG.getDefs(*fn))
+        m_w.enqueue(cs);
     }
   }
 }
@@ -710,28 +712,25 @@ bool CallGraphClosure<GA, Op>::runOnModule(Module &M) {
         continue;
 
       for (auto &callRecord : *cgn) {
-        ImmutableCallSite CS(callRecord.first);
-        DsaCallSite dsaCS(CS);
 
-        const Function *callee = dsaCS.getCallee();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
 
-        if (m_ga.hasGraph(*dsaCS.getCaller()) &&
-            m_ga.hasGraph(*dsaCS.getCallee())) {
-          Graph &calleeG = m_ga.getGraph(*dsaCS.getCallee());
-          Graph &callerG = m_ga.getGraph(*dsaCS.getCaller());
-          exec_callsite(dsaCS, calleeG, callerG);
+	llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
+	if (!dsaCS.hasValue()) {
+	  continue;
+	}
+	
+        if (m_ga.hasGraph(*dsaCS.getValue().getCaller()) &&
+            m_ga.hasGraph(*dsaCS.getValue().getCallee())) {
+          Graph &calleeG = m_ga.getGraph(*dsaCS.getValue().getCallee());
+          Graph &callerG = m_ga.getGraph(*dsaCS.getValue().getCaller());
+          exec_callsite(dsaCS.getValue(), calleeG, callerG);
         }
       }
     }
   }
 
   while (!m_w.empty()) {
-    const Instruction *I = m_w.dequeue();
-    ImmutableCallSite CS(I);
-    DsaCallSite dsaCS(CS);
-
+    DsaCallSite dsaCS = m_w.dequeue();
     if (dsaCS.getCaller() && m_ga.hasGraph(*dsaCS.getCaller()) &&
         dsaCS.getCallee() && m_ga.hasGraph(*dsaCS.getCallee())) {
       Graph &calleeG = m_ga.getGraph(*dsaCS.getCallee());

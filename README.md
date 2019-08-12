@@ -124,5 +124,6 @@ defined in `sea_dsa/sea_dsa.h`.
    ([Paper](https://jorgenavas.github.io/papers/sea-dsa-SAS17.pdf))
    | ([Slides](https://jorgenavas.github.io/slides/sea-dsa-SAS17-slides.pdf))
 
-
+2. "Unification-based Pointer Analysis without Oversharing" by J. Kuderski, J. A. Navas and A. Gurfinkel. In FMCAD'19. 
+   ([Paper](https://jorgenavas.github.io/papers/tea-dsa-fmcad19.pdf))
 

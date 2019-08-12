@@ -285,9 +285,9 @@ void Node::collapseOffsets(int tag) {
   static int cnt = 0;
   ++cnt;
   LOG("dsa-collapse", errs() << "Offset-Collapse #" << cnt << "\n");
-  if (cnt == 53) {
-    errs() << "\n~~~~NOW~~~~\n";
-  }
+  // if (cnt == 53) {
+  //   errs() << "\n~~~~NOW~~~~\n";
+  // }
 
   m_unique_scalar = nullptr;
   assert(!isForwarding());
@@ -660,7 +660,12 @@ void Node::write(raw_ostream &o) const {
         o << ",";
       else
         first = false;
-      o << *a;
+      
+      if (const Function *F = dyn_cast<const Function>(a)) {
+	o << F->getName() << ":" << *(F->getType());
+      } else {
+	o << *a;
+      }
     }
     o << "]";
   }
@@ -843,7 +848,9 @@ void Graph::compress() {
     kv.second->getNode();
   for (auto &kv : m_returns)
     kv.second->getNode();
-
+  for (auto &cs: m_callSites)
+    cs->getCell().getNode();
+  
   // at this point, all cells and all nodes have their links
   // resolved. Every link points directly to the representative of the
   // equivalence class. All forwarding nodes can now be deleted since
@@ -1133,6 +1140,31 @@ DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   return as;
 }
 
+DsaCallSite *Graph::mkCallSite(const llvm::Instruction &I, Cell c) {
+  auto it = m_instructionToCallSite.find(&I);
+  if (it != m_instructionToCallSite.end()) {
+    return it->second;
+  }
+
+  m_callSites.emplace_back(new DsaCallSite(I, c));
+  DsaCallSite *cs = m_callSites.back().get();
+  m_instructionToCallSite.insert(std::make_pair(&I, cs));
+  return cs;
+}
+
+llvm::iterator_range<typename Graph::callsite_iterator> Graph::callsites() {
+  return llvm::make_range(m_callSites.begin(), m_callSites.end());
+}
+
+llvm::iterator_range<typename Graph::callsite_const_iterator> Graph::callsites() const {
+  return llvm::make_range(m_callSites.begin(), m_callSites.end());
+}
+
+void Graph::clearCallSites() {
+  m_instructionToCallSite.clear();
+  m_callSites.clear();
+}
+
 void Cell::write(raw_ostream &o) const {
   getNode();
   o << "<" << m_offset << ", ";
@@ -1316,15 +1348,19 @@ void Graph::write(raw_ostream &o) const {
     o << "\n";
   }
 
-  // TODO: print cells sorted first by node and then by offsets
   // --- print aliasing sets
-  o << "=== ALIAS SETS\n";
+  // TODO: print LLVM registers in equivalence classes (grouped by cells)
+  o << "=== TOP-LEVEL CELLS\n";
   for (auto &kv : scalarCells) {
     const Cell *C = kv.first;
     if (kv.second.begin() != kv.second.end()) {
       o << "cell=(" << C->getNode() << "," << C->getRawOffset() << ")\n";
       for (const Value *V : kv.second) {
-        o << "\t" << *V << "\n";
+	if (const Function* F = dyn_cast<const Function>(V)) {
+	  o << "\t" << F->getName() << ":" << *(F->getType()) << "\n";
+	} else {
+	  o << "\t" << *V << "\n";
+	}
       }
     }
   }
@@ -1346,6 +1382,15 @@ void Graph::write(raw_ostream &o) const {
       }
     }
   }
+
+  // if (!m_callSites.empty()) {
+  //   o << "=== INDIRECT CALLSITES\n";
+  //   for (unsigned i = 0, e = m_callSites.size(); i < e; ++i) {
+  //     m_callSites[i]->write(o);
+  //     o << "\n";
+  //   }
+  // }
+  
 }
 
 size_t Graph::numCollapsed() const {
