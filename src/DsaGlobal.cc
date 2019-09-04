@@ -601,6 +601,62 @@ bool BottomUpTopDownGlobalAnalysis::hasGraph(const Function &fn) const {
   return m_graphs.count(&fn) > 0;
 }
 
+///////
+/// Bottom-up analysis
+///////
+BottomUpGlobalAnalysis::
+BottomUpGlobalAnalysis(const llvm::DataLayout &dl,
+		       const llvm::TargetLibraryInfo &tli,
+		       const AllocWrapInfo &allocInfo,
+		       llvm::CallGraph &cg, SetFactory &setFactory)
+  : GlobalAnalysis(BU), m_dl(dl), m_tli(tli),
+    m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
+
+bool BottomUpGlobalAnalysis::runOnModule(Module &M) {
+  LOG("dsa-global",
+      errs() << "Started bottom-up global analysis ... \n");
+
+  for (auto &F : M) {
+    if (F.isDeclaration() || F.empty())
+      continue;
+
+    GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
+    m_graphs[&F] = fGraph;
+  }
+
+  // -- Run bottom up analysis on the whole call graph: callees before
+  // -- callers.
+  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg);
+  bu.runOnModule(M, m_graphs);
+
+  // Removing dead nodes (if any)
+  for (auto &kv : m_graphs)
+    kv.second->remove_dead();
+
+  LOG("dsa-global-graph", for (auto &kv
+                               : m_graphs) {
+    errs() << "### Global Dsa graph for " << kv.first->getName() << "\n";
+    kv.second->write(errs());
+    errs() << "\n";
+  });
+
+  LOG("dsa-global",
+      errs() << "Finished bottom-up global analysis\n");
+  return false;
+}
+
+const Graph &BottomUpGlobalAnalysis::getGraph(const Function &fn) const {
+  return *(m_graphs.find(&fn)->second);
+}
+
+Graph &BottomUpGlobalAnalysis::getGraph(const Function &fn) {
+  return *(m_graphs.find(&fn)->second);
+}
+
+bool BottomUpGlobalAnalysis::hasGraph(const Function &fn) const {
+  return m_graphs.count(&fn) > 0;
+}
+
 /// LLVM passes
 
 ContextSensitiveGlobalPass::ContextSensitiveGlobalPass()
@@ -644,6 +700,28 @@ bool BottomUpTopDownGlobalPass::runOnModule(Module &M) {
 
   m_ga.reset(
       new BottomUpTopDownGlobalAnalysis(dl, tli, allocInfo, cg, m_setFactory));
+  return m_ga->runOnModule(M);
+}
+
+
+BottomUpGlobalPass::BottomUpGlobalPass()
+    : DsaGlobalPass(ID), m_ga(nullptr) {}
+
+void BottomUpGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.addRequired<TargetLibraryInfoWrapperPass>();
+  AU.addRequired<CallGraphWrapperPass>();
+  AU.addRequired<AllocWrapInfo>();
+  AU.setPreservesAll();
+}
+
+bool BottomUpGlobalPass::runOnModule(Module &M) {
+  auto &dl = M.getDataLayout();
+  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
+  auto &allocInfo = getAnalysis<AllocWrapInfo>();
+
+  m_ga.reset(
+      new BottomUpGlobalAnalysis(dl, tli, allocInfo, cg, m_setFactory));
   return m_ga->runOnModule(M);
 }
 
@@ -788,14 +866,19 @@ char sea_dsa::ContextSensitiveGlobalPass::ID = 0;
 
 char sea_dsa::BottomUpTopDownGlobalPass::ID = 0;
 
+char sea_dsa::BottomUpGlobalPass::ID = 0;
+
 static llvm::RegisterPass<sea_dsa::FlatMemoryGlobalPass>
-    X("seadsa-flat-global", "Flat memory Dsa analysis");
+    U("seadsa-flat-global", "Flat memory Dsa analysis");
 
 static llvm::RegisterPass<sea_dsa::ContextInsensitiveGlobalPass>
-    Y("seadsa-ci-global", "Context-insensitive Dsa analysis");
+    X("seadsa-ci-global", "Context-insensitive Dsa analysis");
 
 static llvm::RegisterPass<sea_dsa::ContextSensitiveGlobalPass>
-    W("seadsa-cs-global", "Context-sensitive Dsa analysis");
+    Y("seadsa-cs-global", "Context-sensitive Dsa analysis");
 
 static llvm::RegisterPass<sea_dsa::BottomUpTopDownGlobalPass>
     Z("seadsa-butd-global", "Bottom-up + top-down Dsa analysis");
+
+static llvm::RegisterPass<sea_dsa::BottomUpGlobalPass>
+    W("seadsa-bu-global", "Bottom-up Dsa analysis");

@@ -31,6 +31,8 @@ enum GlobalAnalysisKind {
   CONTEXT_SENSITIVE,
   // bottom-up followed by one top-down pass (not useful for VC generation)
   BUTD_CONTEXT_SENSITIVE,
+  // bottom-up pass (useful for VC generation)
+  BU,
   // enforce one single node for the whole program
   // used when most pessimistic assumptions must be considered in
   // presence of inttoptr and/or external calls.
@@ -198,6 +200,40 @@ public:
   bool hasGraph(const llvm::Function &fn) const override;
 };
 
+/**
+ * Global analysis that runs only the bottom-up pass.
+ */
+class BottomUpGlobalAnalysis : public GlobalAnalysis {
+public:
+  typedef typename Graph::SetFactory SetFactory;
+
+private:
+  typedef std::shared_ptr<Graph> GraphRef;
+  typedef BottomUpAnalysis::GraphMap GraphMap;
+
+  const llvm::DataLayout &m_dl;
+  const llvm::TargetLibraryInfo &m_tli;
+  const AllocWrapInfo &m_allocInfo;
+  llvm::CallGraph &m_cg;
+  SetFactory &m_setFactory;
+  GraphMap m_graphs;
+
+public:
+  BottomUpGlobalAnalysis(const llvm::DataLayout &dl,
+			 const llvm::TargetLibraryInfo &tli,
+			 const AllocWrapInfo &allocInfo,
+			 llvm::CallGraph &cg, SetFactory &setFactory);
+
+  bool runOnModule(llvm::Module &M) override;
+
+  const Graph &getGraph(const llvm::Function &fn) const override;
+
+  Graph &getGraph(const llvm::Function &fn) override;
+
+  bool hasGraph(const llvm::Function &fn) const override;
+};
+
+
 // Llvm passes
 
 class DsaGlobalPass : public llvm::ModulePass {
@@ -295,6 +331,29 @@ public:
 
   llvm::StringRef getPassName() const override {
     return "Bottom-up + Top-down DSA passes";
+  }
+
+  GlobalAnalysis &getGlobalAnalysis() override {
+    return *(static_cast<GlobalAnalysis *>(&*m_ga));
+  }
+};
+
+// LLVM pass for bottom-up analysis
+class BottomUpGlobalPass : public DsaGlobalPass {
+  Graph::SetFactory m_setFactory;
+  std::unique_ptr<BottomUpGlobalAnalysis> m_ga;
+
+public:
+  static char ID;
+
+  BottomUpGlobalPass();
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
+
+  bool runOnModule(llvm::Module &M) override;
+
+  llvm::StringRef getPassName() const override {
+    return "Bottom-up pass";
   }
 
   GlobalAnalysis &getGlobalAnalysis() override {
