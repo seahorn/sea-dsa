@@ -291,7 +291,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run bottom up analysis on the whole call graph
   //    and initialize worklist
-  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg, true /*compute sim map*/);
+  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg);
   bu.runOnModule(M, m_graphs);
 
   // -- Compute simulation map so that we can identify which callsites
@@ -565,7 +565,7 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run bottom up analysis on the whole call graph: callees before
   // -- callers.
-  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg, false /* no sim map*/);
+  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg);
   bu.runOnModule(M, m_graphs);
 
   // -- Run top down analysis on the whole call graph: callers before
