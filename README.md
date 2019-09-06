@@ -85,9 +85,9 @@ To run tests:
 
 	cmake --build . --target test-sea-dsa
 
-## Visualizing Memory Graphs ##
+## Visualizing Memory Graphs and Complete Call Graphs ##
 
-Consider a C program called `ex.c`:
+Consider a C program called `tests/c/simple.c`:
 
 ``` c
 #include <stdlib.h>
@@ -116,20 +116,17 @@ int main(int argc, char** argv){
 
 1. Generate bitcode:
 
-	    clang -c -emit-llvm -O0 ex.c -o ex.bc
+	    clang -O0 -c -emit-llvm -S tests/c/simple.c -o simple.ll
 
 The option `-O0` is used to disable clang optimizations. In general,
 it is a good idea to enable clang optimizations. However, for trivial
-examples like `ex.c`, clang simplifies too much so nothing useful
-would be observed.
-
-If you want to read the bitcode then type
-
-        llvm-dis ex.bc -o ex.ll
+examples like `simple.c`, clang simplifies too much so nothing useful
+would be observed. The options `-c -emit-llvm -S` generate bitcode in
+human-readable format.
 
 2. Run `sea-dsa` on the bitcode and print memory graphs to [dot](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) format:
 
-	    sea-dsa -sea-dsa=butd-cs -sea-dsa-type-aware -sea-dsa-dot  ex.bc
+	    sea-dsa -sea-dsa=butd-cs -sea-dsa-type-aware -sea-dsa-dot  simple.ll
 
 The options `-sea-dsa=butd-cs -sea-dsa-type-aware` enable the analysis
 implemented in our FMCAD'19 paper (see References). This command will
@@ -139,12 +136,12 @@ one file named `main.mem.dot`.  The file is generated in the current
 directory. If you want to store the `.dot` files in a different
 directory `DIR` then add the option `-sea-dsa-dot-outdir=DIR`
 
-3. Visualize `main.mem.dot` by transforming it to a `jpg` file:
+3. Visualize `main.mem.dot` by transforming it to a `pdf` file:
 
-		dot -Tjpg main.mem.dot -o main.mem.jpg
-		open main.mem.jpg  // replace with you favorite jpg viewer
+		dot -Tpdf main.mem.dot -o main.mem.pdf
+		open main.mem.pdf  // replace with you favorite pdf viewer 
 	
-![Example of a memory graph](https://github.com/seahorn/sea-dsa/blob/tea-dsa/demo/main.mem.jpg?raw=true)
+![Example of a memory graph](https://github.com/seahorn/sea-dsa/blob/tea-dsa/tests/expected_graphs/simple.jpg?raw=true)
 
 In our memory model, a pointer is represented by a __cell__ which is a
 pair of a memory object and offset. Memory objects are represented as
@@ -165,6 +162,60 @@ is red then it means that the analysis lost field sensitivity for that
 node. The label `{void}` is used to denote that the node has been
 allocated but it has not been used by the program.
 
+`sea-dsa` can also resolve indirect calls. An _indirect call_ is a
+call where the callee is not known statically. `sea-dsa` identifies
+all possible callees of an indirect call and generates a LLVM call
+graph as output.
+
+Consider this example in `tests/c/complete_callgraph_5.c`:
+
+
+``` c
+struct class_t;
+typedef int (*FN_PTR)(struct class_t *, int);
+typedef struct class_t {
+  FN_PTR m_foo;
+  FN_PTR m_bar;
+} class_t;
+
+int foo(class_t *self, int x)
+{
+  if (x > 10) {
+    return self->m_bar(self, x + 1);
+  } else
+    return x;
+}
+
+int bar (class_t *self, int y) {
+  if (y < 100) {
+    return y + self->m_foo(self, 10);
+  } else
+    return y - 5;
+}
+
+int main(void) {
+  class_t obj;
+  obj.m_foo = &foo;
+  obj.m_bar = &bar;
+  int res;
+  res = obj.m_foo(&obj, 42);
+  return 0;
+}
+```
+
+Type the commands:
+
+    clang -c -emit-llvm -S tests/c/complete_callgraph_5.c  -o ex.ll
+    sea-dsa --sea-dsa-callgraph-dot ex.ll
+
+It generates a `.dot` file called `callgraph.dot` in the current
+directory. Again, the `.dot` file can be converted to a `.pdf` file
+and opened with the commands:
+
+	dot -Tpdf callgraph.dot -o callgraph.pdf
+	open callgraph.pdf  
+
+![Example of a call graph](https://github.com/seahorn/sea-dsa/blob/tea-dsa/tests/expected_graphs/complete_callgraph_5.jpg?raw=true)
 
 ## Dealing with C/C++ library and external calls ##
 

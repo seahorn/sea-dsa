@@ -1,0 +1,46 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x7fec0e6023a0 [shape=record,label="{\{void\}:S}"];
+	Node0x7fec0e602560 [shape=record,label="{\{0:i32\}:SM}"];
+	Node0x7fec0e602660 [shape=record,label="{\{0:i32\}:SM}"];
+	Node0x7fec0e602740 [shape=record,label="{\{0:i8**\}:SM|{<s0>\<0, i8**\>}}"];
+	Node0x7fec0e6028a0 [shape=record,label="{\{0:i32**,8:i32**\}:SMR|{<s0>\<0, i32**\>|<s1>\<8, i32**\>}}"];
+	Node0x7fec0e602980 [shape=record,label="{\{void\}:S}"];
+	Node0x7fec0e602a60 [shape=record,label="{\{0:i32*\}:SM|{<s0>\<0, i32*\>}}"];
+	Node0x7fec0e602b40 [shape=record,label="{\{0:i32*\}:SM|{<s0>\<0, i32*\>}}"];
+	Node0x7fec0e602d60 [shape=record,label="{\{void\}:H}"];
+	Node0x7fec0e602e80 [shape=record,label="{\{void\}:H}"];
+	Node0x7fec0e507c38 [shape=plaintext, label ="  %15 = getelementptr inbounds %struct.S, %struct.S* %6, i32 0, i32 1"];
+	Node0x7fec0e507c38 -> Node0x7fec0e6028a0[arrowtail=tee,label="8",fontsize=8,color=purple];
+	Node0x7fec0e5073b8 [shape=plaintext, label ="  %6 = alloca %struct.S, align 8"];
+	Node0x7fec0e5073b8 -> Node0x7fec0e6028a0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e507358 [shape=plaintext, label ="  %5 = alloca i8**, align 8"];
+	Node0x7fec0e507358 -> Node0x7fec0e602740[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e5072b8 [shape=plaintext, label ="  %4 = alloca i32, align 4"];
+	Node0x7fec0e5072b8 -> Node0x7fec0e602660[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e507e98 [shape=plaintext, label ="  %17 = load i32**, i32*** %16, align 8"];
+	Node0x7fec0e507e98 -> Node0x7fec0e602a60[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e507258 [shape=plaintext, label ="  %3 = alloca i32, align 4"];
+	Node0x7fec0e507258 -> Node0x7fec0e602560[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e5079a0 [shape=plaintext, label ="  %12 = call i8* @malloc(i64 4) #2"];
+	Node0x7fec0e5079a0 -> Node0x7fec0e602e80[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e507558 [shape=plaintext, label ="  %9 = alloca i32*, align 8"];
+	Node0x7fec0e507558 -> Node0x7fec0e602b40[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e506cc8 [shape=plaintext, label ="g"];
+	Node0x7fec0e506cc8 -> Node0x7fec0e602d60[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e507418 [shape=plaintext, label ="  %7 = alloca %struct.S, align 8"];
+	Node0x7fec0e507418 -> Node0x7fec0e602980[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e507478 [shape=plaintext, label ="  %8 = alloca i32*, align 8"];
+	Node0x7fec0e507478 -> Node0x7fec0e602a60[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e507820 [shape=plaintext, label ="  %10 = call i8* @malloc(i64 4) #2"];
+	Node0x7fec0e507820 -> Node0x7fec0e602d60[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fec0e507178 [shape=plaintext,fontcolor=blue, label ="main#1"];
+	Node0x7fec0e507178 -> Node0x7fec0e6023a0[tailclip=false,color=dodgerblue3,label="0",fontsize=8];
+	Node0x7fec0e602740:s0 -> Node0x7fec0e6023a0[arrowtail=tee,label="0, i8**",fontsize=8];
+	Node0x7fec0e6028a0:s0 -> Node0x7fec0e602a60[arrowtail=tee,label="0, i32**",fontsize=8];
+	Node0x7fec0e6028a0:s1 -> Node0x7fec0e602b40[arrowtail=tee,label="0, i32**",fontsize=8];
+	Node0x7fec0e602a60:s0 -> Node0x7fec0e602d60[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x7fec0e602b40:s0 -> Node0x7fec0e602e80[arrowtail=tee,label="0, i32*",fontsize=8];
+}
