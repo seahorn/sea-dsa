@@ -11,7 +11,6 @@
 #include "sea_dsa/Global.hh"
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Stats.hh"
-#include "sea_dsa/support/Brunch.hh"
 #include "sea_dsa/support/RemovePtrToInt.hh"
 
 namespace sea_dsa {
@@ -66,7 +65,6 @@ bool DsaAnalysis::runOnModule(Module &M) {
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
   StringRef analysisName;
-  BrunchTimer dsaTime("PTA");
 
   switch (DsaGlobalAnalysis) {
   case CONTEXT_INSENSITIVE:
@@ -95,10 +93,7 @@ bool DsaAnalysis::runOnModule(Module &M) {
     analysisName = "_CS";
   }
 
-  SEA_DSA_BRUNCH_STAT(
-      "PTA_KIND", llvm::Twine(IsTypeAware ? "TeaDsa" : "SeaDsa", analysisName));
   m_ga->runOnModule(M);
-  dsaTime.stop();
 
   if (DsaStats) {
     DsaInfo i(*m_dl, *m_tli, getDsaAnalysis());

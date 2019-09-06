@@ -19,7 +19,6 @@
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Local.hh"
 #include "sea_dsa/config.h"
-#include "sea_dsa/support/Brunch.hh"
 #include "sea_dsa/support/Debug.h"
 
 using namespace llvm;
@@ -29,10 +28,10 @@ static llvm::cl::opt<bool> NoTDFlowSensitiveOpt(
     llvm::cl::desc("Disable partial flow sensitivity in top down"),
     llvm::cl::init(false), llvm::cl::Hidden);
 
-static llvm::cl::opt<bool> NoTDCopyingOpt(
-    "sea-dsa-no-td-copying-opt",
-    llvm::cl::desc("Disable copying optimizations in top down"),
-    llvm::cl::init(false), llvm::cl::Hidden);
+static llvm::cl::opt<bool>
+    NoTDCopyingOpt("sea-dsa-no-td-copying-opt",
+                   llvm::cl::desc("Disable copying optimizations in top down"),
+                   llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace sea_dsa {
 
@@ -51,13 +50,13 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     // Don't propagate the global down if it's not used by the callee.
     if (!NoTDCopyingOpt)
       if (!calleeG.hasScalarCell(*kv.first))
-      continue;
+        continue;
 
 #if 0
     if (!NoTDFlowSensitiveOpt)
       if (!kv.second->isModified())
         continue;
-#endif     
+#endif
 
     // Copy only the allocation site that matches the global.
     Node &n = C.clone(*kv.second->getNode(), false, kv.first);
@@ -114,7 +113,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   LOG("dsa-td", errs() << "Started top-down analysis ... \n");
-  
+
   // The SCC iterator has the property that the graph is traversed in
   // post-order.
   //
@@ -135,20 +134,9 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it)
     postorder_scc.push_back(*it);
 
-  size_t functionsProcessed = 0;
-  size_t percentageProcessed = 0;
-  BrunchTimer tdTimer("TD");
-
   for (auto it = postorder_scc.rbegin(), et = postorder_scc.rend(); it != et;
        ++it) {
     auto &scc = *it;
-
-    functionsProcessed += scc.size();
-    const size_t oldProgress = percentageProcessed;
-    percentageProcessed = 100 *functionsProcessed / totalFunctions;
-    if (percentageProcessed != oldProgress)
-      SEA_DSA_BRUNCH_PROGRESS("TD_FUNCTIONS_PROCESSED_PERCENT",
-                              percentageProcessed, 100ul);
 
     for (CallGraphNode *cgn : scc) {
       Function *const fn = cgn->getFunction();
@@ -168,26 +156,26 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       // processed in topological order, so all callers must have already pushed
       // their graph into callerG.
       callerG.compress();
-      
+
       // -- resolve all function calls in the SCC
       for (auto &callRecord : *cgn) {
-	const Function* callee = callRecord.second->getFunction();
-	if (!callee || callee->isDeclaration() || callee->empty())
-	  continue;
-	
-	CallSite CS(callRecord.first);
-	std::unique_ptr<DsaCallSite> dsaCS = nullptr;
-	if (CS.isIndirectCall()) {
-	  dsaCS.reset(new DsaCallSite(*CS.getInstruction(), *callee));
-	} else {
-	  dsaCS.reset(new DsaCallSite(*CS.getInstruction()));
-	}
+        const Function *callee = callRecord.second->getFunction();
+        if (!callee || callee->isDeclaration() || callee->empty())
+          continue;
 
-	// This should not happen ...
-	if (!dsaCS->getCallee()) {
-	  continue;
-	}
-	
+        CallSite CS(callRecord.first);
+        std::unique_ptr<DsaCallSite> dsaCS = nullptr;
+        if (CS.isIndirectCall()) {
+          dsaCS.reset(new DsaCallSite(*CS.getInstruction(), *callee));
+        } else {
+          dsaCS.reset(new DsaCallSite(*CS.getInstruction()));
+        }
+
+        // This should not happen ...
+        if (!dsaCS->getCallee()) {
+          continue;
+        }
+
         auto it = graphs.find(dsaCS->getCallee());
         if (it == graphs.end()) {
           errs() << "ERROR: top-down analysis could not find dsa graph for "
@@ -199,9 +187,16 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
         static int cnt = 0;
         ++cnt;
-        LOG("dsa-td", llvm::errs() << "TD #" << cnt << ": " << dsaCS->getCaller()->getName() << " -> " << dsaCS->getCallee()->getName() << "\n");
-        LOG("dsa-td", llvm::errs() << "\tCallee size: " << calleeG.numNodes() << ", caller size:\t" << callerG.numNodes() << "\n");
-        LOG("dsa-td", llvm::errs() << "\tCallee collapsed: " << calleeG.numCollapsed() << ", caller collapsed:\t" << callerG.numCollapsed() << "\n");
+        LOG("dsa-td", llvm::errs() << "TD #" << cnt << ": "
+                                   << dsaCS->getCaller()->getName() << " -> "
+                                   << dsaCS->getCallee()->getName() << "\n");
+        LOG("dsa-td", llvm::errs()
+                          << "\tCallee size: " << calleeG.numNodes()
+                          << ", caller size:\t" << callerG.numNodes() << "\n");
+        LOG("dsa-td", llvm::errs()
+                          << "\tCallee collapsed: " << calleeG.numCollapsed()
+                          << ", caller collapsed:\t" << callerG.numCollapsed()
+                          << "\n");
         // propagate from the caller to the callee
         cloneAndResolveArguments(*dsaCS, callerG, calleeG, m_noescape);
         // remove foreign nodes
@@ -209,7 +204,9 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         if (!NoTDCopyingOpt)
           calleeG.removeNodes([](const Node *n) { return n->isForeign(); });
 
-        LOG("dsa-td", llvm::errs() << "\tCallee size after clone: " << calleeG.numNodes() << ", collapsed: " << calleeG.numCollapsed() << "\n");
+        LOG("dsa-td", llvm::errs()
+                          << "\tCallee size after clone: " << calleeG.numNodes()
+                          << ", collapsed: " << calleeG.numCollapsed() << "\n");
         // if (cnt == 38) {
         //   calleeG.viewGraph();
         // }
@@ -217,14 +214,13 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     }
   }
 
-  tdTimer.stop();
-
-  LOG("dsa-td-graph", for (auto &kv
+  LOG(
+      "dsa-td-graph", for (auto &kv
                            : graphs) {
-    errs() << "### Top-down Dsa graph for " << kv.first->getName() << "\n";
-    kv.second->write(errs());
-    errs() << "\n";
-  });
+        errs() << "### Top-down Dsa graph for " << kv.first->getName() << "\n";
+        kv.second->write(errs());
+        errs() << "\n";
+      });
 
   LOG("dsa-td", errs() << "Finished top-down analysis\n");
   return false;

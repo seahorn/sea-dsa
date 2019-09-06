@@ -14,13 +14,12 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "sea_dsa/AllocWrapInfo.hh"
-#include "sea_dsa/CallSite.hh"
 #include "sea_dsa/CallGraphUtils.hh"
+#include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Cloner.hh"
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Local.hh"
 #include "sea_dsa/config.h"
-#include "sea_dsa/support/Brunch.hh"
 #include "sea_dsa/support/Debug.h"
 
 using namespace llvm;
@@ -32,8 +31,8 @@ bool NoBUFlowSensitiveOpt;
 static llvm::cl::opt<bool, true> XNoBUFlowSensitiveOpt(
     "sea-dsa-no-bu-flow-sensitive-opt",
     llvm::cl::desc("Disable partial flow sensitivity in bottom up"),
-    llvm::cl::location(sea_dsa::NoBUFlowSensitiveOpt),
-    llvm::cl::init(false), llvm::cl::Hidden);
+    llvm::cl::location(sea_dsa::NoBUFlowSensitiveOpt), llvm::cl::init(false),
+    llvm::cl::Hidden);
 
 namespace sea_dsa {
 
@@ -70,7 +69,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     Node &calleeN = *kv.second->getNode();
     // We don't care if globals got unified together, but have to respect the
     // points-to relations introduced by the callee introduced.
-#if 0    
+#if 0
     if (!NoBUFlowSensitiveOpt)
       if (calleeN.getNumLinks() == 0 || !calleeN.isModified() ||
           llvm::isa<ConstantData>(kv.first))
@@ -127,25 +126,10 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
   LOG("dsa-bu", errs() << "Started bottom-up analysis ... \n");
 
-  BrunchTimer buTime("BU_AND_LOCAL");
-  BrunchTimer localTime("LOCAL");
-  localTime.pause();
-
   LocalAnalysis la(m_dl, m_tli, m_allocInfo);
-
-  const size_t totalFunctions = M.getFunctionList().size();
-  size_t functionsProcessed = 0;
-  size_t percentageProcessed = 0;
 
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
-
-    functionsProcessed += scc.size();
-    const size_t oldProgress = percentageProcessed;
-    percentageProcessed = 100 * functionsProcessed / totalFunctions;
-    if (percentageProcessed != oldProgress)
-      SEA_DSA_BRUNCH_PROGRESS("BU_FUNCTIONS_PROCESSED_PERCENT",
-                              percentageProcessed, 100ul);
 
     // -- compute a local graph shared between all functions in the scc
     GraphRef fGraph = nullptr;
@@ -160,10 +144,8 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         assert(fGraph);
       }
 
-      localTime.resume();
       la.runOnFunction(*fn, *fGraph);
       graphs[fn] = fGraph;
-      localTime.pause();
     }
 
     std::vector<CallGraphNode *> cgns = call_graph_utils::SortedCGNs(scc);
@@ -211,15 +193,13 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       fGraph->compress();
   }
 
-  localTime.stop();
-  buTime.stop();
-
-  LOG("dsa-bu-graph", for (auto &kv
+  LOG(
+      "dsa-bu-graph", for (auto &kv
                            : graphs) {
-    errs() << "### Bottom-up Dsa graph for " << kv.first->getName() << "\n";
-    kv.second->write(errs());
-    errs() << "\n";
-  });
+        errs() << "### Bottom-up Dsa graph for " << kv.first->getName() << "\n";
+        kv.second->write(errs());
+        errs() << "\n";
+      });
 
   LOG("dsa-bu", errs() << "Finished bottom-up analysis\n");
   return false;

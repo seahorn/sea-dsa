@@ -20,7 +20,6 @@ add_llvm_library (SeaDsaAnalysis
   AllocWrapInfo.cc
   AllocSiteInfo.cc
   DsaAllocSite.cc
-  Brunch.cc
   DsaCompleteCallGraph.cc
   DsaCallGraphPrinter.cc
   )
