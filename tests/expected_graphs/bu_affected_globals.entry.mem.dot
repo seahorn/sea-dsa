@@ -1,0 +1,16 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x1d334f0 [shape=record,label="{\{0:i8*\}:MR\nAS: storage\n|{<s0>\<0, i8*\>}}"];
+	Node0x1d333f0 [shape=record,label="{\{void\}:H\nAS: tmp\n}"];
+	Node0x1d36120 [shape=record,label="{\{0:i8*\}:MR\nAS: confuse\n|{<s0>\<0, i8*\>}}"];
+	Node0x1d17f88 [shape=plaintext, label ="storage"];
+	Node0x1d17f88 -> Node0x1d334f0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x1d18518 [shape=plaintext, label ="confuse"];
+	Node0x1d18518 -> Node0x1d36120[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x1d1b788 [shape=plaintext, label ="tmp"];
+	Node0x1d1b788 -> Node0x1d333f0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x1d334f0:s0 -> Node0x1d333f0[arrowtail=tee,label="0, i8*",fontsize=8];
+	Node0x1d36120:s0 -> Node0x1d333f0[arrowtail=tee,label="0, i8*",fontsize=8];
+}

@@ -19,9 +19,20 @@
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Local.hh"
 #include "sea_dsa/config.h"
+#include "sea_dsa/support/Brunch.hh"
 #include "sea_dsa/support/Debug.h"
 
 using namespace llvm;
+
+static llvm::cl::opt<bool> NoTDFlowSensitiveOpt(
+    "sea-dsa-no-td-flow-sensitive-opt",
+    llvm::cl::desc("Disable partial flow sensitivity in top down"),
+    llvm::cl::init(false), llvm::cl::Hidden);
+
+static llvm::cl::opt<bool> NoTDCopyingOpt(
+    "sea-dsa-no-td-copying-opt",
+    llvm::cl::desc("Disable copying optimizations in top down"),
+    llvm::cl::init(false), llvm::cl::Hidden);
 
 namespace sea_dsa {
 
@@ -36,9 +47,20 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
   Cloner C(calleeG, context, options);
 
   // clone and unify globals
-  for (auto &kv :
-       llvm::make_range(callerG.globals_begin(), callerG.globals_end())) {
-    Node &n = C.clone(*kv.second->getNode());
+  for (auto &kv : callerG.globals()) {
+    // Don't propagate the global down if it's not used by the callee.
+    if (!NoTDCopyingOpt)
+      if (!calleeG.hasScalarCell(*kv.first))
+      continue;
+
+#if 0
+    if (!NoTDFlowSensitiveOpt)
+      if (!kv.second->isModified())
+        continue;
+#endif     
+
+    // Copy only the allocation site that matches the global.
+    Node &n = C.clone(*kv.second->getNode(), false, kv.first);
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
     nc.unify(c);
@@ -63,20 +85,36 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
        FI != FE && AI != AE; ++FI, ++AI) {
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
-    if (callerG.hasCell(*arg) && calleeG.hasCell(*fml)) {
-      const Cell &callerCell = callerG.getCell(*arg);
-      Node &n = C.clone(*callerCell.getNode(), noescape);
-      Cell c(n, callerCell.getRawOffset());
-      Cell &nc = calleeG.mkCell(*fml, Cell());
-      nc.unify(c);
+
+    if (!callerG.hasCell(*arg) || !calleeG.hasCell(*fml))
+      continue;
+
+    // Actuals that directly correspond to allocation sites only should only
+    // bring a single allocation site, regardless of the unifications in the
+    // caller graph.
+    const Value *onlyAllocSite = nullptr;
+    const Value *argStripped = arg->stripPointerCastsNoFollowAliases();
+
+    if (callerG.hasAllocSiteForValue(*argStripped)) {
+      onlyAllocSite = argStripped;
     }
+
+    if (NoTDFlowSensitiveOpt)
+      onlyAllocSite = nullptr;
+
+    const Cell &callerCell = callerG.getCell(*arg);
+    Node &n = C.clone(*callerCell.getNode(), noescape, onlyAllocSite);
+    Cell c(n, callerCell.getRawOffset());
+    Cell &nc = calleeG.mkCell(*fml, Cell());
+    nc.unify(c);
   }
-  calleeG.compress();
+
+  // Don't compress here -- caller should take care of it.
 }
 
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   LOG("dsa-td", errs() << "Started top-down analysis ... \n");
-
+  
   // The SCC iterator has the property that the graph is traversed in
   // post-order.
   //
@@ -84,56 +122,102 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   // SCC iterator on the Inverse graph but it requires to implement
   // some wrappers around CallGraph. Instead, we store the postorder
   // SCC in a vector and traverse in reversed order.
-  typedef scc_iterator<CallGraph *> scc_iterator_t;
-  typedef std::vector<typename GraphTraits<CallGraph *>::NodeRef> scc_t;
+  using scc_iterator_t = scc_iterator<CallGraph *>;
+  using scc_t = std::vector<typename GraphTraits<CallGraph *>::NodeRef>;
 
+  const size_t totalFunctions = M.getFunctionList().size();
+  // The total number of function is an upper bound for the number of SCC nodes.
   std::vector<scc_t> postorder_scc;
+  postorder_scc.reserve(totalFunctions);
 
   // copy all SCC elements in the vector
   // XXX: this is inefficient
-  postorder_scc.reserve(std::distance(m_cg.begin(), m_cg.end()));
-  for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
+  for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it)
     postorder_scc.push_back(*it);
-  }
+
+  size_t functionsProcessed = 0;
+  size_t percentageProcessed = 0;
+  BrunchTimer tdTimer("TD");
 
   for (auto it = postorder_scc.rbegin(), et = postorder_scc.rend(); it != et;
        ++it) {
     auto &scc = *it;
 
+    functionsProcessed += scc.size();
+    const size_t oldProgress = percentageProcessed;
+    percentageProcessed = 100 *functionsProcessed / totalFunctions;
+    if (percentageProcessed != oldProgress)
+      SEA_DSA_BRUNCH_PROGRESS("TD_FUNCTIONS_PROCESSED_PERCENT",
+                              percentageProcessed, 100ul);
+
     for (CallGraphNode *cgn : scc) {
-      Function *fn = cgn->getFunction();
+      Function *const fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty())
         continue;
+
+      auto it = graphs.find(fn);
+      if (it == graphs.end()) {
+        errs() << "ERROR: top-down analysis could not find dsa graph for "
+                  "caller\n";
+        continue;
+      }
+
+      Graph &callerG = *it->second;
+      // Compress before pushing down the graph to all callees. We know that
+      // it's sufficient to compress only once -- the call graph nodes are
+      // processed in topological order, so all callers must have already pushed
+      // their graph into callerG.
+      callerG.compress();
+      
       // -- resolve all function calls in the SCC
       for (auto &callRecord : *cgn) {
-        ImmutableCallSite CS(callRecord.first);
-        DsaCallSite dsaCS(CS);
-        const Function *callee = dsaCS.getCallee();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
+	const Function* callee = callRecord.second->getFunction();
+	if (!callee || callee->isDeclaration() || callee->empty())
+	  continue;
+	
+	CallSite CS(callRecord.first);
+	std::unique_ptr<DsaCallSite> dsaCS = nullptr;
+	if (CS.isIndirectCall()) {
+	  dsaCS.reset(new DsaCallSite(*CS.getInstruction(), *callee));
+	} else {
+	  dsaCS.reset(new DsaCallSite(*CS.getInstruction()));
+	}
 
-        // XXX: We assume that `graphs` has been already populated by
-        // the bottom-up pass. We report an error and skip the
-        // callsite otherwise.
-        auto it = graphs.find(dsaCS.getCaller());
-        if (it == graphs.end()) {
-          errs() << "ERROR: top-down analysis could not find dsa graph for "
-                    "caller\n";
-          continue;
-        }
-        Graph &callerG = *(it->second);
-        it = graphs.find(dsaCS.getCallee());
+	// This should not happen ...
+	if (!dsaCS->getCallee()) {
+	  continue;
+	}
+	
+        auto it = graphs.find(dsaCS->getCallee());
         if (it == graphs.end()) {
           errs() << "ERROR: top-down analysis could not find dsa graph for "
                     "callee\n";
           continue;
         }
+
         Graph &calleeG = *(it->second);
+
+        static int cnt = 0;
+        ++cnt;
+        LOG("dsa-td", llvm::errs() << "TD #" << cnt << ": " << dsaCS->getCaller()->getName() << " -> " << dsaCS->getCallee()->getName() << "\n");
+        LOG("dsa-td", llvm::errs() << "\tCallee size: " << calleeG.numNodes() << ", caller size:\t" << callerG.numNodes() << "\n");
+        LOG("dsa-td", llvm::errs() << "\tCallee collapsed: " << calleeG.numCollapsed() << ", caller collapsed:\t" << callerG.numCollapsed() << "\n");
         // propagate from the caller to the callee
-        cloneAndResolveArguments(dsaCS, callerG, calleeG, m_noescape);
+        cloneAndResolveArguments(*dsaCS, callerG, calleeG, m_noescape);
+        // remove foreign nodes
+
+        if (!NoTDCopyingOpt)
+          calleeG.removeNodes([](const Node *n) { return n->isForeign(); });
+
+        LOG("dsa-td", llvm::errs() << "\tCallee size after clone: " << calleeG.numNodes() << ", collapsed: " << calleeG.numCollapsed() << "\n");
+        // if (cnt == 38) {
+        //   calleeG.viewGraph();
+        // }
       }
     }
   }
+
+  tdTimer.stop();
 
   LOG("dsa-td-graph", for (auto &kv
                            : graphs) {

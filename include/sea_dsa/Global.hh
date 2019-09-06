@@ -7,9 +7,10 @@
 #include "llvm/Pass.h"
 
 #include "sea_dsa/BottomUp.hh"
-#include "sea_dsa/CallGraph.hh"
+#include "sea_dsa/CallGraphWrapper.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Graph.hh"
+#include "sea_dsa/Mapper.hh"
 
 #include "boost/container/flat_set.hpp"
 
@@ -30,6 +31,8 @@ enum GlobalAnalysisKind {
   CONTEXT_SENSITIVE,
   // bottom-up followed by one top-down pass (not useful for VC generation)
   BUTD_CONTEXT_SENSITIVE,
+  // bottom-up pass (useful for VC generation)
+  BU,
   // enforce one single node for the whole program
   // used when most pessimistic assumptions must be considered in
   // presence of inttoptr and/or external calls.
@@ -50,10 +53,11 @@ public:
 
   virtual bool runOnModule(llvm::Module &M) = 0;
 
+  // return the points-to graph for F
   virtual const Graph &getGraph(const llvm::Function &F) const = 0;
-
   virtual Graph &getGraph(const llvm::Function &F) = 0;
 
+  // return true if F has its own points-to graph
   virtual bool hasGraph(const llvm::Function &F) const = 0;
 };
 
@@ -86,7 +90,7 @@ public:
 
   // unify caller/callee nodes within the same graph
   static void resolveArguments(DsaCallSite &cs, Graph &g);
-  
+
   bool runOnModule(llvm::Module &M) override;
 
   const Graph &getGraph(const llvm::Function &fn) const override;
@@ -115,11 +119,15 @@ private:
 class ContextSensitiveGlobalAnalysis : public GlobalAnalysis {
 public:
   typedef typename Graph::SetFactory SetFactory;
-
+  
 private:
   typedef std::shared_ptr<Graph> GraphRef;
   typedef BottomUpAnalysis::GraphMap GraphMap;
   enum PropagationKind { DOWN, UP, NONE };
+
+  typedef std::shared_ptr<SimulationMapper> SimulationMapperRef;
+  typedef boost::container::flat_map<DsaCallSite, SimulationMapperRef>
+      CalleeCallerMapping;
 
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
@@ -129,7 +137,7 @@ private:
 
 public:
   GraphMap m_graphs;
-
+  
   PropagationKind decidePropagation(const DsaCallSite &cs, Graph &callerG,
                                     Graph &calleeG);
 
@@ -137,16 +145,17 @@ public:
 
   void propagateBottomUp(const DsaCallSite &cs, Graph &calleeG, Graph &callerG);
 
-  bool checkNoMorePropagation();
+  // sanity checks
+  bool checkAllNodesAreMapped(const llvm::Function &callee, Graph &calleeG,
+                              const SimulationMapper &sm);
+  bool checkNoMorePropagation(llvm::CallGraph &cg);
 
 public:
   ContextSensitiveGlobalAnalysis(const llvm::DataLayout &dl,
                                  const llvm::TargetLibraryInfo &tli,
                                  const AllocWrapInfo &allocInfo,
-                                 llvm::CallGraph &cg, SetFactory &setFactory)
-      : GlobalAnalysis(CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
-        m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
-
+                                 llvm::CallGraph &cg, SetFactory &setFactory);
+  
   bool runOnModule(llvm::Module &M) override;
 
   const Graph &getGraph(const llvm::Function &fn) const override;
@@ -174,16 +183,13 @@ private:
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
-
   GraphMap m_graphs;
 
 public:
   BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
                                 const llvm::TargetLibraryInfo &tli,
                                 const AllocWrapInfo &allocInfo,
-                                llvm::CallGraph &cg, SetFactory &setFactory)
-      : GlobalAnalysis(BUTD_CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
-        m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
+                                llvm::CallGraph &cg, SetFactory &setFactory);
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -193,6 +199,40 @@ public:
 
   bool hasGraph(const llvm::Function &fn) const override;
 };
+
+/**
+ * Global analysis that runs only the bottom-up pass.
+ */
+class BottomUpGlobalAnalysis : public GlobalAnalysis {
+public:
+  typedef typename Graph::SetFactory SetFactory;
+
+private:
+  typedef std::shared_ptr<Graph> GraphRef;
+  typedef BottomUpAnalysis::GraphMap GraphMap;
+
+  const llvm::DataLayout &m_dl;
+  const llvm::TargetLibraryInfo &m_tli;
+  const AllocWrapInfo &m_allocInfo;
+  llvm::CallGraph &m_cg;
+  SetFactory &m_setFactory;
+  GraphMap m_graphs;
+
+public:
+  BottomUpGlobalAnalysis(const llvm::DataLayout &dl,
+			 const llvm::TargetLibraryInfo &tli,
+			 const AllocWrapInfo &allocInfo,
+			 llvm::CallGraph &cg, SetFactory &setFactory);
+
+  bool runOnModule(llvm::Module &M) override;
+
+  const Graph &getGraph(const llvm::Function &fn) const override;
+
+  Graph &getGraph(const llvm::Function &fn) override;
+
+  bool hasGraph(const llvm::Function &fn) const override;
+};
+
 
 // Llvm passes
 
@@ -298,17 +338,40 @@ public:
   }
 };
 
+// LLVM pass for bottom-up analysis
+class BottomUpGlobalPass : public DsaGlobalPass {
+  Graph::SetFactory m_setFactory;
+  std::unique_ptr<BottomUpGlobalAnalysis> m_ga;
+
+public:
+  static char ID;
+
+  BottomUpGlobalPass();
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
+
+  bool runOnModule(llvm::Module &M) override;
+
+  llvm::StringRef getPassName() const override {
+    return "Bottom-up pass";
+  }
+
+  GlobalAnalysis &getGlobalAnalysis() override {
+    return *(static_cast<GlobalAnalysis *>(&*m_ga));
+  }
+};
+
 // Execute operation Op on each callsite until no more changes
 template <class GlobalAnalysis, class Op> class CallGraphClosure {
 
   GlobalAnalysis &m_ga;
-  DsaCallGraph &m_dsaCG;
-  WorkList<const llvm::Instruction *> m_w;
+  CallGraphWrapper &m_dsaCG;
+  WorkList<DsaCallSite> m_w;
 
   void exec_callsite(const DsaCallSite &cs, Graph &calleeG, Graph &callerG);
 
 public:
-  CallGraphClosure(GlobalAnalysis &ga, DsaCallGraph &dsaCG)
+  CallGraphClosure(GlobalAnalysis &ga, CallGraphWrapper &dsaCG)
       : m_ga(ga), m_dsaCG(dsaCG) {}
 
   bool runOnModule(llvm::Module &M);
@@ -316,11 +379,11 @@ public:
 
 // Propagate unique scalar flag across callsites
 class UniqueScalar {
-  DsaCallGraph &m_dsaCG;
-  WorkList<const llvm::Instruction *> &m_w;
+  CallGraphWrapper &m_dsaCG;
+  WorkList<DsaCallSite> &m_w;
 
 public:
-  UniqueScalar(DsaCallGraph &dsaCG, WorkList<const llvm::Instruction *> &w)
+  UniqueScalar(CallGraphWrapper &dsaCG, WorkList<DsaCallSite> &w)
       : m_dsaCG(dsaCG), m_w(w) {}
 
   void runOnCallSite(const DsaCallSite &cs, Node &calleeN, Node &callerN);
@@ -328,11 +391,11 @@ public:
 
 // Propagate allocation sites across callsites
 class AllocaSite {
-  DsaCallGraph &m_dsaCG;
-  WorkList<const llvm::Instruction *> &m_w;
+  CallGraphWrapper &m_dsaCG;
+  WorkList<DsaCallSite> &m_w;
 
 public:
-  AllocaSite(DsaCallGraph &dsaCG, WorkList<const llvm::Instruction *> &w)
+  AllocaSite(CallGraphWrapper &dsaCG, WorkList<DsaCallSite> &w)
       : m_dsaCG(dsaCG), m_w(w) {}
 
   void runOnCallSite(const DsaCallSite &cs, Node &calleeN, Node &callerN);

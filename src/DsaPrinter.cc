@@ -14,10 +14,20 @@
    Convert each DSA graph to .dot file.
  */
 
-static llvm::cl::opt<std::string>
-    OutputDir("sea-dsa-dot-outdir",
-              llvm::cl::desc("DSA: output directory for dot files"),
-              llvm::cl::init(""), llvm::cl::value_desc("DIR"));
+namespace sea_dsa {
+std::string DotOutputDir;
+}
+
+static llvm::cl::opt<std::string, true>
+XDotOutputDir("sea-dsa-dot-outdir",
+	   llvm::cl::desc("DSA: output directory for dot files"),
+	   llvm::cl::location(sea_dsa::DotOutputDir),
+	   llvm::cl::init(""), llvm::cl::value_desc("DIR"));
+
+static llvm::cl::opt<bool>
+    PrintAllocSites("sea-dsa-dot-print-as",
+                    llvm::cl::desc("Print allocation sites for DSA nodes"),
+                    llvm::cl::init(false));
 
 using namespace llvm;
 
@@ -184,35 +194,7 @@ public:
         O << "|" << DOT::EscapeString(NodeDesc);
     }
 
-#if 0 
-        // XXX: MODIFICATION
-        // if (DTraits.hasEdgeDestLabels()) {
-        // 	O << "|{";
-	
-        // 	unsigned i = 0, e = DTraits.numEdgeDestLabels(Node);
-        // 	for (; i != e && i != 64; ++i) {
-        // 	  if (i) O << "|";
-        // 	  O << "<d" << i << ">"
-        // 	    << DOT::EscapeString(DTraits.getEdgeDestLabel(Node, i));
-        // 	}
-	
-        // 	if (i != e)
-        // 	  O << "|<d64>truncated...";
-        // 	O << "}";
-        // }
-#endif
-
     O << "}\"];\n"; // Finish printing the "node" line
-
-    // Output all of the edges now
-//    child_iterator EI = GTraits::child_begin(Node);
-//    child_iterator EE = GTraits::child_end(Node);
-//    for (unsigned i = 0; EI != EE && i != 64; ++EI, ++i)
-//      if (!DTraits.isNodeHidden(*EI))
-//        writeEdge(Node, i, EI);
-//    for (; EI != EE; ++EI)
-//      if (!DTraits.isNodeHidden(*EI))
-//        writeEdge(Node, 64, EI);
   }
 
   /// emitSimpleNode - Outputs a simple (non-record) node
@@ -220,7 +202,7 @@ public:
   emitSimpleNode(const void *ID, const std::string &Attr,
                  const std::string &Label, unsigned NumEdgeSources = 0,
                  const std::vector<std::string> *EdgeSourceLabels = nullptr) {
-    O << "\tNode" << ID << "[ ";
+    O << "\tNode" << ID << " [";
     if (!Attr.empty())
       O << Attr << ",";
     O << " label =\"";
@@ -323,6 +305,21 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     return OS.str();
   }
 
+  static void writeAllocSites(const sea_dsa::Node &Node,
+                              llvm::raw_string_ostream &O) {
+    O << "\nAS:";
+    const size_t numAllocSites = Node.getAllocSites().size();
+    size_t i = 0;
+    for (const llvm::Value *AS : Node.getAllocSites()) {
+      assert(AS);
+      ++i;
+      O << " " << DOT::EscapeString(AS->hasName() ? AS->getName() : "unnamed");
+      if (i != numAllocSites)
+        O << ",";
+    }
+    O << "\n";
+  }
+
   static std::string getNodeLabel(const sea_dsa::Node *N,
                                   const sea_dsa::Graph *G) {
     std::string empty;
@@ -396,8 +393,10 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         OS << "V";
       if (node_type.dead)
         OS << "D";
-      // OS << " " << N->size() << " ";
     }
+
+    if (PrintAllocSites)
+      writeAllocSites(*N, OS);
 
     return OS.str();
   }
@@ -496,9 +495,6 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
       sea_dsa::Graph *g,
       sea_dsa::internals::GraphWriter<sea_dsa::Graph *> &GW) {
 
-    typedef sea_dsa::Graph::scalar_const_iterator scalar_const_iterator;
-    typedef sea_dsa::Graph::formal_const_iterator formal_const_iterator;
-    typedef sea_dsa::Graph::return_const_iterator return_const_iterator;
     typedef sea_dsa::Node Node;
     typedef sea_dsa::Field Field;
     typedef sea_dsa::Graph::const_iterator node_const_iterator;
@@ -522,78 +518,73 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
 
     // print edges from scalar (local and global) variables to cells
     {
-      scalar_const_iterator it = g->scalar_begin();
-      scalar_const_iterator et = g->scalar_end();
-      for (; it != et; ++it) {
+      for (const auto &scalar : g->scalars()) {
         std::string OS_str;
         llvm::raw_string_ostream OS(OS_str);
-        const llvm::Value *v = it->first;
+        const llvm::Value *v = scalar.first;
         if (v->hasName())
           OS << v->getName();
         else
           OS << *v;
-        GW.emitSimpleNode(it->first, "shape=plaintext", OS.str());
-        Node *DestNode = it->second->getNode();
-        Field DestField(it->second->getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
+        GW.emitSimpleNode(scalar.first, "shape=plaintext", OS.str());
+        Node *DestNode = scalar.second->getNode();
+        Field DestField(scalar.second->getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
         int EdgeDest = getIndex(DestNode, DestField);
-        GW.emitEdge(it->first, -1, DestNode, EdgeDest,
-                    Twine("arrowtail=tee", EmitLinkTypeSuffix(*it->second)) +
-                          ",color=purple");
+        GW.emitEdge(scalar.first, -1, DestNode, EdgeDest,
+                    Twine("arrowtail=tee", EmitLinkTypeSuffix(*scalar.second)) +
+                        ",color=purple");
       }
     }
 
     // print edges from formal parameters to cells
     {
-      formal_const_iterator it = g->formal_begin();
-      formal_const_iterator et = g->formal_end();
-      for (; it != et; ++it) {
+      for (const auto &formal : g->formals()) {
         std::string OS_str;
         llvm::raw_string_ostream OS(OS_str);
-        const llvm::Argument *arg = it->first;
+        const llvm::Argument *arg = formal.first;
         OS << arg->getParent()->getName() << "#" << arg->getArgNo();
-        GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue",
+        GW.emitSimpleNode(formal.first, "shape=plaintext,fontcolor=blue",
                           OS.str());
-        Node *DestNode = it->second->getNode();
-        Field DestField(it->second->getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
+        Node *DestNode = formal.second->getNode();
+        Field DestField(formal.second->getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
         int EdgeDest = getIndex(DestNode, DestField);
-        GW.emitEdge(it->first, -1, DestNode, EdgeDest,
+        GW.emitEdge(formal.first, -1, DestNode, EdgeDest,
                     Twine("tailclip=false,color=dodgerblue3",
-                          EmitLinkTypeSuffix(*it->second)));
+                          EmitLinkTypeSuffix(*formal.second)));
       }
     }
 
     // print edges from function return to cells
     {
-      return_const_iterator it = g->return_begin();
-      return_const_iterator et = g->return_end();
-      for (; it != et; ++it) {
+      for (const auto &retNode : g->returns()) {
         std::string OS_str;
         llvm::raw_string_ostream OS(OS_str);
-        const llvm::Function *f = it->first;
+        const llvm::Function *f = retNode.first;
         OS << f->getName() << "#Ret";
-        GW.emitSimpleNode(it->first, "shape=plaintext,fontcolor=blue",
+        GW.emitSimpleNode(retNode.first, "shape=plaintext,fontcolor=blue",
                           OS.str());
-        Node *DestNode = it->second->getNode();
-        Field DestField(it->second->getOffset(), FIELD_TYPE_NOT_IMPLEMENTED);
+        Node *DestNode = retNode.second->getNode();
+        Field DestField(retNode.second->getOffset(),
+                        FIELD_TYPE_NOT_IMPLEMENTED);
         int EdgeDest = getIndex(DestNode, DestField);
-        GW.emitEdge(it->first, -1, DestNode, EdgeDest,
+        GW.emitEdge(retNode.first, -1, DestNode, EdgeDest,
                     Twine("arrowtail=tee,color=gray63",
-                          EmitLinkTypeSuffix(*it->second)));
+                          EmitLinkTypeSuffix(*retNode.second)));
       }
     }
 
     // print node edges
     {
-      for (node_const_iterator it = g->begin(), e = g->end(); it != e; ++it) {
-        const Node &N = *it;
+      for (const Node &N : *g) {
         if (!N.isForwarding()) {
 
           for (auto &OffLink : N.getLinks()) {
             const int EdgeSrc = getIndex(&N, OffLink.first);
             const sea_dsa::Cell &C = *OffLink.second.get();
             const int EdgeDest = getIndex(C.getNode(), OffLink.first);
-            GW.emitEdge(&N, EdgeSrc, C.getNode(), EdgeDest, Twine("arrowtail=tee",
-                        EmitLinkTypeSuffix(C, OffLink.first.getType())));
+            GW.emitEdge(&N, EdgeSrc, C.getNode(), EdgeDest,
+                        Twine("arrowtail=tee",
+                              EmitLinkTypeSuffix(C, OffLink.first.getType())));
           }
 
           continue;
@@ -615,9 +606,9 @@ namespace sea_dsa {
 using namespace llvm;
 
 static std::string appendOutDir(std::string FileName) {
-  if (!OutputDir.empty()) {
-    if (!llvm::sys::fs::create_directory(OutputDir)) {
-      std::string FullFileName = OutputDir + "/" + FileName;
+  if (!DotOutputDir.empty()) {
+    if (!llvm::sys::fs::create_directory(DotOutputDir)) {
+      std::string FullFileName = DotOutputDir + "/" + FileName;
       return FullFileName;
     }
   }
