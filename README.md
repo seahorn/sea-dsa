@@ -85,6 +85,87 @@ To run tests:
 
 	cmake --build . --target test-sea-dsa
 
+## Visualizing Memory Graphs ##
+
+Consider a C program called `ex.c`:
+
+``` c
+#include <stdlib.h>
+
+typedef struct S {
+  int** x;
+  int** y;  
+} S;
+
+int g;
+
+int main(int argc, char** argv){
+
+  S s1, s2;
+
+  int* p1 = (int*) malloc(sizeof(int));
+  int* q1 = (int*) malloc(sizeof(int));  
+  s1.x = &p1;
+  s1.y = &q1;    
+  *(s1.x) = &g;
+  
+  return 0;
+}   
+
+```
+
+1. Generate bitcode:
+
+	    clang -c -emit-llvm -O0 ex.c -o ex.bc
+
+The option `-O0` is used to disable clang optimizations. In general,
+it is a good idea to enable clang optimizations. However, for trivial
+examples like `ex.c`, clang simplifies too much so nothing useful
+would be observed.
+
+If you want to read the bitcode then type
+
+        llvm-dis ex.bc -o ex.ll
+
+2. Run `sea-dsa` on the bitcode and print memory graphs to [dot](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) format:
+
+	    sea-dsa -sea-dsa=butd-cs -sea-dsa-type-aware -sea-dsa-dot  ex.bc
+
+The options `-sea-dsa=butd-cs -sea-dsa-type-aware` enable the analysis
+implemented in our FMCAD'19 paper (see References). This command will
+generate a `FUN.mem.dot` file for each function `FUN` in the bitcode
+program. In our case, the only function is `main` and thus, there is
+one file named `main.mem.dot`.  The file is generated in the current
+directory. If you want to store the `.dot` files in a different
+directory `DIR` then add the option `-sea-dsa-dot-outdir=DIR`
+
+3. Visualize `main.mem.dot` by transforming it to a `jpg` file:
+
+		dot -Tjpg main.mem.dot -o main.mem.jpg
+		open main.mem.jpg  // replace with you favorite jpg viewer
+	
+![Example of a memory graph](https://github.com/seahorn/sea-dsa/blob/tea-dsa/demo/main.mem.jpg?raw=true)
+
+In our memory model, a pointer is represented by a __cell__ which is a
+pair of a memory object and offset. Memory objects are represented as
+nodes in the memory graph. Edges are between cells.
+
+Each node field represents a cell (i.e., an offset in the node). For
+instance, the node fields `<0,i32**>` and `<8,i32**>` pointed by `%6`
+and `%15`, respectively are two different cells from the same memory
+object. The field `<8,i32**>` represents the cell at offset 8 in the
+corresponding memory object and its type is `i32**`.  Since edges are
+between cells, they are labeled with a number that represents the
+offset in the destination node. Blue edges connect formal parameters
+of the function with a cell. Purple edges connect LLVM pointer
+variables with cells.  Nodes can have markers such as `S` (stack
+allocated memory), `H` (heap allocate memory), `M` (modified memory),
+`R` (read memory), `E` (externally allocated memory), etc. If a node
+is red then it means that the analysis lost field sensitivity for that
+node. The label `{void}` is used to denote that the node has been
+allocated but it has not been used by the program.
+
+
 ## Dealing with C/C++ library and external calls ##
 
 The pointer semantics of external calls can be defined by writing a
