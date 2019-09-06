@@ -1,26 +1,26 @@
-# TeaDsa: A Points-to Analysis for Verification of Low-level C/C++ #
+# SeaDsa: A Points-to Analysis for Verification of Low-level C/C++ #
 
 <a href="https://travis-ci.org/seahorn/sea-dsa">
     <img src="https://travis-ci.org/seahorn/sea-dsa.svg?branch=master" title="Ubuntu 14.04 LTS 64bit, g++-5"/>
 </a>
 
 
-`TeaDsa` is a context-, field-, and array-sensitive unification-based points-to
-analysis for LLVM bitcode inspired
-by [DSA](http://llvm.org/pubs/2003-11-15-DataStructureAnalysisTR.ps), and based
-on [SeaDsa](https://github.com/seahorn/sea-dsa). `TeaDsa` is an order of
-magnitude more scalable and precise than `SeaDsa` thanks to improved handling of
-context sensitivity, addition of partial flow-sensitivity, and type-awareness.  
+`SeaDsa` is a context-, field-, and array-sensitive unification-based
+points-to analysis for LLVM bitcode inspired
+by [DSA](http://llvm.org/pubs/2003-11-15-DataStructureAnalysisTR.ps).
+`SeaDsa` is an order of magnitude more scalable and precise than `Dsa`
+and a previous implementation of `SeaDsa` thanks to improved handling
+of context sensitivity, addition of partial flow-sensitivity, and type-awareness.  
 
-Although `TeaDsa` can analyze arbitrary LLVM bitcode, it has been
-tailored for use in program verification of C/C++ programs. It can be used as a
-stand-alone tool or together with the
-[SeaHorn](https://github.com/seahorn/seahorn/tree/tea-dsa) verification
-framework and its analyses.
+Although `SeaDsa` can analyze arbitrary LLVM bitcode, it has been
+tailored for use in program verification of C/C++ programs. It can be
+used as a stand-alone tool or together with
+the [SeaHorn](https://github.com/seahorn/seahorn/tree/tea-dsa)
+verification framework and its analyses.
 
 ## Requirements ## 
 
-`TeaDsa` is written in C++ and uses the Boost library. The main requirements
+`SeaDsa` is written in C++ and uses the Boost library. The main requirements
 are: 
 
 - C++ compiler supporting c++11
@@ -57,9 +57,9 @@ for building real-world projects and our results, can be found in
 
 ### Integration in other C++ projects (for users) ## 
 
-`TeaDsa` contains two directories: `include` and `src`. Since
-`TeaDsa` analyzes LLVM bitcode, LLVM header files and libraries must
-be accessible when building with `TeaDsa`.
+`SeaDsa` contains two directories: `include` and `src`. Since `SeaDsa`
+analyzes LLVM bitcode, LLVM header files and libraries must be
+accessible when building with `SeaDsa`.
 
 If your project uses `cmake` then you just need to add in your
 project's `CMakeLists.txt`:
