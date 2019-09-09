@@ -1,14 +1,12 @@
 #include "sea_dsa/AllocWrapInfo.hh"
 
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
-
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/MemoryBuiltins.h"
 
 #include <vector>
 
@@ -99,6 +97,7 @@ void AllocWrapInfo::findAllocs(Module &M) {
     }
   }
 }
+
 bool AllocWrapInfo::isAllocWrapper(llvm::Function &fn) const {
   return m_allocs.count(fn.getName()) != 0;
 }

@@ -12,6 +12,10 @@
 
 using namespace llvm;
 
+unsigned sea_dsa::getTypeSizeInBytes(const Type &ty, const DataLayout &dl) {
+  return dl.getTypeStoreSize(&const_cast<Type &>(ty));
+}
+
 namespace sea_dsa {
 
 void SubTypeDesc::dump(llvm::raw_ostream &OS /* = llvm::errs() */) {
@@ -26,9 +30,10 @@ void SubTypeDesc::dump(llvm::raw_ostream &OS /* = llvm::errs() */) {
 
 unsigned AggregateIterator::sizeInBytes(Type *Ty) const {
   // Don't track offsets when DL is not available.
-  const auto Bits = DL ? DL->getTypeSizeInBits(Ty) : 0;
-  assert(!DL || Bits >= 8);
-  return Bits / 8;
+  if (!DL)
+    return 0;
+
+  return getTypeSizeInBytes(*Ty, *DL);
 }
 
 void AggregateIterator::doStep() {

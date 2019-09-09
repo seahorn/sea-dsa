@@ -15,8 +15,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ImmutableSet.h"
 
-#include "sea_dsa/FieldType.hh"
 #include "sea_dsa/AllocSite.hh"
+#include "sea_dsa/FieldType.hh"
 
 #include <functional>
 
@@ -35,11 +35,19 @@ class SimulationMapper;
 typedef std::unique_ptr<Cell> CellRef;
 
 class DsaCallSite;
-
+class DsaAllocator;
 extern bool IsTypeAware;
 
 // Data structure graph traversal iterator
 template <typename T> class NodeIterator;
+
+struct DsaAllocatorDeleter {
+  DsaAllocator *m_allocator;
+  DsaAllocatorDeleter(DsaAllocator &allocator) : m_allocator(&allocator) {}
+  DsaAllocatorDeleter(const DsaAllocatorDeleter &o) = default;
+  DsaAllocatorDeleter &operator=(const DsaAllocatorDeleter &o) = default;
+  void operator()(void *block);
+};
 
 class Graph {
   friend class Node;
@@ -51,8 +59,11 @@ public:
 protected:
   const llvm::DataLayout &m_dl;
   SetFactory &m_setFactory;
+
+  std::unique_ptr<DsaAllocator> m_allocator;
   /// DSA nodes owned by this graph
-  typedef std::vector<std::unique_ptr<Node>> NodeVector;
+  typedef std::vector<std::unique_ptr<Node, DsaAllocatorDeleter>> NodeVector;
+  typedef std::unique_ptr<Node, DsaAllocatorDeleter> NodeVectorElemTy;
   NodeVector m_nodes;
 
   /// Map from scalars to cells in this graph
@@ -72,6 +83,18 @@ protected:
 
   using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DsaAllocSite *>;
   ValueToAllocSite m_valueToAllocSite;
+
+  /// Indirect call sites owned by this graph
+  ///
+  /// The call site can be defined in the current function or any
+  /// direct or indirect callee. Call sites are copied from callees to
+  /// callers during bottom-up propagation.
+  using CallSites = std::vector<std::unique_ptr<DsaCallSite>>;
+  CallSites m_callSites;
+
+  /// Map from instructions to call sites
+  using InstructionToCallSite = llvm::DenseMap<const llvm::Instruction *, DsaCallSite *>;
+  InstructionToCallSite m_instructionToCallSite;
 
   //  Whether the graph is flat or not
   bool m_is_flat;
@@ -96,15 +119,17 @@ public:
       global_const_iterator;
   typedef ArgumentMap::const_iterator formal_const_iterator;
   typedef ReturnMap::const_iterator return_const_iterator;
-  using alloc_site_iterator
-    = boost::indirect_iterator<typename AllocSites::iterator>;
-  using alloc_site_const_iterator
-    = boost::indirect_iterator<typename AllocSites::const_iterator>;
+  using alloc_site_iterator =
+      boost::indirect_iterator<typename AllocSites::iterator>;
+  using alloc_site_const_iterator =
+      boost::indirect_iterator<typename AllocSites::const_iterator>;
+  using callsite_iterator =
+      boost::indirect_iterator<typename CallSites::iterator>;
+  using callsite_const_iterator =
+      boost::indirect_iterator<typename CallSites::const_iterator>;
 
-  Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false)
-      : m_dl(dl), m_setFactory(sf), m_is_flat(is_flat) {}
-
-  virtual ~Graph() {}
+  Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat = false);
+  virtual ~Graph();
 
   /// remove all forwarding nodes
   virtual void compress();
@@ -122,21 +147,35 @@ public:
   virtual const_iterator end() const;
   virtual iterator begin();
   virtual iterator end();
+  size_t numNodes() const { return m_nodes.size(); };
+  size_t numCollapsed() const;
 
   /// iterate over scalars
   virtual scalar_const_iterator scalar_begin() const;
   virtual scalar_const_iterator scalar_end() const;
+  llvm::iterator_range<scalar_const_iterator> scalars() const {
+    return llvm::make_range(scalar_begin(), scalar_end());
+  }
 
   virtual global_const_iterator globals_begin() const;
   virtual global_const_iterator globals_end() const;
+  llvm::iterator_range<global_const_iterator> globals() const {
+    return llvm::make_range(globals_begin(), globals_end());
+  }
 
   /// iterate over formal parameters of functions
   virtual formal_const_iterator formal_begin() const;
   virtual formal_const_iterator formal_end() const;
+  llvm::iterator_range<formal_const_iterator> formals() const {
+    return llvm::make_range(formal_begin(), formal_end());
+  }
 
   /// iterate over returns of functions
   virtual return_const_iterator return_begin() const;
   virtual return_const_iterator return_end() const;
+  llvm::iterator_range<return_const_iterator> returns() const {
+    return llvm::make_range(return_begin(), return_end());
+  }
 
   /// creates a cell for the value or returns existing cell if
   /// present
@@ -148,6 +187,10 @@ public:
 
   /// return true iff the value has a cel
   virtual bool hasCell(const llvm::Value &v) const;
+
+  virtual bool hasScalarCell(const llvm::Value &v) {
+    return m_values.count(&v) > 0;
+  }
 
   virtual bool hasRetCell(const llvm::Function &fn) const {
     return m_returns.count(&fn) > 0;
@@ -167,6 +210,8 @@ public:
 
   DsaAllocSite *mkAllocSite(const llvm::Value &v);
 
+  void clearCallSites();
+  
   llvm::iterator_range<alloc_site_iterator> alloc_sites() {
     alloc_site_iterator begin = m_allocSites.begin();
     alloc_site_iterator end = m_allocSites.end();
@@ -178,11 +223,27 @@ public:
     alloc_site_const_iterator end = m_allocSites.end();
     return llvm::make_range(begin, end);
   }
-
+ 
   bool hasAllocSiteForValue(const llvm::Value &v) const {
     return m_valueToAllocSite.count(&v) > 0;
   }
 
+  // return null if no callsite found
+  DsaCallSite* getCallSite(const llvm::Instruction &cs) {
+    auto it = m_instructionToCallSite.find(&cs);
+    if (it != m_instructionToCallSite.end()) {
+      return &*it->second;
+    } else {
+      return nullptr;
+    }
+  }
+
+  DsaCallSite* mkCallSite(const llvm::Instruction &cs, Cell c);
+  
+  llvm::iterator_range<callsite_iterator> callsites();
+
+  llvm::iterator_range<callsite_const_iterator> callsites() const;
+  
   /// compute a map from callee nodes to caller nodes
   //
   /// XXX: we might want to make the last argument a template
@@ -199,11 +260,18 @@ public:
   /// pretty-printer of a graph
   virtual void write(llvm::raw_ostream &o) const;
 
+  /// for gdb
+  void dump() const;
+
   friend void ShowDsaGraph(Graph &g);
   /// view the Dsa graph using GraphViz. (For debugging.)
-  void viewGraph() { ShowDsaGraph(*this); }
+  void viewGraph();
 
   bool isFlat() const { return m_is_flat; }
+
+  void removeLinks(Node *n, std::function<bool(const Node *)> pred);
+
+  void removeNodes(std::function<bool(const Node *)> pred);
 };
 
 /**
@@ -338,6 +406,7 @@ class Node {
 public:
   struct NodeType {
     unsigned shadow : 1;
+    unsigned foreign : 1; // for internal use
     unsigned alloca : 1;
     unsigned heap : 1;
     unsigned global : 1;
@@ -358,8 +427,10 @@ public:
     unsigned null : 1;
 
     NodeType() { reset(); }
+
     void join(const NodeType &n) {
       shadow |= n.shadow;
+      foreign &= n.foreign;
       alloca |= n.alloca;
       heap |= n.heap;
       global |= n.global;
@@ -452,12 +523,16 @@ public:
   typedef NodeIterator<const Node> const_iterator;
   iterator begin();
   iterator end();
+
   const_iterator begin() const;
   const_iterator end() const;
 
   NodeType getNodeType() const { return m_nodeType; }
 
   const links_type &getLinks() const { return m_links; }
+
+private:
+  links_type &getLinks() { return m_links; }
 
 protected:
   class Offset;
@@ -506,10 +581,17 @@ private:
   Node(Graph &g, const Node &n, bool cpLinks = false, bool cpAllocSites = true);
 
   void compress() {
-    m_accessedTypes = accessed_types_type(m_accessedTypes.begin(),
-                                          m_accessedTypes.end());
-    m_links.shrink_to_fit();
-    m_alloca_sites.shrink_to_fit();
+    constexpr unsigned shrinkThreshold = 4;
+    if (m_accessedTypes.size() * shrinkThreshold <
+        m_accessedTypes.getMemorySize())
+      m_accessedTypes =
+          accessed_types_type(m_accessedTypes.begin(), m_accessedTypes.end());
+
+    if (m_links.size() * shrinkThreshold < m_links.capacity())
+      m_links.shrink_to_fit();
+
+    if (m_alloca_sites.size() * shrinkThreshold < m_alloca_sites.capacity())
+      m_alloca_sites.shrink_to_fit();
   }
   /// Unify a given node with a specified offset of the current node
   /// post-condition: the given node points to the current node.
@@ -615,6 +697,13 @@ public:
     return *this;
   }
   bool isTypeCollapsed() const { return m_nodeType.type_collapsed; }
+
+  bool isForeign() const { return m_nodeType.foreign; }
+
+  Node &setForeign(bool v = true) {
+    m_nodeType.foreign = v;
+    return *this;
+  }
 
   bool isUnique() const { return m_unique_scalar; }
   const llvm::Value *getUniqueScalar() const { return m_unique_scalar; }
@@ -737,7 +826,7 @@ public:
   void dump() const;
 
   // Shows the Dsa graph using GraphViz. (For debugging.)
-  void viewGraph() { getGraph()->viewGraph(); }
+  void viewGraph();
 };
 
 bool Node::isForwarding() const { return !m_forward.isNull(); }

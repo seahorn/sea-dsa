@@ -14,6 +14,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "sea_dsa/AllocWrapInfo.hh"
+#include "sea_dsa/CallGraphUtils.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Cloner.hh"
 #include "sea_dsa/Graph.hh"
@@ -24,6 +25,35 @@
 using namespace llvm;
 
 namespace sea_dsa {
+bool NoBUFlowSensitiveOpt;
+}
+
+static llvm::cl::opt<bool, true> XNoBUFlowSensitiveOpt(
+    "sea-dsa-no-bu-flow-sensitive-opt",
+    llvm::cl::desc("Disable partial flow sensitivity in bottom up"),
+    llvm::cl::location(sea_dsa::NoBUFlowSensitiveOpt), llvm::cl::init(false),
+    llvm::cl::Hidden);
+
+namespace sea_dsa {
+
+static const Value *findUniqueReturnValue(const Function &F) {
+  const Value *onlyRetVal = nullptr;
+
+  for (const auto &BB : F) {
+    auto *TI = BB.getTerminator();
+    auto *RI = dyn_cast<ReturnInst>(TI);
+    if (!RI)
+      continue;
+
+    const Value *rv = RI->getOperand(0)->stripPointerCastsNoFollowAliases();
+    if (onlyRetVal && onlyRetVal != rv)
+      return nullptr;
+
+    onlyRetVal = rv;
+  }
+
+  return onlyRetVal;
+}
 
 // Clone callee nodes into caller and resolve arguments
 void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
@@ -35,9 +65,19 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   assert(context.m_cs);
 
   // clone and unify globals
-  for (auto &kv :
-       llvm::make_range(calleeG.globals_begin(), calleeG.globals_end())) {
-    Node &n = C.clone(*kv.second->getNode());
+  for (auto &kv : calleeG.globals()) {
+    Node &calleeN = *kv.second->getNode();
+    // We don't care if globals got unified together, but have to respect the
+    // points-to relations introduced by the callee introduced.
+#if 0
+    if (!NoBUFlowSensitiveOpt)
+      if (calleeN.getNumLinks() == 0 || !calleeN.isModified() ||
+          llvm::isa<ConstantData>(kv.first))
+        continue;
+#endif
+
+    const Value &global = *kv.first;
+    Node &n = C.clone(calleeN, false, kv.first);
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
     nc.unify(c);
@@ -46,10 +86,19 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   // clone and unify return
   const Function &callee = *CS.getCallee();
   if (calleeG.hasRetCell(callee)) {
-    const Cell &ret = calleeG.getRetCell(callee);
-    Node &n = C.clone(*ret.getNode());
-    Cell c(n, ret.getRawOffset());
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
+
+    // Clone the return value directly, if we know that it corresponds to a
+    // single allocation site (e.g., return value of a malloc, a global, etv.).
+    const Value *onlyAllocSite = findUniqueReturnValue(callee);
+    if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
+      onlyAllocSite = nullptr;
+    if (NoBUFlowSensitiveOpt)
+      onlyAllocSite = nullptr;
+
+    const Cell &ret = calleeG.getRetCell(callee);
+    Node &n = C.clone(*ret.getNode(), false, onlyAllocSite);
+    Cell c(n, ret.getRawOffset());
     nc.unify(c);
   }
 
@@ -73,67 +122,9 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   callerG.compress();
 }
 
-template <typename Set>
-static void markReachableNodes(const Node *n, Set &set) {
-  if (!n)
-    return;
-  assert(!n->isForwarding() && "Cannot mark a forwarded node");
-
-  if (set.insert(n).second)
-    for (auto const &edg : n->links())
-      markReachableNodes(edg.second->getNode(), set);
-}
-
-template <typename Set>
-static void reachableNodes(const Function &fn, Graph &g, Set &inputReach,
-                           Set &retReach) {
-  // formal parameters
-  for (Function::const_arg_iterator I = fn.arg_begin(), E = fn.arg_end();
-       I != E; ++I) {
-    const Value &arg = *I;
-    if (g.hasCell(arg)) {
-      Cell &c = g.mkCell(arg, Cell());
-      markReachableNodes(c.getNode(), inputReach);
-    }
-  }
-
-  // globals
-  for (auto &kv : llvm::make_range(g.globals_begin(), g.globals_end()))
-    markReachableNodes(kv.second->getNode(), inputReach);
-
-  // return value
-  if (g.hasRetCell(fn))
-    markReachableNodes(g.getRetCell(fn).getNode(), retReach);
-}
-
-bool BottomUpAnalysis::checkAllNodesAreMapped(const Function &fn, Graph &fnG,
-                                              const SimulationMapper &sm) {
-
-  std::set<const Node *> reach;
-  std::set<const Node *> retReach /*unused*/;
-  reachableNodes(fn, fnG, reach, retReach);
-  for (const Node *n : reach) {
-
-    Cell callerC = sm.get(Cell(const_cast<Node *>(n), 0));
-    if (callerC.isNull()) {
-      errs() << "ERROR: callee node " << *n
-             << " not mapped to a caller node.\n";
-      return false;
-    }
-  }
-  return true;
-}
-
 bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
   LOG("dsa-bu", errs() << "Started bottom-up analysis ... \n");
-
-// Keep it true until implementation is stable
-#ifndef SANITY_CHECKS
-  const bool do_sanity_checks = true;
-#else
-  const bool do_sanity_checks = true;
-#endif
 
   LocalAnalysis la(m_dl, m_tli, m_allocInfo);
 
@@ -157,14 +148,16 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       graphs[fn] = fGraph;
     }
 
-    for (CallGraphNode *cgn : scc) {
+    std::vector<CallGraphNode *> cgns = call_graph_utils::SortedCGNs(scc);
+    for (CallGraphNode *cgn : cgns) {
       Function *fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty())
         continue;
 
       // -- resolve all function calls in the SCC
-      for (auto &callRecord : *cgn) {
-        ImmutableCallSite CS(callRecord.first);
+      auto callRecords = call_graph_utils::SortedCallSites(cgn);
+      for (auto *callRecord : callRecords) {
+        ImmutableCallSite CS(callRecord);
         DsaCallSite dsaCS(CS);
         const Function *callee = dsaCS.getCallee();
         if (!callee || callee->isDeclaration() || callee->empty())
@@ -176,43 +169,23 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
         Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
 
-        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape);
-      }
+        static int cnt = 0;
+        ++cnt;
+        LOG("dsa-bu", llvm::errs() << "BU #" << cnt << ": "
+                                   << dsaCS.getCaller()->getName() << " <- "
+                                   << dsaCS.getCallee()->getName() << "\n");
+        LOG("dsa-bu", llvm::errs()
+                          << "\tCallee size: " << calleeG.numNodes()
+                          << ", caller size:\t" << callerG.numNodes() << "\n");
+        LOG("dsa-bu", llvm::errs()
+                          << "\tCallee collapsed: " << calleeG.numCollapsed()
+                          << ", caller collapsed:\t" << callerG.numCollapsed()
+                          << "\n");
 
-      if (m_computeSimMap) {
-	// -- store the simulation maps from the SCC
-	for (auto &callRecord : *cgn) {
-	  ImmutableCallSite CS(callRecord.first);
-	  DsaCallSite dsaCS(CS);
-	  const Function *callee = dsaCS.getCallee();
-	  if (!callee || callee->isDeclaration() || callee->empty())
-	    continue;
-	  
-	  assert(graphs.count(dsaCS.getCaller()) > 0);
-	  assert(graphs.count(dsaCS.getCallee()) > 0);
-	  
-	  Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
-	  Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
-	  
-	  SimulationMapperRef sm(new SimulationMapper());
-	  bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
-						       *sm, do_sanity_checks);
-	  if (!res) {
-	    //continue;
-	    llvm_unreachable("Simulation mapping check failed");
-	  }
-	  m_callee_caller_map.insert(std::make_pair(dsaCS.getInstruction(), sm));
-	  
-	  if (do_sanity_checks) {
-	    // Check the simulation map is a function
-	    if (!sm->isFunction())
-	      errs() << "ERROR: simulation map for " << *dsaCS.getInstruction()
-		     << " is not a function!\n";
-	    // Check that all nodes in the callee are mapped to one
-	    // node in the caller graph
-	    checkAllNodesAreMapped(*callee, calleeG, *sm);
-	  }
-	}
+        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape);
+        LOG("dsa-bu", llvm::errs()
+                          << "\tCaller size after clone: " << callerG.numNodes()
+                          << ", collapsed: " << callerG.numCollapsed() << "\n");
       }
     }
 
@@ -220,12 +193,13 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       fGraph->compress();
   }
 
-  LOG("dsa-bu-graph", for (auto &kv
+  LOG(
+      "dsa-bu-graph", for (auto &kv
                            : graphs) {
-    errs() << "### Bottom-up Dsa graph for " << kv.first->getName() << "\n";
-    kv.second->write(errs());
-    errs() << "\n";
-  });
+        errs() << "### Bottom-up Dsa graph for " << kv.first->getName() << "\n";
+        kv.second->write(errs());
+        errs() << "\n";
+      });
 
   LOG("dsa-bu", errs() << "Finished bottom-up analysis\n");
   return false;
@@ -246,8 +220,7 @@ bool BottomUp::runOnModule(Module &M) {
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg,
-		      true /*sim map*/);
+  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg, true /*sim map*/);
   for (auto &F : M) { // XXX: the graphs must be created here
     if (F.isDeclaration() || F.empty())
       continue;

@@ -11,6 +11,8 @@ class Type;
 
 namespace sea_dsa {
 
+unsigned getTypeSizeInBytes(const llvm::Type &ty, const llvm::DataLayout &dl);
+
 struct SubTypeDesc {
   llvm::Type *Ty = nullptr;
   unsigned Bytes = 0;

@@ -41,6 +41,7 @@ public:
 
   bool isAllocWrapper(llvm::Function &) const;
   bool isDeallocWrapper(llvm::Function &) const;
+  const std::set<std::string> &getAllocWrapperNames() const { return m_allocs; }
 
   const llvm::TargetLibraryInfo &getTLI() const {
     assert(m_tli);

@@ -1,11 +1,11 @@
 #ifndef __DSA_LOCAL_HH_
 #define __DSA_LOCAL_HH_
 
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/DenseSet.h"
 
 #include "sea_dsa/Graph.hh"
 
