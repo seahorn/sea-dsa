@@ -29,18 +29,21 @@ private:
   const llvm::TargetLibraryInfo &m_tli;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
+  bool m_flowSensitiveOpt;
   bool m_noescape;
 
 public:
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &callerG,
-                                       Graph &calleeG, bool noescape = true);
+                                       Graph &calleeG, bool flowSensitiveOpt = true, 
+				       bool noescape = true);
 
   TopDownAnalysis(const llvm::DataLayout &dl,
                   const llvm::TargetLibraryInfo &tli,
                   const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
+		  bool flowSensitiveOpt = true,
                   bool noescape = true /* TODO: CLI*/)
       : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
-        m_noescape(noescape) {}
+        m_flowSensitiveOpt(flowSensitiveOpt), m_noescape(noescape) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 };

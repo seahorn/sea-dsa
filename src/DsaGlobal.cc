@@ -305,7 +305,8 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run bottom up analysis on the whole call graph
   //    and initialize worklist
-  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg);
+  const bool flowSensitiveOpt = false;
+  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg, flowSensitiveOpt);
   bu.runOnModule(M, m_graphs);
 
   // -- Compute simulation map so that we can identify which callsites
@@ -482,7 +483,10 @@ ContextSensitiveGlobalAnalysis::decidePropagation(const DsaCallSite &cs,
 void ContextSensitiveGlobalAnalysis::propagateTopDown(const DsaCallSite &cs,
                                                       Graph &callerG,
                                                       Graph &calleeG) {
-  TopDownAnalysis::cloneAndResolveArguments(cs, callerG, calleeG);
+
+  const bool flowSensitiveOpt = false;
+  const bool noescape = true;
+  TopDownAnalysis::cloneAndResolveArguments(cs, callerG, calleeG, flowSensitiveOpt, noescape);
 
   LOG("dsa-global", if (decidePropagation(cs, calleeG, callerG) == DOWN) {
     errs() << "Sanity check failed:"
@@ -495,7 +499,9 @@ void ContextSensitiveGlobalAnalysis::propagateTopDown(const DsaCallSite &cs,
 void ContextSensitiveGlobalAnalysis::propagateBottomUp(const DsaCallSite &cs,
                                                        Graph &calleeG,
                                                        Graph &callerG) {
-  BottomUpAnalysis::cloneAndResolveArguments(cs, calleeG, callerG);
+
+  const bool flowSensitiveOpt = false;  
+  BottomUpAnalysis::cloneAndResolveArguments(cs, calleeG, callerG, flowSensitiveOpt);
 
   LOG("dsa-global", if (decidePropagation(cs, calleeG, callerG) == UP) {
     errs() << "Sanity check failed:"
