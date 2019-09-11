@@ -57,8 +57,7 @@ static const Value *findUniqueReturnValue(const Function &F) {
 
 // Clone callee nodes into caller and resolve arguments
 void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
-                                                Graph &calleeG, Graph &callerG,
-                                                bool noescape) {
+                                                Graph &calleeG, Graph &callerG) {
   CloningContext context(*CS.getInstruction(), CloningContext::BottomUp);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(callerG, context, options);
@@ -182,7 +181,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << ", caller collapsed:\t" << callerG.numCollapsed()
                           << "\n");
 
-        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape);
+        cloneAndResolveArguments(dsaCS, calleeG, callerG);
         LOG("dsa-bu", llvm::errs()
                           << "\tCaller size after clone: " << callerG.numNodes()
                           << ", collapsed: " << callerG.numCollapsed() << "\n");
@@ -220,7 +219,7 @@ bool BottomUp::runOnModule(Module &M) {
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg, true /*sim map*/);
+  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg);
   for (auto &F : M) { // XXX: the graphs must be created here
     if (F.isDeclaration() || F.empty())
       continue;

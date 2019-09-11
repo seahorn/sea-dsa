@@ -34,20 +34,16 @@ private:
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
 
-  // true if assume that alloca allocated (stack) memory does not escape
-  bool m_noescape;
 
 public:
 
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &calleeG,
-                                       Graph &callerG, bool noescape = true);
+                                       Graph &callerG);
 
   BottomUpAnalysis(const llvm::DataLayout &dl,
                    const llvm::TargetLibraryInfo &tli,
-                   const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-                   bool noescape = true /* TODO: CLI*/)
-      : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
-	m_noescape(noescape) {}
+                   const AllocWrapInfo &allocInfo, llvm::CallGraph &cg)
+      : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg){}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 };
