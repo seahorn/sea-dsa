@@ -76,7 +76,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
 #endif
 
     const Value &global = *kv.first;
-    Node &n = C.clone(calleeN, false, kv.first);
+    Node &n = C.clone(calleeN, false, (NoBUFlowSensitiveOpt ? nullptr : kv.first));
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
     nc.unify(c);
