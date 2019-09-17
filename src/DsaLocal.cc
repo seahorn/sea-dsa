@@ -30,7 +30,7 @@ namespace llvm {
 
 static llvm::cl::opt<bool>
     TrustArgumentTypes("sea-dsa-trust-args",
-                       llvm::cl::desc("Trust function argument types"),
+                       llvm::cl::desc("Trust function argument types in SeaDsa Local analysis"),
                        llvm::cl::init(true));
 
 // borrowed from SeaHorn
@@ -1288,4 +1288,4 @@ const Graph &Local::getGraph(const Function &F) const {
 char sea_dsa::Local::ID = 0;
 
 static llvm::RegisterPass<sea_dsa::Local>
-    X("seadsa-local", "Flow-insensitive, intra-procedural dsa analysis");
+    X("seadsa-local", "Flow-insensitive, intra-procedural SeaDsa analysis");

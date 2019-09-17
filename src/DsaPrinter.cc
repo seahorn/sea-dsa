@@ -20,13 +20,13 @@ std::string DotOutputDir;
 
 static llvm::cl::opt<std::string, true>
 XDotOutputDir("sea-dsa-dot-outdir",
-	   llvm::cl::desc("DSA: output directory for dot files"),
+	   llvm::cl::desc("Output directory for dot files"),
 	   llvm::cl::location(sea_dsa::DotOutputDir),
 	   llvm::cl::init(""), llvm::cl::value_desc("DIR"));
 
 static llvm::cl::opt<bool>
     PrintAllocSites("sea-dsa-dot-print-as",
-                    llvm::cl::desc("Print allocation sites for DSA nodes"),
+                    llvm::cl::desc("Print allocation sites for SeaDsa nodes"),
                     llvm::cl::init(false));
 
 using namespace llvm;
@@ -725,7 +725,7 @@ struct DsaViewer : public ModulePass {
   }
 
   StringRef getPassName() const override 
-  { return "SeaHorn Dsa graph viewer"; }
+  { return "SeaDsa graph viewer"; }
 
 };
 
@@ -739,7 +739,7 @@ Pass *createDsaViewerPass() { return new sea_dsa::DsaViewer(); }
 } // end namespace sea_dsa
 
 static llvm::RegisterPass<sea_dsa::DsaPrinter> X("seadsa-printer",
-                                                 "Print memory graphs");
+                                                 "Print SeaDsa memory graphs");
 
 static llvm::RegisterPass<sea_dsa::DsaViewer> Y("seadsa-viewer",
-                                                "View memory graphs");
+                                                "View SeaDsa memory graphs");

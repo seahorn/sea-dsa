@@ -246,4 +246,4 @@ char BottomUp::ID = 0;
 } // namespace sea_dsa
 
 static llvm::RegisterPass<sea_dsa::BottomUp> X("seadsa-bu",
-                                               "Bottom-up DSA pass");
+                                               "Bottom-up SeaDsa pass");

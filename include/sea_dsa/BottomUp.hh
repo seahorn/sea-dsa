@@ -69,7 +69,7 @@ public:
 
   bool runOnModule(llvm::Module &M) override;
 
-  llvm::StringRef getPassName() const override { return "BottomUp DSA pass"; }
+  llvm::StringRef getPassName() const override { return "BottomUp SeaDsa pass"; }
 
   Graph &getGraph(const llvm::Function &F) const;
   bool hasGraph(const llvm::Function &F) const;

@@ -52,7 +52,7 @@ public:
 
   bool runOnFunction(llvm::Function &F);
 
-  llvm::StringRef getPassName() const override { return "Dsa local pass"; }
+  llvm::StringRef getPassName() const override { return "SeaDsa local pass"; }
 
   bool hasGraph(const llvm::Function &F) const;
 

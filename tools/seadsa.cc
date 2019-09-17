@@ -38,17 +38,17 @@ DefaultDataLayout("data-layout",
 
 static llvm::cl::opt<bool>
 MemDot("sea-dsa-dot",
-       llvm::cl::desc("Print memory graph of each function to dot format"),
+       llvm::cl::desc("Print SeaDsa memory graph of each function to dot format"),
        llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
 MemViewer("sea-dsa-viewer",
-	  llvm::cl::desc("View memory graph of each function to dot format"),
+	  llvm::cl::desc("View SeaDsa memory graph of each function to dot format"),
 	  llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
 CallGraphDot("sea-dsa-callgraph-dot",
-	     llvm::cl::desc("Print call graph computed by sea-dsa to dot format"),
+	     llvm::cl::desc("Print SeaDsa complete call graph to dot format"),
 	     llvm::cl::init(false));
 
 namespace sea_dsa {

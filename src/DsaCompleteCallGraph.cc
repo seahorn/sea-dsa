@@ -627,4 +627,4 @@ char CompleteCallGraph::ID = 0;
 } // namespace sea_dsa
 
 static llvm::RegisterPass<sea_dsa::CompleteCallGraph>
-    X("seadsa-complete-callgraph", "Construct DSA call graph pass");
+    X("seadsa-complete-callgraph", "Construct SeaDsa call graph pass");
