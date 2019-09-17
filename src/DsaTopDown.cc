@@ -40,6 +40,7 @@ namespace sea_dsa {
 // BottomUp. They should be merged at some point.
 void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
                                                Graph &callerG, Graph &calleeG,
+					       bool flowSensitiveOpt,
                                                bool noescape) {
   CloningContext context(*cs.getInstruction(), CloningContext::TopDown);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
@@ -53,13 +54,14 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
         continue;
 
 #if 0
-    if (!NoTDFlowSensitiveOpt)
+    if (flowSensitiveOpt)
       if (!kv.second->isModified())
         continue;
 #endif
 
     // Copy only the allocation site that matches the global.
-    Node &n = C.clone(*kv.second->getNode(), false, kv.first);
+    Node &n = C.clone(*kv.second->getNode(), false,
+		      (!flowSensitiveOpt ? nullptr: kv.first));
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
     nc.unify(c);
@@ -98,7 +100,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
       onlyAllocSite = argStripped;
     }
 
-    if (NoTDFlowSensitiveOpt)
+    if (!flowSensitiveOpt)
       onlyAllocSite = nullptr;
 
     const Cell &callerCell = callerG.getCell(*arg);
@@ -197,19 +199,19 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << "\tCallee collapsed: " << calleeG.numCollapsed()
                           << ", caller collapsed:\t" << callerG.numCollapsed()
                           << "\n");
+	
         // propagate from the caller to the callee
-        cloneAndResolveArguments(*dsaCS, callerG, calleeG, m_noescape);
-        // remove foreign nodes
+        cloneAndResolveArguments(*dsaCS, callerG, calleeG,
+				 m_flowSensitiveOpt & !NoTDFlowSensitiveOpt,
+				 m_noescape);
 
+        // remove foreign nodes
         if (!NoTDCopyingOpt)
           calleeG.removeNodes([](const Node *n) { return n->isForeign(); });
 
         LOG("dsa-td", llvm::errs()
                           << "\tCallee size after clone: " << calleeG.numNodes()
                           << ", collapsed: " << calleeG.numCollapsed() << "\n");
-        // if (cnt == 38) {
-        //   calleeG.viewGraph();
-        // }
       }
     }
   }

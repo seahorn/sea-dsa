@@ -219,7 +219,8 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   LOG("dsa-callgraph",
       errs() << "Started construction of complete call graph ... \n");
 
-  LocalAnalysis la(m_dl, m_tli, m_allocInfo);
+  const bool track_callsites = true;
+  LocalAnalysis la(m_dl, m_tli, m_allocInfo, track_callsites);
 
   // Given a callsite, inline the callee's graph into the caller's graph.
   auto inlineCallee = [&graphs, this](DsaCallSite &dsaCS, unsigned numIter,
@@ -626,4 +627,4 @@ char CompleteCallGraph::ID = 0;
 } // namespace sea_dsa
 
 static llvm::RegisterPass<sea_dsa::CompleteCallGraph>
-    X("seadsa-complete-callgraph", "Construct DSA call graph pass");
+    X("seadsa-complete-callgraph", "Construct SeaDsa call graph pass");

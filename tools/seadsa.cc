@@ -36,28 +36,24 @@ DefaultDataLayout("data-layout",
         llvm::cl::desc("data layout string to use if not specified by module"),
         llvm::cl::init(""), llvm::cl::value_desc("layout-string"));
 
-static llvm::cl::opt<bool> 
-PrintDsaStats ("dsa-stats",
-               llvm::cl::desc ("Print Dsa statistics"), 
-               llvm::cl::init(false));
-
 static llvm::cl::opt<bool>
 MemDot("sea-dsa-dot",
-       llvm::cl::desc("Print memory graph of each function to dot format"),
+       llvm::cl::desc("Print SeaDsa memory graph of each function to dot format"),
        llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
 MemViewer("sea-dsa-viewer",
-	  llvm::cl::desc("View memory graph of each function to dot format"),
+	  llvm::cl::desc("View SeaDsa memory graph of each function to dot format"),
 	  llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
 CallGraphDot("sea-dsa-callgraph-dot",
-	     llvm::cl::desc("Print call graph computed by sea-dsa to dot format"),
+	     llvm::cl::desc("Print SeaDsa complete call graph to dot format"),
 	     llvm::cl::init(false));
 
 namespace sea_dsa {
   SeaDsaLogOpt loc;
+  extern bool PrintDsaStats;
 }
 
 static llvm::cl::opt<sea_dsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string> > 
@@ -141,7 +137,7 @@ int main(int argc, char **argv) {
     pass_manager.add (sea_dsa::createDsaViewerPass ());
   }
   
-  if (PrintDsaStats) {
+  if (sea_dsa::PrintDsaStats) {
     pass_manager.add (sea_dsa::createDsaPrintStatsPass ());
   }
   
@@ -149,8 +145,9 @@ int main(int argc, char **argv) {
     pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
   }
 
-  if (!MemDot && !MemViewer && !PrintDsaStats && !CallGraphDot) {
-    llvm::errs() << "No option selected: choose one option\n";
+  if (!MemDot && !MemViewer && !sea_dsa::PrintDsaStats && !CallGraphDot) {
+    llvm::errs() << "No option selected: choose one option between "
+		 << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, sea-dsa-callgraph-dot}\n";
   }
   
   if (!AsmOutputFilename.empty ())

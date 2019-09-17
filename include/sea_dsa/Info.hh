@@ -202,7 +202,7 @@ namespace sea_dsa {
     bool runOnModule (llvm::Module &M) override;
     
     llvm::StringRef getPassName() const override 
-    { return "SeaHorn Dsa Info pass"; }
+    { return "Extract stats from SeaDsa analysis"; }
     
     DsaInfo& getDsaInfo ();
   };

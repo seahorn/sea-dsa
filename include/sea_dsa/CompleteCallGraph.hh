@@ -89,7 +89,7 @@ public:
 
   bool runOnModule(llvm::Module &M) override;
 
-  llvm::StringRef getPassName() const override { return "Complete Call Graph DSA pass"; }
+  llvm::StringRef getPassName() const override { return "Complete Call Graph SeaDsa pass"; }
 
   llvm::CallGraph& getCompleteCallGraph();
   

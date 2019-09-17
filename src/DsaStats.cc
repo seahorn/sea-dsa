@@ -3,10 +3,10 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "sea_dsa/DsaAnalysis.hh"
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Stats.hh"
-// #include "ufo/Stats.hh"
 
 namespace sea_dsa {
 
@@ -21,8 +21,6 @@ namespace sea_dsa {
 
     o << " --- Memory access information\n";
     for (auto const &n: nodes) { total_accesses += n.getAccesses(); }
-
-    // ufo::Stats::uset ("DsaNumOfNodes", std::distance (nodes.begin () , nodes.end ()));
 
     o << "\t" << std::distance(nodes.begin(), nodes.end())
       << " number of read or modified nodes.\n"
@@ -147,11 +145,11 @@ namespace sea_dsa {
     auto dsa_nodes = m_dsa.live_nodes();
     auto const &dsa_alloc_sites = m_dsa.alloc_sites();
     
-    errs() << " ========== Begin SeaDsa info  ==========\n";
+    errs() << " ========== Begin SeaDsa stats  ==========\n";
     printMemAccesses(dsa_nodes, errs());
     printMemTypes(dsa_nodes, errs());
     printAllocSites(dsa_nodes, dsa_alloc_sites, errs());
-    errs() << " ========== End SeaDsa info  ==========\n";
+    errs() << " ========== End SeaDsa stats  ==========\n";
   }
   
 
@@ -163,18 +161,21 @@ namespace sea_dsa {
     DsaPrintStatsPass(): ModulePass (ID) {}
     
     void getAnalysisUsage(AnalysisUsage &AU) const override {
-      AU.addRequired<DsaInfoPass>();
+      AU.addRequired<DsaAnalysis>();
       AU.setPreservesAll();
     }
     
     bool runOnModule(Module &M) override {
-      DsaPrintStats p(getAnalysis<DsaInfoPass>().getDsaInfo());
-      p.runOnModule(M);
+      /// XXX: we don't do anything here. The pass manager already
+      /// executed DsaAnalysis which prints stats if PrintDsaStats is
+      /// enabled. This pass (DsaPrintStatsPass) is only called if
+      /// PrintDsaStats is enabled.
+      
       return false;
     }
   
     StringRef getPassName() const override 
-    { return "Print Stats about SeaHorn Dsa"; }
+    { return "Print Stats about SeaDsa"; }
     
   };
 
@@ -187,4 +188,4 @@ namespace sea_dsa {
 } // end namespace sea_dsa
 
 static llvm::RegisterPass<sea_dsa::DsaPrintStatsPass> 
-X ("seadsa-stats", "Print stats about memory graphs");
+X ("seadsa-stats", "Print stats about SeaDsa");

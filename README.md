@@ -126,7 +126,7 @@ human-readable format.
 
 2. Run `sea-dsa` on the bitcode and print memory graphs to [dot](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) format:
 
-	    sea-dsa -sea-dsa=butd-cs -sea-dsa-type-aware -sea-dsa-dot  simple.ll
+	    seadsa -sea-dsa=butd-cs -sea-dsa-type-aware -sea-dsa-dot  simple.ll
 
 The options `-sea-dsa=butd-cs -sea-dsa-type-aware` enable the analysis
 implemented in our FMCAD'19 paper (see References). This command will

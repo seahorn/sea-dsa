@@ -34,7 +34,7 @@ struct DsaCallGraphPrinter: public llvm::ModulePass {
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   virtual llvm::StringRef getPassName() const override {
-    return "Print sea-dsa call graph to dot format";
+    return "Print SeaDsa call graph to dot format";
   }
 };
 
@@ -88,7 +88,7 @@ Pass *createDsaCallGraphPrinterPass() {
 
 
 static llvm::RegisterPass<sea_dsa::DsaCallGraphPrinter>
-X("seadsa-callgraph-printer", "Print the sea-dsa call graph to dot format");
+X("seadsa-callgraph-printer", "Print the SeaDsa call graph to dot format");
 
 
   

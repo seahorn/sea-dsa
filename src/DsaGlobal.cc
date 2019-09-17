@@ -32,17 +32,17 @@
 
 static llvm::cl::opt<bool> normalizeUniqueScalars(
     "sea-dsa-norm-unique-scalar",
-    llvm::cl::desc("DSA: all callees and callers agree on unique scalars"),
+    llvm::cl::desc("SeaDsa: all callees and callers agree on unique scalars"),
     llvm::cl::init(true), llvm::cl::Hidden);
 
 static llvm::cl::opt<bool> normalizeAllocaSites(
     "sea-dsa-norm-alloca-sites",
-    llvm::cl::desc("DSA: all callees and callers agree on allocation sites"),
+    llvm::cl::desc("SeaDsa: all callees and callers agree on allocation sites"),
     llvm::cl::init(true), llvm::cl::Hidden);
 
 static llvm::cl::opt<bool> UseDsaCallGraph(
     "sea-dsa-devirt",
-    llvm::cl::desc("Build a complete call graph before running dsa analyses"),
+    llvm::cl::desc("Build a complete call graph before running SeaDsa analyses"),
     llvm::cl::init(false));
 
 using namespace llvm;
@@ -305,7 +305,8 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run bottom up analysis on the whole call graph
   //    and initialize worklist
-  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg);
+  const bool flowSensitiveOpt = false;
+  BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg, flowSensitiveOpt);
   bu.runOnModule(M, m_graphs);
 
   // -- Compute simulation map so that we can identify which callsites
@@ -482,7 +483,10 @@ ContextSensitiveGlobalAnalysis::decidePropagation(const DsaCallSite &cs,
 void ContextSensitiveGlobalAnalysis::propagateTopDown(const DsaCallSite &cs,
                                                       Graph &callerG,
                                                       Graph &calleeG) {
-  TopDownAnalysis::cloneAndResolveArguments(cs, callerG, calleeG);
+
+  const bool flowSensitiveOpt = false;
+  const bool noescape = true;
+  TopDownAnalysis::cloneAndResolveArguments(cs, callerG, calleeG, flowSensitiveOpt, noescape);
 
   LOG("dsa-global", if (decidePropagation(cs, calleeG, callerG) == DOWN) {
     errs() << "Sanity check failed:"
@@ -495,7 +499,9 @@ void ContextSensitiveGlobalAnalysis::propagateTopDown(const DsaCallSite &cs,
 void ContextSensitiveGlobalAnalysis::propagateBottomUp(const DsaCallSite &cs,
                                                        Graph &calleeG,
                                                        Graph &callerG) {
-  BottomUpAnalysis::cloneAndResolveArguments(cs, calleeG, callerG);
+
+  const bool flowSensitiveOpt = false;  
+  BottomUpAnalysis::cloneAndResolveArguments(cs, calleeG, callerG, flowSensitiveOpt);
 
   LOG("dsa-global", if (decidePropagation(cs, calleeG, callerG) == UP) {
     errs() << "Sanity check failed:"
@@ -908,16 +914,16 @@ char sea_dsa::BottomUpTopDownGlobalPass::ID = 0;
 char sea_dsa::BottomUpGlobalPass::ID = 0;
 
 static llvm::RegisterPass<sea_dsa::FlatMemoryGlobalPass>
-    U("seadsa-flat-global", "Flat memory Dsa analysis");
+    U("seadsa-flat-global", "Flat memory SeaDsa analysis");
 
 static llvm::RegisterPass<sea_dsa::ContextInsensitiveGlobalPass>
-    X("seadsa-ci-global", "Context-insensitive Dsa analysis");
+    X("seadsa-ci-global", "Context-insensitive SeaDsa analysis");
 
 static llvm::RegisterPass<sea_dsa::ContextSensitiveGlobalPass>
-    Y("seadsa-cs-global", "Context-sensitive Dsa analysis");
+    Y("seadsa-cs-global", "Context-sensitive SeaDsa analysis");
 
 static llvm::RegisterPass<sea_dsa::BottomUpTopDownGlobalPass>
-    Z("seadsa-butd-global", "Bottom-up + top-down Dsa analysis");
+    Z("seadsa-butd-global", "Bottom-up + top-down SeaDsa analysis");
 
 static llvm::RegisterPass<sea_dsa::BottomUpGlobalPass>
-    W("seadsa-bu-global", "Bottom-up Dsa analysis");
+    W("seadsa-bu-global", "Bottom-up SeaDsa analysis");

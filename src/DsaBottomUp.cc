@@ -58,26 +58,26 @@ static const Value *findUniqueReturnValue(const Function &F) {
 // Clone callee nodes into caller and resolve arguments
 void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
                                                 Graph &calleeG, Graph &callerG,
-                                                bool noescape) {
+						bool flowSensitiveOpt) {
   CloningContext context(*CS.getInstruction(), CloningContext::BottomUp);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(callerG, context, options);
   assert(context.m_cs);
-
+  
   // clone and unify globals
   for (auto &kv : calleeG.globals()) {
     Node &calleeN = *kv.second->getNode();
     // We don't care if globals got unified together, but have to respect the
     // points-to relations introduced by the callee introduced.
 #if 0
-    if (!NoBUFlowSensitiveOpt)
+    if (flowSensitiveOpt)
       if (calleeN.getNumLinks() == 0 || !calleeN.isModified() ||
           llvm::isa<ConstantData>(kv.first))
         continue;
 #endif
 
     const Value &global = *kv.first;
-    Node &n = C.clone(calleeN, false, kv.first);
+    Node &n = C.clone(calleeN, false, (!flowSensitiveOpt ? nullptr : kv.first));
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
     nc.unify(c);
@@ -93,7 +93,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     const Value *onlyAllocSite = findUniqueReturnValue(callee);
     if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
       onlyAllocSite = nullptr;
-    if (NoBUFlowSensitiveOpt)
+    if (!flowSensitiveOpt)
       onlyAllocSite = nullptr;
 
     const Cell &ret = calleeG.getRetCell(callee);
@@ -182,7 +182,9 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << ", caller collapsed:\t" << callerG.numCollapsed()
                           << "\n");
 
-        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_noescape);
+        cloneAndResolveArguments(dsaCS, calleeG, callerG,
+				 m_flowSensitiveOpt && !NoBUFlowSensitiveOpt);
+	
         LOG("dsa-bu", llvm::errs()
                           << "\tCaller size after clone: " << callerG.numNodes()
                           << ", collapsed: " << callerG.numCollapsed() << "\n");
@@ -220,7 +222,7 @@ bool BottomUp::runOnModule(Module &M) {
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg, true /*sim map*/);
+  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg);
   for (auto &F : M) { // XXX: the graphs must be created here
     if (F.isDeclaration() || F.empty())
       continue;
@@ -244,4 +246,4 @@ char BottomUp::ID = 0;
 } // namespace sea_dsa
 
 static llvm::RegisterPass<sea_dsa::BottomUp> X("seadsa-bu",
-                                               "Bottom-up DSA pass");
+                                               "Bottom-up SeaDsa pass");

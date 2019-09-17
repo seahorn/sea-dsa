@@ -1,4 +1,4 @@
-; RUN: %seadsa  %ci_dsa --sea-dsa-dot %s --dsa-stats --sea-dsa-dot-outdir=%T/test-2.ci.ll
+; RUN: %seadsa  %ci_dsa --sea-dsa-dot %s --sea-dsa-stats --sea-dsa-dot-outdir=%T/test-2.ci.ll
 ; RUN: %cmp-graphs %tests/test-2.ci.c.main.mem.dot %T/test-2.ci.ll/main.mem.dot | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 

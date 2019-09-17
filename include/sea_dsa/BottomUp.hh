@@ -33,21 +33,19 @@ private:
   const llvm::TargetLibraryInfo &m_tli;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
-
-  // true if assume that alloca allocated (stack) memory does not escape
-  bool m_noescape;
+  bool m_flowSensitiveOpt;
 
 public:
 
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &calleeG,
-                                       Graph &callerG, bool noescape = true);
+                                       Graph &callerG, bool flowSensitiveOpt = true);
 
   BottomUpAnalysis(const llvm::DataLayout &dl,
                    const llvm::TargetLibraryInfo &tli,
                    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-                   bool noescape = true /* TODO: CLI*/)
-      : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
-	m_noescape(noescape) {}
+		   bool flowSensitiveOpt = true)
+    : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
+      m_flowSensitiveOpt(flowSensitiveOpt) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 };
@@ -71,7 +69,7 @@ public:
 
   bool runOnModule(llvm::Module &M) override;
 
-  llvm::StringRef getPassName() const override { return "BottomUp DSA pass"; }
+  llvm::StringRef getPassName() const override { return "BottomUp SeaDsa pass"; }
 
   Graph &getGraph(const llvm::Function &F) const;
   bool hasGraph(const llvm::Function &F) const;

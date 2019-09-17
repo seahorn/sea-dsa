@@ -260,7 +260,7 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
   llvm::StringRef getPassName() const override {
-    return "Flat memory Dsa pass";
+    return "Flat memory SeaDsa pass";
   }
 
   GlobalAnalysis &getGlobalAnalysis() override {
@@ -284,7 +284,7 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
   llvm::StringRef getPassName() const override {
-    return "Context-insensitive Dsa global pass";
+    return "Context-insensitive SeaDsa global pass";
   }
 
   GlobalAnalysis &getGlobalAnalysis() override {
@@ -307,7 +307,7 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
   llvm::StringRef getPassName() const override {
-    return "Context sensitive global DSA pass";
+    return "Context sensitive global SeaDSA pass for VC generation";
   }
 
   GlobalAnalysis &getGlobalAnalysis() override {
@@ -330,7 +330,7 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
   llvm::StringRef getPassName() const override {
-    return "Bottom-up + Top-down DSA passes";
+    return "Bottom-up + Top-down SeaDsa passes";
   }
 
   GlobalAnalysis &getGlobalAnalysis() override {
@@ -353,7 +353,7 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
   llvm::StringRef getPassName() const override {
-    return "Bottom-up pass";
+    return "Bottom-up SeaDsa pass";
   }
 
   GlobalAnalysis &getGlobalAnalysis() override {
