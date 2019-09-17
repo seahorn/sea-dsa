@@ -287,7 +287,10 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
 class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
                           BlockBuilderBase {
   friend class InstVisitor<IntraBlockBuilder>;
-
+  
+  // -- whether or not create a cell for an indirect callee
+  bool m_track_callsites;
+  
   void visitAllocaInst(AllocaInst &AI);
   void visitSelectInst(SelectInst &SI);
   void visitLoadInst(LoadInst &LI);
@@ -325,8 +328,10 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 public:
   IntraBlockBuilder(Function &func, sea_dsa::Graph &graph, const DataLayout &dl,
                     const TargetLibraryInfo &tli,
-                    const sea_dsa::AllocWrapInfo &allocInfo)
-      : BlockBuilderBase(func, graph, dl, tli, allocInfo) {}
+                    const sea_dsa::AllocWrapInfo &allocInfo,
+		    bool track_callsites)
+    : BlockBuilderBase(func, graph, dl, tli, allocInfo),
+      m_track_callsites(track_callsites) {}
 };
 
 sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
@@ -881,7 +886,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
       }
     }
   
-    if (CS.isIndirectCall()) {
+    if (m_track_callsites && CS.isIndirectCall()) {
       const Value &calledV = *(CS.getCalledValue());
       if (m_graph.hasCell(calledV)) {
 	Cell calledC = m_graph.getCell(calledV);
@@ -1198,7 +1203,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
     globalBuilder.initGlobalVariables();
   }
   
-  IntraBlockBuilder intraBuilder(F, g, m_dl, m_tli, m_allocInfo);
+  IntraBlockBuilder intraBuilder(F, g, m_dl, m_tli, m_allocInfo, m_track_callsites);
   InterBlockBuilder interBuilder(F, g, m_dl, m_tli, m_allocInfo);
   for (const BasicBlock *bb : bbs)
     intraBuilder.visit(*const_cast<BasicBlock *>(bb));

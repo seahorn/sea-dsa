@@ -21,11 +21,13 @@ class LocalAnalysis {
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
   const sea_dsa::AllocWrapInfo &m_allocInfo;
+  bool m_track_callsites;
 
 public:
   LocalAnalysis(const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
-                const AllocWrapInfo &allocInfo)
-      : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo) {}
+                const AllocWrapInfo &allocInfo, bool track_callsites = false)
+    : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo),
+      m_track_callsites(track_callsites) {}
 
   void runOnFunction(llvm::Function &F, Graph &g);
 };
