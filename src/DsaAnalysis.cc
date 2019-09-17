@@ -31,9 +31,14 @@ static llvm::cl::opt<sea_dsa::GlobalAnalysisKind> DsaGlobalAnalysis(
         clEnumValN(FLAT_MEMORY, "flat", "Flat memory")),
     llvm::cl::init(CONTEXT_SENSITIVE));
 
-static llvm::cl::opt<bool>
-    DsaStats("sea-dsa-stats", llvm::cl::desc("Print stats about Dsa analysis"),
-             llvm::cl::init(false));
+namespace sea_dsa {
+bool PrintDsaStats;
+}
+
+static llvm::cl::opt<bool, true>
+XDsaStats("sea-dsa-stats", llvm::cl::desc("Print stats about Dsa analysis"),
+	  llvm::cl::location(sea_dsa::PrintDsaStats),
+	  llvm::cl::init(false));
 
 void DsaAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<RemovePtrToInt>();
@@ -95,7 +100,7 @@ bool DsaAnalysis::runOnModule(Module &M) {
 
   m_ga->runOnModule(M);
 
-  if (DsaStats) {
+  if (XDsaStats) {
     DsaInfo i(*m_dl, *m_tli, getDsaAnalysis());
     i.runOnModule(M);
     DsaPrintStats p(i);

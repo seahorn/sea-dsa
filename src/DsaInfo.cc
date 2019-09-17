@@ -16,13 +16,13 @@
 static llvm::cl::opt<std::string> DsaToCsv(
     "sea-dsa-to-csv",
     llvm::cl::desc(
-        "DSA: print pairs of allocation site and Dsa node into a CSV file"),
+        "SeaDsa: print pairs of allocation site and Dsa node into a CSV file"),
     llvm::cl::init(""), llvm::cl::Hidden);
 
 static llvm::cl::opt<std::string>
 AllocasToFile("sea-dsa-allocas-to-file",
-    llvm::cl::desc ("DSA: print allocation sites into a file"),
-                  llvm::cl::init(""), llvm::cl::Hidden);
+	      llvm::cl::desc ("SeaDsa: print allocation sites into a file"),
+	      llvm::cl::init(""), llvm::cl::Hidden);
 
 using namespace sea_dsa;
 using namespace llvm;
@@ -505,4 +505,4 @@ Pass *createDsaInfoPass() { return new sea_dsa::DsaInfoPass(); }
 char sea_dsa::DsaInfoPass::ID = 0;
 
 static llvm::RegisterPass<sea_dsa::DsaInfoPass> 
-X ("seadsa-info", "Gather info about DSA memory graphs");
+X ("seadsa-info", "Gather info about SeaDsa memory graphs");
