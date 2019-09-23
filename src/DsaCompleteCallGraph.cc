@@ -608,7 +608,7 @@ bool CompleteCallGraph::runOnModule(Module &M) {
     m_graphs[&F] = fGraph;
   }
   bool res = ccga.runOnModule(M, m_graphs);
-  m_complete_cg = std::move(ccga.getCompleteCallGraph());
+  m_complete_cg = ccga.getCompleteCallGraph();
   return res;
 }
 
