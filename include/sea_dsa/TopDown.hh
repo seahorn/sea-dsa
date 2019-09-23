@@ -9,14 +9,10 @@
 #include "sea_dsa/Graph.hh"
 
 namespace llvm {
-class DataLayout;
-class TargetLibraryInfo;
 class CallGraph;
 } // namespace llvm
 
 namespace sea_dsa {
-
-class AllocWrapInfo;
 
 class TopDownAnalysis {
 
@@ -25,9 +21,6 @@ public:
   typedef llvm::DenseMap<const llvm::Function *, GraphRef> GraphMap;
 
 private:
-  const llvm::DataLayout &m_dl;
-  const llvm::TargetLibraryInfo &m_tli;
-  const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   bool m_flowSensitiveOpt;
   bool m_noescape;
@@ -37,12 +30,10 @@ public:
                                        Graph &calleeG, bool flowSensitiveOpt = true, 
 				       bool noescape = true);
 
-  TopDownAnalysis(const llvm::DataLayout &dl,
-                  const llvm::TargetLibraryInfo &tli,
-                  const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
+  TopDownAnalysis(llvm::CallGraph &cg,
 		  bool flowSensitiveOpt = true,
                   bool noescape = true /* TODO: CLI*/)
-      : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
+      : m_cg(cg),
         m_flowSensitiveOpt(flowSensitiveOpt), m_noescape(noescape) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);

@@ -590,7 +590,7 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run top down analysis on the whole call graph: callers before
   // -- callees.
-  TopDownAnalysis td(m_dl, m_tli, m_allocInfo, m_cg);
+  TopDownAnalysis td(m_cg);
   td.runOnModule(M, m_graphs);
 
   // Removing dead nodes (if any)

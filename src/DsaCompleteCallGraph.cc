@@ -156,7 +156,6 @@ void CompleteCallGraphAnalysis::cloneAndResolveArgumentsAndCallSites(
         continue;
 #endif
 
-    const Value &global = *kv.first;
     Node &n = C.clone(calleeN, false, kv.first);
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());

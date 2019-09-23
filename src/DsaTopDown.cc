@@ -123,7 +123,6 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   // SCC iterator on the Inverse graph but it requires to implement
   // some wrappers around CallGraph. Instead, we store the postorder
   // SCC in a vector and traverse in reversed order.
-  using scc_iterator_t = scc_iterator<CallGraph *>;
   using scc_t = std::vector<typename GraphTraits<CallGraph *>::NodeRef>;
 
   const size_t totalFunctions = M.getFunctionList().size();

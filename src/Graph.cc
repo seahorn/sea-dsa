@@ -1120,14 +1120,14 @@ bool Graph::hasCell(const llvm::Value &u) const {
       (isa<Argument>(&v) && m_formals.count(cast<const Argument>(&v)) > 0);
 }
 
-static bool isIntToPtrConstant(const llvm::Value &v) {
-  if (auto *inttoptr = dyn_cast<ConstantExpr>(&v)) {
-    if (inttoptr->getOpcode() == Instruction::IntToPtr) {
-      return true;
-    }
-  }
-  return false;
-}
+// static bool isIntToPtrConstant(const llvm::Value &v) {
+//   if (auto *inttoptr = dyn_cast<ConstantExpr>(&v)) {
+//     if (inttoptr->getOpcode() == Instruction::IntToPtr) {
+//       return true;
+//     }
+//   }
+//   return false;
+// }
 
 DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
   auto res = getAllocSite(v);
