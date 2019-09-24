@@ -27,7 +27,7 @@ static llvm::cl::opt<sea_dsa::GlobalAnalysisKind> DsaGlobalAnalysis(
                    "Context-sensitive for VC generation as in SAS'17 (default)"),
         clEnumValN(BUTD_CONTEXT_SENSITIVE, "butd-cs", "Bottom-up + top-down"),
 	clEnumValN(BU, "bu", "Bottom-up"),
-        clEnumValN(CONTEXT_INSENSITIVE, "ci", "Context-insensitive"),
+        clEnumValN(CONTEXT_INSENSITIVE, "ci", "Context-insensitive for VC generation"),
         clEnumValN(FLAT_MEMORY, "flat", "Flat memory")),
     llvm::cl::init(CONTEXT_SENSITIVE));
 
@@ -69,33 +69,26 @@ bool DsaAnalysis::runOnModule(Module &M) {
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-  StringRef analysisName;
-
   switch (DsaGlobalAnalysis) {
   case CONTEXT_INSENSITIVE:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
                                                     cg, m_setFactory, false));
-    analysisName = "_CI";
     break;
   case FLAT_MEMORY:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
         *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory, true /* use flat*/));
-    analysisName = "_Flat";
     break;
   case BUTD_CONTEXT_SENSITIVE:
     m_ga.reset(new BottomUpTopDownGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
                                                  cg, m_setFactory));
-    analysisName = "_BUTD";
     break;
   case BU:
     m_ga.reset(new BottomUpGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
 					  cg, m_setFactory));
-    analysisName = "_BU";
     break;
   default: /* CONTEXT_SENSITIVE */
     m_ga.reset(new ContextSensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
                                                   cg, m_setFactory));
-    analysisName = "_CS";
   }
 
   m_ga->runOnModule(M);
@@ -113,4 +106,4 @@ bool DsaAnalysis::runOnModule(Module &M) {
 char DsaAnalysis::ID = 0;
 
 static llvm::RegisterPass<DsaAnalysis>
-    X("seadsa", "Entry point for all SeaDsa clients");
+    X("seadsa-wrapper", "Entry point for all SeaDsa clients");
