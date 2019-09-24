@@ -917,10 +917,10 @@ static llvm::RegisterPass<sea_dsa::FlatMemoryGlobalPass>
     U("seadsa-flat-global", "Flat memory SeaDsa analysis");
 
 static llvm::RegisterPass<sea_dsa::ContextInsensitiveGlobalPass>
-    X("seadsa-ci-global", "Context-insensitive SeaDsa analysis");
+    X("seadsa-ci-global", "Context-insensitive SeaDsa analysis (for VC generation)");
 
 static llvm::RegisterPass<sea_dsa::ContextSensitiveGlobalPass>
-    Y("seadsa-cs-global", "Context-sensitive SeaDsa analysis");
+    Y("seadsa-cs-global", "Context-sensitive SeaDsa analysis (for VC generation)");
 
 static llvm::RegisterPass<sea_dsa::BottomUpTopDownGlobalPass>
     Z("seadsa-butd-global", "Bottom-up + top-down SeaDsa analysis");
