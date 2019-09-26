@@ -78,6 +78,7 @@ bool DsaCallGraphPrinter::runOnModule(Module &M) {
 }
 
 void DsaCallGraphPrinter::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.setPreservesAll();
   AU.addRequired<CompleteCallGraph>();
 }
 
