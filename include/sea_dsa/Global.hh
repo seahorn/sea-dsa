@@ -137,7 +137,8 @@ private:
 
 public:
   GraphMap m_graphs;
-  
+  GraphMap m_bugraphs; // new for coloring
+
   PropagationKind decidePropagation(const DsaCallSite &cs, Graph &callerG,
                                     Graph &calleeG);
 
@@ -313,6 +314,8 @@ public:
   GlobalAnalysis &getGlobalAnalysis() override {
     return *(static_cast<GlobalAnalysis *>(&*m_ga));
   }
+
+  ContextSensitiveGlobalAnalysis &getCSGlobalAnalysis() { return *m_ga; }
 };
 
 // LLVM pass for bottom-up + top-down analysis

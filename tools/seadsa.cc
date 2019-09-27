@@ -131,6 +131,7 @@ int main(int argc, char **argv) {
 
   if (MemDot) {
     pass_manager.add (sea_dsa::createDsaPrinterPass ());
+    pass_manager.add (sea_dsa::createDsaColorPrinterPass());
   }
   
   if (MemViewer) {

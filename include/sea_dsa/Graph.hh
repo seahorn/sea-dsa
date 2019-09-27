@@ -185,7 +185,7 @@ public:
   /// return a cell for the value
   virtual const Cell &getCell(const llvm::Value &v);
 
-  /// return true iff the value has a cel
+  /// return true iff the value has a cell
   virtual bool hasCell(const llvm::Value &v) const;
 
   virtual bool hasScalarCell(const llvm::Value &v) {

@@ -57,6 +57,7 @@ namespace sea_dsa {
 llvm::Pass *createDsaInfoPass();
 llvm::Pass *createDsaPrintStatsPass();
 llvm::Pass *createDsaPrinterPass();
+llvm::Pass *createDsaColorPrinterPass();
 llvm::Pass *createDsaViewerPass();
 llvm::Pass *createDsaCallGraphPrinterPass();
 } // namespace sea_dsa

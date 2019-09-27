@@ -26,6 +26,8 @@
 #include "sea_dsa/TopDown.hh"
 #include "sea_dsa/config.h"
 
+#include "sea_dsa/DsaColor.hh"
+
 #include "sea_dsa/support/Debug.h"
 
 #include <queue>
@@ -308,6 +310,11 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   const bool flowSensitiveOpt = false;
   BottomUpAnalysis bu(m_dl, m_tli, m_allocInfo, m_cg, flowSensitiveOpt);
   bu.runOnModule(M, m_graphs);
+
+  // cloning the bu graphs for later
+  for(auto kv = m_graphs.begin(), end = m_graphs.end(); kv!=end ; kv++){
+    m_bugraphs.insert(std::make_pair(kv->getFirst(),cloneGraph(m_dl, m_setFactory, *(kv->getSecond()))));
+  }
 
   // -- Compute simulation map so that we can identify which callsites
   // -- require extra top-down propagation. Since bottom-up pass has
