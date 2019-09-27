@@ -13,7 +13,6 @@
 #include "sea_dsa/support/Debug.h"
 
 #include "sea_dsa/DsaColor.hh"
-#include "sea_dsa/DsaGraphWriter.hh"
 
 namespace sea_dsa {
 extern std::string DotOutputDir;

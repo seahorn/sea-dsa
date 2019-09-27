@@ -1,8 +1,5 @@
 #include "sea_dsa/DsaColor.hh"
 
-#include <fstream>
-#include <iostream> // remove after debugging
-
 using namespace sea_dsa;
 using namespace llvm;
 
