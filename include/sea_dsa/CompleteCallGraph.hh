@@ -21,23 +21,32 @@ class CallGraph;
 namespace sea_dsa {
 class AllocWrapInfo;
 class Cloner;
-
+  class CompleteCallGraph;
+  
 class CompleteCallGraphAnalysis {
-
+  friend class CompleteCallGraph;
+  
 public:
-  typedef std::shared_ptr<Graph> GraphRef;
-  typedef llvm::DenseMap<const llvm::Function *, GraphRef> GraphMap;
-  typedef std::vector<const llvm::Function*> FunctionVector;
+  using GraphRef = std::shared_ptr<Graph>;
+  using GraphMap = llvm::DenseMap<const llvm::Function *, GraphRef>;
+  using FunctionVector = std::vector<const llvm::Function*>;
+  using callee_iterator = FunctionVector::iterator;
   
 private:
+  using CalleesMap = llvm::DenseMap<const llvm::Instruction*, FunctionVector>;
+  
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   std::unique_ptr<llvm::CallGraph> m_complete_cg;
-  // true if assume that alloca allocated (stack) memory does not escape
+  // true if assume that alloca allocated (stack) memory does not
+  // escape
   bool m_noescape;
-
+  /// for clients
+  std::set<const llvm::Instruction*> m_resolved;
+  CalleesMap m_callees;
+  
   void mergeGraphs(Graph &fromG, Graph &toG);  
   void cloneCallSites(Cloner& C, Graph &calleeG, Graph &callerG);
   void cloneAndResolveArgumentsAndCallSites(const DsaCallSite &CS, Graph &calleeG,
@@ -67,20 +76,41 @@ public:
   
   // this method passes ownership of m_complete_cg to the caller.
   std::unique_ptr<llvm::CallGraph> getCompleteCallGraph();
+
+  // The indirect call CS can be fully resolved.
+  bool isComplete(llvm::CallSite& CS) const;
+  
+  // Iterate over all possible callees of an indirect call CS.
+  callee_iterator begin(llvm::CallSite& CS);
+  
+  callee_iterator end(llvm::CallSite& CS);  
 };
 
-class CompleteCallGraph : public llvm::ModulePass {
-  typedef typename CompleteCallGraphAnalysis::GraphRef GraphRef;
-  typedef typename CompleteCallGraphAnalysis::GraphMap GraphMap;
+class CompleteCallGraph : public llvm::ModulePass {  
+private:
+  
+  using GraphRef = typename CompleteCallGraphAnalysis::GraphRef;
+  using GraphMap = typename CompleteCallGraphAnalysis::GraphMap;
+  using CalleesMap = typename CompleteCallGraphAnalysis::CalleesMap;
 
+public:
+  
+  using FunctionVector = typename CalleesMap::mapped_type;
+  using callee_iterator = FunctionVector::iterator;
+  
+private:
+  
   Graph::SetFactory m_setFactory;
   const llvm::DataLayout *m_dl;
   const llvm::TargetLibraryInfo *m_tli;
   const AllocWrapInfo *m_allocInfo;
   GraphMap m_graphs;
   std::unique_ptr<llvm::CallGraph> m_complete_cg;
+  std::set<const llvm::Instruction*> m_resolved;
+  CalleesMap m_callees;
 
 public:
+  
   static char ID;
 
   CompleteCallGraph();
@@ -93,7 +123,14 @@ public:
 
   llvm::CallGraph& getCompleteCallGraph();
   
-  const llvm::CallGraph& getCompleteCallGraph() const;  
+  const llvm::CallGraph& getCompleteCallGraph() const;
+
+  bool isComplete(llvm::CallSite& CS) const;
+
+  callee_iterator begin(llvm::CallSite& CS);
+  
+  callee_iterator end(llvm::CallSite& CS);  
 };
 
 } // namespace sea_dsa
+

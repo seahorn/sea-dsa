@@ -409,6 +409,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M, GraphMap &graphs) {
               assert(CGNCallee);
               if (!hasEdge(CGNCaller, CGNCallee, CGNCS)) {
                 CGNCaller->addCalledFunction(CGNCS, CGNCallee);
+		m_callees[cs.getInstruction()].push_back(fn);
                 change = true;
               }
             } else {
@@ -540,6 +541,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         }
       }
       for (CallSite CS : toRemove) {
+	m_resolved.insert(CS.getInstruction());
         CGNF->removeCallEdgeFor(CS);
       }
     }
@@ -584,6 +586,20 @@ std::unique_ptr<CallGraph> CompleteCallGraphAnalysis::getCompleteCallGraph() {
   return std::move(m_complete_cg);
 }
 
+bool CompleteCallGraphAnalysis::isComplete(CallSite& CS) const {
+  return m_resolved.count(CS.getInstruction()) > 0;
+}
+
+CompleteCallGraphAnalysis::callee_iterator
+CompleteCallGraphAnalysis::begin(llvm::CallSite& CS) {
+  return m_callees[CS.getInstruction()].begin();
+}
+
+CompleteCallGraphAnalysis::callee_iterator
+CompleteCallGraphAnalysis::end(llvm::CallSite& CS) {
+  return m_callees[CS.getInstruction()].end();
+}
+  
 CompleteCallGraph::CompleteCallGraph()
     : ModulePass(ID), m_dl(nullptr), m_tli(nullptr), m_complete_cg(nullptr) {}
 
@@ -609,6 +625,9 @@ bool CompleteCallGraph::runOnModule(Module &M) {
   }
   bool res = ccga.runOnModule(M, m_graphs);
   m_complete_cg = ccga.getCompleteCallGraph();
+  m_callees = ccga.m_callees;
+  m_resolved = ccga.m_resolved;
+  
   return res;
 }
 
@@ -622,6 +641,18 @@ const CallGraph &CompleteCallGraph::getCompleteCallGraph() const {
   return *m_complete_cg;
 }
 
+bool CompleteCallGraph::isComplete(CallSite& CS) const {
+  return m_resolved.count(CS.getInstruction()) > 0;
+}
+
+CompleteCallGraph::callee_iterator CompleteCallGraph::begin(llvm::CallSite& CS) {
+  return m_callees[CS.getInstruction()].begin();
+}
+
+CompleteCallGraph::callee_iterator CompleteCallGraph::end(llvm::CallSite& CS) {
+  return m_callees[CS.getInstruction()].end();
+}
+  
 char CompleteCallGraph::ID = 0;
 } // namespace sea_dsa
 
