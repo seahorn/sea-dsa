@@ -31,6 +31,8 @@ std::string Color::stringColor() const {
 ColoredGraph::ColoredGraph(Graph &g, ColorMap &colorM, SafeNodeSet &safe)
     : m_g(g), m_color(colorM), m_safe(safe) {};
 
+sea_dsa::Graph & ColoredGraph::getGraph() { return m_g;}
+sea_dsa::Graph &ColoredGraph::getGraph() const { return m_g; }
 
 std::string ColoredGraph::getColorNode(const Node *n) const {
 
@@ -71,12 +73,12 @@ bool GraphExplorer::isSafeNode(SafeNodeSet &f_safe, const Node *n) {
 
 void GraphExplorer::mark_cells_graph(Graph &g, const Function &F,
                                    SafeCellSet &f_safe,
-                                   ExplorationMap &f_explored) {
+                                   ExplorationMap &f_visited) {
 
   for (const Argument &a : F.args()) {
     if (g.hasCell(a)) { // scalar arguments don't have cells
       const Cell &c = g.getCell(a);
-      mark_copy(c, f_explored, f_safe);
+      mark_copy(c, f_visited, f_safe);
     }
   }
 }
@@ -90,8 +92,6 @@ bool GraphExplorer::mark_copy(const Cell &v, ExplorationMap &f_color,
   for (auto &links : n->getLinks()){
     const Field &f = links.first;
     const Cell& next_c = *links.second;
-//    if(&next_c == &v) // ask Jorge
-  //    continue;
     auto it = f_color.find(&next_c);
     if (it == f_color.end() && mark_copy(next_c, f_color, f_safe)) {
         return true;
@@ -142,8 +142,8 @@ void GraphExplorer::colorGraph(const DsaCallSite &cs, const Graph &calleeG,
   SafeCellSet f_cell_safe;
   SafeNodeSet f_node_safe_caller;
 
-  ExplorationMap f_explored;
-  mark_cells_graph(*(const_cast<Graph *>(&calleeG)),*cs.getCallee(), f_cell_safe, f_explored);
+  ExplorationMap f_visited;
+  mark_cells_graph(*(const_cast<Graph *>(&calleeG)),*cs.getCallee(), f_cell_safe, f_visited);
 
   // init f_node_safe
   for (auto it = calleeG.begin(), end = calleeG.end(); it != end; it++) {
@@ -156,7 +156,7 @@ void GraphExplorer::colorGraph(const DsaCallSite &cs, const Graph &calleeG,
   }
 
 
-  for (auto kv = f_explored.begin(), end = f_explored.end(); kv != end; kv++) {
+  for (auto kv = f_visited.begin(), end = f_visited.end(); kv != end; kv++) {
     const Cell * c_callee = kv->getFirst();
     const Node * n_callee = c_callee->getNode();
     const Cell &c_caller = simMap.get(*c_callee);
@@ -165,7 +165,7 @@ void GraphExplorer::colorGraph(const DsaCallSite &cs, const Graph &calleeG,
     Color col;
     auto it = color_caller.find(n_caller);
     if (it != color_caller.end()) {
-      col = it->second; // color_caller[n_caller];
+      col = it->second;
     } else {
       color_caller.insert(std::make_pair(n_caller, col));
     }
@@ -181,7 +181,7 @@ void GraphExplorer::colorGraph(const DsaCallSite &cs, const Graph &calleeG,
   }
 
   // mark all the nodes of the bu as not safe
-  for (auto kv = f_explored.begin(), end = f_explored.end(); kv != end; kv++) {
+  for (auto kv = f_visited.begin(), end = f_visited.end(); kv != end; kv++) {
     const Cell *c_callee = kv->getFirst();
     const Node *n_callee = c_callee->getNode();
     const Cell &c_caller = simMap.get(*c_callee);

@@ -1,5 +1,4 @@
-#ifndef __DSA_COLOR_HH_
-#define __DSA_COLOR_HH_
+#pragma once
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/GraphTraits.h"
@@ -29,45 +28,43 @@ public:
 
 enum e_color {WHITE, BLACK, GRAY}; // colors for exploration
 
-
-typedef DenseMap<const Cell*, e_color> ExplorationMap;
-typedef DenseMap<const Node*, Color> ColorMap;
-typedef DenseSet<const Cell*> SafeCellSet;
-typedef DenseSet<const Node *> SafeNodeSet;
+using ExplorationMap = DenseMap<const Cell *, e_color>;
+using ColorMap = DenseMap<const Node *, Color>;
+using SafeCellSet = DenseSet<const Cell *>;
+using SafeNodeSet = DenseSet<const Node *>;
 
 namespace sea_dsa {
+
+// This class is used to print a dsa graph with colored nodes. The coloring is
+// done by GraphExplorer::colorGraph.
 class ColoredGraph {
-
-public:
-  // are the following constructors inherited??
-  //  ColoredGraph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat);
-  //~ColoredGraph() = default;
-  ColoredGraph(Graph &g, ColorMap &colorM, SafeNodeSet &safe);
-
-  std::string getColorNode(const Node *n) const;
-  bool isSafeNode(const Node *n) const;
-  Graph & m_g;
-
-  typedef sea_dsa::Graph::iterator iterator;
-
 private:
   SafeNodeSet m_safe;
   ColorMap m_color;
+  Graph &m_g;
 
+public:
+  ColoredGraph(Graph &g, ColorMap &colorM, SafeNodeSet &safe);
+  sea_dsa::Graph & getGraph();
+  sea_dsa::Graph &getGraph() const;
+
+  std::string getColorNode(const Node *n) const;
+  bool isSafeNode(const Node *n) const;
+
+  typedef sea_dsa::Graph::iterator iterator;
 };
 } // end namespace sea_dsa
 
 // To store the state of the graph after the bu pass
-
-
 std::unique_ptr<Graph> cloneGraph(const llvm::DataLayout &dl,
                                   Graph::SetFactory &sf, const Graph &g);
+
 class GraphExplorer {
 private:
 
   static void
   mark_cells_graph(Graph &g, const Function &F, SafeCellSet &f_safe,
-                   ExplorationMap &f_explored); // f_explored is useful to avoid
+                   ExplorationMap &f_visited); // f_visited is useful to avoid
                                                 // computing reachability again
 
   static bool mark_copy(const Cell &v, ExplorationMap &f_color, SafeCellSet &f_safe);
@@ -77,6 +74,13 @@ private:
   static bool isSafeNode(SafeNodeSet &f_safe, const Node *n);
 
 public:
+  // This method takes a callsite, and a pair of dsa graphs, one of the caller
+  // and one of the callee, and assigns the same color to all the nodes of the
+  // callee's graph that are simulated as the node (with the same color) in the
+  // caller's graph.
+  //
+  // For each of the nodes in the callee's graph, f_node_safe stores whether the
+  // amount of information that it may encode is infinite or finite.
   static void colorGraph(const DsaCallSite &cs, const Graph &g_callee,
                   const Graph &g_caller, ColorMap &color_callee,
                   ColorMap &color_caller, SafeNodeSet &f_node_safe);
@@ -87,16 +91,13 @@ namespace llvm {
   template <> struct GraphTraits<sea_dsa::ColoredGraph *> {
     typedef sea_dsa::Node NodeType;
     typedef sea_dsa::Node::iterator ChildIteratorType;
-
-    // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
-
     typedef sea_dsa::ColoredGraph::iterator nodes_iterator;
 
     static nodes_iterator nodes_begin(sea_dsa::ColoredGraph *G) {
-      return G->m_g.begin();
+      return G->getGraph().begin();
     }
     static nodes_iterator nodes_end(sea_dsa::ColoredGraph *G) {
-      return G->m_g.end();
+      return G->getGraph().end();
     }
 
     static ChildIteratorType child_begin(NodeType *N) { return N->begin(); }
@@ -111,10 +112,10 @@ template <> struct GraphTraits<const sea_dsa::ColoredGraph*> {
   typedef sea_dsa::Graph::const_iterator nodes_iterator;
 
   static nodes_iterator nodes_begin(const sea_dsa::ColoredGraph *G) {
-    return G->m_g.begin();
+    return G->getGraph().begin();
   }
   static nodes_iterator nodes_end(const sea_dsa::ColoredGraph *G) {
-    return G->m_g.end();
+    return G->getGraph().end();
   }
 
   static ChildIteratorType child_begin(NodeType *N) { return N->begin(); }
@@ -122,5 +123,3 @@ template <> struct GraphTraits<const sea_dsa::ColoredGraph*> {
 };
 
 } // end llvm
-
-#endif

@@ -456,7 +456,7 @@ struct DOTGraphTraits<sea_dsa::ColoredGraph *> : public DefaultDOTGraphTraits {
 
     // print edges from scalar (local and global) variables to cells
     {
-      for (const auto &scalar : g->m_g.scalars()) {
+      for (const auto &scalar : g->getGraph().scalars()) {
         std::string OS_str;
         llvm::raw_string_ostream OS(OS_str);
         const llvm::Value *v = scalar.first;
@@ -476,7 +476,7 @@ struct DOTGraphTraits<sea_dsa::ColoredGraph *> : public DefaultDOTGraphTraits {
 
     // print edges from formal parameters to cells
     {
-      for (const auto &formal : g->m_g.formals()) {
+      for (const auto &formal : g->getGraph().formals()) {
         std::string OS_str;
         llvm::raw_string_ostream OS(OS_str);
         const llvm::Argument *arg = formal.first;
@@ -494,7 +494,7 @@ struct DOTGraphTraits<sea_dsa::ColoredGraph *> : public DefaultDOTGraphTraits {
 
     // print edges from function return to cells
     {
-      for (const auto &retNode : g->m_g.returns()) {
+      for (const auto &retNode : g->getGraph().returns()) {
         std::string OS_str;
         llvm::raw_string_ostream OS(OS_str);
         const llvm::Function *f = retNode.first;
@@ -513,7 +513,7 @@ struct DOTGraphTraits<sea_dsa::ColoredGraph *> : public DefaultDOTGraphTraits {
 
     // print node edges
     {
-      for (const Node &N : g->m_g) {
+      for (const Node &N : g->getGraph()) {
         if (!N.isForwarding()) {
 
           for (auto &OffLink : N.getLinks()) {
@@ -559,7 +559,7 @@ static bool writeColoredGraph(ColoredGraph *G, std::string Filename) {
   raw_fd_ostream File(FullFilename, EC, sys::fs::F_Text);
   if (!EC) {
     internals::WriteColoredGraph(File, G);
-    LOG("dsa-color-printer", G->m_g.write(errs()));
+    LOG("dsa-color-printer", G->getGraph().write(errs()));
     return true;
   }
   return false;
@@ -578,7 +578,6 @@ struct DsaColorPrinter : public ModulePass {
 
   bool runOnModule(Module &M) override {
 
-    // here ask jorge about running twice
     auto &CCG = getAnalysis<CompleteCallGraph>();
     auto &dsaCallGraph = CCG.getCompleteCallGraph();
 
@@ -594,7 +593,6 @@ struct DsaColorPrinter : public ModulePass {
       if(!m_dsa->hasGraph(F))
         continue;
 
-      //Graph &callerG = m_dsa->getGraph(F);
       auto call_sites = dsaCG.getUses(F);
 
       // call_sites is NULL?
