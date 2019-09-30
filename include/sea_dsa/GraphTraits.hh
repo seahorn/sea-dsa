@@ -55,20 +55,16 @@ namespace sea_dsa {
       return *_links_it->second;
     }
   };
+
   
-  
-  // Provide iterators for Node...
+// Provide iterators for Node...
 inline Node::iterator Node::begin() { return Node::iterator(this); }
-
+  
 inline Node::iterator Node::end() { return Node::iterator(this, false); }
-
-inline Node::const_iterator Node::begin() const {
-  return Node::const_iterator(this);
-}
-
-inline Node::const_iterator Node::end() const {
-  return Node::const_iterator(this, false);
-}
+  
+inline Node::const_iterator Node::begin() const { return Node::const_iterator(this); }
+  
+inline Node::const_iterator Node::end() const { return Node::const_iterator(this, false); }
 
 } // end namespace sea_dsa 
 
