@@ -16,6 +16,7 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/PatternMatch.h"
 
 #include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/Graph.hh"
@@ -1034,6 +1035,25 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   // TODO: can also update size of dest and source using I.getLength ()
 }
 
+
+namespace {
+/// Returns true if \p inst is a fixed numeric offset of a known pointer
+bool m_FixedOffset(const IntToPtrInst &inst, Value *&base, uint64_t &offset) {
+  using namespace llvm::PatternMatch;
+  auto *op = inst.getOperand(0);
+  Value *X;
+  ConstantInt *C;
+  if ((match(op, m_Add(m_Value(X), m_ConstantInt(C))) ||
+       match(op, m_Add(m_ConstantInt(C), m_Value(X)))) &&
+      match(X, m_PtrToInt(m_Value(base)))) {
+    offset = C->getZExtValue();
+    return true;
+  }
+
+  return false;
+}
+
+
 // -- only used as a compare. do not needs DSA node
 bool shouldBeTrackedIntToPtr(const Value &def) {
   // XXX: use_begin will return the same Value def. We need to call
@@ -1059,6 +1079,7 @@ bool shouldBeTrackedIntToPtr(const Value &def) {
   return true;
 }
 
+} // namespace
 void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   // -- only used as a compare. do not needs DSA node
   // if (dest.hasOneUse () && isa<CmpInst> (*(dest.use_begin ()))) return;
@@ -1067,6 +1088,27 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   //      breaking assumptions during the analysis of other
   //      instructions.
   // if (!shouldBeTrackedIntToPtr (dest)) return;
+  if (const IntToPtrInst *inttoptr = dyn_cast<IntToPtrInst>(&dest)) {
+    Value *base = nullptr;
+    uint64_t offset = 0;
+    if (m_FixedOffset(*inttoptr, base, offset)) {
+      LOG("dsa.inttoptr",
+          errs() << "inttoptr is " << *base << " plus " << offset << "\n";);
+
+      if (m_graph.hasCell(*base) || isa<GlobalValue>(base)) {
+        sea_dsa::Cell baseCell = valueCell(*base);
+        assert(!baseCell.isNull());
+
+        assert(!m_graph.hasCell(dest) && "Untested");
+        sea_dsa::Node *baseNode = baseCell.getNode();
+        if (baseNode->isOffsetCollapsed())
+          m_graph.mkCell(dest, sea_dsa::Cell(baseNode, 0));
+        else
+          m_graph.mkCell(dest, sea_dsa::Cell(baseCell, offset));
+        return;
+      }
+    }
+  }
 
   sea_dsa::Node &n = m_graph.mkNode();
   n.setIntToPtr();
