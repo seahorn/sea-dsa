@@ -210,7 +210,7 @@ CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
     : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
       m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
 
-bool CompleteCallGraphAnalysis::runOnModule(Module &M, GraphMap &graphs) {
+bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
   typedef std::unordered_set<const Function *> FunctionSet;
   typedef std::unordered_set<const Instruction *> InstSet;
@@ -218,7 +218,17 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   LOG("dsa-callgraph",
       errs() << "Started construction of complete call graph ... \n");
 
-  const bool track_callsites = true;
+  GraphMap graphs;
+
+  // initialize empty graphs
+  for (auto &F : M) { 
+    if (F.isDeclaration() || F.empty())
+      continue;
+    GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
+    graphs[&F] = fGraph;
+  }
+
+  const bool track_callsites = true;  
   LocalAnalysis la(m_dl, m_tli, m_allocInfo, track_callsites);
 
   // Given a callsite, inline the callee's graph into the caller's graph.
@@ -601,7 +611,7 @@ CompleteCallGraphAnalysis::end(llvm::CallSite& CS) {
 }
   
 CompleteCallGraph::CompleteCallGraph()
-    : ModulePass(ID), m_dl(nullptr), m_tli(nullptr), m_complete_cg(nullptr) {}
+  : ModulePass(ID), m_CCGA(nullptr) {}
 
 void CompleteCallGraph::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
@@ -611,46 +621,33 @@ void CompleteCallGraph::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool CompleteCallGraph::runOnModule(Module &M) {
-  m_dl = &M.getDataLayout();
-  m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-  m_allocInfo = &getAnalysis<AllocWrapInfo>();
+  auto dl = &M.getDataLayout();
+  auto tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  auto allocInfo = &getAnalysis<AllocWrapInfo>();
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-
-  CompleteCallGraphAnalysis ccga(*m_dl, *m_tli, *m_allocInfo, cg, true);
-  for (auto &F : M) { // XXX: the graphs must be created here
-    if (F.isDeclaration() || F.empty())
-      continue;
-    GraphRef fGraph = std::make_shared<Graph>(*m_dl, m_setFactory);
-    m_graphs[&F] = fGraph;
-  }
-  bool res = ccga.runOnModule(M, m_graphs);
-  m_complete_cg = ccga.getCompleteCallGraph();
-  m_callees = ccga.m_callees;
-  m_resolved = ccga.m_resolved;
-  
-  return res;
+  m_CCGA.reset(new CompleteCallGraphAnalysis(*dl, *tli, *allocInfo, cg, true));
+  m_CCGA->runOnModule(M);
+  return false;
 }
 
 CallGraph &CompleteCallGraph::getCompleteCallGraph() {
-  assert(m_complete_cg);
-  return *m_complete_cg;
+  return m_CCGA->getCompleteCallGraphRef();
 }
 
 const CallGraph &CompleteCallGraph::getCompleteCallGraph() const {
-  assert(m_complete_cg);
-  return *m_complete_cg;
+  return m_CCGA->getCompleteCallGraphRef();  
 }
 
 bool CompleteCallGraph::isComplete(CallSite& CS) const {
-  return m_resolved.count(CS.getInstruction()) > 0;
+  return m_CCGA->isComplete(CS);
 }
 
 CompleteCallGraph::callee_iterator CompleteCallGraph::begin(llvm::CallSite& CS) {
-  return m_callees[CS.getInstruction()].begin();
+  return m_CCGA->begin(CS);
 }
 
 CompleteCallGraph::callee_iterator CompleteCallGraph::end(llvm::CallSite& CS) {
-  return m_callees[CS.getInstruction()].end();
+  return m_CCGA->end(CS);  
 }
   
 char CompleteCallGraph::ID = 0;

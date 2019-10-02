@@ -34,16 +34,18 @@ public:
   
 private:
   using CalleesMap = llvm::DenseMap<const llvm::Instruction*, FunctionVector>;
-  
+
+  /// -- for building complete call graph
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
+  Graph::SetFactory m_setFactory;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   std::unique_ptr<llvm::CallGraph> m_complete_cg;
-  // true if assume that alloca allocated (stack) memory does not
-  // escape
+  // true if assume that stack allocated memory does not escape
   bool m_noescape;
-  /// for clients
+  
+  /// -- for client queries
   std::set<const llvm::Instruction*> m_resolved;
   CalleesMap m_callees;
   
@@ -59,7 +61,7 @@ public:
                    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
                    bool noescape = true /* TODO: CLI*/);
 
-  bool runOnModule(llvm::Module &M, GraphMap &graphs);
+  bool runOnModule(llvm::Module &M);
 
   /* 
      Methods to return a complete call graph. 
@@ -89,25 +91,16 @@ public:
 class CompleteCallGraph : public llvm::ModulePass {  
 private:
   
-  using GraphRef = typename CompleteCallGraphAnalysis::GraphRef;
-  using GraphMap = typename CompleteCallGraphAnalysis::GraphMap;
   using CalleesMap = typename CompleteCallGraphAnalysis::CalleesMap;
+  using FunctionVector = typename CalleesMap::mapped_type;
 
 public:
   
-  using FunctionVector = typename CalleesMap::mapped_type;
   using callee_iterator = FunctionVector::iterator;
   
 private:
   
-  Graph::SetFactory m_setFactory;
-  const llvm::DataLayout *m_dl;
-  const llvm::TargetLibraryInfo *m_tli;
-  const AllocWrapInfo *m_allocInfo;
-  GraphMap m_graphs;
-  std::unique_ptr<llvm::CallGraph> m_complete_cg;
-  std::set<const llvm::Instruction*> m_resolved;
-  CalleesMap m_callees;
+  std::unique_ptr<CompleteCallGraphAnalysis> m_CCGA;
 
 public:
   
