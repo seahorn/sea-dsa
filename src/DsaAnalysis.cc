@@ -93,7 +93,7 @@ bool DsaAnalysis::runOnModule(Module &M) {
 
   m_ga->runOnModule(M);
 
-  if (XDsaStats) {
+  if (XDsaStats || m_print_stats) {
     DsaInfo i(*m_dl, *m_tli, getDsaAnalysis());
     i.runOnModule(M);
     DsaPrintStats p(i);

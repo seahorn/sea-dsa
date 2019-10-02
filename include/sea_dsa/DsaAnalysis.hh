@@ -29,20 +29,21 @@ class DsaAnalysis : public llvm::ModulePass {
   const AllocWrapInfo *m_allocInfo;
   Graph::SetFactory m_setFactory;
   std::unique_ptr<GlobalAnalysis> m_ga;
+  bool m_print_stats;
 
 public:
   static char ID;
 
-  DsaAnalysis()
+  DsaAnalysis(bool print_stats = false)
       : ModulePass(ID), m_dl(nullptr), m_tli(nullptr), m_allocInfo(nullptr),
-        m_ga(nullptr) {}
+        m_ga(nullptr), m_print_stats(print_stats) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
   bool runOnModule(llvm::Module &M) override;
 
   llvm::StringRef getPassName() const override {
-    return "SeaHorn Dsa analysis: entry point for all Dsa clients";
+    return "SeaHorn Dsa analysis: entry point for all clients";
   }
 
   const llvm::DataLayout &getDataLayout();
