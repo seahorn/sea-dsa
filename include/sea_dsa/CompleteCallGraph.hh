@@ -16,6 +16,7 @@ namespace llvm {
 class DataLayout;
 class TargetLibraryInfo;
 class CallGraph;
+class raw_ostream;
 } // namespace llvm
 
 namespace sea_dsa {
@@ -53,7 +54,7 @@ private:
   void cloneCallSites(Cloner& C, Graph &calleeG, Graph &callerG);
   void cloneAndResolveArgumentsAndCallSites(const DsaCallSite &CS, Graph &calleeG,
 					    Graph &callerG, bool noescape = true);
-  
+    
 public:
 
   CompleteCallGraphAnalysis(const llvm::DataLayout &dl,
@@ -79,6 +80,8 @@ public:
   // this method passes ownership of m_complete_cg to the caller.
   std::unique_ptr<llvm::CallGraph> getCompleteCallGraph();
 
+  void printStats(llvm::Module& m, llvm::raw_ostream& o);
+  
   // The indirect call CS can be fully resolved.
   bool isComplete(llvm::CallSite& CS) const;
   
@@ -101,12 +104,13 @@ public:
 private:
   
   std::unique_ptr<CompleteCallGraphAnalysis> m_CCGA;
+  bool m_printStats;
 
 public:
   
   static char ID;
 
-  CompleteCallGraph();
+  CompleteCallGraph(bool printStats = false);
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
