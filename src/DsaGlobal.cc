@@ -312,9 +312,12 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   bu.runOnModule(M, m_graphs);
 
   // cloning the bu graphs for later
-  for(auto kv = m_graphs.begin(), end = m_graphs.end(); kv!=end ; kv++){
-    m_bugraphs.insert(std::make_pair(kv->getFirst(),cloneGraph(m_dl, m_setFactory, *(kv->getSecond()))));
-  }
+  //  if (MemDot) {
+    for (auto kv = m_graphs.begin(), end = m_graphs.end(); kv != end; kv++) {
+      m_bugraphs.insert(std::make_pair(
+          kv->getFirst(), cloneGraph(m_dl, m_setFactory, *(kv->getSecond()))));
+    }
+    //}
 
   // -- Compute simulation map so that we can identify which callsites
   // -- require extra top-down propagation. Since bottom-up pass has

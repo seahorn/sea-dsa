@@ -570,10 +570,6 @@ struct DsaColorPrinter : public ModulePass {
   static char ID;
   ContextSensitiveGlobalAnalysis *m_dsa;
 
-  // Not necessary for now, only printing in DOT format
-  // ColorGraphMap m_mod_colors;
-  // typedef DenseMap<CallSite *, ColoredGraph> ColorGraphMap;
-
   DsaColorPrinter() : ModulePass(ID), m_dsa(nullptr) {}
 
   bool runOnModule(Module &M) override {
@@ -585,7 +581,10 @@ struct DsaColorPrinter : public ModulePass {
 
     CallGraphWrapper dsaCG(dsaCallGraph);
 
-    dsaCG.buildDependencies();
+    dsaCG.buildDependencies(); // TODO: this is already done already in
+                               // ContextSensitiveGlobalAnalysis but it stored
+                               // locally in the runOnModule function, so we
+                               // have to recompute it.
 
     m_dsa = &getAnalysis<sea_dsa::ContextSensitiveGlobalPass>().getCSGlobalAnalysis();
 
@@ -613,12 +612,11 @@ struct DsaColorPrinter : public ModulePass {
                              f_node_safe); // colors the graphs
 
         std::string FilenameBase = M.getModuleIdentifier() + "." +
-          f_caller->getName().str() + "." + F.getName().str() + std::to_string(++count);
+          f_caller->getName().str() + "." + F.getName().str() + "." +std::to_string(++count);
 
         ColoredGraph colorGCallee(calleeG, color_callee, f_node_safe);
         writeColoredGraph(&colorGCallee, FilenameBase + ".callee.mem.dot");
 
-        // TODO: f_node_safe is in terms of nodes of calleeG
         ColoredGraph colorGCaller(callerG, color_caller, f_node_safe);
         writeColoredGraph(&colorGCaller, FilenameBase + ".caller.mem.dot");
       }

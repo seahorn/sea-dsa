@@ -28,9 +28,8 @@ public:
 
 enum e_color {WHITE, BLACK, GRAY}; // colors for exploration
 
-using ExplorationMap = DenseMap<const Cell *, e_color>;
+using ExplorationMap = DenseMap<const Node *, e_color>;
 using ColorMap = DenseMap<const Node *, Color>;
-using SafeCellSet = DenseSet<const Cell *>;
 using SafeNodeSet = DenseSet<const Node *>;
 
 namespace sea_dsa {
@@ -61,29 +60,42 @@ std::unique_ptr<Graph> cloneGraph(const llvm::DataLayout &dl,
 
 class GraphExplorer {
 private:
-
   static void
-  mark_cells_graph(Graph &g, const Function &F, SafeCellSet &f_safe,
-                   ExplorationMap &f_visited); // f_visited is useful to avoid
-                                                // computing reachability again
+  mark_nodes_graph(Graph &g, const Function &F, SafeNodeSet &f_safe,
+                   SafeNodeSet &f_safe_caller, SimulationMapper &sm);
 
-  static bool mark_copy(const Cell &v, ExplorationMap &f_color, SafeCellSet &f_safe);
-  static void propagate_not_copy(const Cell &v, ExplorationMap &f_color,
-                          SafeCellSet &f_safe);
-  static bool isSafeCell(SafeCellSet &f_safe, const Cell *c);
+  static bool mark_copy(const Node &n, ExplorationMap &f_color, SafeNodeSet &f_safe,
+                  SafeNodeSet &f_safe_caller, SimulationMapper &sm);
+  static void propagate_not_copy(const Node &n, ExplorationMap &f_color,
+                                 SafeNodeSet &f_safe,
+                                 SafeNodeSet &f_safe_caller,
+                                 SimulationMapper &sm);
+
   static bool isSafeNode(SafeNodeSet &f_safe, const Node *n);
+  static const Node *getMappedNode(const Node *n, SimulationMapper & sm);
 
-public:
+  static void color_nodes_graph(Graph &g, const Function &F,
+                                SimulationMapper &sm, ColorMap &c_callee,
+                                ColorMap &c_caller,
+                                SafeNodeSet f_node_safe_callee,
+                                SafeNodeSet f_node_safe_caller);
+  static void color_nodes_aux(const Node &n, SafeNodeSet &f_proc,
+                              SimulationMapper &sm, ColorMap &c_callee,
+                              ColorMap &c_caller,
+                              SafeNodeSet f_node_safe_callee,
+                              SafeNodeSet f_node_safe_caller);
+
+public :
   // This method takes a callsite, and a pair of dsa graphs, one of the caller
   // and one of the callee, and assigns the same color to all the nodes of the
   // callee's graph that are simulated as the node (with the same color) in the
   // caller's graph.
   //
-  // For each of the nodes in the callee's graph, f_node_safe stores whether the
-  // amount of information that it may encode is infinite or finite.
+  // For each of the nodes in the callee's graph, f_node_safe stores whether
+  // the amount of information that it may encode is infinite or finite.
   static void colorGraph(const DsaCallSite &cs, const Graph &g_callee,
-                  const Graph &g_caller, ColorMap &color_callee,
-                  ColorMap &color_caller, SafeNodeSet &f_node_safe);
+                         const Graph &g_caller, ColorMap &color_callee,
+                         ColorMap &color_caller, SafeNodeSet &f_node_safe);
 };
 
 namespace llvm {
