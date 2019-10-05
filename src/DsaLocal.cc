@@ -16,6 +16,7 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/PatternMatch.h"
 
 #include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/Graph.hh"
@@ -28,10 +29,10 @@ using namespace llvm;
 
 namespace llvm {
 
-static llvm::cl::opt<bool>
-    TrustArgumentTypes("sea-dsa-trust-args",
-                       llvm::cl::desc("Trust function argument types in SeaDsa Local analysis"),
-                       llvm::cl::init(true));
+static llvm::cl::opt<bool> TrustArgumentTypes(
+    "sea-dsa-trust-args",
+    llvm::cl::desc("Trust function argument types in SeaDsa Local analysis"),
+    llvm::cl::init(true));
 
 // borrowed from SeaHorn
 class __BlockedEdges {
@@ -113,6 +114,7 @@ protected:
                 ArrayRef<Value *> indicies);
   void visitCastIntToPtr(const Value &dest);
 
+  bool isFixedOffset(const IntToPtrInst &inst, Value *&base, uint64_t &offset);
   bool isSkip(Value &V) {
     if (!V.getType()->isPointerTy())
       return true;
@@ -144,110 +146,112 @@ public:
         m_allocInfo(allocInfo) {}
 };
 
-class GlobalBuilder: public BlockBuilderBase {
+class GlobalBuilder : public BlockBuilderBase {
 
   /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp
-  void init(const Constant *Init, sea_dsa::Cell& c, unsigned offset) {
+  void init(const Constant *Init, sea_dsa::Cell &c, unsigned offset) {
     if (isa<UndefValue>(Init)) {
       return;
     }
-    
+
     if (const ConstantVector *CP = dyn_cast<ConstantVector>(Init)) {
-      unsigned ElementSize = m_dl.getTypeAllocSize(CP->getType()->getElementType());
+      unsigned ElementSize =
+          m_dl.getTypeAllocSize(CP->getType()->getElementType());
       for (unsigned i = 0, e = CP->getNumOperands(); i != e; ++i) {
-	unsigned noffset = offset + i*ElementSize;
-	sea_dsa::Cell nc = sea_dsa::Cell(c.getNode(), noffset); 
-	init(CP->getOperand(i), nc, noffset);
+        unsigned noffset = offset + i * ElementSize;
+        sea_dsa::Cell nc = sea_dsa::Cell(c.getNode(), noffset);
+        init(CP->getOperand(i), nc, noffset);
       }
       return;
     }
-    
+
     if (isa<ConstantAggregateZero>(Init)) {
       return;
     }
-    
+
     if (const ConstantArray *CPA = dyn_cast<ConstantArray>(Init)) {
-      unsigned ElementSize = m_dl.getTypeAllocSize(CPA->getType()->getElementType());
+      unsigned ElementSize =
+          m_dl.getTypeAllocSize(CPA->getType()->getElementType());
       for (unsigned i = 0, e = CPA->getNumOperands(); i != e; ++i) {
-	unsigned noffset = offset + i*ElementSize;
-	sea_dsa::Cell nc = sea_dsa::Cell(c.getNode(), noffset); 
-	init(CPA->getOperand(i), nc, noffset);
+        unsigned noffset = offset + i * ElementSize;
+        sea_dsa::Cell nc = sea_dsa::Cell(c.getNode(), noffset);
+        init(CPA->getOperand(i), nc, noffset);
       }
       return;
     }
-    
+
     if (const ConstantStruct *CPS = dyn_cast<ConstantStruct>(Init)) {
-      const StructLayout *SL = m_dl.getStructLayout(cast<StructType>(CPS->getType()));
+      const StructLayout *SL =
+          m_dl.getStructLayout(cast<StructType>(CPS->getType()));
       for (unsigned i = 0, e = CPS->getNumOperands(); i != e; ++i) {
-	unsigned noffset = offset + SL->getElementOffset(i);
-	sea_dsa::Cell nc = sea_dsa::Cell(c.getNode(), noffset); 	
-	init(CPS->getOperand(i), nc, noffset);
+        unsigned noffset = offset + SL->getElementOffset(i);
+        sea_dsa::Cell nc = sea_dsa::Cell(c.getNode(), noffset);
+        init(CPS->getOperand(i), nc, noffset);
       }
       return;
     }
-    
+
     if (isa<ConstantDataSequential>(Init)) {
       return;
     }
-    
-    if (Init->getType()->isPointerTy() && !isa<ConstantPointerNull>(Init)) {
-      if (cast<PointerType>(Init->getType())->getElementType()->isFunctionTy()) {
-	sea_dsa::Node &n = m_graph.mkNode();
-	sea_dsa::Cell nc(n, 0);
-	sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(*Init);
-	assert(site);
-	n.addAllocSite(*site);
 
-	// connect c with nc
-	c.growSize(0, Init->getType());
-	c.addAccessedType(0, Init->getType());
-	c.addLink(sea_dsa::Field(0, sea_dsa::FieldType(Init->getType())), nc);
-	return;
+    if (Init->getType()->isPointerTy() && !isa<ConstantPointerNull>(Init)) {
+      if (cast<PointerType>(Init->getType())
+              ->getElementType()
+              ->isFunctionTy()) {
+        sea_dsa::Node &n = m_graph.mkNode();
+        sea_dsa::Cell nc(n, 0);
+        sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(*Init);
+        assert(site);
+        n.addAllocSite(*site);
+
+        // connect c with nc
+        c.growSize(0, Init->getType());
+        c.addAccessedType(0, Init->getType());
+        c.addLink(sea_dsa::Field(0, sea_dsa::FieldType(Init->getType())), nc);
+        return;
       }
-      
+
       if (m_graph.hasCell(*Init)) {
-	// @g1 =  ...*
-	// @g2 =  ...** @g1
-	sea_dsa::Cell &nc = m_graph.mkCell(*Init, sea_dsa::Cell());
-	// connect c with nc
-	c.growSize(0, Init->getType());
-	c.addAccessedType(0, Init->getType());
-	c.addLink(sea_dsa::Field(0, sea_dsa::FieldType(Init->getType())), nc);
-	return;
+        // @g1 =  ...*
+        // @g2 =  ...** @g1
+        sea_dsa::Cell &nc = m_graph.mkCell(*Init, sea_dsa::Cell());
+        // connect c with nc
+        c.growSize(0, Init->getType());
+        c.addAccessedType(0, Init->getType());
+        c.addLink(sea_dsa::Field(0, sea_dsa::FieldType(Init->getType())), nc);
+        return;
       }
     }
   }
-  
+
 public:
-  
   // XXX: it should take a module but we want to reuse
   // BlockBuilderBase so we need to pass a function. We assume that
   // the passed function is main.
   GlobalBuilder(Function &func, sea_dsa::Graph &graph, const DataLayout &dl,
-		const TargetLibraryInfo &tli,
-		const sea_dsa::AllocWrapInfo &allocInfo)
-    : BlockBuilderBase(func, graph, dl, tli, allocInfo) {
-  }
+                const TargetLibraryInfo &tli,
+                const sea_dsa::AllocWrapInfo &allocInfo)
+      : BlockBuilderBase(func, graph, dl, tli, allocInfo) {}
 
   void initGlobalVariables() {
     if (!m_func.getName().equals("main")) {
       return;
     }
-    
-    Module& M = *(m_func.getParent());
-    for (auto& gv: M.globals()) {
+
+    Module &M = *(m_func.getParent());
+    for (auto &gv : M.globals()) {
       if (gv.getName().equals("llvm.used"))
-	continue;
-      
+        continue;
+
       if (gv.hasInitializer()) {
-	sea_dsa::Cell c = valueCell(gv);	
-	init(gv.getInitializer(), c, 0);
+        sea_dsa::Cell c = valueCell(gv);
+        init(gv.getInitializer(), c, 0);
       }
     }
   }
 };
 
-  
 class InterBlockBuilder : public InstVisitor<InterBlockBuilder>,
                           BlockBuilderBase {
   friend class InstVisitor<InterBlockBuilder>;
@@ -287,10 +291,10 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
 class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
                           BlockBuilderBase {
   friend class InstVisitor<IntraBlockBuilder>;
-  
+
   // -- whether or not create a cell for an indirect callee
   bool m_track_callsites;
-  
+
   void visitAllocaInst(AllocaInst &AI);
   void visitSelectInst(SelectInst &SI);
   void visitLoadInst(LoadInst &LI);
@@ -302,7 +306,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitIntToPtrInst(IntToPtrInst &I);
   void visitPtrToIntInst(PtrToIntInst &I);
   void visitBitCastInst(BitCastInst &I);
-  void visitCmpInst(CmpInst &I) { /* do nothing */ }
+  void visitCmpInst(CmpInst &I) { /* do nothing */
+  }
   void visitInsertValueInst(InsertValueInst &I);
   void visitExtractValueInst(ExtractValueInst &I);
   void visitShuffleVectorInst(ShuffleVectorInst &I);
@@ -316,7 +321,6 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitCallSite(CallSite CS);
   // void visitVAStart(CallSite CS);
 
-
   static bool isSeaDsaAliasFn(const Function *F) {
     return (F->getName().equals("sea_dsa_alias"));
   }
@@ -329,16 +333,13 @@ public:
   IntraBlockBuilder(Function &func, sea_dsa::Graph &graph, const DataLayout &dl,
                     const TargetLibraryInfo &tli,
                     const sea_dsa::AllocWrapInfo &allocInfo,
-		    bool track_callsites)
-    : BlockBuilderBase(func, graph, dl, tli, allocInfo),
-      m_track_callsites(track_callsites) {}
+                    bool track_callsites)
+      : BlockBuilderBase(func, graph, dl, tli, allocInfo),
+        m_track_callsites(track_callsites) {}
 };
 
 sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   using namespace sea_dsa;
-  const auto &vType = *v.getType();
-  assert(vType.isPointerTy() || vType.isAggregateType() || vType.isVectorTy());
-  (void)vType;
 
   if (isNullConstant(v)) {
     LOG("dsa", errs() << "WARNING: constant not handled: " << v << "\n";);
@@ -385,7 +386,11 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
     }
   }
 
-  errs() << v << "\n";
+  const auto &vType = *v.getType();
+  assert(vType.isPointerTy() || vType.isAggregateType() || vType.isVectorTy());
+  (void)vType;
+
+  errs() << "Unexpected expression at valueCell: " << v << "\n";
   llvm_unreachable("Expression not handled");
   return Cell();
 }
@@ -402,7 +407,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
   assert(!m_graph.hasCell(AI));
   Node &n = m_graph.mkNode();
   // -- record allocation site
-  sea_dsa::DsaAllocSite* site = m_graph.mkAllocSite(AI);
+  sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(AI);
   assert(site);
   n.addAllocSite(*site);
   // -- mark node as a stack node
@@ -433,7 +438,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   if (BlockBuilderBase::isNullConstant(
           *LI.getPointerOperand()->stripPointerCasts()))
     return;
-  
+
   if (!m_graph.hasCell(*LI.getPointerOperand()->stripPointerCasts())) {
     /// XXX: this is very likely because the pointer operand is the
     /// result of applying one or several gep instructions starting
@@ -443,29 +448,29 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
       return;
   }
 
-
   /// XXX: special case for casted functions to remove the return value
   /// %3 = load void (i8*, i32*)*,
-  ///      void (i8*, i32*)** bitcast (i64 (i8*, i32*)** @listdir to void (i8*, i32*)**)
-  /// call void %3(i8* %300, i32* %1) 
-  if (ConstantExpr* CE = dyn_cast<ConstantExpr>(LI.getPointerOperand())) {
+  ///      void (i8*, i32*)** bitcast (i64 (i8*, i32*)** @listdir to void (i8*,
+  ///      i32*)**)
+  /// call void %3(i8* %300, i32* %1)
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(LI.getPointerOperand())) {
     if (CE->isCast() && CE->getOperand(0)->getType()->isPointerTy()) {
-      if (GlobalVariable* GV = dyn_cast<GlobalVariable>(CE->getOperand(0)))  {
-	if (GV->hasInitializer()) {
-	  if (Function* F = dyn_cast<Function>(GV->getInitializer())) {
-	    // create cell for LI and record allocation site
-	    Node &n = m_graph.mkNode();
-	    sea_dsa::DsaAllocSite* site = m_graph.mkAllocSite(*F);
-	    assert(site);
-	    n.addAllocSite(*site);
-	    m_graph.mkCell(LI, Cell(n, 0));
-	    return;
-	  }
-	}
+      if (GlobalVariable *GV = dyn_cast<GlobalVariable>(CE->getOperand(0))) {
+        if (GV->hasInitializer()) {
+          if (Function *F = dyn_cast<Function>(GV->getInitializer())) {
+            // create cell for LI and record allocation site
+            Node &n = m_graph.mkNode();
+            sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(*F);
+            assert(site);
+            n.addAllocSite(*site);
+            m_graph.mkCell(LI, Cell(n, 0));
+            return;
+          }
+        }
       }
     }
   }
-    
+
   Cell base = valueCell(*LI.getPointerOperand()->stripPointerCasts());
   assert(!base.isNull());
   base.addAccessedType(0, LI.getType());
@@ -552,8 +557,8 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
    a gcd of the variable offset.
  */
 std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
-                                               ArrayRef<Value *> Indicies,
-                                               const DataLayout &dl) {
+                                              ArrayRef<Value *> Indicies,
+                                              const DataLayout &dl) {
   Type *Ty = ptrTy;
   assert(Ty->isPointerTy());
 
@@ -699,29 +704,29 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
   Value &ptr = *I.getPointerOperand();
-    
+
   if (isa<ConstantExpr>(ptr)) {
     if (auto *g = dyn_cast<GEPOperator>(&ptr)) {
-      // Visit nested constant GEP first.          
+      // Visit nested constant GEP first.
       SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
       visitGep(*g, *g->getPointerOperand(), indicies);
     } else if (auto *bc = dyn_cast<BitCastOperator>(&ptr)) {
       if (auto *g = dyn_cast<GEPOperator>(bc->getOperand(0))) {
-	// Visit nested constant GEP first.          
-	SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
-	visitGep(*g, *g->getPointerOperand(), indicies);	
+        // Visit nested constant GEP first.
+        SmallVector<Value *, 8> indicies(g->op_begin() + 1, g->op_end());
+        visitGep(*g, *g->getPointerOperand(), indicies);
       }
     }
   }
-  
+
   if (isa<ShuffleVectorInst>(ptr)) {
     // XXX: TODO: handle properly.
     errs() << "WARNING: Gep inst with a shuffle vector operand "
-	   << "is allocating a new cell: " << I << "\n";
+           << "is allocating a new cell: " << I << "\n";
     m_graph.mkCell(I, sea_dsa::Cell(m_graph.mkNode(), 0));
     return;
   }
-  
+
   SmallVector<Value *, 8> indicies(I.op_begin() + 1, I.op_end());
   visitGep(I, ptr, indicies);
 }
@@ -860,43 +865,44 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
       return;
     }
   }
-  
+
   if (Instruction *inst = CS.getInstruction()) {
     if (!isSkip(*inst)) {
       Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
       if (Function *callee = CS.getCalledFunction()) {
-	if (callee->isDeclaration()) {
-	  c.getNode()->setExternal();
-	  // -- treat external function as allocation
-	  // XXX: we ignore external calls created by AbstractMemory pass
-	  if (!callee->getName().startswith("verifier.nondet.abstract.memory")) {
-	    sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(*inst);
-	    assert(site);
-	    c.getNode()->addAllocSite(*site);
-	  }
-	  // TODO: many more things can be done to handle external
-	  // TODO: functions soundly and precisely.  An absolutely
-	  // safe thing is to merge all arguments with return (with
-	  // globals) on any external function call. However, this is
-	  // too aggressive for most cases. More refined analysis can
-	  // be done using annotations of the external functions (like
-	  // noalias, does-not-read-memory, etc.). The current
-	  // solution is okay for now.
-	}
+        if (callee->isDeclaration()) {
+          c.getNode()->setExternal();
+          // -- treat external function as allocation
+          // XXX: we ignore external calls created by AbstractMemory pass
+          if (!callee->getName().startswith(
+                  "verifier.nondet.abstract.memory")) {
+            sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(*inst);
+            assert(site);
+            c.getNode()->addAllocSite(*site);
+          }
+          // TODO: many more things can be done to handle external
+          // TODO: functions soundly and precisely.  An absolutely
+          // safe thing is to merge all arguments with return (with
+          // globals) on any external function call. However, this is
+          // too aggressive for most cases. More refined analysis can
+          // be done using annotations of the external functions (like
+          // noalias, does-not-read-memory, etc.). The current
+          // solution is okay for now.
+        }
       }
     }
-  
+
     if (m_track_callsites && CS.isIndirectCall()) {
       const Value &calledV = *(CS.getCalledValue());
       if (m_graph.hasCell(calledV)) {
-	Cell calledC = m_graph.getCell(calledV);
-	m_graph.mkCallSite(*inst, calledC);
+        Cell calledC = m_graph.getCell(calledV);
+        m_graph.mkCallSite(*inst, calledC);
       } else {
-	errs() << "WARNING: no cell found for callee in indirect call.\n";
+        errs() << "WARNING: no cell found for callee in indirect call.\n";
       }
     }
   }
-  
+
   // Value *callee = CS.getCalledValue()->stripPointerCasts();
   // TODO: handle inline assembly
   // TODO: handle variable argument functions
@@ -906,8 +912,8 @@ void IntraBlockBuilder::visitShuffleVectorInst(ShuffleVectorInst &I) {
   using namespace sea_dsa;
 
   // XXX: TODO: handle properly.
-  errs() << "WARNING: shuffle vector inst is allocationg a new cell: "
-         << &I << "\n";
+  errs() << "WARNING: shuffle vector inst is allocationg a new cell: " << &I
+         << "\n";
   m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
 }
 
@@ -1034,13 +1040,15 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   // TODO: can also update size of dest and source using I.getLength ()
 }
 
+namespace {
 // -- only used as a compare. do not needs DSA node
 bool shouldBeTrackedIntToPtr(const Value &def) {
   // XXX: use_begin will return the same Value def. We need to call
   //      getUser() to get the actual user.
   // if (def.hasOneUse () && isa<CmpInst> (*(def.use_begin ()))) return false;
 
-  if (def.hasNUses(0)) return false;
+  if (def.hasNUses(0))
+    return false;
 
   if (def.hasOneUse()) {
     const Value *v = dyn_cast<Value>(def.use_begin()->getUser());
@@ -1059,6 +1067,54 @@ bool shouldBeTrackedIntToPtr(const Value &def) {
   return true;
 }
 
+} // namespace
+
+
+
+/// Returns true if \p inst is a fixed numeric offset of a known pointer
+/// Ensures that \p base has a cell in the current dsa graph
+bool BlockBuilderBase::isFixedOffset(const IntToPtrInst &inst, Value *&base, uint64_t &offset) {
+  using namespace llvm::PatternMatch;
+  auto *op = inst.getOperand(0);
+  Value *X;
+  ConstantInt *C;
+  if ((match(op, m_Add(m_Value(X), m_ConstantInt(C))) ||
+       match(op, m_Add(m_ConstantInt(C), m_Value(X))))) {
+    if (match(X, m_PtrToInt(m_Value(base)))) {
+      // -- check that source pointer has a cell
+      if (!m_graph.hasCell(*base) && !isa<GlobalValue>(base)) {
+        LOG("dsa.inttoptr", errs() << "Did not find an expected cell for: " << *base << "\n";);
+        return false;
+      }
+      offset = C->getZExtValue();
+    } else if (auto *LI = dyn_cast<LoadInst>(X)) {
+      PointerType *liType = Type::getInt8PtrTy(LI->getContext());
+      sea_dsa::Cell ptrCell =
+        valueCell(*LI->getPointerOperand()->stripPointerCasts());
+      ptrCell.addAccessedType(0, liType);
+      ptrCell.setRead();
+      sea_dsa::Field LoadedField(0, sea_dsa::FieldType(liType));
+      if (!ptrCell.hasLink(LoadedField)) {
+        sea_dsa::Node &n = m_graph.mkNode();
+        // XXX: This node will have no allocation site
+        ptrCell.setLink(LoadedField, sea_dsa::Cell(&n, 0));
+        LOG("dsa.inttoptr",
+            errs() << "Created node for LI from external memory without an allocation site:\n\tLI: "
+            << *LI << "\n\tbase: " << *LI->getPointerOperand()->stripPointerCasts() << "\n";);
+      }
+      // create cell for LI
+      m_graph.mkCell(*LI, ptrCell.getLink(LoadedField));
+      base = LI;
+      offset = C->getZExtValue();
+    } else {
+        return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
 void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   // -- only used as a compare. do not needs DSA node
   // if (dest.hasOneUse () && isa<CmpInst> (*(dest.use_begin ()))) return;
@@ -1067,6 +1123,28 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   //      breaking assumptions during the analysis of other
   //      instructions.
   // if (!shouldBeTrackedIntToPtr (dest)) return;
+  if (const IntToPtrInst *inttoptr = dyn_cast<IntToPtrInst>(&dest)) {
+    Value *base = nullptr;
+    uint64_t offset = 0;
+    if (isFixedOffset(*inttoptr, base, offset)) {
+      // TODO: can extend this to handle variable offsets
+      LOG("dsa.inttoptr", errs() << "inttoptr " << dest << "\n\tis " << *base
+          << " plus " << offset << "\n";);
+
+      if (m_graph.hasCell(*base) || isa<GlobalValue>(base)) {
+        sea_dsa::Cell baseCell = valueCell(*base);
+        assert(!baseCell.isNull());
+
+        assert(!m_graph.hasCell(dest) && "Untested");
+        sea_dsa::Node *baseNode = baseCell.getNode();
+        if (baseNode->isOffsetCollapsed())
+          m_graph.mkCell(dest, sea_dsa::Cell(baseNode, 0));
+        else 
+          m_graph.mkCell(dest, sea_dsa::Cell(baseCell, offset));
+        return;
+      }
+    }
+  }
 
   sea_dsa::Node &n = m_graph.mkNode();
   n.setIntToPtr();
@@ -1083,7 +1161,7 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
       bool printAddress = true;
       LOG("dsa", llvm::errs() << dest; printAddress = false);
       if (printAddress)
-        llvm::errs() << intptr_t(&dest);
+        llvm::errs() << "inttoptr @ addr " << &dest;
       llvm::errs() << " is allocating a new cell.\n";
     }
   }
@@ -1156,7 +1234,8 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
 }
 
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
-  if (!isEscapingPtrToInt(I)) return;
+  if (!isEscapingPtrToInt(I))
+    return;
 
   assert(m_graph.hasCell(*I.getOperand(0)));
   sea_dsa::Cell c = valueCell(*I.getOperand(0));
@@ -1174,8 +1253,8 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
 namespace sea_dsa {
 
 void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
-  LOG("dsa-progress", errs() << "Running sea_dsa::Local on "
-                             << F.getName() << "\n");
+  LOG("dsa-progress",
+      errs() << "Running sea_dsa::Local on " << F.getName() << "\n");
   // create cells and nodes for formal arguments
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
@@ -1202,8 +1281,9 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
     GlobalBuilder globalBuilder(F, g, m_dl, m_tli, m_allocInfo);
     globalBuilder.initGlobalVariables();
   }
-  
-  IntraBlockBuilder intraBuilder(F, g, m_dl, m_tli, m_allocInfo, m_track_callsites);
+
+  IntraBlockBuilder intraBuilder(F, g, m_dl, m_tli, m_allocInfo,
+                                 m_track_callsites);
   InterBlockBuilder interBuilder(F, g, m_dl, m_tli, m_allocInfo);
   for (const BasicBlock *bb : bbs)
     intraBuilder.visit(*const_cast<BasicBlock *>(bb));
