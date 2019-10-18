@@ -2,10 +2,10 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
-#include "sea_dsa/BottomUp.hh"
 #include "sea_dsa/CallSite.hh"
 #include "sea_dsa/Global.hh"
 #include "sea_dsa/Graph.hh"
@@ -96,10 +96,12 @@ public :
   static void colorGraph(const DsaCallSite &cs, const Graph &g_callee,
                          const Graph &g_caller, ColorMap &color_callee,
                          ColorMap &color_caller, SafeNodeSet &f_node_safe);
+
+  static void getSafeNodesCallerGraph(const CallSite &cs, const Graph &calleeG,
+                                      const Graph &callerG, SafeNodeSet &f_node_safe_caller);
 };
 
 namespace llvm {
-  // TODO: move to some header file?
   template <> struct GraphTraits<sea_dsa::ColoredGraph *> {
     typedef sea_dsa::Node NodeType;
     typedef sea_dsa::Node::iterator ChildIteratorType;

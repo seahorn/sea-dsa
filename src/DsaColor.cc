@@ -93,9 +93,8 @@ bool GraphExplorer::mark_copy(const Node &n, ExplorationMap &f_color,
     const Node *next_n = next_c.getNode();
     auto it = f_color.find(next_n);
     if (it == f_color.end() && mark_copy(*next_n, f_color, f_safe,f_safe_caller,sm)) {
-      //
       return true;
-    } else if (it != f_color.end() &&  it->getSecond() == GRAY) {
+    } else if (it != f_color.end() && it->getSecond() == GRAY) {
       propagate_not_copy(n, f_color, f_safe,f_safe_caller,sm);
       return true;
     }
@@ -203,4 +202,25 @@ void GraphExplorer::colorGraph(const DsaCallSite &cs, const Graph &calleeG,
                    f_node_safe_callee, f_node_safe_caller, simMap);
 
   color_nodes_graph(*(const_cast<Graph *>(&calleeG)),*cs.getCallee(),simMap,color_callee,color_caller,f_node_safe_callee,f_node_safe_caller);
+}
+
+/************************************************************/
+/* only safe exploration, no coloring!                      */
+/************************************************************/
+
+void GraphExplorer::getSafeNodesCallerGraph(const CallSite &cs,
+                                            const Graph &calleeG,
+                                            const Graph &callerG,
+                                            SafeNodeSet &f_node_safe_caller) {
+
+  DsaCallSite dsa_cs(*cs.getInstruction());
+  SimulationMapper simMap;
+
+  bool res = Graph::computeCalleeCallerMapping(
+      dsa_cs, *(const_cast<Graph *>(&calleeG)),
+      *(const_cast<Graph *>(&callerG)), simMap);
+  SafeNodeSet f_node_safe_callee;
+
+  mark_nodes_graph(*(const_cast<Graph *>(&calleeG)), *dsa_cs.getCallee(),
+                   f_node_safe_callee, f_node_safe_caller, simMap);
 }

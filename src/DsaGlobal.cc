@@ -26,7 +26,7 @@
 #include "sea_dsa/TopDown.hh"
 #include "sea_dsa/config.h"
 
-#include "sea_dsa/DsaColor.hh"
+#include "sea_dsa/DsaColor.hh" // for cloneGraph
 
 #include "sea_dsa/support/Debug.h"
 
