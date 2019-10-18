@@ -253,7 +253,7 @@ void CompleteCallGraphAnalysis::printStats(Module& M, raw_ostream& o) {
 	      str_os << " at ";
 	      dbgloc.print(str_os);
 	    }
-	    str_os << "\nRESOLVED\nCallees:\n";
+	    str_os << "\nRESOLVED\n\nCallees:\n";
 	    for (auto it = begin(CS), et = end(CS); it!=et;++it) {
 	      const Function* calleeF = *it;
 	      str_os << "\t";
@@ -304,7 +304,6 @@ CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
 
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
-  typedef std::unordered_set<const Function *> FunctionSet;
   typedef std::unordered_set<const Instruction *> InstSet;
 
   LOG("dsa-callgraph",
@@ -324,16 +323,13 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   LocalAnalysis la(m_dl, m_tli, m_allocInfo, track_callsites);
 
   // Given a callsite, inline the callee's graph into the caller's graph.
-  auto inlineCallee = [&graphs, this](DsaCallSite &dsaCS, unsigned numIter,
-                                      FunctionSet &inlinedFunctions, int &cnt) {
+  auto inlineCallee = [&graphs, this](DsaCallSite &dsaCS, unsigned numIter, int &cnt) {
     assert(dsaCS.getCallee());
     assert(graphs.count(dsaCS.getCaller()) > 0);
     assert(graphs.count(dsaCS.getCallee()) > 0);
 
     Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
     Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
-
-    inlinedFunctions.insert(dsaCS.getCallee());
 
     ++cnt;
 
@@ -360,12 +356,9 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   unsigned numIter = 1;
   /// set of indirect calls that cannot be fully resolved.
   InstSet IncompleteCallSites;
-  /// To query if a function has been inlined during the bottom-up traversal.
-  FunctionSet InlinedFunctions;
   while (change) {
-    InlinedFunctions.clear();
     IncompleteCallSites.clear();
-
+    
     /// This loop performs a bottom-up traversal while inlining
     /// callee's graphs into callers. The callgraph is augmented with
     /// new edges after each iteration.
@@ -422,7 +415,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
               continue;
             }
             DsaCallSite dsaCS(*CS.getInstruction(), *callee);
-            inlineCallee(dsaCS, numIter, InlinedFunctions, cnt);
+            inlineCallee(dsaCS, numIter, cnt);
           } else {
             DsaCallSite dsaCS(*CS.getInstruction());
             const Function *callee = dsaCS.getCallee();
@@ -431,7 +424,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
               continue;
             }
             // direct call
-            inlineCallee(dsaCS, numIter, InlinedFunctions, cnt);
+            inlineCallee(dsaCS, numIter, cnt);
           }
         }
       }
@@ -472,23 +465,25 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
     for (auto &kv : graphs) {
       for (DsaCallSite &cs : kv.second->callsites()) {
         if (kv.first->getName().equals("main") ||
-	    // JN: a callsite might not be cloned if the function has
-	    // not been inlined yet.  I think it's safe to relax the
-	    // condition of being inlined.
-	    (!cs.isCloned() /*&&
-			      InlinedFunctions.count(kv.first) > 0*/)) {
+	    // XXX: a callsite might not be cloned if the function has
+	    // not been inlined yet but in that case its allocation
+	    // sites should be empty and we skip the callsite.
+	    (!cs.isCloned())) {
 
           // Get all possible callees from the allocation sites
           auto &alloc_sites = cs.getCell().getNode()->getAllocSites();
           if (alloc_sites.empty()) {
 #if 0
+	    // This can happen in early fixpoint iterations or if
+	    // some callsite is in a function that is never inlined
+	    // (e.g., if its address is taken and passed to an
+	    // external call that is supposed to call it).
 	    errs() << "WARNING: callsite at " << cs.getCaller()->getName()
 	     	   << " in graph " << kv.first->getName()
 	     	   << " without allocation site at iteration " << numIter << "\n"
 	     	   << "\t" << *cs.getInstruction() << "\n"
 	     	   << "\t" << *(cs.getCell().getNode()) << "\n";
 #endif
-            // IncompleteCallSites.insert(cs.getInstruction());
             continue;
           }
 
@@ -497,7 +492,9 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           assert(CGNCaller);
           CallSite CGNCS(const_cast<Instruction *>(cs.getInstruction()));
 
-          LOG("dsa-callgraph-resolve", errs() << "Resolved indirect call by "
+	  /// At this point, we can try to resolve the indirect call
+	  
+          LOG("dsa-callgraph-resolve", errs() << "Resolving indirect call by "
                                               << kv.first->getName() << " at ";
               errs() << cs.getInstruction()->getParent()->getParent()->getName()
                      << ":\n";
@@ -505,6 +502,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
           // Update the callgraph by adding a new edge to each
           // resolved callee.
+	  bool has_external_alloc_site = false;
           for (const Value *v : alloc_sites) {
             if (const Function *fn = dyn_cast<const Function>(v)) {
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
@@ -518,18 +516,30 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
               // If external call then we shouldn't remove the
               // original edge with the indirect call.
               IncompleteCallSites.insert(cs.getInstruction());
-              LOG("dsa-callgraph-resolve", errs()
-                                               << "Marked as incomplete.\n";);
+	      has_external_alloc_site = true;
+              LOG("dsa-callgraph-resolve",
+		  errs() << "Marked as incomplete.\n";);
             }
           }
+	  
+	  if (!has_external_alloc_site) {
+	    // At this point we know about the indirect call that :
+	    // 1) it can be resolved. This happens either because:
+	    //    - we have already reached main during the bottom-up process or
+	    //    - the callsite cannot be inlined anymore.
+	    // 2) it has at least one allocation site (i.e., some
+	    //    callee to resolve it)
+	    // 3) it has no external allocation site.
+	    m_resolved.insert(cs.getInstruction());
+	    LOG("dsa-callgraph-resolve",
+		errs() << "Marked as complete.\n";);
+	  }
         }
 
         // reset the cloned flag for next bottom-up iteration
-
         // XXX: we don't clear the cloned mark here because two
         // functions can share the same graph, so if we clear it here
         // the next function will think the callsite was not cloned.
-
         // cs.markCloned(false);
       }
     }
@@ -555,15 +565,13 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
         if (!kv.first)
           continue;
         CallSite CS(kv.first);
-        if (CS.isIndirectCall() &&
-            !kv.second->getFunction() && /* external node: no callee*/
-            IncompleteCallSites.find(CS.getInstruction()) ==
-                IncompleteCallSites.end()) {
-          toRemove.push_back(CS);
-        }
+	if (CS.isIndirectCall() &&
+            !kv.second->getFunction() /* has no callee */) {
+	  if (m_resolved.count(CS.getInstruction()) > 0)
+	    toRemove.push_back(CS);
+	}
       }
       for (CallSite CS : toRemove) {
-	m_resolved.insert(CS.getInstruction());
         CGNF->removeCallEdgeFor(CS);
       }
     }
