@@ -15,7 +15,7 @@ of context sensitivity, addition of partial flow-sensitivity, and type-awareness
 Although `SeaDsa` can analyze arbitrary LLVM bitcode, it has been
 tailored for use in program verification of C/C++ programs. It can be
 used as a stand-alone tool or together with
-the [SeaHorn](https://github.com/seahorn/seahorn/tree/tea-dsa)
+the [SeaHorn](https://github.com/seahorn/seahorn)
 verification framework and its analyses.
 
 ## Requirements ## 
@@ -216,6 +216,33 @@ and opened with the commands:
 	open callgraph.pdf  
 
 ![Example of a call graph](https://github.com/seahorn/sea-dsa/blob/tea-dsa/tests/expected_graphs/complete_callgraph_5.jpg?raw=true)
+
+`sea-dsa` can also print some statistics about the call graph
+resolution process (note that you need to call `clang` with `-g` to
+print file,line, and column information):
+
+    sea-dsa --sea-dsa-callgraph-stats ex.ll
+
+
+    === Sea-Dsa CallGraph Statistics === 
+    ** Total number of indirect calls 0
+    ** Total number of resolved indirect calls 3
+
+    %16 = call i32 %12(%struct.class_t* %13, i32 %15) at tests/c/complete_callgraph_5.c:14:12
+    RESOLVED
+    Callees:
+	  i32 bar(%struct.class_t*,i32)
+	  
+    %15 = call i32 %13(%struct.class_t* %14, i32 10) at tests/c/complete_callgraph_5.c:23:16
+	RESOLVED
+    Callees:
+      i32 foo(%struct.class_t*,i32)
+	  
+    %11 = call i32 %10(%struct.class_t* %2, i32 42) at tests/c/complete_callgraph_5.c:36:9
+    RESOLVED
+    Callees:
+	  i32 foo(%struct.class_t*,i32)
+	
 
 ## Dealing with C/C++ library and external calls ##
 

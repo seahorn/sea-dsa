@@ -76,7 +76,6 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
         continue;
 #endif
 
-    const Value &global = *kv.first;
     Node &n = C.clone(calleeN, false, (!flowSensitiveOpt ? nullptr : kv.first));
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
@@ -207,43 +206,5 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   return false;
 }
 
-BottomUp::BottomUp() : ModulePass(ID), m_dl(nullptr), m_tli(nullptr) {}
-
-void BottomUp::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<TargetLibraryInfoWrapperPass>();
-  AU.addRequired<CallGraphWrapperPass>();
-  AU.addRequired<AllocWrapInfo>();
-  AU.setPreservesAll();
-}
-
-bool BottomUp::runOnModule(Module &M) {
-  m_dl = &M.getDataLayout();
-  m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
-  m_allocInfo = &getAnalysis<AllocWrapInfo>();
-  CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-
-  BottomUpAnalysis bu(*m_dl, *m_tli, *m_allocInfo, cg);
-  for (auto &F : M) { // XXX: the graphs must be created here
-    if (F.isDeclaration() || F.empty())
-      continue;
-
-    GraphRef fGraph = std::make_shared<Graph>(*m_dl, m_setFactory);
-    m_graphs[&F] = fGraph;
-  }
-
-  return bu.runOnModule(M, m_graphs);
-}
-
-Graph &BottomUp::getGraph(const Function &F) const {
-  return *(m_graphs.find(&F)->second);
-}
-
-bool BottomUp::hasGraph(const Function &F) const {
-  return m_graphs.count(&F) > 0;
-}
-
-char BottomUp::ID = 0;
 } // namespace sea_dsa
 
-static llvm::RegisterPass<sea_dsa::BottomUp> X("seadsa-bu",
-                                               "Bottom-up SeaDsa pass");

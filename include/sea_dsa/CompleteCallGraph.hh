@@ -16,33 +16,45 @@ namespace llvm {
 class DataLayout;
 class TargetLibraryInfo;
 class CallGraph;
+class raw_ostream;
 } // namespace llvm
 
 namespace sea_dsa {
 class AllocWrapInfo;
 class Cloner;
-
+  class CompleteCallGraph;
+  
 class CompleteCallGraphAnalysis {
-
+  friend class CompleteCallGraph;
+  
 public:
-  typedef std::shared_ptr<Graph> GraphRef;
-  typedef llvm::DenseMap<const llvm::Function *, GraphRef> GraphMap;
-  typedef std::vector<const llvm::Function*> FunctionVector;
+  using GraphRef = std::shared_ptr<Graph>;
+  using GraphMap = llvm::DenseMap<const llvm::Function *, GraphRef>;
+  using FunctionVector = std::vector<const llvm::Function*>;
+  using callee_iterator = FunctionVector::iterator;
   
 private:
+  using CalleesMap = llvm::DenseMap<const llvm::Instruction*, FunctionVector>;
+
+  /// -- for building complete call graph
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
+  Graph::SetFactory m_setFactory;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   std::unique_ptr<llvm::CallGraph> m_complete_cg;
-  // true if assume that alloca allocated (stack) memory does not escape
+  // true if assume that stack allocated memory does not escape
   bool m_noescape;
-
+  
+  /// -- for client queries
+  std::set<const llvm::Instruction*> m_resolved;
+  CalleesMap m_callees;
+  
   void mergeGraphs(Graph &fromG, Graph &toG);  
   void cloneCallSites(Cloner& C, Graph &calleeG, Graph &callerG);
   void cloneAndResolveArgumentsAndCallSites(const DsaCallSite &CS, Graph &calleeG,
 					    Graph &callerG, bool noescape = true);
-  
+    
 public:
 
   CompleteCallGraphAnalysis(const llvm::DataLayout &dl,
@@ -50,7 +62,7 @@ public:
                    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
                    bool noescape = true /* TODO: CLI*/);
 
-  bool runOnModule(llvm::Module &M, GraphMap &graphs);
+  bool runOnModule(llvm::Module &M);
 
   /* 
      Methods to return a complete call graph. 
@@ -67,23 +79,38 @@ public:
   
   // this method passes ownership of m_complete_cg to the caller.
   std::unique_ptr<llvm::CallGraph> getCompleteCallGraph();
+
+  void printStats(llvm::Module& m, llvm::raw_ostream& o);
+  
+  // The indirect call CS can be fully resolved.
+  bool isComplete(llvm::CallSite& CS) const;
+  
+  // Iterate over all possible callees of an indirect call CS.
+  callee_iterator begin(llvm::CallSite& CS);
+  
+  callee_iterator end(llvm::CallSite& CS);  
 };
 
-class CompleteCallGraph : public llvm::ModulePass {
-  typedef typename CompleteCallGraphAnalysis::GraphRef GraphRef;
-  typedef typename CompleteCallGraphAnalysis::GraphMap GraphMap;
-
-  Graph::SetFactory m_setFactory;
-  const llvm::DataLayout *m_dl;
-  const llvm::TargetLibraryInfo *m_tli;
-  const AllocWrapInfo *m_allocInfo;
-  GraphMap m_graphs;
-  std::unique_ptr<llvm::CallGraph> m_complete_cg;
+class CompleteCallGraph : public llvm::ModulePass {  
+private:
+  
+  using CalleesMap = typename CompleteCallGraphAnalysis::CalleesMap;
+  using FunctionVector = typename CalleesMap::mapped_type;
 
 public:
+  
+  using callee_iterator = FunctionVector::iterator;
+  
+private:
+  
+  std::unique_ptr<CompleteCallGraphAnalysis> m_CCGA;
+  bool m_printStats;
+
+public:
+  
   static char ID;
 
-  CompleteCallGraph();
+  CompleteCallGraph(bool printStats = false);
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -93,7 +120,14 @@ public:
 
   llvm::CallGraph& getCompleteCallGraph();
   
-  const llvm::CallGraph& getCompleteCallGraph() const;  
+  const llvm::CallGraph& getCompleteCallGraph() const;
+
+  bool isComplete(llvm::CallSite& CS) const;
+
+  callee_iterator begin(llvm::CallSite& CS);
+  
+  callee_iterator end(llvm::CallSite& CS);  
 };
 
 } // namespace sea_dsa
+

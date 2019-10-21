@@ -1,5 +1,4 @@
-#ifndef __DSA_BOTTOM_UP_HH_
-#define __DSA_BOTTOM_UP_HH_
+#pragma once
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -50,29 +49,4 @@ public:
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 };
 
-class BottomUp : public llvm::ModulePass {
-  typedef typename BottomUpAnalysis::GraphRef GraphRef;
-  typedef typename BottomUpAnalysis::GraphMap GraphMap;
-
-  Graph::SetFactory m_setFactory;
-  const llvm::DataLayout *m_dl;
-  const llvm::TargetLibraryInfo *m_tli;
-  const AllocWrapInfo *m_allocInfo;
-  GraphMap m_graphs;
-
-public:
-  static char ID;
-
-  BottomUp();
-
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-
-  bool runOnModule(llvm::Module &M) override;
-
-  llvm::StringRef getPassName() const override { return "BottomUp SeaDsa pass"; }
-
-  Graph &getGraph(const llvm::Function &F) const;
-  bool hasGraph(const llvm::Function &F) const;
-};
 } // namespace sea_dsa
-#endif

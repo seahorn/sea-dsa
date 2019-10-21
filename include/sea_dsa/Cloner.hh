@@ -39,7 +39,6 @@ public:
 
   Cloner(Graph &g, CloningContext context, Cloner::Options options)
       : m_graph(g), m_context(context),
-        m_track_call_paths(options & Cloner::Options::TrackAllocaCallPaths),
         m_strip_allocas(options & Cloner::Options::StripAllocas) {}
 
   /// Returns a clone of a given node in the new graph
@@ -65,7 +64,6 @@ private:
   llvm::DenseMap<const Node *, std::pair<Node *, CachingLevel>> m_map;
   llvm::DenseMap<const Node *, llvm::SmallDenseSet<Node *, 4>> m_deferredUnify;
   CloningContext m_context;
-  bool m_track_call_paths;
   bool m_strip_allocas;
 
   bool isTopDown() const { return m_context.m_dir == CloningContext::TopDown; }

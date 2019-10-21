@@ -497,7 +497,6 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
 
     typedef sea_dsa::Node Node;
     typedef sea_dsa::Field Field;
-    typedef sea_dsa::Graph::const_iterator node_const_iterator;
 
     auto EmitLinkTypeSuffix = [](const sea_dsa::Cell &C,
                                  sea_dsa::FieldType Ty =

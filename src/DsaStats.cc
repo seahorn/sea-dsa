@@ -151,41 +151,10 @@ namespace sea_dsa {
     printAllocSites(dsa_nodes, dsa_alloc_sites, errs());
     errs() << " ========== End SeaDsa stats  ==========\n";
   }
-  
-
-  class DsaPrintStatsPass: public ModulePass {
-  public:
     
-    static char ID;
-    
-    DsaPrintStatsPass(): ModulePass (ID) {}
-    
-    void getAnalysisUsage(AnalysisUsage &AU) const override {
-      AU.addRequired<DsaAnalysis>();
-      AU.setPreservesAll();
-    }
-    
-    bool runOnModule(Module &M) override {
-      /// XXX: we don't do anything here. The pass manager already
-      /// executed DsaAnalysis which prints stats if PrintDsaStats is
-      /// enabled. This pass (DsaPrintStatsPass) is only called if
-      /// PrintDsaStats is enabled.
-      
-      return false;
-    }
-  
-    StringRef getPassName() const override 
-    { return "Print Stats about SeaDsa"; }
-    
-  };
-
-  char DsaPrintStatsPass::ID = 0;
-  
   Pass *createDsaPrintStatsPass() {
-    return new DsaPrintStatsPass();
+    return new DsaAnalysis(true);
   }
   
 } // end namespace sea_dsa
 
-static llvm::RegisterPass<sea_dsa::DsaPrintStatsPass> 
-X ("seadsa-stats", "Print stats about SeaDsa");

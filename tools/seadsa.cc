@@ -21,6 +21,7 @@
 #include "llvm/IR/Verifier.h"
 
 #include "sea_dsa/DsaAnalysis.hh"
+#include "sea_dsa/CompleteCallGraph.hh"
 #include "sea_dsa/support/Debug.h"
 
 static llvm::cl::opt<std::string>
@@ -54,6 +55,7 @@ CallGraphDot("sea-dsa-callgraph-dot",
 namespace sea_dsa {
   SeaDsaLogOpt loc;
   extern bool PrintDsaStats;
+  extern bool PrintCallGraphStats;
 }
 
 static llvm::cl::opt<sea_dsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string> > 
@@ -130,24 +132,30 @@ int main(int argc, char **argv) {
   assert (dl && "Could not find Data Layout for the module");  
 
   if (MemDot) {
-    pass_manager.add (sea_dsa::createDsaPrinterPass ());
+    pass_manager.add(sea_dsa::createDsaPrinterPass());
   }
   
   if (MemViewer) {
-    pass_manager.add (sea_dsa::createDsaViewerPass ());
+    pass_manager.add(sea_dsa::createDsaViewerPass());
   }
   
   if (sea_dsa::PrintDsaStats) {
-    pass_manager.add (sea_dsa::createDsaPrintStatsPass ());
+    pass_manager.add(sea_dsa::createDsaPrintStatsPass());
+  }
+
+  if (sea_dsa::PrintCallGraphStats) {
+    pass_manager.add(sea_dsa::createDsaPrintCallGraphStatsPass());
   }
   
   if (CallGraphDot) {
     pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
   }
 
-  if (!MemDot && !MemViewer && !sea_dsa::PrintDsaStats && !CallGraphDot) {
+  if (!MemDot && !MemViewer && !sea_dsa::PrintDsaStats &&
+      !sea_dsa::PrintCallGraphStats && !CallGraphDot) {
     llvm::errs() << "No option selected: choose one option between "
-		 << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, sea-dsa-callgraph-dot}\n";
+		 << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, "
+		 << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
   }
   
   if (!AsmOutputFilename.empty ())
