@@ -15,7 +15,7 @@ of context sensitivity, addition of partial flow-sensitivity, and type-awareness
 Although `SeaDsa` can analyze arbitrary LLVM bitcode, it has been
 tailored for use in program verification of C/C++ programs. It can be
 used as a stand-alone tool or together with
-the [SeaHorn](https://github.com/seahorn/seahorn/tree/tea-dsa)
+the [SeaHorn](https://github.com/seahorn/seahorn)
 verification framework and its analyses.
 
 ## Requirements ## 
