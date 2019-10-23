@@ -59,6 +59,13 @@ public:
 
   // return true if F has its own points-to graph
   virtual bool hasGraph(const llvm::Function &F) const = 0;
+
+  // return the summary (bottom up) graph for F
+  virtual const Graph &getSummaryGraph(const llvm::Function &F) const = 0;
+  virtual Graph &getSummaryGraph(const llvm::Function &F) = 0;
+
+  // return true if F has its own points-to graph
+  virtual bool hasSummaryGraph(const llvm::Function &F) const = 0;
 };
 
 // Context-insensitive dsa analysis
@@ -98,6 +105,12 @@ public:
   Graph &getGraph(const llvm::Function &fn) override;
 
   bool hasGraph(const llvm::Function &fn) const override;
+
+  const Graph &getSummaryGraph(const llvm::Function &fn) const override;
+
+  Graph &getSummaryGraph(const llvm::Function &fn) override;
+
+  bool hasSummaryGraph(const llvm::Function &fn) const override;
 };
 
 template <typename T> class WorkList {
@@ -164,6 +177,12 @@ public:
   Graph &getGraph(const llvm::Function &fn) override;
 
   bool hasGraph(const llvm::Function &fn) const override;
+
+  const Graph &getSummaryGraph(const llvm::Function &fn) const override;
+
+  Graph &getSummaryGraph(const llvm::Function &fn) override;
+
+  bool hasSummaryGraph(const llvm::Function &fn) const override;
 };
 
 /**
@@ -199,6 +218,12 @@ public:
   Graph &getGraph(const llvm::Function &fn) override;
 
   bool hasGraph(const llvm::Function &fn) const override;
+
+  const Graph &getSummaryGraph(const llvm::Function &fn) const override;
+
+  Graph &getSummaryGraph(const llvm::Function &fn) override;
+
+  bool hasSummaryGraph(const llvm::Function &fn) const override;
 };
 
 /**
@@ -232,6 +257,12 @@ public:
   Graph &getGraph(const llvm::Function &fn) override;
 
   bool hasGraph(const llvm::Function &fn) const override;
+
+  const Graph &getSummaryGraph(const llvm::Function &fn) const override;
+
+  Graph &getSummaryGraph(const llvm::Function &fn) override;
+
+  bool hasSummaryGraph(const llvm::Function &fn) const override;
 };
 
 

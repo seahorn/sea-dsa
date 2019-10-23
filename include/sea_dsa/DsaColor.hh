@@ -98,7 +98,9 @@ public :
                          ColorMap &color_caller, SafeNodeSet &f_node_safe);
 
   static void getSafeNodesCallerGraph(const CallSite &cs, const Graph &calleeG,
-                                      const Graph &callerG, SafeNodeSet &f_node_safe_caller);
+                                      const Graph &callerG,
+                                      SimulationMapper &simMap,
+                                      SafeNodeSet &f_node_safe_caller);
 };
 
 namespace llvm {

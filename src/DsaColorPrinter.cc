@@ -582,9 +582,9 @@ struct DsaColorPrinter : public ModulePass {
     CallGraphWrapper dsaCG(dsaCallGraph);
 
     dsaCG.buildDependencies(); // TODO: this is already done already in
-                               // ContextSensitiveGlobalAnalysis but it stored
-                               // locally in the runOnModule function, so we
-                               // have to recompute it.
+                               // ContextSensitiveGlobalAnalysis but it is
+                               // stored locally in the runOnModule function, so
+                               // we have to recompute it.
 
     m_dsa = &getAnalysis<sea_dsa::ContextSensitiveGlobalPass>().getCSGlobalAnalysis();
 
@@ -606,13 +606,14 @@ struct DsaColorPrinter : public ModulePass {
         const Function * f_caller = it->getCallSite().getCaller();
 
         Graph &callerG = m_dsa->getGraph(*f_caller);
-        Graph &calleeG = *m_dsa->m_bugraphs.find(&F)->getSecond();
+        Graph &calleeG = m_dsa->getSummaryGraph(F);
 
         GraphExplorer::colorGraph(*it, calleeG, callerG, color_callee, color_caller,
-                             f_node_safe); // colors the graphs
+                              f_node_safe); // colors the graphs
 
-        std::string FilenameBase = M.getModuleIdentifier() + "." +
-          f_caller->getName().str() + "." + F.getName().str() + "." +std::to_string(++count);
+        std::string FilenameBase =
+          M.getModuleIdentifier() + "." + f_caller->getName().str() +
+          "." + F.getName().str() + "." + std::to_string(++count);
 
         ColoredGraph colorGCallee(calleeG, color_callee, f_node_safe);
         writeColoredGraph(&colorGCallee, FilenameBase + ".callee.mem.dot");

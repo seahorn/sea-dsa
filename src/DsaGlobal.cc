@@ -170,6 +170,21 @@ bool ContextInsensitiveGlobalAnalysis::hasGraph(const Function &fn) const {
   return m_fns.count(&fn) > 0;
 }
 
+const Graph &
+ContextInsensitiveGlobalAnalysis::getSummaryGraph(const Function &) const {
+  assert(m_graph);
+  return *m_graph;
+}
+
+Graph &ContextInsensitiveGlobalAnalysis::getSummaryGraph(const Function &) {
+  assert(m_graph);
+  return *m_graph;
+}
+
+bool ContextInsensitiveGlobalAnalysis::hasSummaryGraph(const Function &fn) const {
+  return m_fns.count(&fn) > 0;
+}
+
 /// LLVM passes
 
 ContextInsensitiveGlobalPass::ContextInsensitiveGlobalPass()
@@ -570,6 +585,19 @@ bool ContextSensitiveGlobalAnalysis::hasGraph(const Function &fn) const {
   return m_graphs.count(&fn) > 0;
 }
 
+const Graph &
+ContextSensitiveGlobalAnalysis::getSummaryGraph(const Function &fn) const {
+  return *(m_bugraphs.find(&fn)->second);
+}
+
+Graph &ContextSensitiveGlobalAnalysis::getSummaryGraph(const Function &fn) {
+  return *(m_bugraphs.find(&fn)->second);
+}
+
+bool ContextSensitiveGlobalAnalysis::hasSummaryGraph(const Function &fn) const {
+  return m_bugraphs.count(&fn) > 0;
+}
+
 ///////
 /// Context-sensitive analysis: bottom-up + top-down
 ///////
@@ -631,6 +659,20 @@ bool BottomUpTopDownGlobalAnalysis::hasGraph(const Function &fn) const {
   return m_graphs.count(&fn) > 0;
 }
 
+// TODO: since the butd graph is an over-approximation of bu, it should be fine
+// to return this
+const Graph &BottomUpTopDownGlobalAnalysis::getSummaryGraph(const Function &fn) const {
+  return *(m_graphs.find(&fn)->second);
+}
+
+Graph &BottomUpTopDownGlobalAnalysis::getSummaryGraph(const Function &fn) {
+  return *(m_graphs.find(&fn)->second);
+}
+
+bool BottomUpTopDownGlobalAnalysis::hasSummaryGraph(const Function &fn) const {
+  return m_graphs.count(&fn) > 0;
+}
+
 ///////
 /// Bottom-up analysis
 ///////
@@ -684,6 +726,19 @@ Graph &BottomUpGlobalAnalysis::getGraph(const Function &fn) {
 }
 
 bool BottomUpGlobalAnalysis::hasGraph(const Function &fn) const {
+  return m_graphs.count(&fn) > 0;
+}
+
+// return the same graphs same graphs
+const Graph &BottomUpGlobalAnalysis::getSummaryGraph(const Function &fn) const {
+  return *(m_graphs.find(&fn)->second);
+}
+
+Graph &BottomUpGlobalAnalysis::getSummaryGraph(const Function &fn) {
+  return *(m_graphs.find(&fn)->second);
+}
+
+bool BottomUpGlobalAnalysis::hasSummaryGraph(const Function &fn) const {
   return m_graphs.count(&fn) > 0;
 }
 

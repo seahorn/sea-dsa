@@ -211,10 +211,10 @@ void GraphExplorer::colorGraph(const DsaCallSite &cs, const Graph &calleeG,
 void GraphExplorer::getSafeNodesCallerGraph(const CallSite &cs,
                                             const Graph &calleeG,
                                             const Graph &callerG,
+                                            SimulationMapper &simMap,
                                             SafeNodeSet &f_node_safe_caller) {
 
   DsaCallSite dsa_cs(*cs.getInstruction());
-  SimulationMapper simMap;
 
   bool res = Graph::computeCalleeCallerMapping(
       dsa_cs, *(const_cast<Graph *>(&calleeG)),
