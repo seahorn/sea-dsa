@@ -71,7 +71,6 @@ private:
                                  SafeNodeSet &f_safe_caller,
                                  SimulationMapper &sm);
 
-  static bool isSafeNode(SafeNodeSet &f_safe, const Node *n);
   static const Node *getMappedNode(const Node *n, SimulationMapper & sm);
 
   static void color_nodes_graph(Graph &g, const Function &F,
@@ -97,10 +96,12 @@ public :
                          const Graph &g_caller, ColorMap &color_callee,
                          ColorMap &color_caller, SafeNodeSet &f_node_safe);
 
+  // TODO: actually SafeNodeSet contains the unsafe nodes, change name?
   static void getSafeNodesCallerGraph(const CallSite &cs, const Graph &calleeG,
                                       const Graph &callerG,
                                       SimulationMapper &simMap,
                                       SafeNodeSet &f_node_safe_caller);
+  static bool isSafeNode(SafeNodeSet &f_safe, const Node *n);
 };
 
 namespace llvm {
