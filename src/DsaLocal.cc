@@ -905,7 +905,12 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
   if (Instruction *inst = CS.getInstruction()) {
     if (!isSkip(*inst)) {
       Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
-      if (Function *callee = CS.getCalledFunction()) {
+      if (CS.isInlineAsm()) {
+	c.getNode()->setExternal();
+	sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(*inst);
+	assert(site);
+	c.getNode()->addAllocSite(*site);
+      } else if (Function *callee = CS.getCalledFunction()) {
         if (callee->isDeclaration()) {
           c.getNode()->setExternal();
           // -- treat external function as allocation
