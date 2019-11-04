@@ -92,7 +92,11 @@ bool GraphExplorer::mark_copy(const Node &n, ExplorationMap &f_color,
     const Cell &next_c = *links.second;
     const Node *next_n = next_c.getNode();
     auto it = f_color.find(next_n);
-    if (it == f_color.end() && mark_copy(*next_n, f_color, f_safe,f_safe_caller,sm)) {
+    if (next_n->isArray()){ // encodes an object of unbounded size
+      propagate_not_copy(n, f_color, f_safe, f_safe_caller, sm);
+      return true;
+    }
+    else if (it == f_color.end() && mark_copy(*next_n, f_color, f_safe,f_safe_caller,sm)) {
       return true;
     } else if (it != f_color.end() && it->getSecond() == GRAY) {
       propagate_not_copy(n, f_color, f_safe,f_safe_caller,sm);
@@ -112,7 +116,7 @@ void GraphExplorer::propagate_not_copy(const Node &n, ExplorationMap &f_color,
   if(isSafeNode(f_safe,&n))
     f_safe.insert(&n); // we store the ones that are not safe
 
-  f_color[&n] = BLACK; // TODO: change by insert?
+  f_color[&n] = BLACK;
 
   for (auto &links : n.getLinks()){
     const Field &f = links.first;
