@@ -73,7 +73,7 @@ public:
   const llvm::Value &getCalledValue() const;
 
   bool isIndirectCall() const;
-
+  bool isInlineAsm() const;
   bool isCloned() const;
 
   void markCloned(bool v = true);

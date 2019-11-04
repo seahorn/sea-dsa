@@ -329,6 +329,10 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     return (F->getName().equals("sea_dsa_collapse"));
   }
 
+  static bool isSeaDsaMkSequenceFn(const Function *F) {
+    return (F->getName().equals("sea_dsa_mk_seq"));
+  }
+  
 public:
   IntraBlockBuilder(Function &func, sea_dsa::Graph &graph, const DataLayout &dl,
                     const TargetLibraryInfo &tli,
@@ -863,13 +867,50 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
         }
       }
       return;
+    } else if (isSeaDsaMkSequenceFn(callee)) {
+      /**
+	 sea_dsa_mk_seq(p, sz)
+         mark the node pointed by p as sequence of size sz
+       **/
+      if (!isSkip(*(CS.getArgument(0)))) {
+        if (m_graph.hasCell(*(CS.getArgument(0)))) {
+          sea_dsa::Cell c = valueCell(*(CS.getArgument(0)));
+	  Node *n = c.getNode();
+	  if (!n->isArray()) {
+	    ConstantInt *raw_sz = dyn_cast<ConstantInt>(CS.getArgument(1));
+	    if (!raw_sz) {
+	      errs() << "WARNING: skipped " << *CS.getInstruction()
+		     << " because second argument is not a number.\n";
+	      return;
+	    }
+	    const uint64_t sz = raw_sz->getZExtValue();
+	    if (n->size() <= sz) {
+	      n->setArraySize(sz);
+	    } else {
+	      errs() << "WARNING: skipped " << *CS.getInstruction()
+		     << " because new size cannot be"
+		     << " smaller than the size of the node pointed by the pointer.\n";
+	    }
+	  } else {
+	    errs() << "WARNING: skipped " << *CS.getInstruction()
+		   << " because it expects a pointer"
+		   << " that points to a non-sequence node.\n";
+	  }
+        }
+      }
+      return;
     }
   }
 
   if (Instruction *inst = CS.getInstruction()) {
     if (!isSkip(*inst)) {
       Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
-      if (Function *callee = CS.getCalledFunction()) {
+      if (CS.isInlineAsm()) {
+	c.getNode()->setExternal();
+	sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(*inst);
+	assert(site);
+	c.getNode()->addAllocSite(*site);
+      } else if (Function *callee = CS.getCalledFunction()) {
         if (callee->isDeclaration()) {
           c.getNode()->setExternal();
           // -- treat external function as allocation

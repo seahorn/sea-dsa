@@ -73,7 +73,7 @@ static Value *stripBitCast(Value *V) {
     return V;
   }
 }
-
+  
 // XXX: similar to Graph::import but with two modifications:
 // - the callee graph is modified during the cloning of call sites.
 // - call sites are copied.
@@ -218,10 +218,13 @@ void CompleteCallGraphAnalysis::cloneAndResolveArgumentsAndCallSites(
 }
 
 void CompleteCallGraphAnalysis::printStats(Module& M, raw_ostream& o) {
-  unsigned num_ind_calls = 0;
-  unsigned num_resolved_calls = 0;
+  unsigned num_total_calls = 0;
+  unsigned num_direct_calls = 0;
+  unsigned num_indirect_resolved_calls = 0;
+  unsigned num_indirect_unresolved_calls = 0;
   unsigned num_asm_calls = 0;
-
+  unsigned num_unexpected_calls = 0;
+  
   std::string str;
   raw_string_ostream str_os(str);
 
@@ -238,38 +241,46 @@ void CompleteCallGraphAnalysis::printStats(Module& M, raw_ostream& o) {
     }
     str_os << ")";
   };
-  
+
   for (auto &F: M) {
     if (F.isDeclaration()) continue;
     for (auto &I: llvm::make_range(inst_begin(&F), inst_end(&F))) {
       if (!(isa<CallInst>(I) || isa<InvokeInst>(I))) continue;
+
+      ++num_total_calls;
+      DsaCallSite DsaCS(I);
       CallSite CS(&I);
-      if (CS.isIndirectCall()) {
+      if (DsaCS.getCallee()) { // DsaCallSite looks through bitcasts and aliases
+	++num_direct_calls;
+      } else if (CS.isIndirectCall()) {
 	if (isComplete(CS)) {
-	  ++num_resolved_calls;
+	  ++num_indirect_resolved_calls;
 	  if (PrintVerbosity > 0) {
 	    str_os << *CS.getInstruction();
 	    if (const DebugLoc dbgloc = CS.getInstruction()->getDebugLoc()) {
 	      str_os << " at ";
 	      dbgloc.print(str_os);
 	    }
-	    str_os << "\nRESOLVED\n\nCallees:\n";
-	    for (auto it = begin(CS), et = end(CS); it!=et;++it) {
+	    str_os << " ### RESOLVED\n  Callees:{";
+	    for (auto it = begin(CS), et = end(CS); it!=et;) {
 	      const Function* calleeF = *it;
-	      str_os << "\t";
 	      printFunction(calleeF);
-	      str_os << "\n";
+	      ++it;
+	      if (it != et){
+		str_os << ",";
+	      }
 	    }
+	    str_os << "}\n";
 	  }
 	} else {
-	  ++num_ind_calls;
+	  ++num_indirect_unresolved_calls;
 	  if (PrintVerbosity > 0) {
 	    str_os << *CS.getInstruction() << " ";
 	    if (const DebugLoc dbgloc = CS.getInstruction()->getDebugLoc()) {
 	      str_os << " at ";
 	      dbgloc.print(str_os);
 	    }
-	    str_os << "\nUNRESOLVED";
+	    str_os << " ### UNRESOLVED\n";
 	    // TODO: we can give more information even if the call was not resolved:
 	    // - is it partially resolved?
 	    // - is marked as external?
@@ -278,18 +289,28 @@ void CompleteCallGraphAnalysis::printStats(Module& M, raw_ostream& o) {
 	}
       } else if (CS.isInlineAsm()) {
 	++num_asm_calls;      
+      } else {
+	++num_unexpected_calls;
+	errs() << *CS.getInstruction() << "\n";
+	errs() << *CS.getCalledValue() << "\n";
       }
     }
   }
 
   
   o << "\n=== Sea-Dsa CallGraph Statistics === \n";
-  o << "** Total number of indirect calls " << num_ind_calls << "\n";
-  if (num_asm_calls > 0)
-    o << "** Total number of asm calls " << num_asm_calls << "\n";
-  o << "** Total number of resolved indirect calls "
-    << num_resolved_calls << "\n";
-
+  o << "** Total number of total calls " << num_total_calls << "\n";  
+  o << "** Total number of direct calls " << num_direct_calls << "\n";
+  o << "** Total number of asm calls " << num_asm_calls << "\n";
+  o << "** Total number of indirect calls "
+    << num_indirect_resolved_calls + num_indirect_unresolved_calls << "\n";
+  o << "\t** Total number of indirect calls resolved by Sea-Dsa "
+    << num_indirect_resolved_calls << "\n";
+  o << "\t** Total number of indirect calls unresolved by Sea-Dsa "
+    << num_indirect_unresolved_calls << "\n";
+  if (num_unexpected_calls > 0) {
+    o << "** Total number of unexpected calls " << num_unexpected_calls << "\n";
+  }
   if (PrintVerbosity > 0) {
     o << "\n\n" << str_os.str() << "\n";
   }
@@ -493,13 +514,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           CallSite CGNCS(const_cast<Instruction *>(cs.getInstruction()));
 
 	  /// At this point, we can try to resolve the indirect call
-	  
-          LOG("dsa-callgraph-resolve", errs() << "Resolving indirect call by "
-                                              << kv.first->getName() << " at ";
-              errs() << cs.getInstruction()->getParent()->getParent()->getName()
-                     << ":\n";
-              cs.write(errs()); errs() << "\n";);
-
+	 
           // Update the callgraph by adding a new edge to each
           // resolved callee.
 	  bool has_external_alloc_site = false;
@@ -517,7 +532,12 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
               // original edge with the indirect call.
               IncompleteCallSites.insert(cs.getInstruction());
 	      has_external_alloc_site = true;
-              LOG("dsa-callgraph-resolve",
+	      LOG("dsa-callgraph-resolve",
+		  errs() << "Resolving indirect call by "
+		         << kv.first->getName() << " at "
+		         << cs.getInstruction()->getParent()->getParent()->getName()
+                         << ":\n";
+		  cs.write(errs()); errs() << "\n";
 		  errs() << "Marked as incomplete.\n";);
             }
           }
@@ -531,8 +551,13 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 	    //    callee to resolve it)
 	    // 3) it has no external allocation site.
 	    m_resolved.insert(cs.getInstruction());
-	    LOG("dsa-callgraph-resolve",
-		errs() << "Marked as complete.\n";);
+	    // LOG("dsa-callgraph-resolve",
+	    // 	errs() << "Resolving indirect call by "
+	    // 	       << kv.first->getName() << " at "
+	    // 	       << cs.getInstruction()->getParent()->getParent()->getName()
+            //            << ":\n";
+	    // 	cs.write(errs()); errs() << "\n";
+	    // 	errs() << "Marked as complete.\n";);
 	  }
         }
 
@@ -553,7 +578,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
     ++numIter;
   }
-
+  
   /// Remove edges in the callgraph: remove original indirect call
   /// from call graph if we now for sure we fully resolved it.
   for (auto &F : M) {
