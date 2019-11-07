@@ -765,7 +765,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   out.setModified();
 
   // -- update link
-  if (!isSkip(v)) {
+  if (!isSkip(v) && !isNullConstant(v)) {
     // TODO: follow valueCell ptrs.
     Cell vCell = valueCell(v);
     assert(!vCell.isNull());
