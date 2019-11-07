@@ -1,0 +1,38 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x7f9ac0506130 [shape=record,label="{\{0:i32*\}:MR|{<s0>\<0, unknown\>}}"];
+	Node0x7f9ac0506210 [shape=record,label="{\{void\}:}"];
+	Node0x7f9ac05062a0 [shape=record,label="{\{void\}:}"];
+	Node0x7f9ac05063a0 [shape=record,label="{\{void\}:}"];
+	Node0x7f9ac0506480 [shape=record,label="{\{0:i32\}:SM}"];
+	Node0x7f9ac05066c0 [shape=record,label="{\{0:i32*,8:i64\}:SMR|{<s0>\<0, unknown\>}}"];
+	Node0x7f9ac0506880 [shape=record,label="{\{0:i32*,8:i64\}:SMR|{<s0>\<0, unknown\>}}"];
+	Node0x7f9ac0506a40 [shape=record,label="{\{0:i32\}:SMR}"];
+	Node0x7f9ac040c638 [shape=plaintext, label ="  %4 = call \{ i32*, i64 \} @foo()"];
+	Node0x7f9ac040c638 -> Node0x7f9ac0506880[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac0500048 [shape=plaintext, label ="  %8 = getelementptr inbounds \{ i32*, i64 \}, \{ i32*, i64 \}* %5, i32 0, i32 1"];
+	Node0x7f9ac0500048 -> Node0x7f9ac05066c0[arrowtail=tee,label="8",fontsize=8,color=purple];
+	Node0x7f9ac040b088 [shape=plaintext, label =".str.1"];
+	Node0x7f9ac040b088 -> Node0x7f9ac05063a0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac040ac38 [shape=plaintext, label ="A"];
+	Node0x7f9ac040ac38 -> Node0x7f9ac0506130[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac040c7b8 [shape=plaintext, label ="  %7 = extractvalue \{ i32*, i64 \} %4, 0"];
+	Node0x7f9ac040c7b8 -> Node0x7f9ac0506a40[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac040c3c8 [shape=plaintext, label ="  %1 = alloca i32, align 4"];
+	Node0x7f9ac040c3c8 -> Node0x7f9ac0506480[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac040c428 [shape=plaintext, label ="  %2 = alloca i32, align 4"];
+	Node0x7f9ac040c428 -> Node0x7f9ac0506a40[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac040c488 [shape=plaintext, label ="  %3 = alloca %struct.S, align 8"];
+	Node0x7f9ac040c488 -> Node0x7f9ac05066c0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac05002a8 [shape=plaintext, label ="  %11 = load i32*, i32** %10, align 8"];
+	Node0x7f9ac05002a8 -> Node0x7f9ac0506a40[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac040afa8 [shape=plaintext, label =".str"];
+	Node0x7f9ac040afa8 -> Node0x7f9ac05062a0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac040aeb8 [shape=plaintext, label ="__func__.main"];
+	Node0x7f9ac040aeb8 -> Node0x7f9ac0506210[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f9ac0506130:s0 -> Node0x7f9ac0506a40[arrowtail=tee,label="0",fontsize=8];
+	Node0x7f9ac05066c0:s0 -> Node0x7f9ac0506a40[arrowtail=tee,label="0",fontsize=8];
+	Node0x7f9ac0506880:s0 -> Node0x7f9ac0506a40[arrowtail=tee,label="0",fontsize=8];
+}

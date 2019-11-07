@@ -247,18 +247,21 @@ print file,line, and column information):
 ## Dealing with C/C++ library and external calls ##
 
 The pointer semantics of external calls can be defined by writing a
-wrapper that calls any of these two functions (defined in
-`sea_dsa/sea_dsa.h`):
+wrapper that calls any of these functions defined in
+`sea_dsa/sea_dsa.h`:
 
 - `extern void sea_dsa_alias(const void *p, ...);`
 - `extern void sea_dsa_collapse(const void *p);`
+- `extern void sea_dsa_mk_seq(const void *p, unsigned sz);`
 
-The first function unifies all argument's cells while the second one
-tells `sea-dsa` to collapse the argument's cell.
+`sea_dsa_alias` unifies all argument's cells, `sea_dsa_collapse` tells
+`sea-dsa` to collapse (i.e., loss of field-sensitivity) the cell
+pointed by `p`, and `sea_dsa_mk_seq` tells `sea-dsa` to mark as
+_sequence_ the node pointed by `p` with size `sz`. 
 
 For instance, consider an external call `foo` defined as follows:
 
-	`extern void* foo(const void*p1, void *p2, void *p3);`
+	extern void* foo(const void*p1, void *p2, void *p3);
 
 Suppose that the returned pointer should be unified to `p2` but not to
 `p1`. In addition, we would like to collapse the cell corresponding to
@@ -273,8 +276,6 @@ following definition:
 		return r;
 	}
 
-where `sea_dsa_new`, `sea_dsa_alias`, and `sea_dsa_collapse` are
-defined in `sea_dsa/sea_dsa.h`.
 
 ## References ## 
 

@@ -16,21 +16,40 @@ bool DsaCallSite::isPointerTy::operator()(const Argument &a) {
   return a.getType()->isPointerTy();
 }
 
+static const Function*
+getCalledFunctionThroughAliasesAndCasts(ImmutableCallSite &CS) {
+  const Value* CalledV = CS.getCalledValue();
+  CalledV = CalledV->stripPointerCasts(); 
+  
+  if (const Function* F = dyn_cast<const Function>(CalledV)) {
+    return F;
+  }
+
+  if (const GlobalAlias *GA = dyn_cast<const GlobalAlias>(CalledV)) {
+    if (const Function* F =
+	dyn_cast<const Function>(GA->getAliasee()->stripPointerCasts())) {
+      return F;
+    }
+  }
+  
+  return nullptr;
+}
+  
 DsaCallSite::DsaCallSite(const ImmutableCallSite &cs)
   : m_cs(cs)
   , m_cell(None)
   , m_cloned(false)
-  , m_callee(m_cs.getCalledFunction()) {}
+  , m_callee(getCalledFunctionThroughAliasesAndCasts(m_cs)) {}
 DsaCallSite::DsaCallSite(const Instruction &cs)
   : m_cs(&cs)
   , m_cell(None)
   , m_cloned(false)
-  , m_callee(m_cs.getCalledFunction()) {}
+  , m_callee(getCalledFunctionThroughAliasesAndCasts(m_cs)) {}
 DsaCallSite::DsaCallSite(const Instruction &cs, Cell c)
   : m_cs(&cs)
   , m_cell(c)
   , m_cloned(false)
-  , m_callee(m_cs.getCalledFunction()) {
+  , m_callee(getCalledFunctionThroughAliasesAndCasts(m_cs)) {
   m_cell.getValue().getNode();
 }
 DsaCallSite::DsaCallSite(const Instruction &cs, const Function &callee)
@@ -38,7 +57,8 @@ DsaCallSite::DsaCallSite(const Instruction &cs, const Function &callee)
   , m_cell(None)
   , m_cloned(false)
   , m_callee(&callee) {
-  assert(isIndirectCall() || m_cs.getCalledFunction() == &callee);
+  assert(isIndirectCall() ||
+	 getCalledFunctionThroughAliasesAndCasts(m_cs) == &callee);
 }
 
 bool DsaCallSite::hasCell() const { return m_cell.hasValue(); }
@@ -73,6 +93,9 @@ bool DsaCallSite::isIndirectCall() const {
   return true;
 }
 
+bool DsaCallSite::isInlineAsm() const {
+  return m_cs.isInlineAsm();
+}
 bool DsaCallSite::isCloned() const { return m_cloned; }
 
 void DsaCallSite::markCloned(bool v) { m_cloned = v; }
