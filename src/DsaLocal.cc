@@ -765,7 +765,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
   out.setModified();
 
   // -- update link
-  if (!isSkip(v)) {
+  if (!isSkip(v) && !isNullConstant(v)) {
     // TODO: follow valueCell ptrs.
     Cell vCell = valueCell(v);
     assert(!vCell.isNull());
@@ -1214,8 +1214,12 @@ void IntraBlockBuilder::visitIntToPtrInst(IntToPtrInst &I) {
 
 void IntraBlockBuilder::visitReturnInst(ReturnInst &RI) {
   Value *v = RI.getReturnValue();
-  if (!v || isSkip(*v))
+
+  // We don't skip the return value if its type is a
+  // struct/vector/array because it can contain pointers inside.
+  if (!v || (isSkip(*v) && !isa<CompositeType>(RI.getReturnValue()->getType()))) {
     return;
+  }
 
   sea_dsa::Cell c = valueCell(*v);
   if (c.isNull())
