@@ -22,4 +22,5 @@ add_llvm_library (SeaDsaAnalysis
   DsaAllocSite.cc
   DsaCompleteCallGraph.cc
   DsaCallGraphPrinter.cc
+  ShadowMem.cc
   )
