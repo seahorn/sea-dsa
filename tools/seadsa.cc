@@ -12,6 +12,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/SourceMgr.h"
@@ -22,11 +23,17 @@
 
 #include "sea_dsa/DsaAnalysis.hh"
 #include "sea_dsa/CompleteCallGraph.hh"
+#include "sea_dsa/ShadowMem.hh"
 #include "sea_dsa/support/Debug.h"
 
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
               llvm::cl::Required, llvm::cl::value_desc("filename"));
+
+static llvm::cl::opt<std::string>
+OutputDir("outdir",
+	  llvm::cl::desc("Output directory for oll"),
+	  llvm::cl::init(""), llvm::cl::value_desc("DIR"));
 
 static llvm::cl::opt<std::string>
 AsmOutputFilename("oll", llvm::cl::desc("Output analyzed bitcode"),
@@ -52,6 +59,12 @@ CallGraphDot("sea-dsa-callgraph-dot",
 	     llvm::cl::desc("Print SeaDsa complete call graph to dot format"),
 	     llvm::cl::init(false));
 
+static llvm::cl::opt<bool>
+RunShadowMem("sea-dsa-shadow-mem",
+	  llvm::cl::desc("Run ShadowMemPass"),
+	  llvm::cl::Hidden,
+	  llvm::cl::init(false));
+
 namespace sea_dsa {
   SeaDsaLogOpt loc;
   extern bool PrintDsaStats;
@@ -65,6 +78,16 @@ LogClOption ("log",
              llvm::cl::value_desc ("string"),
              llvm::cl::ValueRequired, llvm::cl::ZeroOrMore);
 
+static std::string appendOutDir(std::string path) {
+  if (!OutputDir.empty()) {
+    auto filename = llvm::sys::path::filename(path);
+    if (!llvm::sys::fs::create_directory(OutputDir)) {
+      std::string FullFileName = OutputDir + "/" + filename.str();
+      return FullFileName;
+    }
+  }
+  return path;
+}
 
 int main(int argc, char **argv) {
   llvm::llvm_shutdown_obj shutdown;  // calls llvm_shutdown() on exit
@@ -78,7 +101,7 @@ int main(int argc, char **argv) {
   llvm::SMDiagnostic err;
   llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
-  std::unique_ptr<llvm::tool_output_file> asmOutput;
+  std::unique_ptr<llvm::tool_output_file> asmOutput, output;
 
   module = llvm::parseIRFile(InputFilename, err, context);
   if (module.get() == 0)
@@ -90,10 +113,12 @@ int main(int argc, char **argv) {
     return 3;
   }
 
-  if (!AsmOutputFilename.empty ())
-    asmOutput =
-      llvm::make_unique<llvm::tool_output_file>(AsmOutputFilename.c_str(), error_code,
-                                                llvm::sys::fs::F_Text);
+  if (!AsmOutputFilename.empty ()) {
+    asmOutput = llvm::make_unique<llvm::tool_output_file>
+      (appendOutDir(AsmOutputFilename.c_str()), 
+       error_code, llvm::sys::fs::F_Text);
+       
+  }
   if (error_code) {
     if (llvm::errs().has_colors())
       llvm::errs().changeColor(llvm::raw_ostream::RED);
@@ -131,31 +156,35 @@ int main(int argc, char **argv) {
 
   assert (dl && "Could not find Data Layout for the module");  
 
-  if (MemDot) {
-    pass_manager.add(sea_dsa::createDsaPrinterPass());
-  }
-  
-  if (MemViewer) {
-    pass_manager.add(sea_dsa::createDsaViewerPass());
-  }
-  
-  if (sea_dsa::PrintDsaStats) {
-    pass_manager.add(sea_dsa::createDsaPrintStatsPass());
-  }
-
-  if (sea_dsa::PrintCallGraphStats) {
-    pass_manager.add(sea_dsa::createDsaPrintCallGraphStatsPass());
-  }
-  
-  if (CallGraphDot) {
-    pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
-  }
-
-  if (!MemDot && !MemViewer && !sea_dsa::PrintDsaStats &&
-      !sea_dsa::PrintCallGraphStats && !CallGraphDot) {
-    llvm::errs() << "No option selected: choose one option between "
-		 << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, "
-		 << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
+  if (RunShadowMem) {
+    pass_manager.add(sea_dsa::createShadowMemPass());
+  } else {
+    if (MemDot) {
+      pass_manager.add(sea_dsa::createDsaPrinterPass());
+    }
+    
+    if (MemViewer) {
+      pass_manager.add(sea_dsa::createDsaViewerPass());
+    }
+    
+    if (sea_dsa::PrintDsaStats) {
+      pass_manager.add(sea_dsa::createDsaPrintStatsPass());
+    }
+    
+    if (sea_dsa::PrintCallGraphStats) {
+      pass_manager.add(sea_dsa::createDsaPrintCallGraphStatsPass());
+    }
+    
+    if (CallGraphDot) {
+      pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
+    }
+    
+    if (!MemDot && !MemViewer && !sea_dsa::PrintDsaStats &&
+	!sea_dsa::PrintCallGraphStats && !CallGraphDot) {
+      llvm::errs() << "No option selected: choose one option between "
+		   << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, "
+		   << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
+    }
   }
   
   if (!AsmOutputFilename.empty ())
@@ -165,6 +194,8 @@ int main(int argc, char **argv) {
 
   if (!AsmOutputFilename.empty ())
     asmOutput->keep ();
+
+
   
   return 0;
 }
