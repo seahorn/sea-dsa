@@ -332,7 +332,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   static bool isSeaDsaMkSequenceFn(const Function *F) {
     return (F->getName().equals("sea_dsa_mk_seq"));
   }
-  
+
 public:
   IntraBlockBuilder(Function &func, sea_dsa::Graph &graph, const DataLayout &dl,
                     const TargetLibraryInfo &tli,
@@ -685,11 +685,29 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 
   auto off = computeGepOffset(ptr.getType(), indicies, m_dl);
   if (off.first < 0) {
+    if (base.getOffset() + off.first >= 0) {
+      m_graph.mkCell(gep, sea_dsa::Cell(*baseNode, base.getOffset() + off.first));
+      return;
+    } else {
+      // create a new node for gep
+      sea_dsa::Node &n = m_graph.mkNode();
+      // gep points to offset 0
+      m_graph.mkCell(gep, sea_dsa::Cell(n, 0));
+      // base of gep is at -off.first
+      // e.g., off.first is -16, then base is unified at offset 16 with n
+      n.unifyAt(*baseNode, -(base.getOffset() + off.first));
+      return;
+    }
+    // XXX This is now unreachable
     //    errs() << "Negative GEP: " << "(" << off.first << ", " << off.second
     //    << ") "
     //           << gep << "\n";
     // XXX current work-around
     // XXX If the offset is negative, convert to an array of stride 1
+    LOG("dsa", errs() << "Warning: collapsing negative gep to array: ("
+                      << off.first << ", " << off.second << ")\n"
+                      << "gep: " << gep << "\n"
+                      << "bace cell: " << base << "\n";);
     off = std::make_pair(0, 1);
   }
   if (off.second) {
@@ -869,33 +887,34 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
       return;
     } else if (isSeaDsaMkSequenceFn(callee)) {
       /**
-	 sea_dsa_mk_seq(p, sz)
+         sea_dsa_mk_seq(p, sz)
          mark the node pointed by p as sequence of size sz
        **/
       if (!isSkip(*(CS.getArgument(0)))) {
         if (m_graph.hasCell(*(CS.getArgument(0)))) {
           sea_dsa::Cell c = valueCell(*(CS.getArgument(0)));
-	  Node *n = c.getNode();
-	  if (!n->isArray()) {
-	    ConstantInt *raw_sz = dyn_cast<ConstantInt>(CS.getArgument(1));
-	    if (!raw_sz) {
-	      errs() << "WARNING: skipped " << *CS.getInstruction()
-		     << " because second argument is not a number.\n";
-	      return;
-	    }
-	    const uint64_t sz = raw_sz->getZExtValue();
-	    if (n->size() <= sz) {
-	      n->setArraySize(sz);
-	    } else {
-	      errs() << "WARNING: skipped " << *CS.getInstruction()
-		     << " because new size cannot be"
-		     << " smaller than the size of the node pointed by the pointer.\n";
-	    }
-	  } else {
-	    errs() << "WARNING: skipped " << *CS.getInstruction()
-		   << " because it expects a pointer"
-		   << " that points to a non-sequence node.\n";
-	  }
+          Node *n = c.getNode();
+          if (!n->isArray()) {
+            ConstantInt *raw_sz = dyn_cast<ConstantInt>(CS.getArgument(1));
+            if (!raw_sz) {
+              errs() << "WARNING: skipped " << *CS.getInstruction()
+                     << " because second argument is not a number.\n";
+              return;
+            }
+            const uint64_t sz = raw_sz->getZExtValue();
+            if (n->size() <= sz) {
+              n->setArraySize(sz);
+            } else {
+              errs() << "WARNING: skipped " << *CS.getInstruction()
+                     << " because new size cannot be"
+                     << " smaller than the size of the node pointed by the "
+                        "pointer.\n";
+            }
+          } else {
+            errs() << "WARNING: skipped " << *CS.getInstruction()
+                   << " because it expects a pointer"
+                   << " that points to a non-sequence node.\n";
+          }
         }
       }
       return;
@@ -1110,11 +1129,10 @@ bool shouldBeTrackedIntToPtr(const Value &def) {
 
 } // namespace
 
-
-
 /// Returns true if \p inst is a fixed numeric offset of a known pointer
 /// Ensures that \p base has a cell in the current dsa graph
-bool BlockBuilderBase::isFixedOffset(const IntToPtrInst &inst, Value *&base, uint64_t &offset) {
+bool BlockBuilderBase::isFixedOffset(const IntToPtrInst &inst, Value *&base,
+                                     uint64_t &offset) {
   using namespace llvm::PatternMatch;
   auto *op = inst.getOperand(0);
   Value *X;
@@ -1124,14 +1142,15 @@ bool BlockBuilderBase::isFixedOffset(const IntToPtrInst &inst, Value *&base, uin
     if (match(X, m_PtrToInt(m_Value(base)))) {
       // -- check that source pointer has a cell
       if (!m_graph.hasCell(*base) && !isa<GlobalValue>(base)) {
-        LOG("dsa.inttoptr", errs() << "Did not find an expected cell for: " << *base << "\n";);
+        LOG("dsa.inttoptr",
+            errs() << "Did not find an expected cell for: " << *base << "\n";);
         return false;
       }
       offset = C->getZExtValue();
     } else if (auto *LI = dyn_cast<LoadInst>(X)) {
       PointerType *liType = Type::getInt8PtrTy(LI->getContext());
       sea_dsa::Cell ptrCell =
-        valueCell(*LI->getPointerOperand()->stripPointerCasts());
+          valueCell(*LI->getPointerOperand()->stripPointerCasts());
       ptrCell.addAccessedType(0, liType);
       ptrCell.setRead();
       sea_dsa::Field LoadedField(0, sea_dsa::FieldType(liType));
@@ -1140,15 +1159,17 @@ bool BlockBuilderBase::isFixedOffset(const IntToPtrInst &inst, Value *&base, uin
         // XXX: This node will have no allocation site
         ptrCell.setLink(LoadedField, sea_dsa::Cell(&n, 0));
         LOG("dsa.inttoptr",
-            errs() << "Created node for LI from external memory without an allocation site:\n\tLI: "
-            << *LI << "\n\tbase: " << *LI->getPointerOperand()->stripPointerCasts() << "\n";);
+            errs() << "Created node for LI from external memory without an "
+                      "allocation site:\n\tLI: "
+                   << *LI << "\n\tbase: "
+                   << *LI->getPointerOperand()->stripPointerCasts() << "\n";);
       }
       // create cell for LI
       m_graph.mkCell(*LI, ptrCell.getLink(LoadedField));
       base = LI;
       offset = C->getZExtValue();
     } else {
-        return false;
+      return false;
     }
     return true;
   }
@@ -1170,7 +1191,7 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
     if (isFixedOffset(*inttoptr, base, offset)) {
       // TODO: can extend this to handle variable offsets
       LOG("dsa.inttoptr", errs() << "inttoptr " << dest << "\n\tis " << *base
-          << " plus " << offset << "\n";);
+                                 << " plus " << offset << "\n";);
 
       if (m_graph.hasCell(*base) || isa<GlobalValue>(base)) {
         sea_dsa::Cell baseCell = valueCell(*base);
@@ -1180,7 +1201,7 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
         sea_dsa::Node *baseNode = baseCell.getNode();
         if (baseNode->isOffsetCollapsed())
           m_graph.mkCell(dest, sea_dsa::Cell(baseNode, 0));
-        else 
+        else
           m_graph.mkCell(dest, sea_dsa::Cell(baseCell, offset));
         return;
       }

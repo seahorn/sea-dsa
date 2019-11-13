@@ -284,7 +284,7 @@ void Node::collapseOffsets(int tag) {
 
   static int cnt = 0;
   ++cnt;
-  LOG("dsa-collapse", errs() << "Offset-Collapse #" << cnt << "\n");
+  LOG("dsa-collapse", errs() << "Offset-Collapse #" << cnt << " tag " << tag << "\n");
   // if (cnt == 53) {
   //   errs() << "\n~~~~NOW~~~~\n";
   // }
