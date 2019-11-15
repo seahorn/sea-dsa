@@ -282,6 +282,14 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
       continue;
 
     sea_dsa::Cell c = valueCell(v);
+    if (c.isNull()) {
+      // -- skip null: special case from ldv benchmarks
+      if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(&v)) {
+	if (BlockBuilderBase::isNullConstant(
+		*(GEP->getPointerOperand()->stripPointerCasts())))
+	  continue;
+      }
+    }
     assert(!c.isNull());
     phi.unify(c);
   }
@@ -639,14 +647,18 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
       return;
     }
 
-  // -- skip NULL
+  /// Special cases in ldv benchmarks
   if (const LoadInst *LI = dyn_cast<LoadInst>(&ptr)) {
-    /// XXX: this occurs in several ldv benchmarks
     if (BlockBuilderBase::isNullConstant(
             *(LI->getPointerOperand()->stripPointerCasts())))
       return;
   }
-
+  if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(&ptr)) {
+    if (BlockBuilderBase::isNullConstant(
+            *(GEP->getPointerOperand()->stripPointerCasts())))
+      return;
+  }
+  
   if (!m_graph.hasCell(ptr) && !isa<GlobalValue>(&ptr)) {
     errs() << "Cell not found for gep:\t";
     gep.print(errs());
