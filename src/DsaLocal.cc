@@ -131,24 +131,24 @@ protected:
       const Type *Ty = workList.back();
       workList.pop_back();
       if (!seen.insert(Ty).second)
-	continue;
+        continue;
 
       if (Ty->isPointerTy()) {
-	return true;
+        return true;
       }
-      
+
       if (const StructType *ST = dyn_cast<StructType>(Ty)) {
-	for (unsigned i=0,sz=ST->getNumElements();i<sz;++i) {
-	  workList.push_back(ST->getElementType(i));
-	}
+        for (unsigned i = 0, sz = ST->getNumElements(); i < sz; ++i) {
+          workList.push_back(ST->getElementType(i));
+        }
       } else if (const SequentialType *ST = dyn_cast<SequentialType>(Ty)) {
-	// ArrayType and VectorType are subclasses of SequentialType
-	workList.push_back(ST->getElementType());
+        // ArrayType and VectorType are subclasses of SequentialType
+        workList.push_back(ST->getElementType());
       }
     }
     return false;
   }
-  
+
   static bool isNullConstant(const Value &v) {
     const Value *V = v.stripPointerCasts();
 
@@ -312,9 +312,9 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
     if (c.isNull()) {
       // -- skip null: special case from ldv benchmarks
       if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(&v)) {
-	if (BlockBuilderBase::isNullConstant(
-		*(GEP->getPointerOperand()->stripPointerCasts())))
-	  continue;
+        if (BlockBuilderBase::isNullConstant(
+                *(GEP->getPointerOperand()->stripPointerCasts())))
+          continue;
       }
     }
     assert(!c.isNull());
@@ -685,7 +685,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
             *(GEP->getPointerOperand()->stripPointerCasts())))
       return;
   }
-  
+
   if (!m_graph.hasCell(ptr) && !isa<GlobalValue>(&ptr)) {
     errs() << "Cell not found for gep:\t";
     gep.print(errs());
@@ -725,7 +725,8 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   auto off = computeGepOffset(ptr.getType(), indicies, m_dl);
   if (off.first < 0) {
     if (base.getOffset() + off.first >= 0) {
-      m_graph.mkCell(gep, sea_dsa::Cell(*baseNode, base.getOffset() + off.first));
+      m_graph.mkCell(gep,
+                     sea_dsa::Cell(*baseNode, base.getOffset() + off.first));
       return;
     } else {
       // create a new node for gep
@@ -964,10 +965,10 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     if (!isSkip(*inst)) {
       Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
       if (CS.isInlineAsm()) {
-	c.getNode()->setExternal();
-	sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(*inst);
-	assert(site);
-	c.getNode()->addAllocSite(*site);
+        c.getNode()->setExternal();
+        sea_dsa::DsaAllocSite *site = m_graph.mkAllocSite(*inst);
+        assert(site);
+        c.getNode()->addAllocSite(*site);
       } else if (Function *callee = CS.getCalledFunction()) {
         if (callee->isDeclaration()) {
           c.getNode()->setExternal();
