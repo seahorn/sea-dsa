@@ -122,6 +122,33 @@ protected:
     return false;
   }
 
+  static bool containsPointer(const Value &V) {
+    SmallVector<const Type *, 16> workList;
+    SmallPtrSet<const Type *, 16> seen;
+    workList.push_back(V.getType());
+
+    while (!workList.empty()) {
+      const Type *Ty = workList.back();
+      workList.pop_back();
+      if (!seen.insert(Ty).second)
+	continue;
+
+      if (Ty->isPointerTy()) {
+	return true;
+      }
+      
+      if (const StructType *ST = dyn_cast<StructType>(Ty)) {
+	for (unsigned i=0,sz=ST->getNumElements();i<sz;++i) {
+	  workList.push_back(ST->getElementType(i));
+	}
+      } else if (const SequentialType *ST = dyn_cast<SequentialType>(Ty)) {
+	// ArrayType and VectorType are subclasses of SequentialType
+	workList.push_back(ST->getElementType());
+      }
+    }
+    return false;
+  }
+  
   static bool isNullConstant(const Value &v) {
     const Value *V = v.stripPointerCasts();
 
@@ -1248,9 +1275,8 @@ void IntraBlockBuilder::visitIntToPtrInst(IntToPtrInst &I) {
 void IntraBlockBuilder::visitReturnInst(ReturnInst &RI) {
   Value *v = RI.getReturnValue();
 
-  // We don't skip the return value if its type is a
-  // struct/vector/array because it can contain pointers inside.
-  if (!v || (isSkip(*v) && !isa<CompositeType>(RI.getReturnValue()->getType()))) {
+  // We don't skip the return value if its type contains a pointer.
+  if (!v || (isSkip(*v) && !containsPointer(*v))) {
     return;
   }
 
