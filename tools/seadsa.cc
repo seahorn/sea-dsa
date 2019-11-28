@@ -161,6 +161,7 @@ int main(int argc, char **argv) {
 
   if (RunShadowMem) {
     pass_manager.add(sea_dsa::createShadowMemPass());
+  } else {
     if (MemDot) {
       pass_manager.add(sea_dsa::createDsaPrinterPass());
       if (DsaColorCallSiteSimDot)
