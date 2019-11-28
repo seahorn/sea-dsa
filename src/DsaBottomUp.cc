@@ -164,25 +164,23 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         continue;
 
       // -- resolve all function calls in the SCC
-      auto callRecords = call_graph_utils::SortedCallSites(cgn);
-      for (auto *callRecord : callRecords) {
-        ImmutableCallSite CS(callRecord);
-        DsaCallSite dsaCS(CS);
-        const Function *callee = dsaCS.getCallee();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
+      for (auto &callRecord : *cgn) {
+	llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
+	if (!dsaCS.hasValue()) {
+	  continue;
+	}
+	
+        assert(graphs.count(dsaCS.getValue().getCaller()) > 0);
+        assert(graphs.count(dsaCS.getValue().getCallee()) > 0);
 
-        assert(graphs.count(dsaCS.getCaller()) > 0);
-        assert(graphs.count(dsaCS.getCallee()) > 0);
-
-        Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
-        Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
+        Graph &callerG = *(graphs.find(dsaCS.getValue().getCaller())->second);
+        Graph &calleeG = *(graphs.find(dsaCS.getValue().getCallee())->second);
 
         static int cnt = 0;
         ++cnt;
         LOG("dsa-bu", llvm::errs() << "BU #" << cnt << ": "
-                                   << dsaCS.getCaller()->getName() << " <- "
-                                   << dsaCS.getCallee()->getName() << "\n");
+	                           << dsaCS.getValue().getCaller()->getName() << " <- "
+	                           << dsaCS.getValue().getCallee()->getName() << "\n");
         LOG("dsa-bu", llvm::errs()
                           << "\tCallee size: " << calleeG.numNodes()
                           << ", caller size:\t" << callerG.numNodes() << "\n");
@@ -191,7 +189,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << ", caller collapsed:\t" << callerG.numCollapsed()
                           << "\n");
 
-        cloneAndResolveArguments(dsaCS, calleeG, callerG,
+        cloneAndResolveArguments(dsaCS.getValue(), calleeG, callerG,
 				 m_flowSensitiveOpt && !NoBUFlowSensitiveOpt);
 	
         LOG("dsa-bu", llvm::errs()
