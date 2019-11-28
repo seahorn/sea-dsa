@@ -171,13 +171,10 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       callerG.compress();
 
       // -- resolve all function calls in the SCC
-      for (auto &callRecord : *cgn) {
-	llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
-	if (!dsaCS.hasValue()) {
-	  continue;
-	}
+      auto dsaCallSites = call_graph_utils::SortedCallSites(cgn);
+      for (auto &dsaCS: dsaCallSites) {
 	
-        auto it = graphs.find(dsaCS.getValue().getCallee());
+        auto it = graphs.find(dsaCS.getCallee());
         if (it == graphs.end()) {
           errs() << "ERROR: top-down analysis could not find dsa graph for "
                     "callee\n";
@@ -189,8 +186,8 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         static int cnt = 0;
         ++cnt;
         LOG("dsa-td", llvm::errs() << "TD #" << cnt << ": "
-	                           << dsaCS.getValue().getCaller()->getName() << " -> "
-	                           << dsaCS.getValue().getCallee()->getName() << "\n");
+	                           << dsaCS.getCaller()->getName() << " -> "
+	                           << dsaCS.getCallee()->getName() << "\n");
         LOG("dsa-td", llvm::errs()
                           << "\tCallee size: " << calleeG.numNodes()
                           << ", caller size:\t" << callerG.numNodes() << "\n");
@@ -200,7 +197,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << "\n");
 	
         // propagate from the caller to the callee
-        cloneAndResolveArguments(dsaCS.getValue(), callerG, calleeG,
+        cloneAndResolveArguments(dsaCS, callerG, calleeG,
 				 m_flowSensitiveOpt & !NoTDFlowSensitiveOpt,
 				 m_noescape);
 
