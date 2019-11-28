@@ -317,7 +317,9 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   CalleeCallerMapping callee_caller_map;
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
-    for (CallGraphNode *cgn : scc) {
+
+    std::vector<CallGraphNode *> cgns = call_graph_utils::SortedCGNs(scc);    
+    for (CallGraphNode *cgn : cgns) {
       Function *fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty()) {
         continue;

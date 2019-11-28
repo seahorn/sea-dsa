@@ -65,7 +65,17 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   assert(context.m_cs);
   
   // clone and unify globals
+  std::vector<std::pair<const Value*, Cell*>> globals;
   for (auto &kv : calleeG.globals()) {
+    globals.push_back({kv.first, &*kv.second});
+  }
+  std::stable_sort(globals.begin(), globals.end(),
+		   [](const std::pair<const Value*, Cell*> &p1,
+		      const std::pair<const Value*, Cell*> &p2) {
+		     return p1.first->getName() < p2.first->getName();
+		   });
+  
+  for (auto &kv : globals) {
     Node &calleeN = *kv.second->getNode();
     // We don't care if globals got unified together, but have to respect the
     // points-to relations introduced by the callee introduced.

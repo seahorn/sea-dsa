@@ -15,6 +15,7 @@
 
 #include "sea_dsa/AllocWrapInfo.hh"
 #include "sea_dsa/CallSite.hh"
+#include "sea_dsa/CallGraphUtils.hh"
 #include "sea_dsa/Cloner.hh"
 #include "sea_dsa/Graph.hh"
 #include "sea_dsa/Local.hh"
@@ -46,8 +47,18 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(calleeG, context, options);
 
-  // clone and unify globals
+  std::vector<std::pair<const Value*, Cell*>> globals;
   for (auto &kv : callerG.globals()) {
+    globals.push_back({kv.first, &*kv.second});
+  }
+  std::stable_sort(globals.begin(), globals.end(),
+		   [](const std::pair<const Value*, Cell*> &p1,
+		      const std::pair<const Value*, Cell*> &p2) {
+		     return p1.first->getName() < p2.first->getName();
+		   });
+  
+  // clone and unify globals
+  for (auto &kv : globals) {
     // Don't propagate the global down if it's not used by the callee.
     if (!NoTDCopyingOpt)
       if (!calleeG.hasScalarCell(*kv.first))
@@ -139,7 +150,8 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
        ++it) {
     auto &scc = *it;
 
-    for (CallGraphNode *cgn : scc) {
+    std::vector<CallGraphNode *> cgns = call_graph_utils::SortedCGNs(scc);    
+    for (CallGraphNode *cgn : cgns) {
       Function *const fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty())
         continue;
@@ -160,24 +172,12 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
       // -- resolve all function calls in the SCC
       for (auto &callRecord : *cgn) {
-        const Function *callee = callRecord.second->getFunction();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
-
-        CallSite CS(callRecord.first);
-        std::unique_ptr<DsaCallSite> dsaCS = nullptr;
-        if (CS.isIndirectCall()) {
-          dsaCS.reset(new DsaCallSite(*CS.getInstruction(), *callee));
-        } else {
-          dsaCS.reset(new DsaCallSite(*CS.getInstruction()));
-        }
-
-        // This should not happen ...
-        if (!dsaCS->getCallee()) {
-          continue;
-        }
-
-        auto it = graphs.find(dsaCS->getCallee());
+	llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
+	if (!dsaCS.hasValue()) {
+	  continue;
+	}
+	
+        auto it = graphs.find(dsaCS.getValue().getCallee());
         if (it == graphs.end()) {
           errs() << "ERROR: top-down analysis could not find dsa graph for "
                     "callee\n";
@@ -189,8 +189,8 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         static int cnt = 0;
         ++cnt;
         LOG("dsa-td", llvm::errs() << "TD #" << cnt << ": "
-                                   << dsaCS->getCaller()->getName() << " -> "
-                                   << dsaCS->getCallee()->getName() << "\n");
+	                           << dsaCS.getValue().getCaller()->getName() << " -> "
+	                           << dsaCS.getValue().getCallee()->getName() << "\n");
         LOG("dsa-td", llvm::errs()
                           << "\tCallee size: " << calleeG.numNodes()
                           << ", caller size:\t" << callerG.numNodes() << "\n");
@@ -200,7 +200,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << "\n");
 	
         // propagate from the caller to the callee
-        cloneAndResolveArguments(*dsaCS, callerG, calleeG,
+        cloneAndResolveArguments(dsaCS.getValue(), callerG, calleeG,
 				 m_flowSensitiveOpt & !NoTDFlowSensitiveOpt,
 				 m_noescape);
 
