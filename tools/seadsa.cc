@@ -164,25 +164,25 @@ int main(int argc, char **argv) {
     if (MemDot) {
       pass_manager.add(sea_dsa::createDsaPrinterPass());
       if (DsaColorCallSiteSimDot)
-	pass_manager.add(sea_dsa::createDsaColorPrinterPass());
+        pass_manager.add(sea_dsa::createDsaColorPrinterPass());
     }
-    
+
     if (MemViewer) {
       pass_manager.add(sea_dsa::createDsaViewerPass());
     }
-    
+
     if (sea_dsa::PrintDsaStats) {
       pass_manager.add(sea_dsa::createDsaPrintStatsPass());
     }
-    
+
     if (sea_dsa::PrintCallGraphStats) {
       pass_manager.add(sea_dsa::createDsaPrintCallGraphStatsPass());
     }
-    
+
     if (CallGraphDot) {
       pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
     }
-    
+
     if (!MemDot && !MemViewer && !sea_dsa::PrintDsaStats &&
 	!sea_dsa::PrintCallGraphStats && !CallGraphDot) {
       llvm::errs() << "No option selected: choose one option between "

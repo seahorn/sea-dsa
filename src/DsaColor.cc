@@ -150,20 +150,32 @@ void GraphExplorer::color_nodes_graph(Graph &g, const Function &F,
     if (g.hasCell(a)) { // scalar arguments don't have cells
       const Cell &c = g.getCell(a);
       const Node *n = c.getNode();
-      color_nodes_aux(*n, f_proc, sm, c_callee, c_caller,f_node_safe_callee,f_node_safe_caller);
+      const Cell &cell_caller = sm.get(c);
+      const Node *n_caller = cell_caller.getNode();
+      color_nodes_aux(*n, *n_caller,f_proc, sm, c_callee, c_caller,
+                      f_node_safe_callee, f_node_safe_caller);
     }
   }
 }
 
-void GraphExplorer::color_nodes_aux(const Node &n, SafeNodeSet &f_proc,
+void GraphExplorer::color_nodes_aux(const Node &n_callee, const Node &n_caller, SafeNodeSet &f_proc,
                                     SimulationMapper &sm, ColorMap &c_callee,
                                     ColorMap &c_caller,
                                     SafeNodeSet f_node_safe_callee,
                                     SafeNodeSet f_node_safe_caller) {
 
-  f_proc.insert(&n); // mark processed
+  f_proc.insert(&n_callee); // mark processed
 
-  for (auto &links : n.getLinks()) {
+  Color col;
+  auto it = c_caller.find(&n_caller);
+  if (it != c_caller.end()) {
+    col = it->second;
+  } else {
+    c_caller.insert(std::make_pair(&n_caller, col));
+  }
+  c_callee.insert(std::make_pair(&n_callee, col));
+
+  for (auto &links : n_callee.getLinks()) {
     const Field &f = links.first;
     const Cell &next_c_callee = *links.second;
     const Node * next_n_callee = next_c_callee.getNode();
@@ -176,19 +188,9 @@ void GraphExplorer::color_nodes_aux(const Node &n, SafeNodeSet &f_proc,
       if (isSafeNode(f_node_safe_caller, next_n_callee))
         f_node_safe_callee.insert(next_n_caller);
     }
-
-    Color col;
-    auto it = c_caller.find(next_n_caller);
-    if (it != c_caller.end()) {
-      col = it->second;
-    } else {
-      c_caller.insert(std::make_pair(next_n_caller, col));
-    }
-    c_callee.insert(std::make_pair(next_n_callee,col));
-
     if (f_proc.count(next_n_callee) == 0) { // not processed yet
-      color_nodes_aux(*next_n_callee, f_proc, sm, c_callee, c_caller,
-                      f_node_safe_callee, f_node_safe_caller);
+      color_nodes_aux(*next_n_callee, *next_n_caller, f_proc, sm, c_callee,
+                      c_caller, f_node_safe_callee, f_node_safe_caller);
     }
   }
 }

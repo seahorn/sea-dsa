@@ -78,7 +78,7 @@ private:
                                 ColorMap &c_caller,
                                 SafeNodeSet f_node_safe_callee,
                                 SafeNodeSet f_node_safe_caller);
-  static void color_nodes_aux(const Node &n, SafeNodeSet &f_proc,
+  static void color_nodes_aux(const Node &n, const Node &n_caller, SafeNodeSet &f_proc,
                               SimulationMapper &sm, ColorMap &c_callee,
                               ColorMap &c_caller,
                               SafeNodeSet f_node_safe_callee,
