@@ -131,13 +131,10 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
       // -- iterate over all call instructions of the current function fn
       // -- they are indexed in the CallGraphNode data structure
-      for (auto &callRecord : *cgn) {
-	llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
-	if (!dsaCS.hasValue()) {
-	  continue;
-	}
-	assert(fn == dsaCS.getValue().getCaller());
-	resolveArguments(dsaCS.getValue(), *m_graph);
+      auto dsaCallSites = call_graph_utils::SortedCallSites(cgn);      
+      for (auto &dsaCS: dsaCallSites) {
+	assert(fn == dsaCS.getCaller());
+	resolveArguments(dsaCS, *m_graph);
       }
     }
     m_graph->compress();
@@ -342,43 +339,41 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   CalleeCallerMapping callee_caller_map;
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
-    for (CallGraphNode *cgn : scc) {
+
+    std::vector<CallGraphNode *> cgns = call_graph_utils::SortedCGNs(scc);    
+    for (CallGraphNode *cgn : cgns) {
       Function *fn = cgn->getFunction();
       if (!fn || fn->isDeclaration() || fn->empty()) {
         continue;
       }
       // -- store the simulation maps from the SCC
-      for (auto &callRecord : *cgn) {
+      auto dsaCallSites = call_graph_utils::SortedCallSites(cgn);      
+      for (auto &dsaCS : dsaCallSites) {
 
-	llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
-	if (!dsaCS.hasValue()) {
-	  continue;
-	}
+        assert(m_graphs.count(dsaCS.getCaller()) > 0);
+        assert(m_graphs.count(dsaCS.getCallee()) > 0);
 
-        assert(m_graphs.count(dsaCS.getValue().getCaller()) > 0);
-        assert(m_graphs.count(dsaCS.getValue().getCallee()) > 0);
-
-        Graph &callerG = *(m_graphs.find(dsaCS.getValue().getCaller())->second);
-        Graph &calleeG = *(m_graphs.find(dsaCS.getValue().getCallee())->second);
+        Graph &callerG = *(m_graphs.find(dsaCS.getCaller())->second);
+        Graph &calleeG = *(m_graphs.find(dsaCS.getCallee())->second);
 
         SimulationMapperRef sm(new SimulationMapper());
-        bool res = Graph::computeCalleeCallerMapping(dsaCS.getValue(), calleeG, callerG,
+        bool res = Graph::computeCalleeCallerMapping(dsaCS, calleeG, callerG,
                                                      *sm, do_sanity_checks);
         if (!res) {
           llvm_unreachable("Simulation mapping check failed");
         }
-        callee_caller_map.insert(std::make_pair(dsaCS.getValue(), sm));
+        callee_caller_map.insert(std::make_pair(dsaCS, sm));
 
         if (do_sanity_checks) {
           // Check the simulation map is a function
           if (!sm->isFunction()) {
             errs() << "ERROR (sea-dsa): simulation map for "
-                   << *dsaCS.getValue().getInstruction() << " is not a function!\n";
+                   << *dsaCS.getInstruction() << " is not a function!\n";
           } else {
             // Check the simulation map is a total function: check
             // that all nodes in the callee are mapped to one node in
             // the caller graph
-            checkAllNodesAreMapped(*dsaCS.getValue().getCallee(), calleeG, *sm);
+            checkAllNodesAreMapped(*dsaCS.getCallee(), calleeG, *sm);
           }
         }
       }

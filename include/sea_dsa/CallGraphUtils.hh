@@ -45,29 +45,25 @@ std::vector<llvm::CallGraphNode *> SortedCGNs(const T &t) {
   return cgns;
 }
 
-inline std::vector<const llvm::Value *> SortedCallSites(llvm::CallGraphNode *cgn) {
-  std::vector<const llvm::Value *> res;
+// Sort the callsites originated from the call graph node after
+// filltering out indirect calls.
+inline std::vector<DsaCallSite> SortedCallSites(llvm::CallGraphNode *cgn) {
+  std::vector<DsaCallSite> res;
   res.reserve(cgn->size());
 
-  for (auto &callRecord : *cgn) {
-    llvm::ImmutableCallSite CS(callRecord.first);
-    DsaCallSite dsaCS(CS);
-    const llvm::Function *callee = dsaCS.getCallee();
-    if (!callee || callee->isDeclaration() || callee->empty())
+  for (auto &callRecord: *cgn) {
+    llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
+    if (!dsaCS.hasValue()) {
       continue;
-
-    res.push_back(callRecord.first);
+    }
+    res.push_back(dsaCS.getValue());
   }
 
   std::stable_sort(res.begin(), res.end(),
-                   [](const llvm::Value *first, const llvm::Value *snd) {
-		     llvm::ImmutableCallSite CS1(first);
-                     DsaCallSite dsaCS1(CS1);
+                   [](const DsaCallSite &dsaCS1, const DsaCallSite &dsaCS2) {
                      llvm::StringRef callerN1 = dsaCS1.getCaller()->getName();
                      llvm::StringRef calleeN1 = dsaCS1.getCallee()->getName();
 
-		     llvm::ImmutableCallSite CS2(snd);
-                     DsaCallSite dsaCS2(CS2);
                      llvm::StringRef callerN2 = dsaCS2.getCaller()->getName();
                      llvm::StringRef calleeN2 = dsaCS2.getCallee()->getName();
 

@@ -65,7 +65,17 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   assert(context.m_cs);
   
   // clone and unify globals
+  std::vector<std::pair<const Value*, Cell*>> globals;
   for (auto &kv : calleeG.globals()) {
+    globals.push_back({kv.first, &*kv.second});
+  }
+  std::stable_sort(globals.begin(), globals.end(),
+		   [](const std::pair<const Value*, Cell*> &p1,
+		      const std::pair<const Value*, Cell*> &p2) {
+		     return p1.first->getName() < p2.first->getName();
+		   });
+  
+  for (auto &kv : globals) {
     Node &calleeN = *kv.second->getNode();
     // We don't care if globals got unified together, but have to respect the
     // points-to relations introduced by the callee introduced.
@@ -154,14 +164,8 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         continue;
 
       // -- resolve all function calls in the SCC
-      auto callRecords = call_graph_utils::SortedCallSites(cgn);
-      for (auto *callRecord : callRecords) {
-        ImmutableCallSite CS(callRecord);
-        DsaCallSite dsaCS(CS);
-        const Function *callee = dsaCS.getCallee();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
-
+      auto dsaCallSites = call_graph_utils::SortedCallSites(cgn);
+      for (auto &dsaCS: dsaCallSites) {
         assert(graphs.count(dsaCS.getCaller()) > 0);
         assert(graphs.count(dsaCS.getCallee()) > 0);
 
@@ -171,8 +175,8 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         static int cnt = 0;
         ++cnt;
         LOG("dsa-bu", llvm::errs() << "BU #" << cnt << ": "
-                                   << dsaCS.getCaller()->getName() << " <- "
-                                   << dsaCS.getCallee()->getName() << "\n");
+	                           << dsaCS.getCaller()->getName() << " <- "
+	                           << dsaCS.getCallee()->getName() << "\n");
         LOG("dsa-bu", llvm::errs()
                           << "\tCallee size: " << calleeG.numNodes()
                           << ", caller size:\t" << callerG.numNodes() << "\n");
