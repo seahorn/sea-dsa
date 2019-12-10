@@ -30,7 +30,7 @@ enum e_color {WHITE, BLACK, GRAY}; // colors for exploration
 
 using ExplorationMap = DenseMap<const Node *, e_color>;
 using ColorMap = DenseMap<const Node *, Color>;
-using SafeNodeSet = DenseSet<const Node *>;
+using NodeSet = DenseSet<const Node *>;
 
 namespace sea_dsa {
 
@@ -38,12 +38,12 @@ namespace sea_dsa {
 // done by GraphExplorer::colorGraph.
 class ColoredGraph {
 private:
-  SafeNodeSet m_safe;
+  NodeSet m_safe;
   ColorMap m_color;
   Graph &m_g;
 
 public:
-  ColoredGraph(Graph &g, ColorMap &colorM, SafeNodeSet &safe);
+  ColoredGraph(Graph &g, ColorMap &colorM, NodeSet &safe);
   sea_dsa::Graph & getGraph();
   sea_dsa::Graph &getGraph() const;
 
@@ -61,14 +61,14 @@ std::unique_ptr<Graph> cloneGraph(const llvm::DataLayout &dl,
 class GraphExplorer {
 private:
   static void
-  mark_nodes_graph(Graph &g, const Function &F, SafeNodeSet &f_safe,
-                   SafeNodeSet &f_safe_caller, SimulationMapper &sm);
+  mark_nodes_graph(Graph &g, const Function &F, NodeSet &f_safe,
+                   NodeSet &f_safe_caller, SimulationMapper &sm);
 
-  static bool mark_copy(const Node &n, ExplorationMap &f_color, SafeNodeSet &f_safe,
-                  SafeNodeSet &f_safe_caller, SimulationMapper &sm);
+  static bool mark_copy(const Node &n, ExplorationMap &f_color, NodeSet &f_safe,
+                  NodeSet &f_safe_caller, SimulationMapper &sm);
   static void propagate_not_copy(const Node &n, ExplorationMap &f_color,
-                                 SafeNodeSet &f_safe,
-                                 SafeNodeSet &f_safe_caller,
+                                 NodeSet &f_safe,
+                                 NodeSet &f_safe_caller,
                                  SimulationMapper &sm);
 
   static const Node *getMappedNode(const Node *n, SimulationMapper & sm);
@@ -76,13 +76,13 @@ private:
   static void color_nodes_graph(Graph &g, const Function &F,
                                 SimulationMapper &sm, ColorMap &c_callee,
                                 ColorMap &c_caller,
-                                SafeNodeSet f_node_safe_callee,
-                                SafeNodeSet f_node_safe_caller);
-  static void color_nodes_aux(const Node &n, const Node &n_caller, SafeNodeSet &f_proc,
+                                NodeSet f_node_safe_callee,
+                                NodeSet f_node_safe_caller);
+  static void color_nodes_aux(const Node &n, const Node &n_caller, NodeSet &f_proc,
                               SimulationMapper &sm, ColorMap &c_callee,
                               ColorMap &c_caller,
-                              SafeNodeSet f_node_safe_callee,
-                              SafeNodeSet f_node_safe_caller);
+                              NodeSet f_node_safe_callee,
+                              NodeSet f_node_safe_caller);
 
 public :
   // This method takes a callsite, and a pair of dsa graphs, one of the caller
@@ -94,14 +94,14 @@ public :
   // the amount of information that it may encode is infinite or finite.
   static void colorGraph(const DsaCallSite &cs, const Graph &g_callee,
                          const Graph &g_caller, ColorMap &color_callee,
-                         ColorMap &color_caller, SafeNodeSet &f_node_safe);
+                         ColorMap &color_caller, NodeSet &f_node_safe);
 
-  // TODO: actually SafeNodeSet contains the unsafe nodes, change name?
-  static void getSafeNodesCallerGraph(const CallSite &cs, const Graph &calleeG,
-                                      const Graph &callerG,
-                                      SimulationMapper &simMap,
-                                      SafeNodeSet &f_node_safe_caller);
-  static bool isSafeNode(SafeNodeSet &f_safe, const Node *n);
+  static void getUnsafeNodesCallSite(const DsaCallSite &cs,
+                                     const Graph &calleeG, const Graph &callerG,
+                                     SimulationMapper &simMap,
+                                     NodeSet &f_node_safe_callee,
+                                     NodeSet &f_node_safe_caller);
+  static bool isSafeNode(NodeSet &f_safe, const Node *n);
 };
 
 namespace llvm {

@@ -11,7 +11,7 @@ Color::Color(): m_r(0), m_g(0), m_b(0) {
 
 Color::Color(int r, int g, int b) : m_r(r), m_g(g), m_b(b) {};
 
-void Color::randColor() { // it would be nice to not generate the same colors all the time
+void Color::randColor() {
   m_r = std::rand() % 255;
   m_g = std::rand() % 255;
   m_b = std::rand() % 255;
@@ -24,11 +24,7 @@ std::string Color::stringColor() const {
   return stringStream.str();
 }
 
-
-// What I actually want is a constructor that copies a graph but adds the two fields!
-// Actually the copy is not necessary, I just want a pointer to the graph.
-// ColorGraph class
-ColoredGraph::ColoredGraph(Graph &g, ColorMap &colorM, SafeNodeSet &safe)
+ColoredGraph::ColoredGraph(Graph &g, ColorMap &colorM, NodeSet &safe)
     : m_g(g), m_color(colorM), m_safe(safe) {};
 
 sea_dsa::Graph & ColoredGraph::getGraph() { return m_g;}
@@ -46,7 +42,7 @@ std::string ColoredGraph::getColorNode(const Node *n) const {
     return it->getSecond().stringColor();
   }
   else{
-    OS << "grey";
+    OS << "gray";
     return OS.str();
   }
 }
@@ -55,7 +51,6 @@ bool ColoredGraph::isSafeNode(const Node *n) const {
   return m_safe.count(n) == 0;
 }
 
-// Coloring functions
 
 std::unique_ptr<Graph> cloneGraph(const llvm::DataLayout &dl,
                                   Graph::SetFactory &sf,const Graph &g) {
@@ -64,12 +59,12 @@ std::unique_ptr<Graph> cloneGraph(const llvm::DataLayout &dl,
   return std::move(new_g);
 }
 
-bool GraphExplorer::isSafeNode(SafeNodeSet &f_safe, const Node *n) {
+bool GraphExplorer::isSafeNode(NodeSet &f_safe, const Node *n) {
   return f_safe.count(n) == 0;
 }
 
 void GraphExplorer::mark_nodes_graph(Graph &g, const Function &F,
-                                     SafeNodeSet &f_safe, SafeNodeSet &f_safe_caller,
+                                     NodeSet &f_safe, NodeSet &f_safe_caller,
                                      SimulationMapper &sm) {
   ExplorationMap f_visited;
 
@@ -83,7 +78,7 @@ void GraphExplorer::mark_nodes_graph(Graph &g, const Function &F,
 }
 
 bool GraphExplorer::mark_copy(const Node &n, ExplorationMap &f_color,
-                              SafeNodeSet &f_safe, SafeNodeSet &f_safe_caller,
+                              NodeSet &f_safe, NodeSet &f_safe_caller,
                               SimulationMapper &sm ) {
   f_color[&n] = GRAY;
 
@@ -110,8 +105,8 @@ bool GraphExplorer::mark_copy(const Node &n, ExplorationMap &f_color,
 }
 
 void GraphExplorer::propagate_not_copy(const Node &n, ExplorationMap &f_color,
-                                       SafeNodeSet &f_safe,
-                                       SafeNodeSet &f_safe_caller,
+                                       NodeSet &f_safe,
+                                       NodeSet &f_safe_caller,
                                        SimulationMapper &sm) {
   if(isSafeNode(f_safe,&n))
     f_safe.insert(&n); // we store the ones that are not safe
@@ -142,10 +137,10 @@ void GraphExplorer::propagate_not_copy(const Node &n, ExplorationMap &f_color,
 void GraphExplorer::color_nodes_graph(Graph &g, const Function &F,
                                       SimulationMapper &sm, ColorMap &c_callee,
                                       ColorMap &c_caller,
-                                      SafeNodeSet f_node_safe_callee,
-                                      SafeNodeSet f_node_safe_caller) {
+                                      NodeSet f_node_safe_callee,
+                                      NodeSet f_node_safe_caller) {
 
-  SafeNodeSet f_proc; // keep track of processed nodes
+  NodeSet f_proc; // keep track of processed nodes
   for (const Argument &a : F.args()) {
     if (g.hasCell(a)) { // scalar arguments don't have cells
       const Cell &c = g.getCell(a);
@@ -158,11 +153,11 @@ void GraphExplorer::color_nodes_graph(Graph &g, const Function &F,
   }
 }
 
-void GraphExplorer::color_nodes_aux(const Node &n_callee, const Node &n_caller, SafeNodeSet &f_proc,
+void GraphExplorer::color_nodes_aux(const Node &n_callee, const Node &n_caller, NodeSet &f_proc,
                                     SimulationMapper &sm, ColorMap &c_callee,
                                     ColorMap &c_caller,
-                                    SafeNodeSet f_node_safe_callee,
-                                    SafeNodeSet f_node_safe_caller) {
+                                    NodeSet f_node_safe_callee,
+                                    NodeSet f_node_safe_caller) {
 
   f_proc.insert(&n_callee); // mark processed
 
@@ -197,12 +192,12 @@ void GraphExplorer::color_nodes_aux(const Node &n_callee, const Node &n_caller, 
 
 void GraphExplorer::colorGraph(const DsaCallSite &cs, const Graph &calleeG,
                              const Graph &callerG, ColorMap &color_callee,
-                               ColorMap &color_caller, SafeNodeSet &f_node_safe_callee) {
+                               ColorMap &color_caller, NodeSet &f_node_safe_callee) {
 
   SimulationMapper simMap;
 
   bool res = Graph::computeCalleeCallerMapping(cs, *(const_cast<Graph*>(&calleeG)), *(const_cast<Graph*>(&callerG)), simMap);
-  SafeNodeSet f_node_safe_caller;
+  NodeSet f_node_safe_caller;
 
   mark_nodes_graph(*(const_cast<Graph *>(&calleeG)), *cs.getCallee(),
                    f_node_safe_callee, f_node_safe_caller, simMap);
@@ -214,19 +209,15 @@ void GraphExplorer::colorGraph(const DsaCallSite &cs, const Graph &calleeG,
 /* only safe exploration, no coloring!                      */
 /************************************************************/
 
-void GraphExplorer::getSafeNodesCallerGraph(const CallSite &cs,
-                                            const Graph &calleeG,
-                                            const Graph &callerG,
-                                            SimulationMapper &simMap,
-                                            SafeNodeSet &f_node_safe_caller) {
+void GraphExplorer::getUnsafeNodesCallSite(const DsaCallSite &cs,
+                                           const Graph &calleeG,
+                                           const Graph &callerG,
+                                           SimulationMapper &simMap,
+                                           NodeSet &f_node_safe_callee,
+                                           NodeSet &f_node_safe_caller) {
 
-  DsaCallSite dsa_cs(*cs.getInstruction());
+  //  DsaCallSite dsa_cs(*cs.getInstruction());
 
-  bool res = Graph::computeCalleeCallerMapping(
-      dsa_cs, *(const_cast<Graph *>(&calleeG)),
-      *(const_cast<Graph *>(&callerG)), simMap);
-  SafeNodeSet f_node_safe_callee;
-
-  mark_nodes_graph(*(const_cast<Graph *>(&calleeG)), *dsa_cs.getCallee(),
+  mark_nodes_graph(*(const_cast<Graph *>(&calleeG)), *cs.getCallee(),
                    f_node_safe_callee, f_node_safe_caller, simMap);
 }

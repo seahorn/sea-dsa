@@ -601,7 +601,7 @@ struct DsaColorPrinter : public ModulePass {
       for( ; it != end ; it++){
 
         ColorMap color_callee, color_caller;
-        SafeNodeSet f_node_safe;
+        NodeSet f_node_safe;
 
         const Function * f_caller = it->getCallSite().getCaller();
 
