@@ -98,8 +98,8 @@ Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
     : m_graph(&g), m_unique_scalar(n.m_unique_scalar), m_size(n.m_size) {
   assert(!n.isForwarding());
 
-  // -- copy global id
-  m_id = n.m_id;
+  // -- fresh id
+  m_id = ++m_id_factory;
 
   // -- copy node type info
   m_nodeType = n.m_nodeType;
