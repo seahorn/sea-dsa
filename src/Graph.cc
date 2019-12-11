@@ -99,7 +99,7 @@ Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
   assert(!n.isForwarding());
 
   // -- copy global id
-  m_id = n.m_id;
+  m_id = ++m_id_factory; // n.m_id;
 
   // -- copy node type info
   m_nodeType = n.m_nodeType;
