@@ -237,9 +237,28 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
   llvm::SmallVector<llvm::Constant *, 5> m_memInitFunctions;
 
+  struct GlobalVariableOrdering {
+    bool operator()(const GlobalVariable* gv1, const GlobalVariable* gv2) const {
+      assert(gv1->hasName());
+      assert(gv2->hasName());
+      return (gv1->getName() < gv2->getName());
+    }
+  };
+  
+  struct NodeOrdering {
+    bool operator()(const dsa::Node *n1, const dsa::Node *n2) const {
+      return n1->getId() < n2->getId();
+    }
+  };
+
+  // We use std::map to keep keys ordered.  
   using ShadowsMap =
-      llvm::DenseMap<const sea_dsa::Node *,
-                     llvm::DenseMap<unsigned, llvm::AllocaInst *>>;
+      std::map<const sea_dsa::Node *, std::map<unsigned, llvm::AllocaInst *>,
+               NodeOrdering>;
+  
+  // using ShadowsMap =
+  //     llvm::DenseMap<const sea_dsa::Node *,
+  //                    llvm::DenseMap<unsigned, llvm::AllocaInst *>>;
   using NodeIdMap = llvm::DenseMap<const sea_dsa::Node *, unsigned>;
 
   /// \brief A map from DsaNode to all the shadow pseudo-variable corresponding
@@ -683,8 +702,8 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
 
   // compute Nodes that escape because they are either reachable
   // from the input arguments or from returns
-  std::set<const dsa::Node *> reach;
-  std::set<const dsa::Node *> retReach;
+  std::set<const dsa::Node *, NodeOrdering> reach;
+  std::set<const dsa::Node *, NodeOrdering> retReach;
   argReachableNodes(F, G, reach, retReach);
 
   // -- create shadows for all nodes that are modified by this
@@ -783,20 +802,25 @@ void ShadowMemImpl::visitFunction(Function &fn) {
 void ShadowMemImpl::visitMainFunction(Function &fn) {
   // set insertion point to the beginning of the main function
   m_B->SetInsertPoint(&*fn.getEntryBlock().begin());
-
-  // iterate over all globals
+  
+  std::set<GlobalVariable*, GlobalVariableOrdering> globals;
   for (auto &gv : fn.getParent()->globals()) {
+    globals.insert(&gv);
+  }
+  
+  // iterate over all globals
+  for (auto gv : globals) {
     // skip globals that are used internally by llvm
-    if (gv.getSection().equals("llvm.metadata"))
+    if (gv->getSection().equals("llvm.metadata"))
       continue;
     // skip globals that do not appear in alias analysis
-    if (!m_graph->hasCell(gv))
+    if (!m_graph->hasCell(*gv))
       continue;
     // insert call to mkShadowGlobalVarInit()
-    auto sz = dsa::getTypeSizeInBytes(*gv.getValueType(), *m_dl);
+    auto sz = dsa::getTypeSizeInBytes(*(gv->getValueType()), *m_dl);
     if (CallInst *memInit =
-            mkShadowGlobalVarInit(*m_B, m_graph->getCell(gv), gv, sz))
-      associateConcretePtr(*memInit, gv, nullptr);
+            mkShadowGlobalVarInit(*m_B, m_graph->getCell(*gv), *gv, sz))
+      associateConcretePtr(*memInit, *gv, nullptr);
   }
 }
 
@@ -889,8 +913,8 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
   dsa::Graph &calleeG = m_dsa.getGraph(CF);
 
   // -- compute callee nodes reachable from arguments and returns
-  std::set<const dsa::Node *> reach;
-  std::set<const dsa::Node *> retReach;
+  std::set<const dsa::Node *, NodeOrdering> reach;
+  std::set<const dsa::Node *, NodeOrdering> retReach;
   argReachableNodes(CF, calleeG, reach, retReach);
 
   // -- compute mapping between callee and caller graphs
