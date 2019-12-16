@@ -13,15 +13,34 @@ class Function;
 class TargetLibraryInfo;
 class DataLayout;
 class CallGraph;
+class CallInst;
+class ImmutableCallSite;
 }
 
 namespace sea_dsa {
 class ShadowMemImpl;
 class GlobalAnalysis;
 class AllocSiteInfo;
+class Cell;
 }
 
 namespace sea_dsa {
+
+enum class ShadowMemInstOp {
+  LOAD,        /* load */
+  TRSFR_LOAD,  /* memory transfer load */  
+  STORE,       /* store */
+  GLOBAL_INIT, /* initialization of global values */
+  INIT,        /* initialization of local shadow variables */
+  ARG_INIT,    /* initialization of shadow formal parameters */
+  ARG_REF,     /* input actual parameter */
+  ARG_MOD,     /* input/output actual parameter */
+  ARG_NEW,     /* output actual parameter */
+  FUN_IN,      /* input formal parameter */
+  FUN_OUT,     /* output formal parameter */
+  UNKNOWN          
+};
+  
 class ShadowMem {
   std::unique_ptr<ShadowMemImpl> m_impl;
 public:
@@ -30,7 +49,23 @@ public:
 	    llvm::Pass &pass /* for dominatorTree and assumptionCache*/,
 	    bool splitDsaNodes = false, bool computeReadMod = false,
 	    bool memOptimizer = true, bool useTBAA = true);
+  
   bool runOnModule(llvm::Module &M);
+
+  // Return the offset associated to cell c. The offset can be
+  // adjusted to zero if horn-sea-dsa-split=false.
+  unsigned getOffset(const Cell &c) const;
+
+  ShadowMemInstOp getShadowMemOp(const llvm::CallInst &ci) const; 
+  
+  // Return cell associated to the shadow mem call instruction.
+  llvm::Optional<Cell> getShadowMemCell(const llvm::CallInst &ci) const;
+
+  // Return a pair <def,use> with the defined and used variable by the
+  // shadow mem instruction. If the instruction does not define or use
+  // a variable the corresponding pair element can be null.
+  std::pair<llvm::Value*, llvm::Value*>
+  getShadowMemVars(llvm::CallInst &ci) const;
 };
 
 class ShadowMemPass : public llvm::ModulePass {
