@@ -7,9 +7,9 @@
 #include "sea_dsa/TypeUtils.hh"
 #include "sea_dsa/support/Debug.h"
 
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -22,28 +22,27 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Verifier.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
-#include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Utils/PromoteMemToReg.h"
 
 #include "boost/range/algorithm/set_algorithm.hpp"
 
-llvm::cl::opt<bool>
-    SplitFields("horn-sea-dsa-split",
-		llvm::cl::desc("DSA: Split nodes by fields"),
-		llvm::cl::init(false));
+llvm::cl::opt<bool> SplitFields("horn-sea-dsa-split",
+                                llvm::cl::desc("DSA: Split nodes by fields"),
+                                llvm::cl::init(false));
 
 llvm::cl::opt<bool>
     LocalReadMod("horn-sea-dsa-local-mod",
                  llvm::cl::desc("DSA: Compute read/mod info locally"),
                  llvm::cl::init(false));
 
-llvm::cl::opt<bool>
-    ShadowMemOptimize("horn-shadow-mem-optimize",
-		      llvm::cl::desc("Use the solved form for ShadowMem (MemSSA)"),
-		      llvm::cl::init(true));
+llvm::cl::opt<bool> ShadowMemOptimize(
+    "horn-shadow-mem-optimize",
+    llvm::cl::desc("Use the solved form for ShadowMem (MemSSA)"),
+    llvm::cl::init(true));
 
 llvm::cl::opt<bool>
     ShadowMemUseTBAA("horn-shadow-mem-use-tbaa",
@@ -72,14 +71,13 @@ bool HasReturn(Function &F, ReturnInst *&retInst) {
 
 /// work around bug in llvm::RecursivelyDeleteTriviallyDeadInstructions
 bool recursivelyDeleteTriviallyDeadInstructions(
-     llvm::Value *V, const llvm::TargetLibraryInfo *TLI = nullptr) {
-  
+    llvm::Value *V, const llvm::TargetLibraryInfo *TLI = nullptr) {
+
   Instruction *I = dyn_cast<Instruction>(V);
   if (!I->getParent())
     return false;
-  return llvm::RecursivelyDeleteTriviallyDeadInstructions(V, TLI);  
+  return llvm::RecursivelyDeleteTriviallyDeadInstructions(V, TLI);
 }
-
 
 Value *getUniqueScalar(LLVMContext &ctx, IRBuilder<> &B, const dsa::Cell &c) {
   const dsa::Node *n = c.getNode();
@@ -214,7 +212,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   bool m_computeReadMod;
   bool m_memOptimizer;
   bool m_useTBAA;
-  
+
   llvm::Constant *m_memLoadFn = nullptr;
   llvm::Constant *m_memStoreFn = nullptr;
   llvm::Constant *m_memTrsfrLoadFn = nullptr;
@@ -230,30 +228,31 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   llvm::SmallVector<llvm::Constant *, 5> m_memInitFunctions;
 
   struct GlobalVariableOrdering {
-    bool operator()(const GlobalVariable* gv1, const GlobalVariable* gv2) const {
+    bool operator()(const GlobalVariable *gv1,
+                    const GlobalVariable *gv2) const {
       assert(gv1->hasName());
       assert(gv2->hasName());
       return (gv1->getName() < gv2->getName());
     }
   };
-  
+
   struct NodeOrdering {
     bool operator()(const dsa::Node *n1, const dsa::Node *n2) const {
       return n1->getId() < n2->getId();
     }
   };
 
-  // We use std::map to keep keys ordered.  
+  // We use std::map to keep keys ordered.
   using ShadowsMap =
       std::map<const dsa::Node *, std::map<unsigned, llvm::AllocaInst *>,
                NodeOrdering>;
-  
+
   // using ShadowsMap =
   //     llvm::DenseMap<const dsa::Node *,
   //                    llvm::DenseMap<unsigned, llvm::AllocaInst *>>;
-  
+
   using NodeIdMap = llvm::DenseMap<const dsa::Node *, unsigned>;
-  
+
   /// \brief A map from DsaNode to all the shadow pseudo-variable corresponding
   /// to it
   ///
@@ -270,8 +269,8 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
   // Associate a shadow instruction to its Cell. Used by ShadowMem
   // clients (e.g., VCGen).
-  llvm::DenseMap<const CallInst *, dsa::Cell> m_shadowMemInstToCell; 
-  
+  llvm::DenseMap<const CallInst *, dsa::Cell> m_shadowMemInstToCell;
+
   /// \brief The largest id used so far. Used to allocate fresh ids
   unsigned m_maxId = 0;
 
@@ -432,13 +431,13 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     ci->setMetadata(m_memUseTag, mkMetaConstant(accessedBytes));
   }
 
-  CallInst *mkShadowCall(IRBuilder<> &B, const dsa::Cell &c,
-			 Constant *fn, ArrayRef<Value*> args, const Twine &name = "") {
+  CallInst *mkShadowCall(IRBuilder<> &B, const dsa::Cell &c, Constant *fn,
+                         ArrayRef<Value *> args, const Twine &name = "") {
     CallInst *ci = B.CreateCall(fn, args, name);
     m_shadowMemInstToCell.insert({ci, dsa::Cell(c.getNode(), c.getOffset())});
     return ci;
   }
-  
+
   CallInst &mkShadowAllocInit(IRBuilder<> &B, Constant *fn, AllocaInst *a,
                               const dsa::Cell &c) {
     B.Insert(a, "shadow.mem." + Twine(getFieldId(c)));
@@ -462,7 +461,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
                           llvm::Optional<unsigned> bytes) {
 
     auto *ci = mkShadowCall(B, c, m_memStoreFn,
-			    {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
+                            {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
                              getUniqueScalar(*m_llvmCtx, B, c)},
                             "sm");
     markDefCall(ci, bytes);
@@ -481,9 +480,9 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
     Value *u = B.CreateBitCast(&_u, Type::getInt8PtrTy(*m_llvmCtx));
     AllocaInst *v = getShadowForField(c);
-    auto *ci = mkShadowCall(B, c,
-			    m_memGlobalVarInitFn,
-			    {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v), u}, "sm");
+    auto *ci = mkShadowCall(
+        B, c, m_memGlobalVarInitFn,
+        {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v), u}, "sm");
     markDefCall(ci, bytes);
     B.CreateStore(ci, v);
     return ci;
@@ -492,9 +491,9 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   CallInst &mkShadowLoad(IRBuilder<> &B, const dsa::Cell &c,
                          llvm::Optional<unsigned> bytes) {
     auto *ci = mkShadowCall(B, c, m_memLoadFn,
-			    {B.getInt32(getFieldId(c)),
-			     B.CreateLoad(getShadowForField(c)),
-			     getUniqueScalar(*m_llvmCtx, B, c)});
+                            {B.getInt32(getFieldId(c)),
+                             B.CreateLoad(getShadowForField(c)),
+                             getUniqueScalar(*m_llvmCtx, B, c)});
     markUseCall(ci, bytes);
     return *ci;
   }
@@ -504,8 +503,8 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
                    llvm::Optional<unsigned> bytes) {
     // insert memtrfr.load for the read access
     auto *loadCI = mkShadowCall(B, src, m_memTrsfrLoadFn,
-				{B.getInt32(getFieldId(src)),
-				 B.CreateLoad(getShadowForField(src)),
+                                {B.getInt32(getFieldId(src)),
+                                 B.CreateLoad(getShadowForField(src)),
                                  getUniqueScalar(*m_llvmCtx, B, src)});
     markUseCall(loadCI, bytes);
 
@@ -518,10 +517,10 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
                      llvm::Optional<unsigned> bytes) {
     AllocaInst *v = getShadowForField(c);
     unsigned id = getFieldId(c);
-    auto *ci = mkShadowCall(B, c, m_argRefFn,
-			    {B.getInt32(id), m_B->CreateLoad(v),
-			     m_B->getInt32(idx),
-			     getUniqueScalar(*m_llvmCtx, B, c)});
+    auto *ci =
+        mkShadowCall(B, c, m_argRefFn,
+                     {B.getInt32(id), m_B->CreateLoad(v), m_B->getInt32(idx),
+                      getUniqueScalar(*m_llvmCtx, B, c)});
     markUseCall(ci, bytes);
     return *ci;
   }
@@ -532,10 +531,10 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     unsigned id = getFieldId(c);
 
     auto *ci = mkShadowCall(B, c, argFn,
-			    {B.getInt32(id), B.CreateLoad(v), B.getInt32(idx),
-			     getUniqueScalar(*m_llvmCtx, B, c)},
-                             "sh");
-    
+                            {B.getInt32(id), B.CreateLoad(v), B.getInt32(idx),
+                             getUniqueScalar(*m_llvmCtx, B, c)},
+                            "sh");
+
     B.CreateStore(ci, v);
     markDefCall(ci, bytes);
     return *ci;
@@ -544,7 +543,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   CallInst &mkMarkIn(IRBuilder<> &B, const dsa::Cell &c, Value *v, unsigned idx,
                      llvm::Optional<unsigned> bytes) {
     auto *ci = mkShadowCall(B, c, m_markIn,
-			    {B.getInt32(getFieldId(c)), v, B.getInt32(idx),
+                            {B.getInt32(getFieldId(c)), v, B.getInt32(idx),
                              getUniqueScalar(*m_llvmCtx, B, c)});
     markDefCall(ci, bytes);
     return *ci;
@@ -552,11 +551,10 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
   CallInst &mkMarkOut(IRBuilder<> &B, const dsa::Cell &c, unsigned idx,
                       llvm::Optional<unsigned> bytes) {
-    auto *ci = mkShadowCall(B, c, m_markOut,
-			    {B.getInt32(getFieldId(c)),
-			     B.CreateLoad(getShadowForField(c)),
-                             B.getInt32(idx),
-                             getUniqueScalar(*m_llvmCtx, B, c)});
+    auto *ci = mkShadowCall(
+        B, c, m_markOut,
+        {B.getInt32(getFieldId(c)), B.CreateLoad(getShadowForField(c)),
+         B.getInt32(idx), getUniqueScalar(*m_llvmCtx, B, c)});
     markUseCall(ci, bytes);
     return *ci;
   }
@@ -620,12 +618,12 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 public:
   ShadowMemImpl(dsa::GlobalAnalysis &dsa, dsa::AllocSiteInfo &asi,
                 TargetLibraryInfo &tli, CallGraph *cg, Pass &pass,
-                bool splitDsaNodes, bool computeReadMod,
-		bool memOptimizer, bool useTBAA)
+                bool splitDsaNodes, bool computeReadMod, bool memOptimizer,
+                bool useTBAA)
       : m_dsa(dsa), m_asi(asi), m_tli(tli), m_dl(nullptr), m_callGraph(cg),
-        m_pass(pass),
-	m_splitDsaNodes(splitDsaNodes), m_computeReadMod(computeReadMod),
-	m_memOptimizer(memOptimizer), m_useTBAA(useTBAA) {}
+        m_pass(pass), m_splitDsaNodes(splitDsaNodes),
+        m_computeReadMod(computeReadMod), m_memOptimizer(memOptimizer),
+        m_useTBAA(useTBAA) {}
 
   bool runOnModule(Module &M) {
     m_dl = &M.getDataLayout();
@@ -635,7 +633,7 @@ public:
       // context-insensitive.
       m_computeReadMod = false;
     }
-    
+
     if (m_computeReadMod)
       doReadMod();
 
@@ -673,17 +671,17 @@ public:
   /// instruction then it returns null.
   llvm::Optional<Cell> getShadowMemCell(const CallInst &ci) const {
     if (!isShadowMemInst(ci)) {
-      LOG("shadow_cs",
-	  errs() << "Warning: " << ci << " is not a shadow memory instruction.\n";);
+      LOG("shadow_cs", errs() << "Warning: " << ci
+                              << " is not a shadow memory instruction.\n";);
       return llvm::None;
     }
     auto it = m_shadowMemInstToCell.find(&ci);
     if (it != m_shadowMemInstToCell.end()) {
       return llvm::Optional<Cell>(it->second);
     } else {
-      LOG("shadow_cs",      
-	  errs() << "Warning: cannot find cell associated to shadow mem inst "
-	         << ci << "\n";);
+      LOG("shadow_cs",
+          errs() << "Warning: cannot find cell associated to shadow mem inst "
+                 << ci << "\n";);
       return llvm::None;
     }
   }
@@ -694,8 +692,8 @@ public:
 
     ImmutableCallSite CS(&ci);
     const Function *callee = CS.getCalledFunction();
-    if (!callee) 
-      return ShadowMemInstOp::UNKNOWN;    
+    if (!callee)
+      return ShadowMemInstOp::UNKNOWN;
 
     if (callee->getName().equals(m_memLoadTag)) {
       return ShadowMemInstOp::LOAD;
@@ -710,54 +708,55 @@ public:
     } else if (callee->getName().equals(m_memArgInitTag)) {
       return ShadowMemInstOp::ARG_INIT;
     } else if (callee->getName().equals(m_memArgRefTag)) {
-      return ShadowMemInstOp::ARG_REF;       
+      return ShadowMemInstOp::ARG_REF;
     } else if (callee->getName().equals(m_memArgModTag)) {
-      return ShadowMemInstOp::ARG_MOD;             
+      return ShadowMemInstOp::ARG_MOD;
     } else if (callee->getName().equals(m_memArgNewTag)) {
-      return ShadowMemInstOp::ARG_NEW;                   
+      return ShadowMemInstOp::ARG_NEW;
     } else if (callee->getName().equals(m_memFnInTag)) {
       return ShadowMemInstOp::FUN_IN;
     } else if (callee->getName().equals(m_memFnOutTag)) {
       return ShadowMemInstOp::FUN_OUT;
     } else {
-      return ShadowMemInstOp::UNKNOWN;    
+      return ShadowMemInstOp::UNKNOWN;
     }
   }
 
-  std::pair<Value*,Value*> getShadowMemVars(CallInst &ci) const {
+  std::pair<Value *, Value *> getShadowMemVars(CallInst &ci) const {
     Value *def = nullptr;
     Value *use = nullptr;
 
-    CallSite CS(&ci);    
-    switch(getShadowMemOp(ci)) {
+    CallSite CS(&ci);
+    switch (getShadowMemOp(ci)) {
     case ShadowMemInstOp::LOAD:
     case ShadowMemInstOp::ARG_REF:
     case ShadowMemInstOp::FUN_OUT:
-    case ShadowMemInstOp::TRSFR_LOAD:      
-      use = CS.getArgument(1);            
+    case ShadowMemInstOp::TRSFR_LOAD:
+      use = CS.getArgument(1);
       break;
     case ShadowMemInstOp::STORE:
     case ShadowMemInstOp::ARG_MOD:
     case ShadowMemInstOp::ARG_NEW:
-      use = CS.getArgument(1);      
-      def = &ci;      
+      use = CS.getArgument(1);
+      def = &ci;
       break;
     case ShadowMemInstOp::GLOBAL_INIT:
-    case ShadowMemInstOp::FUN_IN:      
+    case ShadowMemInstOp::FUN_IN:
     case ShadowMemInstOp::INIT:
     case ShadowMemInstOp::ARG_INIT:
       def = &ci;
-      break;      
-    default: ;;
+      break;
+    default:;
+      ;
     }
     return {def, use};
   }
-  
+
   const llvm::StringRef m_metadataTag = "shadow.mem";
   const llvm::StringRef m_memDefTag = "shadow.mem.def";
   const llvm::StringRef m_memUseTag = "shadow.mem.use";
   const llvm::StringRef m_memPhiTag = "shadow.mem.phi";
-  
+
   const llvm::StringRef m_memLoadTag = "shadow.mem.load";
   const llvm::StringRef m_memTrsfrLoadTag = "shadow.mem.trsfr.load";
   const llvm::StringRef m_memStoreTag = "shadow.mem.store";
@@ -768,7 +767,7 @@ public:
   const llvm::StringRef m_memArgModTag = "shadow.mem.arg.mod";
   const llvm::StringRef m_memArgNewTag = "shadow.mem.arg.new";
   const llvm::StringRef m_memFnInTag = "shadow.mem.in";
-  const llvm::StringRef m_memFnOutTag = "shadow.mem.out"; 
+  const llvm::StringRef m_memFnOutTag = "shadow.mem.out";
 };
 
 bool ShadowMemImpl::runOnFunction(Function &F) {
@@ -849,8 +848,8 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
     // TODO: Need to think how to handle functions that do not return in
     // interprocedural encoding. For now, we print a warning and ignore this
     // case.
-    errs() << "WARNING: Function " << F.getName() << "never returns." 
-	   << "Inter-procedural analysis with such functions might not be "
+    errs() << "WARNING: Function " << F.getName() << "never returns."
+           << "Inter-procedural analysis with such functions might not be "
            << "supported.";
     return true;
   }
@@ -915,12 +914,12 @@ void ShadowMemImpl::visitFunction(Function &fn) {
 void ShadowMemImpl::visitMainFunction(Function &fn) {
   // set insertion point to the beginning of the main function
   m_B->SetInsertPoint(&*fn.getEntryBlock().begin());
-  
-  std::set<GlobalVariable*, GlobalVariableOrdering> globals;
+
+  std::set<GlobalVariable *, GlobalVariableOrdering> globals;
   for (auto &gv : fn.getParent()->globals()) {
     globals.insert(&gv);
   }
-  
+
   // iterate over all globals
   for (auto gv : globals) {
     // skip globals that are used internally by llvm
@@ -1011,7 +1010,7 @@ void ShadowMemImpl::visitCallSite(CallSite CS) {
     visitAllocationFn(CS);
     return;
   }
-  
+
   if (m_dsa.hasGraph(*callee)) {
     ImmutableCallSite ics(callInst);
     dsa::DsaCallSite dcs(ics);
@@ -1095,7 +1094,7 @@ void ShadowMemImpl::visitCalloc(CallSite &CS) {
   } else {
     // TODO: handle multiple nodes
     errs() << "WARNING: skipping calloc instrumentation because cell "
-	   << "offset is not zero\n";
+           << "offset is not zero\n";
   }
 }
 
@@ -1154,7 +1153,7 @@ void ShadowMemImpl::visitMemTransferInst(MemTransferInst &I) {
   if (dstC.isNull())
     return;
 
-  /* 
+  /*
   // XXX don't remember why this check is needed
   if (dstC.getOffset() != 0)
     return;
@@ -1178,34 +1177,34 @@ void ShadowMemImpl::mkShadowFunctions(Module &M) {
   m_memLoadFn = M.getOrInsertFunction(m_memLoadTag, voidTy, m_Int32Ty,
                                       m_Int32Ty, i8PtrTy);
 
-  m_memTrsfrLoadFn = M.getOrInsertFunction(m_memTrsfrLoadTag, voidTy,
-                                           m_Int32Ty, m_Int32Ty, i8PtrTy);
+  m_memTrsfrLoadFn = M.getOrInsertFunction(m_memTrsfrLoadTag, voidTy, m_Int32Ty,
+                                           m_Int32Ty, i8PtrTy);
 
   m_memStoreFn = M.getOrInsertFunction(m_memStoreTag, m_Int32Ty, m_Int32Ty,
                                        m_Int32Ty, i8PtrTy);
 
-  m_memGlobalVarInitFn = M.getOrInsertFunction(
-      m_memGlobalVarInitTag, m_Int32Ty, m_Int32Ty, m_Int32Ty, i8PtrTy);
+  m_memGlobalVarInitFn = M.getOrInsertFunction(m_memGlobalVarInitTag, m_Int32Ty,
+                                               m_Int32Ty, m_Int32Ty, i8PtrTy);
 
   m_memShadowInitFn =
       M.getOrInsertFunction(m_memInitTag, m_Int32Ty, m_Int32Ty, i8PtrTy);
 
-  m_memShadowArgInitFn = M.getOrInsertFunction(m_memArgInitTag, m_Int32Ty,
-                                               m_Int32Ty, i8PtrTy);
+  m_memShadowArgInitFn =
+      M.getOrInsertFunction(m_memArgInitTag, m_Int32Ty, m_Int32Ty, i8PtrTy);
 
   m_argRefFn = M.getOrInsertFunction(m_memArgRefTag, voidTy, m_Int32Ty,
                                      m_Int32Ty, m_Int32Ty, i8PtrTy);
 
   m_argModFn = M.getOrInsertFunction(m_memArgModTag, m_Int32Ty, m_Int32Ty,
                                      m_Int32Ty, m_Int32Ty, i8PtrTy);
-  
+
   m_argNewFn = M.getOrInsertFunction(m_memArgNewTag, m_Int32Ty, m_Int32Ty,
                                      m_Int32Ty, m_Int32Ty, i8PtrTy);
 
-  m_markIn = M.getOrInsertFunction(m_memFnInTag, voidTy, m_Int32Ty,
-                                   m_Int32Ty, m_Int32Ty, i8PtrTy);
-  m_markOut = M.getOrInsertFunction(m_memFnOutTag, voidTy, m_Int32Ty,
-                                    m_Int32Ty, m_Int32Ty, i8PtrTy);
+  m_markIn = M.getOrInsertFunction(m_memFnInTag, voidTy, m_Int32Ty, m_Int32Ty,
+                                   m_Int32Ty, i8PtrTy);
+  m_markOut = M.getOrInsertFunction(m_memFnOutTag, voidTy, m_Int32Ty, m_Int32Ty,
+                                    m_Int32Ty, i8PtrTy);
 
   m_memInitFunctions = {m_memShadowInitFn, m_memGlobalVarInitFn,
                         m_memShadowArgInitFn};
@@ -1539,18 +1538,14 @@ void ShadowMemImpl::solveUses(Function &F) {
 }
 
 /** ShadowMem class **/
-ShadowMem::ShadowMem(GlobalAnalysis& dsa, AllocSiteInfo &asi,
-		     llvm::TargetLibraryInfo &tli, llvm::CallGraph *cg,
-		     llvm::Pass &pass,
-		     bool splitDsaNodes, bool computeReadMod,
-		     bool memOptimizer, bool useTBAA)
-  : m_impl(new ShadowMemImpl(dsa, asi, tli, cg, pass,
-			     splitDsaNodes, computeReadMod,
-			     memOptimizer, useTBAA)) {}
+ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi,
+                     llvm::TargetLibraryInfo &tli, llvm::CallGraph *cg,
+                     llvm::Pass &pass, bool splitDsaNodes, bool computeReadMod,
+                     bool memOptimizer, bool useTBAA)
+    : m_impl(new ShadowMemImpl(dsa, asi, tli, cg, pass, splitDsaNodes,
+                               computeReadMod, memOptimizer, useTBAA)) {}
 
-bool ShadowMem::runOnModule(Module &M) {
-  return m_impl->runOnModule(M);
-}
+bool ShadowMem::runOnModule(Module &M) { return m_impl->runOnModule(M); }
 
 unsigned ShadowMem::getOffset(const dsa::Cell &c) const {
   return m_impl->getOffset(c);
@@ -1563,15 +1558,14 @@ ShadowMemInstOp ShadowMem::getShadowMemOp(const CallInst &ci) const {
 llvm::Optional<Cell> ShadowMem::getShadowMemCell(const CallInst &ci) const {
   return m_impl->getShadowMemCell(ci);
 }
-  
-std::pair<Value*,Value*> ShadowMem::getShadowMemVars(CallInst &ci) const {
+
+std::pair<Value *, Value *> ShadowMem::getShadowMemVars(CallInst &ci) const {
   return m_impl->getShadowMemVars(ci);
 }
-  
+
 /** ShadowMemPass class **/
 ShadowMemPass::ShadowMemPass()
-  : llvm::ModulePass(ShadowMemPass::ID)
-  , m_shadowMem(nullptr) {}
+    : llvm::ModulePass(ShadowMemPass::ID), m_shadowMem(nullptr) {}
 
 bool ShadowMemPass::runOnModule(llvm::Module &M) {
   if (M.begin() == M.end())
@@ -1585,14 +1579,13 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
   if (cgPass)
     cg = &cgPass->getCallGraph();
 
-
   LOG("shadow_verbose", errs() << "Module before shadow insertion:\n"
                                << M << "\n";);
 
-  m_shadowMem.reset(new ShadowMem(dsa, asi, tli, cg, *this,
-				  SplitFields, LocalReadMod,
-				  ShadowMemOptimize, ShadowMemUseTBAA));
-  
+  m_shadowMem.reset(new ShadowMem(dsa, asi, tli, cg, *this, SplitFields,
+                                  LocalReadMod, ShadowMemOptimize,
+                                  ShadowMemUseTBAA));
+
   bool res = m_shadowMem->runOnModule(M);
   LOG("shadow_verbose", errs() << "Module after shadow insertion:\n"
                                << M << "\n";);
@@ -1602,7 +1595,7 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
   return res;
 }
 
-const ShadowMem& ShadowMemPass::getShadowMem() const {
+const ShadowMem &ShadowMemPass::getShadowMem() const {
   assert(m_shadowMem);
   return *m_shadowMem;
 }
@@ -1624,14 +1617,14 @@ void StripShadowMemPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool StripShadowMemPass::runOnModule(Module &M) {
   std::vector<std::string> voidFnNames = {"shadow.mem.load",
-					  "shadow.mem.arg.ref",
-					  "shadow.mem.in", "shadow.mem.out"};
-  
+                                          "shadow.mem.arg.ref", "shadow.mem.in",
+                                          "shadow.mem.out"};
+
   for (auto &name : voidFnNames) {
     Function *fn = M.getFunction(name);
     if (!fn)
       continue;
-    
+
     while (!fn->use_empty()) {
       CallInst *ci = cast<CallInst>(fn->user_back());
       Value *last = ci->getArgOperand(ci->getNumArgOperands() - 1);
@@ -1639,17 +1632,17 @@ bool StripShadowMemPass::runOnModule(Module &M) {
       ::recursivelyDeleteTriviallyDeadInstructions(last);
     }
   }
-  
+
   std::vector<std::string> intFnNames = {
-    "shadow.mem.store", "shadow.mem.init", "shadow.mem.arg.init",
-    "shadow.mem.global.init", "shadow.mem.arg.mod"};
+      "shadow.mem.store", "shadow.mem.init", "shadow.mem.arg.init",
+      "shadow.mem.global.init", "shadow.mem.arg.mod"};
   Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
-  
+
   for (auto &name : intFnNames) {
     Function *fn = M.getFunction(name);
     if (!fn)
       continue;
-    
+
     while (!fn->use_empty()) {
       CallInst *ci = cast<CallInst>(fn->user_back());
       Value *last = ci->getArgOperand(ci->getNumArgOperands() - 1);
@@ -1658,7 +1651,7 @@ bool StripShadowMemPass::runOnModule(Module &M) {
       ::recursivelyDeleteTriviallyDeadInstructions(last);
     }
   }
-  
+
   return true;
 }
 
