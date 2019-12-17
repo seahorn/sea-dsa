@@ -23,13 +23,15 @@ using namespace llvm;
 static llvm::cl::opt<sea_dsa::GlobalAnalysisKind> DsaGlobalAnalysis(
     "sea-dsa", llvm::cl::desc("Choose the SeaDsa analysis"),
     llvm::cl::values(
-        clEnumValN(CONTEXT_SENSITIVE, "cs",
+        clEnumValN(GlobalAnalysisKind::CONTEXT_SENSITIVE, "cs",
                    "Context-sensitive for VC generation as in SAS'17 (default)"),
-        clEnumValN(BUTD_CONTEXT_SENSITIVE, "butd-cs", "Bottom-up + top-down"),
-	clEnumValN(BU, "bu", "Bottom-up"),
-        clEnumValN(CONTEXT_INSENSITIVE, "ci", "Context-insensitive for VC generation"),
-        clEnumValN(FLAT_MEMORY, "flat", "Flat memory")),
-    llvm::cl::init(CONTEXT_SENSITIVE));
+        clEnumValN(GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE, "butd-cs",
+		   "Bottom-up + top-down"),
+	clEnumValN(GlobalAnalysisKind::BU, "bu", "Bottom-up"),
+        clEnumValN(GlobalAnalysisKind::CONTEXT_INSENSITIVE, "ci",
+		   "Context-insensitive for VC generation"),
+        clEnumValN(GlobalAnalysisKind::FLAT_MEMORY, "flat", "Flat memory")),
+    llvm::cl::init(GlobalAnalysisKind::CONTEXT_SENSITIVE));
 
 namespace sea_dsa {
 bool PrintDsaStats;
@@ -70,19 +72,19 @@ bool DsaAnalysis::runOnModule(Module &M) {
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
   switch (DsaGlobalAnalysis) {
-  case CONTEXT_INSENSITIVE:
+  case GlobalAnalysisKind::CONTEXT_INSENSITIVE:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
                                                     cg, m_setFactory, false));
     break;
-  case FLAT_MEMORY:
+  case GlobalAnalysisKind::FLAT_MEMORY:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
         *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory, true /* use flat*/));
     break;
-  case BUTD_CONTEXT_SENSITIVE:
+  case GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE:
     m_ga.reset(new BottomUpTopDownGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
                                                  cg, m_setFactory));
     break;
-  case BU:
+  case GlobalAnalysisKind::BU:
     m_ga.reset(new BottomUpGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
 					  cg, m_setFactory));
     break;

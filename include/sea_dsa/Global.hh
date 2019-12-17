@@ -24,7 +24,7 @@ namespace sea_dsa {
 
 class AllocWrapInfo;
 
-enum GlobalAnalysisKind {
+enum class GlobalAnalysisKind {
   // useful for VC generation
   CONTEXT_INSENSITIVE,
   // useful for VC generation
@@ -96,9 +96,11 @@ public:
                                    const AllocWrapInfo &allocInfo,
                                    llvm::CallGraph &cg, SetFactory &setFactory,
                                    const bool useFlatMemory)
-      : GlobalAnalysis(useFlatMemory ? FLAT_MEMORY : CONTEXT_INSENSITIVE),
-        m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
-        m_setFactory(setFactory), m_graph(nullptr) {}
+    : GlobalAnalysis(useFlatMemory ?
+		     GlobalAnalysisKind::FLAT_MEMORY :
+		     GlobalAnalysisKind::CONTEXT_INSENSITIVE),
+      m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
+      m_setFactory(setFactory), m_graph(nullptr) {}
 
   // unify caller/callee nodes within the same graph
   static void resolveArguments(DsaCallSite &cs, Graph &g);

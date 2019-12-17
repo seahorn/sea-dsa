@@ -88,7 +88,7 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
   // ufo::Stats::resume ("CI-DsaAnalysis");
 
-  if (kind() == FLAT_MEMORY)
+  if (kind() == GlobalAnalysisKind::FLAT_MEMORY)
     m_graph.reset(new FlatGraph(m_dl, m_setFactory));
   else
     m_graph.reset(new Graph(m_dl, m_setFactory));
@@ -107,7 +107,7 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
       // compute local graph
       GraphRef fGraph = nullptr;
-      if (kind() == FLAT_MEMORY)
+      if (kind() == GlobalAnalysisKind::FLAT_MEMORY)
         fGraph.reset(new FlatGraph(m_dl, m_setFactory));
       else
         fGraph.reset(new Graph(m_dl, m_setFactory));
@@ -270,7 +270,7 @@ ContextSensitiveGlobalAnalysis(const llvm::DataLayout &dl,
 			       const AllocWrapInfo &allocInfo,
 			       llvm::CallGraph &cg, SetFactory &setFactory,
 			       bool storeSummaryGraphs)
-  : GlobalAnalysis(CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
+  : GlobalAnalysis(GlobalAnalysisKind::CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
     m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory),
     m_store_bu_graphs(storeSummaryGraphs) {}
 
@@ -598,7 +598,7 @@ BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
 			      const AllocWrapInfo &allocInfo,
 			      llvm::CallGraph &cg, SetFactory &setFactory,
 			      bool storeSummaryGraphs)
-  : GlobalAnalysis(BUTD_CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
+  : GlobalAnalysis(GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE), m_dl(dl), m_tli(tli),
     m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory),
     m_store_bu_graphs(storeSummaryGraphs){}
 
@@ -680,7 +680,7 @@ BottomUpGlobalAnalysis(const llvm::DataLayout &dl,
 		       const llvm::TargetLibraryInfo &tli,
 		       const AllocWrapInfo &allocInfo,
 		       llvm::CallGraph &cg, SetFactory &setFactory)
-  : GlobalAnalysis(BU), m_dl(dl), m_tli(tli),
+  : GlobalAnalysis(GlobalAnalysisKind::BU), m_dl(dl), m_tli(tli),
     m_allocInfo(allocInfo), m_cg(cg), m_setFactory(setFactory) {}
 
 bool BottomUpGlobalAnalysis::runOnModule(Module &M) {

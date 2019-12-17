@@ -628,7 +628,7 @@ public:
   bool runOnModule(Module &M) {
     m_dl = &M.getDataLayout();
 
-    if (m_dsa.kind() != sea_dsa::CONTEXT_INSENSITIVE) {
+    if (m_dsa.kind() != GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
       // this refinement might be useful only if sea-dsa is
       // context-insensitive.
       m_computeReadMod = false;
