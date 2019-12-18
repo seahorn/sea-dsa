@@ -659,6 +659,12 @@ public:
   void visitCalloc(CallSite &CS);
   void visitDsaCallSite(dsa::DsaCallSite &CS);
 
+
+  /// \brief Returns a reference to the global sea-dsa analysis.
+  GlobalAnalysis &getDsaAnalysis() {
+    return m_dsa;
+  }
+  
   /// \brief Returns the offset of the field pointed by \p c
   ///
   /// Returns 0 if \f m_splitDsaNodes is false
@@ -1547,6 +1553,10 @@ ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi,
 
 bool ShadowMem::runOnModule(Module &M) { return m_impl->runOnModule(M); }
 
+GlobalAnalysis &ShadowMem::getDsaAnalysis() {
+  return m_impl->getDsaAnalysis();
+}
+  
 unsigned ShadowMem::getOffset(const dsa::Cell &c) const {
   return m_impl->getOffset(c);
 }

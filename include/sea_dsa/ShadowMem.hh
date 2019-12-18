@@ -53,6 +53,9 @@ public:
 
   bool runOnModule(llvm::Module &M);
 
+  // Return a reference to the global sea-dsa analysis.
+  GlobalAnalysis &getDsaAnalysis();
+  
   // Return the offset associated to cell c. The offset can be
   // adjusted to zero if horn-sea-dsa-split=false.
   unsigned getOffset(const Cell &c) const;
