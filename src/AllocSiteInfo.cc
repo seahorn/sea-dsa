@@ -81,7 +81,7 @@ Optional<unsigned> AllocSiteInfo::maybeEvalAllocSize(Value &v,
   auto OffsetAlign = OSOV.compute(&v);
   if (OSOV.knownSize(OffsetAlign)) {
     const int64_t sz = OffsetAlign.first.getSExtValue();
-    assert(sz > 0);
+    assert(sz >= 0);
     bytes = unsigned(sz);
   }
 

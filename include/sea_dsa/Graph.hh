@@ -593,11 +593,6 @@ private:
     if (m_alloca_sites.size() * shrinkThreshold < m_alloca_sites.capacity())
       m_alloca_sites.shrink_to_fit();
   }
-  /// Unify a given node with a specified offset of the current node
-  /// post-condition: the given node points to the current node.
-  /// might cause a collapse
-  void unifyAt(Node &n, unsigned offset);
-
   /// Transfer links/types and other information from the current
   /// node to the given one at a given offset and make the current
   /// one point to the result. Might cause collapse.  Most clients
@@ -635,6 +630,11 @@ public:
 
   /// unify with a given node
   void unify(Node &n) { unifyAt(n, 0); }
+
+  /// Unify a given node with a specified offset of the current node
+  /// post-condition: the given node points to the current node.
+  /// might cause a collapse
+  void unifyAt(Node &n, unsigned offset);
 
   Node &setAlloca(bool v = true) {
     m_nodeType.alloca = v;

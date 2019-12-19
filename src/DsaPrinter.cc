@@ -636,7 +636,7 @@ struct DsaPrinter : public ModulePass {
     m_dsa = &getAnalysis<sea_dsa::DsaAnalysis>();
     assert(m_dsa);
 
-    if (m_dsa->getDsaAnalysis().kind() == CONTEXT_INSENSITIVE) {
+    if (m_dsa->getDsaAnalysis().kind() == GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
       Function *main = M.getFunction("main");
       if (main && m_dsa->getDsaAnalysis().hasGraph(*main)) {
         Graph *G = &m_dsa->getDsaAnalysis().getGraph(*main);
@@ -690,7 +690,7 @@ struct DsaViewer : public ModulePass {
 
   bool runOnModule(Module &M) override {
     m_dsa = &getAnalysis<sea_dsa::DsaAnalysis>();
-    if (m_dsa->getDsaAnalysis().kind() == CONTEXT_INSENSITIVE) {
+    if (m_dsa->getDsaAnalysis().kind() == GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
       Function *main = M.getFunction("main");
       if (main && m_dsa->getDsaAnalysis().hasGraph(*main)) {
         Graph *G = &m_dsa->getDsaAnalysis().getGraph(*main);
