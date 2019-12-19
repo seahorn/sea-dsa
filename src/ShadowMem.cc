@@ -319,6 +319,13 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   /// \brief Computes Mod/Ref sets for the given function \p F
   void updateReadMod(Function &F, NodeSet &readSet, NodeSet &modSet);
 
+  /// \brief Returns the offset of the field pointed by \p c
+  ///
+  /// Returns 0 if \f m_splitDsaNodes is false
+  unsigned getOffset(const dsa::Cell &c) const {
+    return m_splitDsaNodes ? c.getOffset() : 0;
+  }
+  
   /// \breif Returns a local id of a given field of DsaNode \p n
   unsigned getFieldId(const dsa::Node &n, unsigned offset) {
     auto it = m_nodeIds.find(&n);
@@ -664,14 +671,27 @@ public:
   GlobalAnalysis &getDsaAnalysis() {
     return m_dsa;
   }
-  
-  /// \brief Returns the offset of the field pointed by \p c
-  ///
-  /// Returns 0 if \f m_splitDsaNodes is false
-  unsigned getOffset(const dsa::Cell &c) const {
-    return m_splitDsaNodes ? c.getOffset() : 0;
+
+  /// \brief Return whether or not dsa nodes are split by fields.
+  bool splitDsaNodes() const {
+    return m_splitDsaNodes;
   }
 
+  /// \brief Return the id for the cell.
+  /// It should be call after ShadowMem has finished. Note that this
+  /// method unlike getFieldId does not allocate a new id if the cell
+  /// does not have one.
+  llvm::Optional<unsigned> getCellId(const Cell &c) const {
+    const dsa::Node *n = c.getNode();
+    assert(n);
+    unsigned offset = getOffset(c);
+    auto it = m_nodeIds.find(n);
+    if (it != m_nodeIds.end())
+      return it->second + offset;
+    else
+      return llvm::None;
+  }
+  
   /// \brief Returns the cell associated to the shadow memory
   /// instruction. If the instruction is not a shadow memory
   /// instruction then it returns null.
@@ -1556,9 +1576,13 @@ bool ShadowMem::runOnModule(Module &M) { return m_impl->runOnModule(M); }
 GlobalAnalysis &ShadowMem::getDsaAnalysis() {
   return m_impl->getDsaAnalysis();
 }
+
+bool ShadowMem::splitDsaNodes() const {
+  return m_impl->splitDsaNodes();
+}
   
-unsigned ShadowMem::getOffset(const dsa::Cell &c) const {
-  return m_impl->getOffset(c);
+llvm::Optional<unsigned> ShadowMem::getCellId(const dsa::Cell &c) const {
+  return m_impl->getCellId(c);
 }
 
 ShadowMemInstOp ShadowMem::getShadowMemOp(const CallInst &ci) const {
@@ -1606,6 +1630,11 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
 }
 
 const ShadowMem &ShadowMemPass::getShadowMem() const {
+  assert(m_shadowMem);
+  return *m_shadowMem;
+}
+
+ShadowMem &ShadowMemPass::getShadowMem() {
   assert(m_shadowMem);
   return *m_shadowMem;
 }

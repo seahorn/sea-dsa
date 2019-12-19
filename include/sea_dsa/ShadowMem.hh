@@ -55,11 +55,14 @@ public:
 
   // Return a reference to the global sea-dsa analysis.
   GlobalAnalysis &getDsaAnalysis();
-  
-  // Return the offset associated to cell c. The offset can be
-  // adjusted to zero if horn-sea-dsa-split=false.
-  unsigned getOffset(const Cell &c) const;
 
+  // Return true if Dsa nodes are split by fields (i.e., whether
+  // ShadowMem is field-sensitivity or not)
+  bool splitDsaNodes() const;
+
+  // Return the id of the field pointed by the given cell c.
+  llvm::Optional<unsigned> getCellId(const Cell &c) const;
+  
   ShadowMemInstOp getShadowMemOp(const llvm::CallInst &ci) const;
 
   // Return cell associated to the shadow mem call instruction.
@@ -82,6 +85,7 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
   llvm::StringRef getPassName() const override { return "ShadowMemSeaDsa"; }
   const ShadowMem &getShadowMem() const;
+  ShadowMem &getShadowMem();
 };
 
 class StripShadowMemPass : public llvm::ModulePass {
