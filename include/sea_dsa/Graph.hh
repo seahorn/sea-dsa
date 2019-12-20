@@ -1,5 +1,4 @@
-#ifndef __DSA_GRAPH_HH_
-#define __DSA_GRAPH_HH_
+#pragma once
 
 #include "boost/container/flat_map.hpp"
 #include "boost/container/flat_set.hpp"
@@ -185,7 +184,7 @@ public:
   /// return a cell for the value
   virtual const Cell &getCell(const llvm::Value &v);
 
-  /// return true iff the value has a cel
+  /// return true iff the value has a cell
   virtual bool hasCell(const llvm::Value &v) const;
 
   virtual bool hasScalarCell(const llvm::Value &v) {
@@ -891,4 +890,3 @@ template <> struct hash<sea_dsa::Cell> {
 };
 } // namespace std
 
-#endif
