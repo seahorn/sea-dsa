@@ -59,7 +59,7 @@ CallGraphDot("sea-dsa-callgraph-dot",
 	     llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-RunShadowMem("sea-dsa-shadow-mem",
+   RunShadowMem("sea-dsa-shadow-mem",
 	  llvm::cl::desc("Run ShadowMemPass"),
 	  llvm::cl::Hidden,
 	  llvm::cl::init(false));
@@ -153,28 +153,28 @@ int main(int argc, char **argv) {
     if (MemDot) {
       pass_manager.add(sea_dsa::createDsaPrinterPass());
     }
-    
+
     if (MemViewer) {
       pass_manager.add(sea_dsa::createDsaViewerPass());
     }
-    
+
     if (sea_dsa::PrintDsaStats) {
       pass_manager.add(sea_dsa::createDsaPrintStatsPass());
     }
-    
+
     if (sea_dsa::PrintCallGraphStats) {
       pass_manager.add(sea_dsa::createDsaPrintCallGraphStatsPass());
     }
-    
+
     if (CallGraphDot) {
       pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
     }
-    
+
     if (!MemDot && !MemViewer && !sea_dsa::PrintDsaStats &&
 	!sea_dsa::PrintCallGraphStats && !CallGraphDot) {
       llvm::errs() << "No option selected: choose one option between "
 		   << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, "
-		   << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
+		 << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
     }
   }
   
