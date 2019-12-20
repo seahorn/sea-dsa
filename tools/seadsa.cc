@@ -59,8 +59,13 @@ CallGraphDot("sea-dsa-callgraph-dot",
 	     llvm::cl::desc("Print SeaDsa complete call graph to dot format"),
 	     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> DsaColorCallSiteSimDot(
+    "sea-dsa-color-sim-dot",
+    llvm::cl::desc("Output colored graphs according to how nodes of callees "
+                   "are simulated in the caller"), llvm::cl::init(false));
+
 static llvm::cl::opt<bool>
-RunShadowMem("sea-dsa-shadow-mem",
+   RunShadowMem("sea-dsa-shadow-mem",
 	  llvm::cl::desc("Run ShadowMemPass"),
 	  llvm::cl::Hidden,
 	  llvm::cl::init(false));
@@ -71,7 +76,7 @@ namespace sea_dsa {
   extern bool PrintCallGraphStats;
 }
 
-static llvm::cl::opt<sea_dsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string> > 
+static llvm::cl::opt<sea_dsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string> >
 LogClOption ("log",
              llvm::cl::desc ("Enable specified log level"),
              llvm::cl::location (sea_dsa::loc),
@@ -161,29 +166,31 @@ int main(int argc, char **argv) {
   } else {
     if (MemDot) {
       pass_manager.add(sea_dsa::createDsaPrinterPass());
+      if (DsaColorCallSiteSimDot)
+        pass_manager.add(sea_dsa::createDsaColorPrinterPass());
     }
-    
+
     if (MemViewer) {
       pass_manager.add(sea_dsa::createDsaViewerPass());
     }
-    
+
     if (sea_dsa::PrintDsaStats) {
       pass_manager.add(sea_dsa::createDsaPrintStatsPass());
     }
-    
+
     if (sea_dsa::PrintCallGraphStats) {
       pass_manager.add(sea_dsa::createDsaPrintCallGraphStatsPass());
     }
-    
+
     if (CallGraphDot) {
       pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
     }
-    
+
     if (!MemDot && !MemViewer && !sea_dsa::PrintDsaStats &&
 	!sea_dsa::PrintCallGraphStats && !CallGraphDot) {
       llvm::errs() << "No option selected: choose one option between "
 		   << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, "
-		   << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
+		 << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
     }
   }
   
