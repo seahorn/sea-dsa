@@ -81,16 +81,17 @@ bool DsaAnalysis::runOnModule(Module &M) {
         *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory, true /* use flat*/));
     break;
   case GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE:
-    m_ga.reset(new BottomUpTopDownGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
-                                                 cg, m_setFactory));
+    m_ga.reset(new BottomUpTopDownGlobalAnalysis(
+        *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory));
     break;
   case GlobalAnalysisKind::BU:
-    m_ga.reset(new BottomUpGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
-					  cg, m_setFactory));
+    m_ga.reset(new BottomUpGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo, cg,
+                                          m_setFactory));
     break;
   default: /* CONTEXT_SENSITIVE */
-    m_ga.reset(new ContextSensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
-                                                  cg, m_setFactory));
+    m_ga.reset(new ContextSensitiveGlobalAnalysis(
+        *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory,
+        true /* always store summary graphs*/));
   }
 
   m_ga->runOnModule(M);
