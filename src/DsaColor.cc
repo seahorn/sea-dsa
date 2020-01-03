@@ -24,33 +24,6 @@ std::string Color::stringColor() const {
   return stringStream.str();
 }
 
-ColoredGraph::ColoredGraph(Graph &g, ColorMap &colorM, NodeSet &safe)
-    : m_g(g), m_color(colorM), m_safe(safe) {};
-
-sea_dsa::Graph & ColoredGraph::getGraph() { return m_g;}
-sea_dsa::Graph &ColoredGraph::getGraph() const { return m_g; }
-
-std::string ColoredGraph::getColorNode(const Node *n) const {
-
-  std::string color_string;
-  raw_string_ostream OS(color_string);
-
-  auto it = m_color.find(n);
-
-  // if it is not colored, it means that it was not mapped --> return gray
-  if(it != m_color.end()){
-    return it->getSecond().stringColor();
-  }
-  else{
-    OS << "gray";
-    return OS.str();
-  }
-}
-
-bool ColoredGraph::isSafeNode(const Node *n) const {
-  return m_safe.count(n) == 0;
-}
-
 bool GraphExplorer::isSafeNode(NodeSet &f_safe, const Node *n) {
   return f_safe.count(n) == 0;
 }
@@ -72,7 +45,7 @@ void GraphExplorer::mark_nodes_graph(Graph &g, const Function &F,
 bool GraphExplorer::mark_copy(const Node &n, ExplorationMap &f_color,
                               NodeSet &f_safe, NodeSet &f_safe_caller,
                               SimulationMapper &sm ) {
-  f_color[&n] = GRAY;
+  f_color[&n] = EColor::GRAY;
 
   for (auto &links : n.getLinks()) {
     const Field &f = links.first;
@@ -85,13 +58,13 @@ bool GraphExplorer::mark_copy(const Node &n, ExplorationMap &f_color,
     }
     else if (it == f_color.end() && mark_copy(*next_n, f_color, f_safe,f_safe_caller,sm)) {
       return true;
-    } else if (it != f_color.end() && it->getSecond() == GRAY) {
+    } else if (it != f_color.end() && it->getSecond() == EColor::GRAY) {
       propagate_not_copy(n, f_color, f_safe,f_safe_caller,sm);
       return true;
     }
   }
 
-  f_color[&n] = BLACK;
+  f_color[&n] = EColor::BLACK;
 
   return false;
 }
@@ -103,7 +76,7 @@ void GraphExplorer::propagate_not_copy(const Node &n, ExplorationMap &f_color,
   if(isSafeNode(f_safe,&n))
     f_safe.insert(&n); // we store the ones that are not safe
 
-  f_color[&n] = BLACK;
+  f_color[&n] = EColor::BLACK;
 
   for (auto &links : n.getLinks()){
     const Field &f = links.first;
@@ -112,7 +85,7 @@ void GraphExplorer::propagate_not_copy(const Node &n, ExplorationMap &f_color,
 
     auto next = f_color.find(next_n);
 
-    bool explored = next != f_color.end() && next->getSecond() == BLACK;
+    bool explored = next != f_color.end() && next->getSecond() == EColor::BLACK;
     bool marked_safe = isSafeNode(f_safe, next_n);
 
     if (!(explored && !marked_safe)) {

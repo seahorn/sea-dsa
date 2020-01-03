@@ -26,32 +26,14 @@ public:
   std::string stringColor() const;
 };
 
-enum e_color {WHITE, BLACK, GRAY}; // colors for exploration
+namespace sea_dsa {
 
-using ExplorationMap = DenseMap<const Node *, e_color>;
+enum class EColor { BLACK, GRAY }; // colors for exploration
+
+using ExplorationMap = DenseMap<const Node *, EColor>;
 using ColorMap = DenseMap<const Node *, Color>;
 using NodeSet = DenseSet<const Node *>;
 
-namespace sea_dsa {
-
-// This class is used to print a dsa graph with colored nodes. The coloring is
-// done by GraphExplorer::colorGraph.
-class ColoredGraph {
-private:
-  NodeSet m_safe;
-  ColorMap m_color;
-  Graph &m_g;
-
-public:
-  ColoredGraph(Graph &g, ColorMap &colorM, NodeSet &safe);
-  sea_dsa::Graph & getGraph();
-  sea_dsa::Graph &getGraph() const;
-
-  std::string getColorNode(const Node *n) const;
-  bool isSafeNode(const Node *n) const;
-
-  typedef sea_dsa::Graph::iterator iterator;
-};
 } // end namespace sea_dsa
 
 class GraphExplorer {
@@ -100,39 +82,3 @@ public :
   static bool isSafeNode(NodeSet &f_safe, const Node *n);
 };
 
-namespace llvm {
-  template <> struct GraphTraits<sea_dsa::ColoredGraph *> {
-    typedef sea_dsa::Node NodeType;
-    typedef sea_dsa::Node::iterator ChildIteratorType;
-    typedef sea_dsa::ColoredGraph::iterator nodes_iterator;
-
-    static nodes_iterator nodes_begin(sea_dsa::ColoredGraph *G) {
-      return G->getGraph().begin();
-    }
-    static nodes_iterator nodes_end(sea_dsa::ColoredGraph *G) {
-      return G->getGraph().end();
-    }
-
-    static ChildIteratorType child_begin(NodeType *N) { return N->begin(); }
-    static ChildIteratorType child_end(NodeType *N) { return N->end(); }
-};
-
-template <> struct GraphTraits<const sea_dsa::ColoredGraph*> {
-  typedef const sea_dsa::Node NodeType;
-  typedef sea_dsa::Node::const_iterator ChildIteratorType;
-
-  // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
-  typedef sea_dsa::Graph::const_iterator nodes_iterator;
-
-  static nodes_iterator nodes_begin(const sea_dsa::ColoredGraph *G) {
-    return G->getGraph().begin();
-  }
-  static nodes_iterator nodes_end(const sea_dsa::ColoredGraph *G) {
-    return G->getGraph().end();
-  }
-
-  static ChildIteratorType child_begin(NodeType *N) { return N->begin(); }
-  static ChildIteratorType child_end(NodeType *N) { return N->end(); }
-};
-
-} // end llvm

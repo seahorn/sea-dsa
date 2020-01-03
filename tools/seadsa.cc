@@ -59,11 +59,6 @@ CallGraphDot("sea-dsa-callgraph-dot",
 	     llvm::cl::desc("Print SeaDsa complete call graph to dot format"),
 	     llvm::cl::init(false));
 
-static llvm::cl::opt<bool> DsaColorCallSiteSimDot(
-    "sea-dsa-color-sim-dot",
-    llvm::cl::desc("Output colored graphs according to how nodes of callees "
-                   "are simulated in the caller"), llvm::cl::init(false));
-
 static llvm::cl::opt<bool>
    RunShadowMem("sea-dsa-shadow-mem",
 	  llvm::cl::desc("Run ShadowMemPass"),
@@ -166,8 +161,6 @@ int main(int argc, char **argv) {
   } else {
     if (MemDot) {
       pass_manager.add(sea_dsa::createDsaPrinterPass());
-      if (DsaColorCallSiteSimDot)
-        pass_manager.add(sea_dsa::createDsaColorPrinterPass());
     }
 
     if (MemViewer) {

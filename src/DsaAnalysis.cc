@@ -15,7 +15,6 @@
 
 namespace sea_dsa {
 extern bool IsTypeAware;
-extern bool XDsaColorCallSiteSimDot;
 }
 
 using namespace sea_dsa;

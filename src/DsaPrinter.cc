@@ -5,10 +5,13 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GraphWriter.h"
 
+#include "sea_dsa/CompleteCallGraph.hh"
 #include "sea_dsa/DsaAnalysis.hh"
+#include "sea_dsa/Global.hh"
 #include "sea_dsa/GraphTraits.hh"
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/support/Debug.h"
+#include "sea_dsa/DsaColor.hh"
 
 /*
    Convert each DSA graph to .dot file.
@@ -19,10 +22,16 @@ std::string DotOutputDir;
 }
 
 static llvm::cl::opt<std::string, true>
-XDotOutputDir("sea-dsa-dot-outdir",
-	   llvm::cl::desc("Output directory for dot files"),
-	   llvm::cl::location(sea_dsa::DotOutputDir),
-	   llvm::cl::init(""), llvm::cl::value_desc("DIR"));
+    XDotOutputDir("sea-dsa-dot-outdir",
+                  llvm::cl::desc("Output directory for dot files"),
+                  llvm::cl::location(sea_dsa::DotOutputDir), llvm::cl::init(""),
+                  llvm::cl::value_desc("DIR"));
+
+static llvm::cl::opt<bool> DsaColorCallSiteSimDot(
+    "sea-dsa-color-sim-dot",
+    llvm::cl::desc("Output colored graphs according to how nodes of callees "
+                   "are simulated in the caller"),
+    llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
     PrintAllocSites("sea-dsa-dot-print-as",
@@ -47,6 +56,7 @@ namespace internals {
 template <typename GraphType> class GraphWriter {
   raw_ostream &O;
   const GraphType &G;
+  ColorMap * m_cm = nullptr;
 
   typedef DOTGraphTraits<GraphType> DOTTraits;
   typedef GraphTraits<GraphType> GTraits;
@@ -84,7 +94,7 @@ template <typename GraphType> class GraphWriter {
   }
 
 public:
-  GraphWriter(raw_ostream &o, const GraphType &g, bool SN) : O(o), G(g) {
+  GraphWriter(raw_ostream &o, const GraphType &g, bool SN, ColorMap *cm = nullptr ) : O(o), G(g), m_cm(cm) {
     DTraits = DOTTraits(SN);
   }
 
@@ -147,7 +157,7 @@ public:
   void writeNode(NodeType *const *Node) { writeNode(*Node); }
 
   void writeNode(NodeType *Node) {
-    std::string NodeAttributes = DTraits.getNodeAttributes(Node, G);
+    std::string NodeAttributes = DTraits.getNodeAttributes(Node, G, m_cm);
 
     O << "\tNode" << static_cast<const void *>(Node) << " [shape=record,";
     if (!NodeAttributes.empty())
@@ -259,9 +269,10 @@ public:
 
 template <typename GraphType>
 raw_ostream &WriteGraph(raw_ostream &O, const GraphType &G,
-                        bool ShortNames = false, const Twine &Title = "") {
+                        ColorMap *cm, bool ShortNames = false,
+                        const Twine &Title = "") {
   // Start the graph emission process...
-  GraphWriter<GraphType> W(O, G, ShortNames);
+  GraphWriter<GraphType> W(O, G, ShortNames,cm);
 
   // Emit the graph.
   W.writeGraph(Title.str());
@@ -292,15 +303,26 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
   }
 
   static std::string getNodeAttributes(const sea_dsa::Node *N,
-                                       const sea_dsa::Graph *G) {
+                                       const sea_dsa::Graph *G,
+                                       ColorMap *cm) {
     std::string empty;
     raw_string_ostream OS(empty);
-    if (N->isOffsetCollapsed() && N->isTypeCollapsed()) {
-      OS << "color=brown1, style=filled";
-    } else if (N->isOffsetCollapsed()) {
-      OS << "color=chocolate1, style=filled";
-    } else if (N->isTypeCollapsed() && sea_dsa::IsTypeAware) {
-      OS << "color=darkorchid2, style=filled";
+
+    if( cm != nullptr){
+      auto it = cm->find(N);
+      if (it != cm->end())
+        OS << "fillcolor=" << it->getSecond().stringColor() << ", style=filled";
+      else
+        OS << "fillcolor=gray, style=filled";
+    }
+    else{
+      if (N->isOffsetCollapsed() && N->isTypeCollapsed()) {
+        OS << "fillcolor=brown1, style=filled";
+      } else if (N->isOffsetCollapsed()) {
+        OS << "fillcolor=chocolate1, style=filled";
+      } else if (N->isTypeCollapsed() && sea_dsa::IsTypeAware) {
+        OS << "fillcolor=darkorchid2, style=filled";
+      }
     }
     return OS.str();
   }
@@ -614,12 +636,12 @@ static std::string appendOutDir(std::string FileName) {
   return FileName;
 }
 
-static bool writeGraph(Graph *G, std::string Filename) {
+static bool writeGraph(Graph *G, std::string Filename, ColorMap * cm = nullptr) {
   std::string FullFilename = appendOutDir(Filename);
   std::error_code EC;
   raw_fd_ostream File(FullFilename, EC, sys::fs::F_Text);
   if (!EC) {
-    internals::WriteGraph(File, G);
+    internals::WriteGraph(File, G, cm);
     LOG("dsa-printer", G->write(errs()));
     return true;
   }
@@ -631,6 +653,12 @@ struct DsaPrinter : public ModulePass {
   DsaAnalysis *m_dsa;
 
   DsaPrinter() : ModulePass(ID), m_dsa(nullptr) {}
+
+private:
+  int m_cs_count = 0; // to distinguish callsites
+  std::unique_ptr<CallGraphWrapper> m_CG = nullptr;
+
+public :
 
   bool runOnModule(Module &M) override {
     m_dsa = &getAnalysis<sea_dsa::DsaAnalysis>();
@@ -644,6 +672,17 @@ struct DsaPrinter : public ModulePass {
         writeGraph(G, Filename);
       }
     } else {
+      if (DsaColorCallSiteSimDot) {
+        auto &CCG = getAnalysis<CompleteCallGraph>();
+        auto &dsaCallGraph = CCG.getCompleteCallGraph();
+
+        m_CG = llvm::make_unique<CallGraphWrapper>(dsaCallGraph);
+
+        m_CG->buildDependencies(); // TODO: this is already done already in
+        // ContextSensitiveGlobalAnalysis but it is
+        // stored locally in the runOnModule function, so
+        // we have to recompute it.
+      }
       for (auto &F : M)
         runOnFunction(F);
     }
@@ -656,6 +695,35 @@ struct DsaPrinter : public ModulePass {
       if (G->begin() != G->end()) {
         std::string Filename = F.getName().str() + ".mem.dot";
         writeGraph(G, Filename);
+
+        if (DsaColorCallSiteSimDot){
+         assert(m_CG);
+          auto call_sites = m_CG->getUses(F);
+
+          auto it = call_sites.begin();
+          auto end = call_sites.end();
+
+          for( ; it != end ; it++){
+
+            ColorMap color_callee, color_caller;
+            NodeSet f_node_safe;
+
+            const Function * f_caller = it->getCallSite().getCaller();
+
+            Graph &callerG = m_dsa->getDsaAnalysis().getGraph(*f_caller);
+            Graph &calleeG = m_dsa->getDsaAnalysis().getSummaryGraph(F);
+
+            GraphExplorer::colorGraph(*it, calleeG, callerG, color_callee, color_caller,
+                                      f_node_safe); // colors the graphs
+
+            std::string FilenameBase =
+              F.getParent()->getModuleIdentifier() + "." + f_caller->getName().str() +
+              "." + F.getName().str() + "." + std::to_string(++m_cs_count);
+
+            writeGraph(&calleeG, FilenameBase + ".callee.mem.dot", &color_callee);
+            writeGraph(&callerG, FilenameBase + ".caller.mem.dot", &color_caller);
+          }
+        }
       }
     }
     return false;
@@ -664,6 +732,8 @@ struct DsaPrinter : public ModulePass {
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<DsaAnalysis>();
+    if (DsaColorCallSiteSimDot)
+      AU.addRequired<CompleteCallGraph>();
   }
 
   StringRef getPassName() const override 
