@@ -763,10 +763,10 @@ public:
     case ShadowMemInstOp::STORE:
     case ShadowMemInstOp::ARG_MOD:
     case ShadowMemInstOp::ARG_NEW:
+    case ShadowMemInstOp::GLOBAL_INIT:      
       use = CS.getArgument(1);
       def = &ci;
       break;
-    case ShadowMemInstOp::GLOBAL_INIT:
     case ShadowMemInstOp::FUN_IN:
     case ShadowMemInstOp::INIT:
     case ShadowMemInstOp::ARG_INIT:
