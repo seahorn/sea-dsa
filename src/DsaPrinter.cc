@@ -660,7 +660,6 @@ struct DsaPrinter : public ModulePass {
 
 private:
   int m_cs_count = 0; // to distinguish callsites
-  std::unique_ptr<CallGraphWrapper> m_CG = nullptr;
 
 public :
 
@@ -676,17 +675,6 @@ public :
         writeGraph(G, Filename);
       }
     } else {
-      if (DsaColorCallSiteSimDot) {
-        auto &CCG = getAnalysis<CompleteCallGraph>();
-        auto &dsaCallGraph = CCG.getCompleteCallGraph();
-
-        m_CG = llvm::make_unique<CallGraphWrapper>(dsaCallGraph);
-
-        m_CG->buildDependencies(); // TODO: this is already done already in
-        // ContextSensitiveGlobalAnalysis but it is
-        // stored locally in the runOnModule function, so
-        // we have to recompute it.
-      }
       for (auto &F : M)
         runOnFunction(F);
     }
@@ -701,30 +689,38 @@ public :
         writeGraph(G, Filename);
 
         if (DsaColorCallSiteSimDot){
-         assert(m_CG);
-          auto call_sites = m_CG->getUses(F);
+          const Function *f_caller = &F;
 
-          auto it = call_sites.begin();
-          auto end = call_sites.end();
+          for (auto &bb : F) {
+            for (auto &instruction : bb) {
+              if (CallInst *callInst = dyn_cast<CallInst>(&instruction)) {
+                if (Function *f_callee = callInst->getCalledFunction()) {
+                  if (m_dsa->getDsaAnalysis().hasSummaryGraph(*f_callee)) {
+                    ColorMap color_callee, color_caller;
+                    NodeSet f_node_safe;
 
-          for( ; it != end ; it++){
+                    Graph &callerG =
+                        m_dsa->getDsaAnalysis().getGraph(*f_caller);
+                    Graph &calleeG =
+                        m_dsa->getDsaAnalysis().getSummaryGraph(*f_callee);
 
-            ColorMap color_callee, color_caller;
-            NodeSet f_node_safe;
+                    DsaCallSite cs(instruction);
+                    colorGraph(cs, calleeG, callerG, color_callee,
+                               color_caller);
 
-            const Function * f_caller = it->getCallSite().getCaller();
+                    std::string FilenameBase =
+                        F.getParent()->getModuleIdentifier() + "." +
+                        f_caller->getName().str() + "." + f_callee->getName().str() +
+                        "." + std::to_string(++m_cs_count);
 
-            Graph &callerG = m_dsa->getDsaAnalysis().getGraph(*f_caller);
-            Graph &calleeG = m_dsa->getDsaAnalysis().getSummaryGraph(F);
-
-            colorGraph(*it, calleeG, callerG, color_callee, color_caller);
-
-            std::string FilenameBase =
-              F.getParent()->getModuleIdentifier() + "." + f_caller->getName().str() +
-              "." + F.getName().str() + "." + std::to_string(++m_cs_count);
-
-            writeGraph(&calleeG, FilenameBase + ".callee.mem.dot", &color_callee);
-            writeGraph(&callerG, FilenameBase + ".caller.mem.dot", &color_caller);
+                    writeGraph(&calleeG, FilenameBase + ".callee.mem.dot",
+                               &color_callee);
+                    writeGraph(&callerG, FilenameBase + ".caller.mem.dot",
+                               &color_caller);
+                  }
+                }
+              }
+            }
           }
         }
       }
