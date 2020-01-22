@@ -11,6 +11,7 @@
 #include "sea_dsa/Global.hh"
 #include "sea_dsa/Info.hh"
 #include "sea_dsa/Stats.hh"
+#include "sea_dsa/support/Debug.h"
 #include "sea_dsa/support/RemovePtrToInt.hh"
 
 namespace sea_dsa {
@@ -41,6 +42,18 @@ static llvm::cl::opt<bool, true>
 XDsaStats("sea-dsa-stats", llvm::cl::desc("Print stats about SeaDsa analysis"),
 	  llvm::cl::location(sea_dsa::PrintDsaStats),
 	  llvm::cl::init(false));
+
+
+namespace sea_dsa {
+SeaDsaLogOpt loc;
+}
+
+static llvm::cl::opt<sea_dsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string>> 
+LogClOption ("sea-dsa-log",
+             llvm::cl::desc ("Enable specified log level"),
+             llvm::cl::location (sea_dsa::loc),
+             llvm::cl::value_desc ("string"),
+             llvm::cl::ValueRequired, llvm::cl::ZeroOrMore);
 
 void DsaAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<RemovePtrToInt>();
