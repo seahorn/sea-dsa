@@ -24,7 +24,6 @@
 #include "sea_dsa/DsaAnalysis.hh"
 #include "sea_dsa/CompleteCallGraph.hh"
 #include "sea_dsa/ShadowMem.hh"
-#include "sea_dsa/support/Debug.h"
 
 static llvm::cl::opt<std::string>
 InputFilename(llvm::cl::Positional, llvm::cl::desc("<input LLVM bitcode file>"),
@@ -60,23 +59,15 @@ CallGraphDot("sea-dsa-callgraph-dot",
 	     llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-   RunShadowMem("sea-dsa-shadow-mem",
+RunShadowMem("sea-dsa-shadow-mem",
 	  llvm::cl::desc("Run ShadowMemPass"),
 	  llvm::cl::Hidden,
 	  llvm::cl::init(false));
 
 namespace sea_dsa {
-  SeaDsaLogOpt loc;
   extern bool PrintDsaStats;
   extern bool PrintCallGraphStats;
 }
-
-static llvm::cl::opt<sea_dsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string> >
-LogClOption ("log",
-             llvm::cl::desc ("Enable specified log level"),
-             llvm::cl::location (sea_dsa::loc),
-             llvm::cl::value_desc ("string"),
-             llvm::cl::ValueRequired, llvm::cl::ZeroOrMore);
 
 static std::string appendOutDir(std::string path) {
   if (!OutputDir.empty()) {
@@ -162,28 +153,28 @@ int main(int argc, char **argv) {
     if (MemDot) {
       pass_manager.add(sea_dsa::createDsaPrinterPass());
     }
-
+    
     if (MemViewer) {
       pass_manager.add(sea_dsa::createDsaViewerPass());
     }
-
+    
     if (sea_dsa::PrintDsaStats) {
       pass_manager.add(sea_dsa::createDsaPrintStatsPass());
     }
-
+    
     if (sea_dsa::PrintCallGraphStats) {
       pass_manager.add(sea_dsa::createDsaPrintCallGraphStatsPass());
     }
-
+    
     if (CallGraphDot) {
       pass_manager.add(sea_dsa::createDsaCallGraphPrinterPass());
     }
-
+    
     if (!MemDot && !MemViewer && !sea_dsa::PrintDsaStats &&
 	!sea_dsa::PrintCallGraphStats && !CallGraphDot) {
       llvm::errs() << "No option selected: choose one option between "
 		   << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, "
-		 << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
+		   << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
     }
   }
   
