@@ -202,7 +202,6 @@ bool isShadowMemInst(const llvm::Value &v) {
 
 class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   dsa::GlobalAnalysis &m_dsa;
-  dsa::AllocSiteInfo &m_asi;
   TargetLibraryInfo &m_tli;
   const DataLayout *m_dl;
   CallGraph *m_callGraph;
@@ -622,11 +621,11 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   bool mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache);
 
 public:
-  ShadowMemImpl(dsa::GlobalAnalysis &dsa, dsa::AllocSiteInfo &asi,
+  ShadowMemImpl(dsa::GlobalAnalysis &dsa, dsa::AllocSiteInfo &asi /*unused*/,
                 TargetLibraryInfo &tli, CallGraph *cg, Pass &pass,
                 bool splitDsaNodes, bool computeReadMod, bool memOptimizer,
                 bool useTBAA)
-      : m_dsa(dsa), m_asi(asi), m_tli(tli), m_dl(nullptr), m_callGraph(cg),
+      : m_dsa(dsa), m_tli(tli), m_dl(nullptr), m_callGraph(cg),
         m_pass(pass), m_splitDsaNodes(splitDsaNodes),
         m_computeReadMod(computeReadMod), m_memOptimizer(memOptimizer),
         m_useTBAA(useTBAA) {}

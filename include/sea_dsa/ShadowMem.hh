@@ -94,7 +94,7 @@ public:
   StripShadowMemPass() : llvm::ModulePass(ID) {}
   virtual bool runOnModule(llvm::Module &M) override;
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-  virtual llvm::StringRef getPassName() const { return "StripShadowMem"; }
+  virtual llvm::StringRef getPassName() const override { return "StripShadowMem"; }
 };
 
 llvm::Pass *createStripShadowMemPass();
