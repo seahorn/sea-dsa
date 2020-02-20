@@ -334,8 +334,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitSelectInst(SelectInst &SI);
   void visitLoadInst(LoadInst &LI);
   void visitStoreInst(StoreInst &SI);
-  // void visitAtomicCmpXchgInst(AtomicCmpXchgInst &I);
-  // void visitAtomicRMWInst(AtomicRMWInst &I);
+  void visitAtomicCmpXchgInst(AtomicCmpXchgInst &I);
+  void visitAtomicRMWInst(AtomicRMWInst &I);
   void visitReturnInst(ReturnInst &RI);
   // void visitVAArgInst(VAArgInst   &I);
   void visitIntToPtrInst(IntToPtrInst &I);
@@ -531,6 +531,62 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
     Cell dest(base.getNode(), base.getRawOffset());
     m_graph.mkCell(LI, dest);
   }
+}
+
+/// OldVal := *Ptr
+/// if OldVal == Cmp then
+///    *Ptr := New
+/// return OldVal
+void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
+  using namespace sea_dsa;
+  
+  if (!m_graph.hasCell(*I.getPointerOperand()->stripPointerCasts())) {
+    return;
+  }
+  Value *Ptr = I.getPointerOperand();
+  Value *Cmp = I.getCompareOperand();
+  Value *New = I.getNewValOperand();
+  
+  Cell PtrC = valueCell(*Ptr);
+  assert(!PtrC.isNull());
+    
+  PtrC.setModified();
+  PtrC.setRead();
+  PtrC.growSize(0, I.getType());
+  PtrC.addAccessedType(0, I.getType());
+
+  if (!isSkip(I)) {
+    // Load the content of Ptr and make it the cell of the
+    // instruction's result.
+    Field LoadedField(0, FieldType(I.getType()));
+    if (!PtrC.hasLink(LoadedField)) {
+      Node &n = m_graph.mkNode();
+      PtrC.setLink(LoadedField, Cell(&n, 0));
+    }
+    Cell Res = m_graph.mkCell(I, PtrC.getLink(LoadedField));
+
+
+    if (!isSkip(*New)) {
+      Cell NewC = valueCell(*New);
+      assert(!NewC.isNull());
+      // Merge the result and the content of Ptr with New
+      Res.unify(NewC);
+    }
+  }
+}
+
+/// *Ptr = op(*Ptr, Val) 
+void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
+  Value *Ptr = I.getPointerOperand();
+  Value *Val = I.getValOperand();
+
+  sea_dsa::Cell PtrC = valueCell(*Ptr);
+  assert(!PtrC.isNull());
+
+  PtrC.setModified();
+  PtrC.setRead();
+  PtrC.growSize(0, I.getType());
+  PtrC.addAccessedType(0, I.getType());
 }
 
 void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
