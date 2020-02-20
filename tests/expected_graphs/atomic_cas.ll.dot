@@ -1,0 +1,34 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x7fa61a500070 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:SM}"];
+	Node0x7fa61a500120 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*\}:SMR|{<s0>\<0, unknown\>}}"];
+	Node0x7fa61a500210 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:SMR}"];
+	Node0x7fa61a500320 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*,8:i1\}:SMR|{<s0>\<0, unknown\>}}"];
+	Node0x7fa61a500400 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*\}:SMR|{<s0>\<0, unknown\>}}"];
+	Node0x7fa61a500560 [shape=record,fillcolor=gray, style=filled,label="{\{0:i8\}:SMR}"];
+	Node0x7fa61a500660 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:R}"];
+	Node0x7fa61a5007f0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i64,8:i1\}:SR}"];
+	Node0x7fa61a40ad48 [shape=plaintext, label ="  %3 = alloca i32, align 4"];
+	Node0x7fa61a40ad48 -> Node0x7fa61a500210[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa61a40ada8 [shape=plaintext, label ="  %4 = alloca i32*, align 8"];
+	Node0x7fa61a40ada8 -> Node0x7fa61a500320[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa61a40b088 [shape=plaintext, label ="  %7 = load i32*, i32** %2, align 8"];
+	Node0x7fa61a40b088 -> Node0x7fa61a500660[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa61a40ac48 [shape=plaintext, label ="  %1 = alloca i32, align 4"];
+	Node0x7fa61a40ac48 -> Node0x7fa61a500070[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa61a40ace8 [shape=plaintext, label ="  %2 = alloca i32*, align 8"];
+	Node0x7fa61a40ace8 -> Node0x7fa61a500120[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa61a40b428 [shape=plaintext, label ="  %13 = cmpxchg weak i64* %8, i64 %11, i64 %12 monotonic monotonic"];
+	Node0x7fa61a40b428 -> Node0x7fa61a5007f0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa61a40bba8 [shape=plaintext, label ="  %21 = load i32*, i32** %4, align 8"];
+	Node0x7fa61a40bba8 -> Node0x7fa61a500660[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa61a40ae48 [shape=plaintext, label ="  %5 = alloca i32*, align 8"];
+	Node0x7fa61a40ae48 -> Node0x7fa61a500400[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa61a40aea8 [shape=plaintext, label ="  %6 = alloca i8, align 1"];
+	Node0x7fa61a40aea8 -> Node0x7fa61a500560[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa61a500120:s0 -> Node0x7fa61a500660[arrowtail=tee,label="0",fontsize=8];
+	Node0x7fa61a500320:s0 -> Node0x7fa61a500660[arrowtail=tee,label="0",fontsize=8];
+	Node0x7fa61a500400:s0 -> Node0x7fa61a500210[arrowtail=tee,label="0",fontsize=8];
+}
