@@ -1012,7 +1012,7 @@ void IntraBlockBuilder::visitShuffleVectorInst(ShuffleVectorInst &I) {
   using namespace sea_dsa;
 
   // XXX: TODO: handle properly.
-  errs() << "WARNING: shuffle vector inst is allocationg a new cell: " << &I
+  errs() << "WARNING: shuffle vector inst is allocating a new cell: " << &I
          << "\n";
   m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
 }
@@ -1264,7 +1264,8 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
       LOG("dsa", llvm::errs() << dest; printAddress = false);
       if (printAddress)
         llvm::errs() << "inttoptr @ addr " << &dest;
-      llvm::errs() << " is allocating a new cell.\n";
+      llvm::errs()
+          << " is (unsoundly) assumed to point to a fresh memory region.\n";
     }
   }
 }
