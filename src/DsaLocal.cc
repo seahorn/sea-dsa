@@ -687,17 +687,20 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   }
 
   if (!m_graph.hasCell(ptr) && !isa<GlobalValue>(&ptr)) {
-    errs() << "Cell not found for gep:\t";
-    gep.print(errs());
-    if (auto *gepI = dyn_cast<Instruction>(&gep))
-      errs() << "\n\t\tin " << gepI->getFunction()->getName() << "\n";
+    LOG("dsa", {
+      errs() << "Cell not found for gep:\t";
+      gep.print(errs());
 
-    errs() << "\n\tptr: ";
-    ptr.print(errs());
-    if (auto *ptrI = dyn_cast<Instruction>(&ptr))
-      errs() << "\n\t\tin " << ptrI->getFunction()->getName() << "\n";
+      if (auto *gepI = dyn_cast<Instruction>(&gep))
+        errs() << "\n\t\tin " << gepI->getFunction()->getName() << "\n";
 
-    llvm_unreachable("No cell for gep'd ptr");
+      errs() << "\n\tptr: ";
+      ptr.print(errs());
+      if (auto *ptrI = dyn_cast<Instruction>(&ptr))
+        errs() << "\n\t\tin " << ptrI->getFunction()->getName() << "\n";
+      llvm_unreachable("No cell for gep'd ptr");
+    });
+    return;
   }
 
   // -- empty gep that points directly to the base
