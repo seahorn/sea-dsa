@@ -1,11 +1,9 @@
-#ifndef __SEA_DSA_DEBUG__HPP_
-#define __SEA_DSA_DEBUG__HPP_
+#pragma once
 #include <string>
 #include <set>
 
 #define LOG(TAG,CODE) \
-  do { if (::sea_dsa::SeaDsaLog.count(TAG) > 0 || \
-           ::sea_dsa::SeaDsaLog.count("all") > 0) { CODE; } } while (0)
+  do { if(::sea_dsa::SeaDsaLog.count(TAG) > 0) {CODE;} else {;} } while(false)
 
 
 namespace sea_dsa {
@@ -15,10 +13,8 @@ namespace sea_dsa {
 
   struct SeaDsaLogOpt {
     void operator=(const std::string &tag) const {
-      SeaDsaEnableLog (tag);
+      SeaDsaEnableLog(tag);
     }
   };
-  
 }
 
-#endif 
