@@ -1321,7 +1321,7 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
       continue;
 
     for (auto *user : v->users()) {
-      if (!seen.count(user))
+      if (seen.count(user))
         continue;
       if (isa<BranchInst>(user) || isa<CmpInst>(user))
         continue;
@@ -1342,7 +1342,11 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
                        callee->getName() == "llvm.assume"))
           continue;
       }
-      if (isa<LoadInst>(*v) || isa<StoreInst>(*v) || isa<CallInst>(*v))
+
+      // if the value flows into one of these operands, we consider it escaping
+      // and stop tracking it further
+      if (isa<LoadInst>(*user) || isa<StoreInst>(*user) ||
+          isa<CallInst>(*user) || isa<IntToPtrInst>(*user))
         return true;
 
       workList.push_back(user);
@@ -1352,18 +1356,23 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
 }
 
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
-  if (!isEscapingPtrToInt(I))
+  if (!isEscapingPtrToInt(I)) 
     return;
 
   assert(m_graph.hasCell(*I.getOperand(0)));
   sea_dsa::Cell c = valueCell(*I.getOperand(0));
   if (!c.isNull()) {
-    llvm::errs() << "WARNING: ";
-    bool printAddress = true;
-    LOG("dsa", llvm::errs() << I; printAddress = false);
-    if (printAddress)
-      llvm::errs() << intptr_t(&I);
-    llvm::errs() << " may be escaping.\n";
+
+    // mark node as having a pointer that escapes
+    c.getNode()->setPtrToInt(true);
+
+    // print a warning, more verbose under dsa LOG
+    LOG("dsa", llvm::errs()
+                   << "WARNING: " << I
+                   << " might be escaping as is not tracked further\n");
+    llvm::errs() << "WARNING: detected ptrtoint instruction that might be "
+                    "escaping the analysis. "
+                 << "(@" << intptr_t(&I) << ")\n";
   }
 }
 
