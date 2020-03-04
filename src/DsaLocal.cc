@@ -305,13 +305,13 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
       continue;
 
     // -- skip load of null
-    if (LoadInst* LI = dyn_cast<LoadInst>(&v)) {
+    if (LoadInst *LI = dyn_cast<LoadInst>(&v)) {
       if (BlockBuilderBase::isNullConstant(
-	   *LI->getPointerOperand()->stripPointerCasts())) {
-	continue;
+              *LI->getPointerOperand()->stripPointerCasts())) {
+        continue;
       }
     }
-    
+
     // -- skip undef
     if (isa<Constant>(&v) && isa<UndefValue>(&v))
       continue;
@@ -408,7 +408,8 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
       isa<ConstantDataSequential>(&v) || isa<ConstantDataArray>(&v) ||
       isa<ConstantVector>(&v) || isa<ConstantDataVector>(&v)) {
     // XXX Handle properly once we have real examples with this failure
-    LOG("dsa", errs() << "WARNING: unsound handling of a constant: " << v << "\n";);
+    LOG("dsa",
+        errs() << "WARNING: unsound handling of a constant: " << v << "\n";);
     // llvm_unreachable("Constant not handled!");
     return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
   }
@@ -706,7 +707,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
       ptr.print(errs());
       if (auto *ptrI = dyn_cast<Instruction>(&ptr))
         if (ptrI->getParent())
-            errs() << "\n\t\tin " << ptrI->getFunction()->getName() << "\n";
+          errs() << "\n\t\tin " << ptrI->getFunction()->getName() << "\n";
     });
     assert(false && "No cell for gep'd ptr");
     return;
