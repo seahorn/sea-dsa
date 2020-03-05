@@ -249,8 +249,10 @@ void Node::addAccessedType(unsigned off, llvm::Type *type) {
     else {
       Set types = m_graph->emptySet();
       auto it = m_accessedTypes.find(offset.getNumericOffset());
-      if (it != m_accessedTypes.end())
+      if (it != m_accessedTypes.end()) {
         types = it->second;
+        m_accessedTypes.erase(offset.getNumericOffset());
+      }
       types = m_graph->mkSet(types, t);
       m_accessedTypes.insert(std::make_pair(offset.getNumericOffset(), types));
     }
