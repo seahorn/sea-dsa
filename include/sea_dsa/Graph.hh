@@ -1,5 +1,4 @@
-#ifndef __DSA_GRAPH_HH_
-#define __DSA_GRAPH_HH_
+#pragma once
 
 #include "boost/container/flat_map.hpp"
 #include "boost/container/flat_set.hpp"
@@ -32,7 +31,7 @@ class Node;
 class Cell;
 class Graph;
 class SimulationMapper;
-typedef std::unique_ptr<Cell> CellRef;
+using CellRef = std::unique_ptr<Cell>;
 
 class DsaCallSite;
 class DsaAllocator;
@@ -53,8 +52,8 @@ class Graph {
   friend class Node;
 
 public:
-  typedef llvm::ImmutableSet<llvm::Type *> Set;
-  typedef typename Set::Factory SetFactory;
+  using Set = llvm::ImmutableSet<llvm::Type *>;
+  using SetFactory = typename Set::Factory;
 
 protected:
   const llvm::DataLayout &m_dl;
@@ -62,20 +61,20 @@ protected:
 
   std::unique_ptr<DsaAllocator> m_allocator;
   /// DSA nodes owned by this graph
-  typedef std::vector<std::unique_ptr<Node, DsaAllocatorDeleter>> NodeVector;
-  typedef std::unique_ptr<Node, DsaAllocatorDeleter> NodeVectorElemTy;
+  using NodeVector = std::vector<std::unique_ptr<Node, DsaAllocatorDeleter>>;
+  using NodeVectorElemTy = std::unique_ptr<Node, DsaAllocatorDeleter>;
   NodeVector m_nodes;
 
   /// Map from scalars to cells in this graph
-  typedef llvm::DenseMap<const llvm::Value *, CellRef> ValueMap;
+  using ValueMap = llvm::DenseMap<const llvm::Value *, CellRef>;
   ValueMap m_values;
 
   /// Map from formal arguments to cells
-  typedef llvm::DenseMap<const llvm::Argument *, CellRef> ArgumentMap;
+  using ArgumentMap = llvm::DenseMap<const llvm::Argument *, CellRef>;
   ArgumentMap m_formals;
 
   /// Map from formal returns of functions to cells
-  typedef llvm::DenseMap<const llvm::Function *, CellRef> ReturnMap;
+  using ReturnMap = llvm::DenseMap<const llvm::Function *, CellRef>;
   ReturnMap m_returns;
 
   using AllocSites = std::vector<std::unique_ptr<DsaAllocSite>>;
@@ -93,7 +92,8 @@ protected:
   CallSites m_callSites;
 
   /// Map from instructions to call sites
-  using InstructionToCallSite = llvm::DenseMap<const llvm::Instruction *, DsaCallSite *>;
+  using InstructionToCallSite =
+      llvm::DenseMap<const llvm::Instruction *, DsaCallSite *>;
   InstructionToCallSite m_instructionToCallSite;
 
   //  Whether the graph is flat or not
@@ -111,14 +111,14 @@ protected:
   };
 
 public:
-  typedef boost::indirect_iterator<typename NodeVector::const_iterator>
-      const_iterator;
-  typedef boost::indirect_iterator<typename NodeVector::iterator> iterator;
-  typedef ValueMap::const_iterator scalar_const_iterator;
-  typedef boost::filter_iterator<IsGlobal, typename ValueMap::const_iterator>
-      global_const_iterator;
-  typedef ArgumentMap::const_iterator formal_const_iterator;
-  typedef ReturnMap::const_iterator return_const_iterator;
+  using const_iterator =
+      boost::indirect_iterator<typename NodeVector::const_iterator>;
+  using iterator = boost::indirect_iterator<typename NodeVector::iterator>;
+  using scalar_const_iterator = ValueMap::const_iterator;
+  using global_const_iterator =
+      boost::filter_iterator<IsGlobal, typename ValueMap::const_iterator>;
+  using formal_const_iterator = ArgumentMap::const_iterator;
+  using return_const_iterator = ReturnMap::const_iterator;
   using alloc_site_iterator =
       boost::indirect_iterator<typename AllocSites::iterator>;
   using alloc_site_const_iterator =
@@ -211,7 +211,7 @@ public:
   DsaAllocSite *mkAllocSite(const llvm::Value &v);
 
   void clearCallSites();
-  
+
   llvm::iterator_range<alloc_site_iterator> alloc_sites() {
     alloc_site_iterator begin = m_allocSites.begin();
     alloc_site_iterator end = m_allocSites.end();
@@ -223,13 +223,13 @@ public:
     alloc_site_const_iterator end = m_allocSites.end();
     return llvm::make_range(begin, end);
   }
- 
+
   bool hasAllocSiteForValue(const llvm::Value &v) const {
     return m_valueToAllocSite.count(&v) > 0;
   }
 
   // return null if no callsite found
-  DsaCallSite* getCallSite(const llvm::Instruction &cs) {
+  DsaCallSite *getCallSite(const llvm::Instruction &cs) {
     auto it = m_instructionToCallSite.find(&cs);
     if (it != m_instructionToCallSite.end()) {
       return &*it->second;
@@ -238,12 +238,12 @@ public:
     }
   }
 
-  DsaCallSite* mkCallSite(const llvm::Instruction &cs, Cell c);
-  
+  DsaCallSite *mkCallSite(const llvm::Instruction &cs, Cell c);
+
   llvm::iterator_range<callsite_iterator> callsites();
 
   llvm::iterator_range<callsite_const_iterator> callsites() const;
-  
+
   /// compute a map from callee nodes to caller nodes
   //
   /// XXX: we might want to make the last argument a template
@@ -513,14 +513,14 @@ private:
   Cell m_forward;
 
 public:
-  typedef Graph::Set Set;
+  using Set = Graph::Set;
   // TODO: Investigate why flat_map is slower for accessed_types_type.
-  typedef llvm::DenseMap<unsigned, Set> accessed_types_type;
-  typedef boost::container::flat_map<Field, CellRef> links_type;
+  using accessed_types_type = llvm::DenseMap<unsigned, Set>;
+  using links_type = boost::container::flat_map<Field, CellRef>;
 
   // Iterator for graph interface... Defined in GraphTraits.h
-  typedef NodeIterator<Node> iterator;
-  typedef NodeIterator<const Node> const_iterator;
+  using iterator = NodeIterator<Node>;
+  using const_iterator = NodeIterator<const Node>;
   iterator begin();
   iterator end();
 
@@ -568,7 +568,7 @@ private:
   unsigned m_size;
 
   /// allocation sites for the node
-  typedef boost::container::flat_set<const llvm::Value *> AllocaSet;
+  using AllocaSet = boost::container::flat_set<const llvm::Value *>;
   AllocaSet m_alloca_sites;
 
   /// XXX This is ugly. Ids should probably be unique per-graph, not
@@ -674,7 +674,6 @@ public:
   bool isPtrToInt() const { return m_nodeType.ptrtoint; }
   bool isIncomplete() const { return m_nodeType.incomplete; }
   bool isUnknown() const { return m_nodeType.unknown; }
-
 
   Node &setArraySize(unsigned sz) {
     assert(!isArray());
@@ -893,5 +892,3 @@ template <> struct hash<sea_dsa::Cell> {
   }
 };
 } // namespace std
-
-#endif
