@@ -399,8 +399,8 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   if (isa<ConstantStruct>(&v) || isa<ConstantArray>(&v) ||
       isa<ConstantDataSequential>(&v) || isa<ConstantDataArray>(&v) ||
       isa<ConstantVector>(&v) || isa<ConstantDataVector>(&v)) {
-    // XXX Handle properly
-    LOG("dsa", errs() << "WARNING: constant not handled: " << v << "\n";);
+    // XXX Handle properly once we have real examples with this failure
+    LOG("dsa", errs() << "WARNING: unsound handling of a constant: " << v << "\n";);
     // llvm_unreachable("Constant not handled!");
     return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
   }
@@ -430,7 +430,7 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   (void)vType;
 
   errs() << "Unexpected expression at valueCell: " << v << "\n";
-  llvm_unreachable("Expression not handled");
+  assert(false && "Expression not handled");
   return Cell();
 }
 
@@ -743,17 +743,21 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
   }
 
   if (!m_graph.hasCell(ptr) && !isa<GlobalValue>(&ptr)) {
-    errs() << "Cell not found for gep:\t";
-    gep.print(errs());
-    if (auto *gepI = dyn_cast<Instruction>(&gep))
-      errs() << "\n\t\tin " << gepI->getFunction()->getName() << "\n";
+    LOG("dsa", {
+      errs() << "Cell not found for gep:\t";
+      gep.print(errs());
 
-    errs() << "\n\tptr: ";
-    ptr.print(errs());
-    if (auto *ptrI = dyn_cast<Instruction>(&ptr))
-      errs() << "\n\t\tin " << ptrI->getFunction()->getName() << "\n";
+      if (auto *gepI = dyn_cast<Instruction>(&gep))
+        errs() << "\n\t\tin " << gepI->getFunction()->getName() << "\n";
 
-    llvm_unreachable("No cell for gep'd ptr");
+      errs() << "\n\tptr: ";
+      ptr.print(errs());
+      if (auto *ptrI = dyn_cast<Instruction>(&ptr))
+        if (ptrI->getParent())
+            errs() << "\n\t\tin " << ptrI->getFunction()->getName() << "\n";
+    });
+    assert(false && "No cell for gep'd ptr");
+    return;
   }
 
   // -- empty gep that points directly to the base
@@ -1068,7 +1072,7 @@ void IntraBlockBuilder::visitShuffleVectorInst(ShuffleVectorInst &I) {
   using namespace sea_dsa;
 
   // XXX: TODO: handle properly.
-  errs() << "WARNING: shuffle vector inst is allocationg a new cell: " << &I
+  errs() << "WARNING: shuffle vector inst is allocating a new cell: " << &I
          << "\n";
   m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
 }
@@ -1320,7 +1324,8 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
       LOG("dsa", llvm::errs() << dest; printAddress = false);
       if (printAddress)
         llvm::errs() << "inttoptr @ addr " << &dest;
-      llvm::errs() << " is allocating a new cell.\n";
+      llvm::errs()
+          << " is (unsoundly) assumed to point to a fresh memory region.\n";
     }
   }
 }
