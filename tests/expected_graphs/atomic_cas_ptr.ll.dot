@@ -1,0 +1,30 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x7f8dd860b6a0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*\}:SM|{<s0>\<0, i32*\>}}"];
+	Node0x7f8dd860b7c0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*\}:MRE|{<s0>\<0, i32*\>}}"];
+	Node0x7f8dd860b8c0 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:E}"];
+	Node0x7f8dd85022e0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*,8:i1\}:SMR|{<s0>\<0, i32*\>}}"];
+	Node0x7f8dd86073c8 [shape=plaintext, label ="oldVal"];
+	Node0x7f8dd86073c8 -> Node0x7f8dd85022e0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f8dd8606b28 [shape=plaintext, label ="  %1 = alloca i32*, align 8"];
+	Node0x7f8dd8606b28 -> Node0x7f8dd860b6a0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f8dd8501418 [shape=plaintext, label ="  %8 = extractvalue \{ i32*, i1 \} %7, 0"];
+	Node0x7f8dd8501418 -> Node0x7f8dd860b8c0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f8dd8606b98 [shape=plaintext, label ="newVal"];
+	Node0x7f8dd8606b98 -> Node0x7f8dd85022e0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f8dd8606fa8 [shape=plaintext, label ="  %3 = call i32* (...) @nd_cmp()"];
+	Node0x7f8dd8606fa8 -> Node0x7f8dd860b8c0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f8dd86071d8 [shape=plaintext, label ="  %4 = call i32* (...) @new_val()"];
+	Node0x7f8dd86071d8 -> Node0x7f8dd860b8c0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f8dd8606dc8 [shape=plaintext, label ="  %2 = call i32** (...) @nd_ptr()"];
+	Node0x7f8dd8606dc8 -> Node0x7f8dd860b7c0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f8dd8501798 [shape=plaintext, label ="  %12 = load i32*, i32** %2, align 8"];
+	Node0x7f8dd8501798 -> Node0x7f8dd85022e0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f8dd8607458 [shape=plaintext, label ="  %7 = cmpxchg weak i32** %2, i32* %5, i32* %6 monotonic monotonic"];
+	Node0x7f8dd8607458 -> Node0x7f8dd85022e0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7f8dd860b6a0:s0 -> Node0x7f8dd860b8c0[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x7f8dd860b7c0:s0 -> Node0x7f8dd85022e0[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x7f8dd85022e0:s0 -> Node0x7f8dd860b8c0[arrowtail=tee,label="0, i32*",fontsize=8];
+}
