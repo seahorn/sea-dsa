@@ -534,9 +534,11 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 }
 
 /// OldVal := *Ptr
+/// Success := false
 /// if OldVal == Cmp then
+///    Success := true
 ///    *Ptr := New
-/// return OldVal
+/// return {OldVal, Success}
 void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
   using namespace sea_dsa;
   
@@ -549,19 +551,22 @@ void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
   
   Cell PtrC = valueCell(*Ptr);
   assert(!PtrC.isNull());
-    
+
+  assert(isa<StructType>(I.getType()));
+  Type *ResTy = cast<StructType>(I.getType())->getTypeAtIndex((unsigned) 0); 
+  
   PtrC.setModified();
   PtrC.setRead();
-  PtrC.growSize(0, I.getType());
-  PtrC.addAccessedType(0, I.getType());
+  PtrC.growSize(0, Ptr->getType());
+  PtrC.addAccessedType(0, Ptr->getType());
 
-  if (!isSkip(I)) {
+  if (ResTy->isPointerTy()) {
     // Load the content of Ptr and make it the cell of the
     // instruction's result.
-    Field LoadedField(0, FieldType(I.getType()));
+    Field LoadedField(0, FieldType(ResTy));
     if (!PtrC.hasLink(LoadedField)) {
       Node &n = m_graph.mkNode();
-      PtrC.setLink(LoadedField, Cell(&n, 0));
+      PtrC.setLink(LoadedField, Cell(n, 0));
     }
     Cell Res = m_graph.mkCell(I, PtrC.getLink(LoadedField));
 
@@ -575,7 +580,9 @@ void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
   }
 }
 
-/// *Ptr = op(*Ptr, Val) 
+/// OldVal = *Ptr
+/// *Ptr = op(OldVal, Val)
+/// return OldVal
 void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
   Value *Ptr = I.getPointerOperand();
   Value *Val = I.getValOperand();
@@ -587,6 +594,12 @@ void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
   PtrC.setRead();
   PtrC.growSize(0, I.getType());
   PtrC.addAccessedType(0, I.getType());
+
+  if (!isSkip(I)) {
+    sea_dsa::Node &n = m_graph.mkNode();
+    sea_dsa::Cell ResC = m_graph.mkCell(I, sea_dsa::Cell(n, 0));
+    ResC.unify(PtrC);
+  }
 }
 
 void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
