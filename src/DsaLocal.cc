@@ -546,7 +546,6 @@ void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
     return;
   }
   Value *Ptr = I.getPointerOperand();
-  Value *Cmp = I.getCompareOperand();
   Value *New = I.getNewValOperand();
   
   Cell PtrC = valueCell(*Ptr);
@@ -585,7 +584,6 @@ void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
 /// return OldVal
 void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
   Value *Ptr = I.getPointerOperand();
-  Value *Val = I.getValOperand();
 
   sea_dsa::Cell PtrC = valueCell(*Ptr);
   assert(!PtrC.isNull());
