@@ -1403,6 +1403,10 @@ size_t Graph::numCollapsed() const {
 
 void Graph::dump() const { write(errs()); }
 
+void Graph::writeGraph(const std::string &filename) {
+  WriteDsaGraph(*this, filename);
+}
+
 void Graph::viewGraph() { ShowDsaGraph(*this); }
 
 Node &FlatGraph::mkNode() {

@@ -263,6 +263,10 @@ public:
   /// for gdb
   void dump() const;
 
+  friend void WriteDsaGraph(Graph &g, const std::string &filename);
+  /// write the Dsa graph in dot format
+  void writeGraph(const std::string &filename);
+
   friend void ShowDsaGraph(Graph &g);
   /// view the Dsa graph using GraphViz. (For debugging.)
   void viewGraph();

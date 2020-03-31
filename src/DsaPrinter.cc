@@ -671,13 +671,18 @@ struct DsaPrinter : public ModulePass {
 	  
 };
 
+// Used by Graph::writeGraph().
+void WriteDsaGraph(Graph& G, const std::string &filename) {
+  const bool Res = writeGraph(&G, filename);
+  (void)Res;
+  assert(Res && "Could not write graph");
+}
+
 // Used by Graph::viewGraph() and Node::viewGraph().
 void ShowDsaGraph(Graph& G) {
   static unsigned I = 0;
   const std::string Filename = "temp" + std::to_string(I++) + ".mem.dot";
-  const bool Res = writeGraph(&G, Filename);
-  (void)Res;
-  assert(Res && "Could not write graph");
+  WriteDsaGraph(G, Filename);
   DisplayGraph(appendOutDir(Filename), /* wait = */ false, GraphProgram::DOT);
 }
 
