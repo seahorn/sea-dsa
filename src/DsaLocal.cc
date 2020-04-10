@@ -413,7 +413,15 @@ sea_dsa::Cell BlockBuilderBase::valueCell(const Value &v) {
     if (ce->isCast() && ce->getOperand(0)->getType()->isPointerTy())
       return valueCell(*ce->getOperand(0));
     else if (ce->getOpcode() == Instruction::GetElementPtr) {
-      Value &base = *(ce->getOperand(0));
+      Value &base = *(ce->getOperand(0));      
+
+      // We create first a cell for the gep'd pointer operand if it's
+      // an IntToPtr
+      if (const ConstantExpr *base_ce = dyn_cast<ConstantExpr>(&base)) {
+      	if (base_ce->getOpcode() == Instruction::IntToPtr) {
+      	  valueCell(base);
+      	}
+      }
       SmallVector<Value *, 8> indicies(ce->op_begin() + 1, ce->op_end());
       visitGep(v, base, indicies);
       assert(m_graph.hasCell(v));
