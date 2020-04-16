@@ -1,4 +1,4 @@
-#include "sea_dsa/support/RemovePtrToInt.hh"
+#include "seadsa/support/RemovePtrToInt.hh"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -9,13 +9,13 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/support/Debug.h"
 
 #define RPTI_LOG(...) LOG("remove-ptrtoint", __VA_ARGS__)
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 
 char RemovePtrToInt::ID = 0;
 
@@ -225,9 +225,9 @@ void RemovePtrToInt::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
 }
 
-} // namespace sea_dsa
+} // namespace seadsa
 
-static llvm::RegisterPass<sea_dsa::RemovePtrToInt>
+static llvm::RegisterPass<seadsa::RemovePtrToInt>
 X("seadsa-remove-ptrtoint",
   "Removes ptrtoint");
   

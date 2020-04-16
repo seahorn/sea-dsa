@@ -17,7 +17,7 @@ class TargetLibraryInfo;
 class Value;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 class AllocWrapInfo : public llvm::ModulePass {
 protected:
   std::set<std::string> m_allocs;
@@ -48,4 +48,4 @@ public:
     return *m_tli;
   }
 };
-} // namespace sea_dsa
+} // namespace seadsa

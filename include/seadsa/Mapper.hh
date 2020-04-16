@@ -1,12 +1,12 @@
 #ifndef __DSA_MAPPER__HH_
 #define __DSA_MAPPER__HH_
 
-#include "sea_dsa/Graph.hh"
+#include "seadsa/Graph.hh"
 
 #include <unordered_map>
 #include <boost/container/flat_map.hpp>
 
-namespace sea_dsa
+namespace seadsa
 {
   /** Builds a functional (one-to-many) map between two DSA graphs.
       Roots of the graphs are entered using insert() method.

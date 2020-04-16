@@ -17,14 +17,14 @@ class CallInst;
 class ImmutableCallSite;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 class ShadowMemImpl;
 class GlobalAnalysis;
 class AllocSiteInfo;
 class Cell;
-} // namespace sea_dsa
+} // namespace seadsa
 
-namespace sea_dsa {
+namespace seadsa {
 
 enum class ShadowMemInstOp {
   LOAD,        /* load */
@@ -101,4 +101,4 @@ llvm::Pass *createStripShadowMemPass();
 llvm::Pass *createShadowMemPass();
 
 // bool isShadowMemInst(const llvm::Value *v);
-} // namespace sea_dsa
+} // namespace seadsa

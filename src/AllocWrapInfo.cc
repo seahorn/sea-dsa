@@ -1,4 +1,4 @@
-#include "sea_dsa/AllocWrapInfo.hh"
+#include "seadsa/AllocWrapInfo.hh"
 
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
@@ -10,7 +10,7 @@
 
 #include <vector>
 
-using namespace sea_dsa;
+using namespace seadsa;
 using namespace llvm;
 
 static llvm::cl::list<std::string>
@@ -214,6 +214,6 @@ bool isNotStored(Value *V) {
 
 } // namespace
 
-static llvm::RegisterPass<sea_dsa::AllocWrapInfo>
+static llvm::RegisterPass<seadsa::AllocWrapInfo>
     X("seadsa-alloc-wrap-info",
       "Detects allocator wrappers");

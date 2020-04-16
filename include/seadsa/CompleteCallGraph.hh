@@ -6,8 +6,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/Graph.hh"
+#include "seadsa/CallSite.hh"
+#include "seadsa/Graph.hh"
 
 #include <vector>
 #include <memory>
@@ -19,7 +19,7 @@ class CallGraph;
 class raw_ostream;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 class AllocWrapInfo;
 class Cloner;
   class CompleteCallGraph;
@@ -129,5 +129,5 @@ public:
   callee_iterator end(llvm::CallSite& CS);  
 };
 
-} // namespace sea_dsa
+} // namespace seadsa
 

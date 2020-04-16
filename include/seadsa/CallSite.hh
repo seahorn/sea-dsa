@@ -8,7 +8,7 @@
 #include "llvm/Pass.h"
 
 // XXX: included for Cell. 
-#include "sea_dsa/Graph.hh" 
+#include "seadsa/Graph.hh" 
 
 #include "boost/iterator/filter_iterator.hpp"
 
@@ -18,7 +18,7 @@ class Function;
 class Instruction;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 
 class DsaCallSite {
 
@@ -101,5 +101,5 @@ public:
   
   void write(llvm::raw_ostream &o) const;  
 };
-} // namespace sea_dsa
+} // namespace seadsa
 #endif

@@ -1,11 +1,11 @@
-#include "sea_dsa/ShadowMem.hh"
+#include "seadsa/ShadowMem.hh"
 
-#include "sea_dsa/AllocSiteInfo.hh"
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/DsaAnalysis.hh"
-#include "sea_dsa/Mapper.hh"
-#include "sea_dsa/TypeUtils.hh"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/AllocSiteInfo.hh"
+#include "seadsa/CallSite.hh"
+#include "seadsa/DsaAnalysis.hh"
+#include "seadsa/Mapper.hh"
+#include "seadsa/TypeUtils.hh"
+#include "seadsa/support/Debug.h"
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -50,7 +50,7 @@ llvm::cl::opt<bool>
                      llvm::cl::init(true));
 
 using namespace llvm;
-namespace dsa = sea_dsa;
+namespace dsa = seadsa;
 namespace {
 
 bool HasReturn(BasicBlock &bb, ReturnInst *&retInst) {
@@ -191,7 +191,7 @@ public:
 };
 } // end namespace
 
-namespace sea_dsa {
+namespace seadsa {
 
 bool isShadowMemInst(const llvm::Value &v) {
   if (auto *inst = dyn_cast<const Instruction>(&v)) {
@@ -1700,10 +1700,10 @@ Pass *createShadowMemPass() { return new ShadowMemPass(); }
 char ShadowMemPass::ID = 0;
 char StripShadowMemPass::ID = 0;
 
-} // namespace sea_dsa
+} // namespace seadsa
 
-static llvm::RegisterPass<sea_dsa::ShadowMemPass>
+static llvm::RegisterPass<seadsa::ShadowMemPass>
     X("shadow-sea-dsa", "Add shadow.mem pseudo-functions");
 
-static llvm::RegisterPass<sea_dsa::StripShadowMemPass>
+static llvm::RegisterPass<seadsa::StripShadowMemPass>
     Y("strip-shadow-sea-dsa", "Remove shadow.mem pseudo-functions");

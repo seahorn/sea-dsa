@@ -13,22 +13,22 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/AllocWrapInfo.hh"
-#include "sea_dsa/CallGraphUtils.hh"
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/Cloner.hh"
-#include "sea_dsa/CompleteCallGraph.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/Local.hh"
-#include "sea_dsa/config.h"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/CallGraphUtils.hh"
+#include "seadsa/CallSite.hh"
+#include "seadsa/Cloner.hh"
+#include "seadsa/CompleteCallGraph.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/Local.hh"
+#include "seadsa/config.h"
+#include "seadsa/support/Debug.h"
 
 #include <unordered_set>
 #include <vector>
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 bool PrintCallGraphStats;
 extern bool NoBUFlowSensitiveOpt;
 }
@@ -36,7 +36,7 @@ extern bool NoBUFlowSensitiveOpt;
 static llvm::cl::opt<bool, true> XPrintCallGraphStats(
     "sea-dsa-callgraph-stats",
     llvm::cl::desc("Print stats about the SeaDsa call graph"),
-    llvm::cl::location(sea_dsa::PrintCallGraphStats),
+    llvm::cl::location(seadsa::PrintCallGraphStats),
     llvm::cl::init(false));
 
 static llvm::cl::opt<unsigned> PrintVerbosity(
@@ -44,7 +44,7 @@ static llvm::cl::opt<unsigned> PrintVerbosity(
     llvm::cl::Hidden,
     llvm::cl::init(1));
 
-namespace sea_dsa {
+namespace seadsa {
 
 // XXX: already defined in DsaBottomUp.cc
 static const Value *findUniqueReturnValue(const Function &F) {
@@ -704,7 +704,7 @@ Pass *createDsaPrintCallGraphStatsPass() {
   return new CompleteCallGraph(true);
 }
 
-} // namespace sea_dsa
+} // namespace seadsa
 
-static llvm::RegisterPass<sea_dsa::CompleteCallGraph>
+static llvm::RegisterPass<seadsa::CompleteCallGraph>
     X("seadsa-complete-callgraph", "Construct SeaDsa call graph pass");

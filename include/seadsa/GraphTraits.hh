@@ -1,13 +1,13 @@
 #ifndef __DSA_GRAPH_TRAITS_H
 #define __DSA_GRAPH_TRAITS_H
 
-#include "sea_dsa/Graph.hh"
+#include "seadsa/Graph.hh"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/STLExtras.h"
 
 #include <iterator>
 
-namespace sea_dsa {
+namespace seadsa {
     
   template<typename NodeTy>
   class NodeIterator :
@@ -67,51 +67,51 @@ inline Node::const_iterator Node::begin() const { return Node::const_iterator(th
   
 inline Node::const_iterator Node::end() const { return Node::const_iterator(this, false); }
   
-} // end namespace sea_dsa 
+} // end namespace seadsa 
 
 namespace llvm {
   
-  template <> struct GraphTraits<sea_dsa::Node*> {
-    typedef sea_dsa::Node NodeType;
-    typedef sea_dsa::Node::iterator ChildIteratorType;
+  template <> struct GraphTraits<seadsa::Node*> {
+    typedef seadsa::Node NodeType;
+    typedef seadsa::Node::iterator ChildIteratorType;
     
     static NodeType *getEntryNode(NodeType *N) { return N; }
     static ChildIteratorType child_begin(NodeType *N) { return N->begin(); }
     static ChildIteratorType child_end(NodeType *N) { return N->end(); }
   };
 
-  template <> struct GraphTraits<const sea_dsa::Node*> {
-    typedef const sea_dsa::Node NodeType;
-    typedef sea_dsa::Node::const_iterator ChildIteratorType;
+  template <> struct GraphTraits<const seadsa::Node*> {
+    typedef const seadsa::Node NodeType;
+    typedef seadsa::Node::const_iterator ChildIteratorType;
     
     static NodeType *getEntryNode(NodeType *N) { return N; }
     static ChildIteratorType child_begin(NodeType *N) { return N->begin(); }
     static ChildIteratorType child_end(NodeType *N) { return N->end(); }
   };
 
-  template <> struct GraphTraits<sea_dsa::Graph*> {
-    typedef sea_dsa::Node NodeType;
-    typedef sea_dsa::Node::iterator ChildIteratorType;
+  template <> struct GraphTraits<seadsa::Graph*> {
+    typedef seadsa::Node NodeType;
+    typedef seadsa::Node::iterator ChildIteratorType;
     
     // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
-    typedef sea_dsa::Graph::iterator nodes_iterator;
+    typedef seadsa::Graph::iterator nodes_iterator;
     
-    static nodes_iterator nodes_begin(sea_dsa::Graph *G) { return G->begin(); }
-    static nodes_iterator nodes_end(sea_dsa::Graph *G) { return G->end(); }
+    static nodes_iterator nodes_begin(seadsa::Graph *G) { return G->begin(); }
+    static nodes_iterator nodes_end(seadsa::Graph *G) { return G->end(); }
     
     static ChildIteratorType child_begin(NodeType *N) { return N->begin(); }
     static ChildIteratorType child_end(NodeType *N) { return N->end(); }
   };
 
-  template <> struct GraphTraits<const sea_dsa::Graph*> {
-    typedef const sea_dsa::Node NodeType;
-    typedef sea_dsa::Node::const_iterator ChildIteratorType;
+  template <> struct GraphTraits<const seadsa::Graph*> {
+    typedef const seadsa::Node NodeType;
+    typedef seadsa::Node::const_iterator ChildIteratorType;
     
     // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
-    typedef sea_dsa::Graph::const_iterator nodes_iterator;
+    typedef seadsa::Graph::const_iterator nodes_iterator;
     
-    static nodes_iterator nodes_begin(const sea_dsa::Graph *G) { return G->begin(); }
-    static nodes_iterator nodes_end(const sea_dsa::Graph *G) { return G->end(); }
+    static nodes_iterator nodes_begin(const seadsa::Graph *G) { return G->begin(); }
+    static nodes_iterator nodes_end(const seadsa::Graph *G) { return G->end(); }
     
     static ChildIteratorType child_begin(NodeType *N) { return N->begin(); }
     static ChildIteratorType child_end(NodeType *N) { return N->end(); }

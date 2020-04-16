@@ -6,9 +6,9 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "sea_dsa/Global.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/Info.hh"
+#include "seadsa/Global.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/Info.hh"
 
 /* Entry point for all Dsa clients */
 
@@ -19,7 +19,7 @@ class CallGraph;
 class Value;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 class AllocWrapInfo;
 
 class DsaAnalysis : public llvm::ModulePass {
@@ -52,15 +52,15 @@ public:
 
   GlobalAnalysis &getDsaAnalysis();
 };
-} // namespace sea_dsa
+} // namespace seadsa
 
-namespace sea_dsa {
+namespace seadsa {
 llvm::Pass *createDsaInfoPass();
 llvm::Pass *createDsaPrintStatsPass();
 llvm::Pass *createDsaPrinterPass();
 llvm::Pass *createDsaViewerPass();
 llvm::Pass *createDsaPrintCallGraphStatsPass();
 llvm::Pass *createDsaCallGraphPrinterPass();
-} // namespace sea_dsa
+} // namespace seadsa
 
 #endif

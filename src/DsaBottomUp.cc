@@ -1,4 +1,4 @@
-#include "sea_dsa/BottomUp.hh"
+#include "seadsa/BottomUp.hh"
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -13,28 +13,28 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/AllocWrapInfo.hh"
-#include "sea_dsa/CallGraphUtils.hh"
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/Cloner.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/Local.hh"
-#include "sea_dsa/config.h"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/CallGraphUtils.hh"
+#include "seadsa/CallSite.hh"
+#include "seadsa/Cloner.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/Local.hh"
+#include "seadsa/config.h"
+#include "seadsa/support/Debug.h"
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 bool NoBUFlowSensitiveOpt;
 }
 
 static llvm::cl::opt<bool, true> XNoBUFlowSensitiveOpt(
     "sea-dsa-no-bu-flow-sensitive-opt",
     llvm::cl::desc("Disable partial flow sensitivity in bottom up"),
-    llvm::cl::location(sea_dsa::NoBUFlowSensitiveOpt), llvm::cl::init(false),
+    llvm::cl::location(seadsa::NoBUFlowSensitiveOpt), llvm::cl::init(false),
     llvm::cl::Hidden);
 
-namespace sea_dsa {
+namespace seadsa {
 
 static const Value *findUniqueReturnValue(const Function &F) {
   const Value *onlyRetVal = nullptr;
@@ -206,5 +206,5 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   return false;
 }
 
-} // namespace sea_dsa
+} // namespace seadsa
 

@@ -1,8 +1,8 @@
-#include "sea_dsa/Cloner.hh"
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/Cloner.hh"
+#include "seadsa/CallSite.hh"
+#include "seadsa/support/Debug.h"
 #include "llvm/IR/Instructions.h"
-using namespace sea_dsa;
+using namespace seadsa;
 
 static llvm::cl::opt<bool> NoAllocSiteOpt(
     "sea-dsa-no-single-as-opt",

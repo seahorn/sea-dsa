@@ -1,4 +1,4 @@
-#include "sea_dsa/support/NameValues.hh"
+#include "seadsa/support/NameValues.hh"
 
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instructions.h"
@@ -11,7 +11,7 @@
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 
 char NameValues::ID = 0;
 
@@ -82,7 +82,7 @@ bool NameValues::runOnFunction(Function &F) {
   }
   return change;
 }
-} // namespace sea_dsa
+} // namespace seadsa
 
-static llvm::RegisterPass<sea_dsa::NameValues> X("seadsa-name-values",
+static llvm::RegisterPass<seadsa::NameValues> X("seadsa-name-values",
                                                  "Names all unnamed values");

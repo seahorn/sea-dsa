@@ -1,5 +1,5 @@
-#ifndef SEA_DSA_FIELD_TYPE
-#define SEA_DSA_FIELD_TYPE
+#ifndef SEADSA_FIELD_TYPE
+#define SEADSA_FIELD_TYPE
 
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
@@ -8,12 +8,12 @@
 #include <string>
 #include <tuple>
 
-namespace sea_dsa {
+namespace seadsa {
 
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
 
 #define FIELD_TYPE_STRINGIFY(X) #X
-#define FIELD_TYPE_NOT_IMPLEMENTED sea_dsa::FieldType::NotImplemented( \
+#define FIELD_TYPE_NOT_IMPLEMENTED seadsa::FieldType::NotImplemented( \
                                                 FIELD_TYPE_STRINGIFY(__LINE__ ))
 
 class FieldType {
@@ -112,6 +112,6 @@ private:
   static bool IsNotTypeAware();
 };
 
-} // namespace sea_dsa
+} // namespace seadsa
 
-#endif // SEA_DSA_FIELD_TYPE
+#endif // SEADSA_FIELD_TYPE

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sea_dsa/CallSite.hh"
+#include "seadsa/CallSite.hh"
 
 #include <memory>
 #include <unordered_map>
@@ -12,7 +12,7 @@ class Instruction;
 class CallGraph;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 /**
  * A wrapper for LLVM CallGraph to precompute some dependencies
  * between callsites.
@@ -66,4 +66,4 @@ public:
     return *(it->second);
   }
 };
-} // namespace sea_dsa
+} // namespace seadsa

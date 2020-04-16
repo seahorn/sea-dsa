@@ -124,8 +124,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 endif ()
 
 
-configure_file(include/sea_dsa/config.h.cmake
-  ${CMAKE_BINARY_DIR}/include/sea_dsa/config.h)
+configure_file(include/seadsa/config.h.cmake
+  ${CMAKE_BINARY_DIR}/include/seadsa/config.h)
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -136,7 +136,7 @@ add_subdirectory(units)
 add_subdirectory(tools)
 add_subdirectory(tests)
 
-install(DIRECTORY include/sea_dsa DESTINATION include
+install(DIRECTORY include/seadsa DESTINATION include
   FILES_MATCHING
   PATTERN "*.hpp"
   PATTERN "*.hh"

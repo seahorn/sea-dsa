@@ -7,13 +7,13 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/CallGraphUtils.hh"
-#include "sea_dsa/CallGraphWrapper.hh"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/CallGraphUtils.hh"
+#include "seadsa/CallGraphWrapper.hh"
+#include "seadsa/support/Debug.h"
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 
 void CallGraphWrapper::buildDependencies() {
   // -- Compute immediate callers of each function in the call graph.
@@ -106,4 +106,4 @@ void CallGraphWrapper::buildDependencies() {
         }
       });
 }
-} // namespace sea_dsa
+} // namespace seadsa

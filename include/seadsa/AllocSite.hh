@@ -6,7 +6,7 @@
 
 #include <vector>
 
-namespace sea_dsa {
+namespace seadsa {
 
 class Graph;
 class DsaCallSite;
@@ -24,7 +24,7 @@ private:
 
   /// the graph that owns this allocation site descriptor.
   /// Not necessarily the graph of a function in which m_value appears.
-  const sea_dsa::Graph &m_owner;
+  const seadsa::Graph &m_owner;
 
   /// Optional call paths describing current evolution of this allocation site
   CallPaths m_callPaths;
@@ -72,11 +72,11 @@ public:
   }
 
 private:
-  friend sea_dsa::Graph;
+  friend seadsa::Graph;
 
-  /// private constructor exposed only to sea_dsa::Graph
-  DsaAllocSite(const sea_dsa::Graph &g, const llvm::Value &v)
+  /// private constructor exposed only to seadsa::Graph
+  DsaAllocSite(const seadsa::Graph &g, const llvm::Value &v)
       : m_value(v), m_owner(g) {}
 };
 
-} // namespace sea_dsa
+} // namespace seadsa

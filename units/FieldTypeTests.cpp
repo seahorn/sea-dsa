@@ -1,6 +1,6 @@
 #include "doctest.h"
 
-#include "sea_dsa/FieldType.hh"
+#include "seadsa/FieldType.hh"
 
 #include "llvm/IR/LLVMContext.h"
 //#include "llvm/IR/TypeBuilder.h"
@@ -52,48 +52,48 @@ Type *GetLLPtr(LLVMContext &Ctx) { return GetLLTy(Ctx)->getPointerTo(0); }
 TEST_CASE("FirstPrimT.Identity") {
   LLVMContext &C = GetCtx();
   auto *IntPtrTy = GetIntPtr(C);
-  CHECK(sea_dsa::GetFirstPrimitiveTy(IntPtrTy) == GetIntPtr(C));
+  CHECK(seadsa::GetFirstPrimitiveTy(IntPtrTy) == GetIntPtr(C));
 }
 
 TEST_CASE("FirstPrimT.Scalar") {
   LLVMContext &C = GetCtx();
   auto *IntTy = GetInt(C);
-  CHECK(sea_dsa::GetFirstPrimitiveTy(IntTy) == IntTy);
+  CHECK(seadsa::GetFirstPrimitiveTy(IntTy) == IntTy);
 }
 
 TEST_CASE("FirstPrimT.PtrToScalar") {
   LLVMContext &C = GetCtx();
   auto *IntPtr = GetIntPtr(C);
-  CHECK(sea_dsa::GetFirstPrimitiveTy(IntPtr) == IntPtr);
+  CHECK(seadsa::GetFirstPrimitiveTy(IntPtr) == IntPtr);
 }
 
 TEST_CASE("FirstPrimT.Foo") {
   LLVMContext &C = GetCtx();
   auto *FooTy = GetFooTy(C);
-  CHECK(sea_dsa::GetFirstPrimitiveTy(FooTy) == GetVtablePtr(C));
-  CHECK(sea_dsa::GetFirstPrimitiveTy(FooTy->getPointerTo(0)) ==
+  CHECK(seadsa::GetFirstPrimitiveTy(FooTy) == GetVtablePtr(C));
+  CHECK(seadsa::GetFirstPrimitiveTy(FooTy->getPointerTo(0)) ==
         GetVtablePtr(C)->getPointerTo(0));
 }
 
 TEST_CASE("FirstPrimT.LL") {
   LLVMContext &C = GetCtx();
   auto *LLTy = GetLLTy(C);
-  CHECK(sea_dsa::GetFirstPrimitiveTy(LLTy) == GetIntPtr(C)->getPointerTo(0));
+  CHECK(seadsa::GetFirstPrimitiveTy(LLTy) == GetIntPtr(C)->getPointerTo(0));
 }
 
 TEST_CASE("FirstPrimT.LL_reverse") {
   LLVMContext &C = GetCtx();
   auto *St = StructType::create(C, "LL2");
   St->setBody({St->getPointerTo(0), GetIntPtr(C)->getPointerTo(0)});
-  CHECK(sea_dsa::GetFirstPrimitiveTy(St) == St);
+  CHECK(seadsa::GetFirstPrimitiveTy(St) == St);
 }
 
 TEST_CASE("FirstPrimT.Nested") {
   LLVMContext &C = GetCtx();
   auto *St = StructType::create(C, "Nested");
   St->setBody({GetFooPtr(C), GetIntPtr(C)->getPointerTo(0)});
-  CHECK(sea_dsa::GetFirstPrimitiveTy(St) == GetVtablePtr(C)->getPointerTo(0));
-  CHECK(sea_dsa::GetFirstPrimitiveTy(St)->getPointerTo(0) ==
+  CHECK(seadsa::GetFirstPrimitiveTy(St) == GetVtablePtr(C)->getPointerTo(0));
+  CHECK(seadsa::GetFirstPrimitiveTy(St)->getPointerTo(0) ==
         GetVtablePtr(C)->getPointerTo(0)->getPointerTo(0));
 }
 
@@ -101,6 +101,6 @@ TEST_CASE("FirstPrimT.Nested") {
 TEST_CASE("FirstPrimT.Cache") {
   LLVMContext &C = GetCtx();
   auto *LLTy = GetLLTy(C);
-  CHECK(sea_dsa::GetFirstPrimitiveTy(LLTy) == GetIntPtr(C)->getPointerTo(0));
-  CHECK(sea_dsa::GetFirstPrimitiveTy(LLTy) == GetIntPtr(C)->getPointerTo(0));
+  CHECK(seadsa::GetFirstPrimitiveTy(LLTy) == GetIntPtr(C)->getPointerTo(0));
+  CHECK(seadsa::GetFirstPrimitiveTy(LLTy) == GetIntPtr(C)->getPointerTo(0));
 }

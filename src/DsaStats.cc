@@ -3,12 +3,12 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/StringRef.h"
 
-#include "sea_dsa/DsaAnalysis.hh"
-#include "sea_dsa/Info.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/Stats.hh"
+#include "seadsa/DsaAnalysis.hh"
+#include "seadsa/Info.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/Stats.hh"
 
-namespace sea_dsa {
+namespace seadsa {
 
   using namespace llvm;
 
@@ -156,5 +156,5 @@ namespace sea_dsa {
     return new DsaAnalysis(true);
   }
   
-} // end namespace sea_dsa
+} // end namespace seadsa
 

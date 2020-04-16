@@ -1,10 +1,10 @@
-#include <sea_dsa/support/Debug.h>
+#include <seadsa/support/Debug.h>
 
-std::set<std::string> sea_dsa::SeaDsaLog;
+std::set<std::string> seadsa::SeaDsaLog;
 
-void sea_dsa::SeaDsaEnableLog (std::string x) {
+void seadsa::SeaDsaEnableLog (std::string x) {
   if (x.empty()) return;
-  sea_dsa::SeaDsaLog.insert (x); 
+  seadsa::SeaDsaLog.insert (x); 
 }
 
 

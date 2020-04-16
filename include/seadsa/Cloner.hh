@@ -1,8 +1,8 @@
 #pragma once
 
-#include "sea_dsa/Graph.hh"
+#include "seadsa/Graph.hh"
 
-namespace sea_dsa {
+namespace seadsa {
 
 struct CloningContext {
   llvm::Optional<const llvm::Instruction *> m_cs;
@@ -77,4 +77,4 @@ private:
   void importCallPaths(DsaAllocSite &site,
                        llvm::Optional<DsaAllocSite *> other);
 };
-} // namespace sea_dsa
+} // namespace seadsa

@@ -1,5 +1,5 @@
-#ifndef SEA_DSA_TYPE_UTILS
-#define SEA_DSA_TYPE_UTILS
+#ifndef SEADSA_TYPE_UTILS
+#define SEADSA_TYPE_UTILS
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
@@ -9,7 +9,7 @@ class DataLayout;
 class Type;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 
 unsigned getTypeSizeInBytes(const llvm::Type &ty, const llvm::DataLayout &dl);
 
@@ -71,6 +71,6 @@ private:
   void doStep();
 };
 
-} // namespace sea_dsa
+} // namespace seadsa
 
-#endif // SEA_DSA_TYPE_UTILS
+#endif // SEADSA_TYPE_UTILS

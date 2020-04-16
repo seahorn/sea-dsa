@@ -1,9 +1,9 @@
 #pragma once
 
-#include "sea_dsa/Graph.hh"
+#include "seadsa/Graph.hh"
 #include "llvm/IR/Function.h"
 
-namespace sea_dsa {
+namespace seadsa {
 namespace graph_utils {
 
 template <typename Set>
@@ -38,4 +38,4 @@ static void reachableNodes(const llvm::Function &fn, Graph &g, Set &inputReach,
 }
 
 } // namespace graph_utils
-} // namespace sea_dsa
+} // namespace seadsa

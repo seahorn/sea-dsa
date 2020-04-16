@@ -1,11 +1,11 @@
-#ifndef SEA_DSA_REMOVE_PTR_TO_INT
-#define SEA_DSA_REMOVE_PTR_TO_INT
+#ifndef SEADSA_REMOVE_PTR_TO_INT
+#define SEADSA_REMOVE_PTR_TO_INT
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
-namespace sea_dsa {
+namespace seadsa {
 
 struct RemovePtrToInt: public llvm::FunctionPass {
   static char ID;
@@ -20,6 +20,6 @@ struct RemovePtrToInt: public llvm::FunctionPass {
   }
 };
 
-} // namespace sea_dsa
+} // namespace seadsa
 
 #endif

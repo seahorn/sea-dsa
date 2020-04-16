@@ -4,9 +4,9 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
-#include "sea_dsa/CallSite.hh"
+#include "seadsa/CallSite.hh"
 
-namespace sea_dsa{
+namespace seadsa{
 namespace call_graph_utils {
 
 // Return a dsa callsite from a llvm CallGraph edge

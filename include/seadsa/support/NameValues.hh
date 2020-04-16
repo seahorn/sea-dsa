@@ -1,12 +1,12 @@
-#ifndef __SEA_DSA_NAME_VALUES__HPP_
-#define __SEA_DSA_NAME_VALUES__HPP_
+#ifndef __SEADSA_NAME_VALUES__HPP_
+#define __SEADSA_NAME_VALUES__HPP_
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-namespace sea_dsa {
+namespace seadsa {
 struct NameValues : public llvm::ModulePass {
   static char ID;
   NameValues() : llvm::ModulePass(ID) {}
@@ -17,6 +17,6 @@ struct NameValues : public llvm::ModulePass {
     return "sea-dsa: names all unnamed values";
   }
 };
-} // namespace sea_dsa
+} // namespace seadsa
 
 #endif

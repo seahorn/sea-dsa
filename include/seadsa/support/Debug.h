@@ -3,10 +3,10 @@
 #include <set>
 
 #define LOG(TAG,CODE) \
-  do { if(::sea_dsa::SeaDsaLog.count(TAG) > 0) {CODE;} else {;} } while(false)
+  do { if(::seadsa::SeaDsaLog.count(TAG) > 0) {CODE;} else {;} } while(false)
 
 
-namespace sea_dsa {
+namespace seadsa {
 
   extern std::set<std::string> SeaDsaLog;
   void SeaDsaEnableLog (std::string x);

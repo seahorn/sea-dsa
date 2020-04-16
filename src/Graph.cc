@@ -11,11 +11,11 @@
 #include <set>
 #include <string>
 
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/Cloner.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/Mapper.hh"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/CallSite.hh"
+#include "seadsa/Cloner.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/Mapper.hh"
+#include "seadsa/support/Debug.h"
 
 #include "boost/range/algorithm/set_algorithm.hpp"
 #include "boost/range/iterator_range.hpp"
@@ -25,16 +25,16 @@
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 bool IsTypeAware;
 }
 
 static llvm::cl::opt<bool, true>
     XTypeAware("sea-dsa-type-aware",
                llvm::cl::desc("Enable SeaDsa type awareness"),
-               llvm::cl::location(sea_dsa::IsTypeAware), llvm::cl::init(false));
+               llvm::cl::location(seadsa::IsTypeAware), llvm::cl::init(false));
 
-namespace sea_dsa {
+namespace seadsa {
 
 class DsaAllocator {
   boost::pool<> m_pool;
@@ -67,17 +67,17 @@ public:
 
   DsaAllocatorDeleter getDeleter() { return DsaAllocatorDeleter(*this); }
 };
-} // namespace sea_dsa
+} // namespace seadsa
 
-inline void *operator new(size_t n, sea_dsa::DsaAllocator &allocator) {
+inline void *operator new(size_t n, seadsa::DsaAllocator &allocator) {
   return allocator.alloc(n);
 }
 
-inline void operator delete(void *p, sea_dsa::DsaAllocator &allocator) {
+inline void operator delete(void *p, seadsa::DsaAllocator &allocator) {
   allocator.free(p);
 }
 
-namespace sea_dsa {
+namespace seadsa {
 void DsaAllocatorDeleter::operator()(void *block) {
   operator delete(block, *m_allocator);
 }
@@ -1131,7 +1131,7 @@ bool Graph::hasCell(const llvm::Value &u) const {
 //   return false;
 // }
 
-DsaAllocSite *sea_dsa::Graph::mkAllocSite(const llvm::Value &v) {
+DsaAllocSite *seadsa::Graph::mkAllocSite(const llvm::Value &v) {
   auto res = getAllocSite(v);
   if (res.hasValue())
     return res.getValue();
@@ -1419,4 +1419,4 @@ Node &FlatGraph::mkNode() {
 
 // Initialization of static data
 uint64_t Node::m_id_factory = 0;
-} // namespace sea_dsa
+} // namespace seadsa

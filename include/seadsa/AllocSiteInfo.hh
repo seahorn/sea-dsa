@@ -18,7 +18,7 @@ class Type;
 class Value;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 class AllocWrapInfo;
 
 class AllocSiteInfo : public llvm::ModulePass {
@@ -55,4 +55,4 @@ public:
   static llvm::Optional<unsigned>
   getAllocSiteSize(const llvm::Value &v);
 };
-} // namespace sea_dsa
+} // namespace seadsa

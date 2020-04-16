@@ -1,7 +1,7 @@
 #include "llvm/Support/raw_ostream.h"
-#include "sea_dsa/Mapper.hh"
+#include "seadsa/Mapper.hh"
 
-using namespace sea_dsa;
+using namespace seadsa;
 
 void FunctionalMapper::insert(const Cell &src, const Cell &dst) {
   assert (!src.isNull());

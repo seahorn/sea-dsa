@@ -1,4 +1,4 @@
-#include "sea_dsa/TypeUtils.hh"
+#include "seadsa/TypeUtils.hh"
 
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -12,11 +12,11 @@
 
 using namespace llvm;
 
-unsigned sea_dsa::getTypeSizeInBytes(const Type &ty, const DataLayout &dl) {
+unsigned seadsa::getTypeSizeInBytes(const Type &ty, const DataLayout &dl) {
   return dl.getTypeStoreSize(&const_cast<Type &>(ty));
 }
 
-namespace sea_dsa {
+namespace seadsa {
 
 void SubTypeDesc::dump(llvm::raw_ostream &OS /* = llvm::errs() */) {
   OS << "SubTypeDesc:  ";
@@ -69,4 +69,4 @@ void AggregateIterator::doStep() {
       Worklist.push_back(SubTy);
   }
 }
-} // namespace sea_dsa
+} // namespace seadsa

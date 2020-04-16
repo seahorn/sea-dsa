@@ -6,9 +6,9 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/Mapper.hh"
+#include "seadsa/CallSite.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/Mapper.hh"
 
 namespace llvm {
 class DataLayout;
@@ -16,7 +16,7 @@ class TargetLibraryInfo;
 class CallGraph;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 class AllocWrapInfo;
 
 class BottomUpAnalysis {
@@ -49,4 +49,4 @@ public:
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
 };
 
-} // namespace sea_dsa
+} // namespace seadsa

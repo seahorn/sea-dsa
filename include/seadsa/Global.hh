@@ -6,11 +6,11 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "sea_dsa/BottomUp.hh"
-#include "sea_dsa/CallGraphWrapper.hh"
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/Mapper.hh"
+#include "seadsa/BottomUp.hh"
+#include "seadsa/CallGraphWrapper.hh"
+#include "seadsa/CallSite.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/Mapper.hh"
 
 #include "boost/container/flat_set.hpp"
 
@@ -20,7 +20,7 @@ class TargetLibraryInfo;
 class CallGraph;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 
 class AllocWrapInfo;
 
@@ -463,5 +463,5 @@ public:
 
   void runOnCallSite(const DsaCallSite &cs, Node &calleeN, Node &callerN);
 };
-} // namespace sea_dsa
+} // namespace seadsa
 #endif

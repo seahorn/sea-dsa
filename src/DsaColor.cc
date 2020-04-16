@@ -1,17 +1,17 @@
-#include "sea_dsa/DsaColor.hh"
+#include "seadsa/DsaColor.hh"
 
-#include "sea_dsa/Graph.hh"
+#include "seadsa/Graph.hh"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Function.h"
 
-#include "sea_dsa/Mapper.hh"
+#include "seadsa/Mapper.hh"
 
-using namespace sea_dsa;
+using namespace seadsa;
 using namespace llvm;
 
 // Color class
 
-namespace sea_dsa {
+namespace seadsa {
 
 void color_nodes_aux(const Node &n_callee, const Node &n_caller,
                      NodeSet &f_proc, SimulationMapper &sm, ColorMap &c_callee,
@@ -72,4 +72,4 @@ void colorGraph(const DsaCallSite &cs, const Graph &calleeG,
 }
 
 
-} // sea_dsa
+} // seadsa

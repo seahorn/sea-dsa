@@ -6,27 +6,27 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GraphWriter.h"
 
-#include "sea_dsa/CompleteCallGraph.hh"
-#include "sea_dsa/CallGraphUtils.hh"
-#include "sea_dsa/DsaAnalysis.hh"
-#include "sea_dsa/Global.hh"
-#include "sea_dsa/GraphTraits.hh"
-#include "sea_dsa/Info.hh"
-#include "sea_dsa/support/Debug.h"
-#include "sea_dsa/DsaColor.hh"
+#include "seadsa/CompleteCallGraph.hh"
+#include "seadsa/CallGraphUtils.hh"
+#include "seadsa/DsaAnalysis.hh"
+#include "seadsa/Global.hh"
+#include "seadsa/GraphTraits.hh"
+#include "seadsa/Info.hh"
+#include "seadsa/support/Debug.h"
+#include "seadsa/DsaColor.hh"
 
 /*
    Convert each DSA graph to .dot file.
  */
 
-namespace sea_dsa {
+namespace seadsa {
 std::string DotOutputDir;
 }
 
 static llvm::cl::opt<std::string, true>
     XDotOutputDir("sea-dsa-dot-outdir",
                   llvm::cl::desc("Output directory for dot files"),
-                  llvm::cl::location(sea_dsa::DotOutputDir), llvm::cl::init(""),
+                  llvm::cl::location(seadsa::DotOutputDir), llvm::cl::init(""),
                   llvm::cl::value_desc("DIR"));
 
 static llvm::cl::opt<bool> DsaColorCallSiteSimDot(
@@ -42,7 +42,7 @@ static llvm::cl::opt<bool>
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 
 namespace internals {
 
@@ -282,20 +282,20 @@ raw_ostream &WriteGraph(raw_ostream &O, const GraphType &G,
 }
 
 } // namespace internals
-} // end namespace sea_dsa
+} // end namespace seadsa
 
 namespace llvm {
 
 template <>
-struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
+struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
 
   DOTGraphTraits(bool &b) {}
   DOTGraphTraits() {}
 
-  // static std::string getGraphName(const sea_dsa::Graph *G) {
+  // static std::string getGraphName(const seadsa::Graph *G) {
   // }
 
-  static std::string getGraphProperties(const sea_dsa::Graph *G) {
+  static std::string getGraphProperties(const seadsa::Graph *G) {
     std::string empty;
     raw_string_ostream OS(empty);
     OS << "\tgraph [center=true, ratio=true, bgcolor=lightgray, "
@@ -304,8 +304,8 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     return OS.str();
   }
 
-  static std::string getNodeAttributes(const sea_dsa::Node *N,
-                                       const sea_dsa::Graph *G, ColorMap *cm) {
+  static std::string getNodeAttributes(const seadsa::Node *N,
+                                       const seadsa::Graph *G, ColorMap *cm) {
     std::string empty;
     raw_string_ostream OS(empty);
 
@@ -324,7 +324,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         OS << "fillcolor=brown1, style=filled";
       } else if (N->isOffsetCollapsed()) {
         OS << "fillcolor=chocolate1, style=filled";
-      } else if (N->isTypeCollapsed() && sea_dsa::IsTypeAware) {
+      } else if (N->isTypeCollapsed() && seadsa::IsTypeAware) {
         OS << "fillcolor=darkorchid2, style=filled";
       } else {
         OS << "fillcolor=gray, style=filled";
@@ -333,7 +333,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     return OS.str();
   }
 
-  static void writeAllocSites(const sea_dsa::Node &Node,
+  static void writeAllocSites(const seadsa::Node &Node,
                               llvm::raw_string_ostream &O) {
     O << "\nAS:";
     const size_t numAllocSites = Node.getAllocSites().size();
@@ -348,18 +348,18 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     O << "\n";
   }
 
-  static std::string getNodeLabel(const sea_dsa::Node *N,
-                                  const sea_dsa::Graph *G) {
+  static std::string getNodeLabel(const seadsa::Node *N,
+                                  const seadsa::Graph *G) {
     std::string empty;
     raw_string_ostream OS(empty);
     if (N->isForwarding()) {
       OS << "FORWARDING";
     } else {
       if (N->isOffsetCollapsed() || (N->isTypeCollapsed() &&
-                                     sea_dsa::IsTypeAware)) {
+                                     seadsa::IsTypeAware)) {
         if (N->isOffsetCollapsed())
           OS << "OFFSET-";
-        if (N->isTypeCollapsed() && sea_dsa::IsTypeAware)
+        if (N->isTypeCollapsed() && seadsa::IsTypeAware)
           OS << "TYPE-";
         OS << "COLLAPSED";
       } else {
@@ -390,7 +390,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
         OS << "}";
       }
       OS << ":";
-      typename sea_dsa::Node::NodeType node_type = N->getNodeType();
+      typename seadsa::Node::NodeType node_type = N->getNodeType();
       if (node_type.array)
         OS << " Sequence ";
       if (node_type.alloca)
@@ -429,13 +429,13 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
     return OS.str();
   }
 
-  bool isNodeHidden(sea_dsa::Node *Node) {
+  bool isNodeHidden(seadsa::Node *Node) {
     // TODO: do not show nodes without incoming edges
     return false;
   }
 
-  static std::string getEdgeSourceLabel(const sea_dsa::Node *Node,
-                                        sea_dsa::Node::iterator I) {
+  static std::string getEdgeSourceLabel(const seadsa::Node *Node,
+                                        seadsa::Node::iterator I) {
     std::string S;
     llvm::raw_string_ostream O(S);
     O << I.getField();
@@ -454,7 +454,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
 
   static bool hasEdgeDestLabels() { return true; }
 
-  static unsigned numEdgeDestLabels(const sea_dsa::Node *Node) {
+  static unsigned numEdgeDestLabels(const seadsa::Node *Node) {
     return Node->links().size();
   }
 
@@ -462,7 +462,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
   // XXX: if we use llvm::GraphWriter and we want to add destination labels.
   // It won't show the graphs as we want anyway.
   ///////
-  // static std::string getEdgeDestLabel(const sea_dsa::Node *Node,
+  // static std::string getEdgeDestLabel(const seadsa::Node *Node,
   // 					unsigned Idx) {
   //   std::string S;
   //   llvm::raw_string_ostream O(S);
@@ -471,7 +471,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
   // }
 
   // static bool edgeTargetsEdgeSource(const void *Node,
-  // 				      sea_dsa::Node::iterator I) {
+  // 				      seadsa::Node::iterator I) {
   //   if (I.getOffset() < I->getNode()->size()) {
   //   	if (I->hasLink (I.getOffset())) {
   // 	  //unsigned O = I->getLink(I.getOffset()).getOffset();
@@ -485,18 +485,18 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
   //   }
   // }
 
-  // static sea_dsa::Node::iterator getEdgeTarget(const sea_dsa::Node *Node,
-  // 						      sea_dsa::Node::iterator I)
+  // static seadsa::Node::iterator getEdgeTarget(const seadsa::Node *Node,
+  // 						      seadsa::Node::iterator I)
   // {
   //   unsigned O = I->getLink(I.getOffset()).getOffset();
   //   unsigned LinkNo = O;
-  //   sea_dsa::Node *N = *I;
-  //   sea_dsa::Node::iterator R = N->begin();
+  //   seadsa::Node *N = *I;
+  //   seadsa::Node::iterator R = N->begin();
   //   for (; LinkNo; --LinkNo) ++R;
   //   return R;
   // }
 
-  // static int getOffset (const sea_dsa::Node *Node, unsigned Idx) {
+  // static int getOffset (const seadsa::Node *Node, unsigned Idx) {
   //   auto it = Node->links().begin();
   //   auto et = Node->links().end();
   //   unsigned i = 0;
@@ -508,7 +508,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
   //   return -1;
   // }
 
-  static int getIndex(const sea_dsa::Node *Node, sea_dsa::Field Offset) {
+  static int getIndex(const seadsa::Node *Node, seadsa::Field Offset) {
     auto it = Node->links().begin();
     auto et = Node->links().end();
     unsigned idx = 0;
@@ -520,14 +520,14 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
   }
 
   static void addCustomGraphFeatures(
-      sea_dsa::Graph *g,
-      sea_dsa::internals::GraphWriter<sea_dsa::Graph *> &GW) {
+      seadsa::Graph *g,
+      seadsa::internals::GraphWriter<seadsa::Graph *> &GW) {
 
-    typedef sea_dsa::Node Node;
-    typedef sea_dsa::Field Field;
+    typedef seadsa::Node Node;
+    typedef seadsa::Field Field;
 
-    auto EmitLinkTypeSuffix = [](const sea_dsa::Cell &C,
-                                 sea_dsa::FieldType Ty =
+    auto EmitLinkTypeSuffix = [](const seadsa::Cell &C,
+                                 seadsa::FieldType Ty =
                                                    FIELD_TYPE_NOT_IMPLEMENTED) {
       std::string Buff;
       llvm::raw_string_ostream OS(Buff);
@@ -607,7 +607,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
 
           for (auto &OffLink : N.getLinks()) {
             const int EdgeSrc = getIndex(&N, OffLink.first);
-            const sea_dsa::Cell &C = *OffLink.second.get();
+            const seadsa::Cell &C = *OffLink.second.get();
             const int EdgeDest = getIndex(C.getNode(), OffLink.first);
             GW.emitEdge(&N, EdgeSrc, C.getNode(), EdgeDest,
                         Twine("arrowtail=tee",
@@ -617,7 +617,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
           continue;
         }
 
-        const sea_dsa::Cell &Dest = N.getForwardDest();
+        const seadsa::Cell &Dest = N.getForwardDest();
         GW.emitEdge(&N, -1, Dest.getNode(), -1,
                     Twine("arrowtail=tee,color=dodgerblue1,style=dashed",
                           EmitLinkTypeSuffix(Dest)));
@@ -628,7 +628,7 @@ struct DOTGraphTraits<sea_dsa::Graph *> : public DefaultDOTGraphTraits {
 
 } // end namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 
 using namespace llvm;
 
@@ -666,7 +666,7 @@ private:
 public :
 
   bool runOnModule(Module &M) override {
-    m_dsa = &getAnalysis<sea_dsa::DsaAnalysis>();
+    m_dsa = &getAnalysis<seadsa::DsaAnalysis>();
     assert(m_dsa);
 
     if (m_dsa->getDsaAnalysis().kind() == GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
@@ -769,7 +769,7 @@ struct DsaViewer : public ModulePass {
   DsaViewer() : ModulePass(ID), m_dsa(nullptr), wait(false) {}
 
   bool runOnModule(Module &M) override {
-    m_dsa = &getAnalysis<sea_dsa::DsaAnalysis>();
+    m_dsa = &getAnalysis<seadsa::DsaAnalysis>();
     if (m_dsa->getDsaAnalysis().kind() == GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
       Function *main = M.getFunction("main");
       if (main && m_dsa->getDsaAnalysis().hasGraph(*main)) {
@@ -811,14 +811,14 @@ struct DsaViewer : public ModulePass {
 char DsaPrinter::ID = 0;
 char DsaViewer::ID = 0;
 
-Pass *createDsaPrinterPass() { return new sea_dsa::DsaPrinter(); }
+Pass *createDsaPrinterPass() { return new seadsa::DsaPrinter(); }
 
-Pass *createDsaViewerPass() { return new sea_dsa::DsaViewer(); }
+Pass *createDsaViewerPass() { return new seadsa::DsaViewer(); }
 
-} // end namespace sea_dsa
+} // end namespace seadsa
 
-static llvm::RegisterPass<sea_dsa::DsaPrinter> X("seadsa-printer",
+static llvm::RegisterPass<seadsa::DsaPrinter> X("seadsa-printer",
                                                  "Print SeaDsa memory graphs");
 
-static llvm::RegisterPass<sea_dsa::DsaViewer> Y("seadsa-viewer",
+static llvm::RegisterPass<seadsa::DsaViewer> Y("seadsa-viewer",
                                                 "View SeaDsa memory graphs");

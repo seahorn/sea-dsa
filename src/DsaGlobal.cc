@@ -13,20 +13,20 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/AllocWrapInfo.hh"
-#include "sea_dsa/BottomUp.hh"
-#include "sea_dsa/CallGraphUtils.hh"
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/Cloner.hh"
-#include "sea_dsa/CompleteCallGraph.hh"
-#include "sea_dsa/Global.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/GraphUtils.hh"
-#include "sea_dsa/Local.hh"
-#include "sea_dsa/TopDown.hh"
-#include "sea_dsa/config.h"
+#include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/BottomUp.hh"
+#include "seadsa/CallGraphUtils.hh"
+#include "seadsa/CallSite.hh"
+#include "seadsa/Cloner.hh"
+#include "seadsa/CompleteCallGraph.hh"
+#include "seadsa/Global.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/GraphUtils.hh"
+#include "seadsa/Local.hh"
+#include "seadsa/TopDown.hh"
+#include "seadsa/config.h"
 
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/support/Debug.h"
 
 #include <queue>
 
@@ -47,7 +47,7 @@ static llvm::cl::opt<bool> UseDsaCallGraph(
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 
 //////
 /// Context-insensitive analysis
@@ -222,9 +222,9 @@ bool FlatMemoryGlobalPass::runOnModule(Module &M) {
   return m_ga->runOnModule(M);
 }
 
-} // end namespace sea_dsa
+} // end namespace seadsa
 
-namespace sea_dsa {
+namespace seadsa {
 
 // A simple worklist implementation
 template <typename T> struct WorkList<T>::impl {
@@ -821,9 +821,9 @@ bool BottomUpGlobalPass::runOnModule(Module &M) {
   return m_ga->runOnModule(M);
 }
 
-} // namespace sea_dsa
+} // namespace seadsa
 
-namespace sea_dsa {
+namespace seadsa {
 
 // propagate unique scalars across callsites
 void UniqueScalar::runOnCallSite(const DsaCallSite &cs, Node &calleeN,
@@ -952,29 +952,29 @@ void CallGraphClosure<GA, Op>::exec_callsite(const DsaCallSite &cs,
     }
   }
 }
-} // namespace sea_dsa
+} // namespace seadsa
 
-char sea_dsa::FlatMemoryGlobalPass::ID = 0;
+char seadsa::FlatMemoryGlobalPass::ID = 0;
 
-char sea_dsa::ContextInsensitiveGlobalPass::ID = 0;
+char seadsa::ContextInsensitiveGlobalPass::ID = 0;
 
-char sea_dsa::ContextSensitiveGlobalPass::ID = 0;
+char seadsa::ContextSensitiveGlobalPass::ID = 0;
 
-char sea_dsa::BottomUpTopDownGlobalPass::ID = 0;
+char seadsa::BottomUpTopDownGlobalPass::ID = 0;
 
-char sea_dsa::BottomUpGlobalPass::ID = 0;
+char seadsa::BottomUpGlobalPass::ID = 0;
 
-static llvm::RegisterPass<sea_dsa::FlatMemoryGlobalPass>
+static llvm::RegisterPass<seadsa::FlatMemoryGlobalPass>
     U("seadsa-flat-global", "Flat memory SeaDsa analysis");
 
-static llvm::RegisterPass<sea_dsa::ContextInsensitiveGlobalPass>
+static llvm::RegisterPass<seadsa::ContextInsensitiveGlobalPass>
     X("seadsa-ci-global", "Context-insensitive SeaDsa analysis (for VC generation)");
 
-static llvm::RegisterPass<sea_dsa::ContextSensitiveGlobalPass>
+static llvm::RegisterPass<seadsa::ContextSensitiveGlobalPass>
     Y("seadsa-cs-global", "Context-sensitive SeaDsa analysis (for VC generation)");
 
-static llvm::RegisterPass<sea_dsa::BottomUpTopDownGlobalPass>
+static llvm::RegisterPass<seadsa::BottomUpTopDownGlobalPass>
     Z("seadsa-butd-global", "Bottom-up + top-down SeaDsa analysis");
 
-static llvm::RegisterPass<sea_dsa::BottomUpGlobalPass>
+static llvm::RegisterPass<seadsa::BottomUpGlobalPass>
     W("seadsa-bu-global", "Bottom-up SeaDsa analysis");

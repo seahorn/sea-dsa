@@ -24,7 +24,7 @@ namespace llvm
     class raw_ostream;
 }
 
-namespace sea_dsa 
+namespace seadsa 
 {
   class Node;
   class Graph; 
@@ -32,7 +32,7 @@ namespace sea_dsa
 }
 
 
-namespace sea_dsa {
+namespace seadsa {
   
   // Wrapper to extend a dsa node with extra information
   class NodeWrapper 

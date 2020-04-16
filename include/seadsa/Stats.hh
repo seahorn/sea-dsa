@@ -14,19 +14,19 @@ namespace llvm {
   class raw_ostream;
 }
 
-namespace sea_dsa  {
+namespace seadsa  {
   class DsaInfo;
 }
 
-namespace sea_dsa {
+namespace seadsa {
 
   class DsaPrintStats  {
     
-    const sea_dsa::DsaInfo &m_dsa;
+    const seadsa::DsaInfo &m_dsa;
     
   public:
     
-    DsaPrintStats (const sea_dsa::DsaInfo& dsa): m_dsa (dsa) {}
+    DsaPrintStats (const seadsa::DsaInfo& dsa): m_dsa (dsa) {}
     
     void runOnModule (llvm::Module &M);
 

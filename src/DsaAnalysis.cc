@@ -1,4 +1,4 @@
-#include "sea_dsa/DsaAnalysis.hh"
+#include "seadsa/DsaAnalysis.hh"
 
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
@@ -7,20 +7,20 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/AllocWrapInfo.hh"
-#include "sea_dsa/Global.hh"
-#include "sea_dsa/Info.hh"
-#include "sea_dsa/Stats.hh"
-#include "sea_dsa/support/RemovePtrToInt.hh"
+#include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/Global.hh"
+#include "seadsa/Info.hh"
+#include "seadsa/Stats.hh"
+#include "seadsa/support/RemovePtrToInt.hh"
 
-namespace sea_dsa {
+namespace seadsa {
 extern bool IsTypeAware;
 }
 
-using namespace sea_dsa;
+using namespace seadsa;
 using namespace llvm;
 
-static llvm::cl::opt<sea_dsa::GlobalAnalysisKind> DsaGlobalAnalysis(
+static llvm::cl::opt<seadsa::GlobalAnalysisKind> DsaGlobalAnalysis(
     "sea-dsa", llvm::cl::desc("Choose the SeaDsa analysis"),
     llvm::cl::values(
         clEnumValN(GlobalAnalysisKind::CONTEXT_SENSITIVE, "cs",
@@ -33,13 +33,13 @@ static llvm::cl::opt<sea_dsa::GlobalAnalysisKind> DsaGlobalAnalysis(
         clEnumValN(GlobalAnalysisKind::FLAT_MEMORY, "flat", "Flat memory")),
     llvm::cl::init(GlobalAnalysisKind::CONTEXT_SENSITIVE));
 
-namespace sea_dsa {
+namespace seadsa {
 bool PrintDsaStats;
 }
 
 static llvm::cl::opt<bool, true>
 XDsaStats("sea-dsa-stats", llvm::cl::desc("Print stats about SeaDsa analysis"),
-	  llvm::cl::location(sea_dsa::PrintDsaStats),
+	  llvm::cl::location(seadsa::PrintDsaStats),
 	  llvm::cl::init(false));
 
 void DsaAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {

@@ -2,12 +2,12 @@
 
 #include "llvm/ADT/DenseMap.h"
 
-#include "sea_dsa/CallSite.hh"
+#include "seadsa/CallSite.hh"
 
-using namespace sea_dsa;
+using namespace seadsa;
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 
 using Color = unsigned;
 
@@ -21,4 +21,4 @@ void colorGraph(const DsaCallSite &cs, const Graph &calleeG,
                 const Graph &callerG, ColorMap &color_callee,
                 ColorMap &color_caller);
 
-} // end namespace sea_dsa
+} // end namespace seadsa

@@ -64,8 +64,8 @@ accessible when building with `SeaDsa`.
 If your project uses `cmake` then you just need to add in your
 project's `CMakeLists.txt`:
 
-	 include_directories(sea_dsa/include)
-	 add_subdirectory(sea_dsa)
+	 include_directories(seadsa/include)
+	 add_subdirectory(seadsa)
 
 ### Standalone (for developers) ###
 
@@ -248,15 +248,15 @@ print file,line, and column information):
 
 The pointer semantics of external calls can be defined by writing a
 wrapper that calls any of these functions defined in
-`sea_dsa/sea_dsa.h`:
+`seadsa/seadsa.h`:
 
-- `extern void sea_dsa_alias(const void *p, ...);`
-- `extern void sea_dsa_collapse(const void *p);`
-- `extern void sea_dsa_mk_seq(const void *p, unsigned sz);`
+- `extern void seadsa_alias(const void *p, ...);`
+- `extern void seadsa_collapse(const void *p);`
+- `extern void seadsa_mk_seq(const void *p, unsigned sz);`
 
-`sea_dsa_alias` unifies all argument's cells, `sea_dsa_collapse` tells
+`seadsa_alias` unifies all argument's cells, `seadsa_collapse` tells
 `sea-dsa` to collapse (i.e., loss of field-sensitivity) the cell
-pointed by `p`, and `sea_dsa_mk_seq` tells `sea-dsa` to mark as
+pointed by `p`, and `seadsa_mk_seq` tells `sea-dsa` to mark as
 _sequence_ the node pointed by `p` with size `sz`. 
 
 For instance, consider an external call `foo` defined as follows:
@@ -268,11 +268,11 @@ Suppose that the returned pointer should be unified to `p2` but not to
 `p3`. Then, we can replace the above prototype of `foo` with the
 following definition:
 
-	#include "sea_dsa/sea_dsa.h"
+	#include "seadsa/seadsa.h"
 	void* foo(const void*p1, void *p2, void*p3) {
-		void* r = sea_dsa_new();
-		sea_dsa_alias(r,p2);
-		sea_dsa_collapse(p3);
+		void* r = seadsa_new();
+		seadsa_alias(r,p2);
+		seadsa_collapse(p3);
 		return r;
 	}
 

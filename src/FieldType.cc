@@ -1,19 +1,19 @@
-#include "sea_dsa/FieldType.hh"
+#include "seadsa/FieldType.hh"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/TypeUtils.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/TypeUtils.hh"
 
-namespace sea_dsa {
+namespace seadsa {
 
 static llvm::cl::opt<bool>
     OmnipotentChar("sea-dsa-omnipotent-char",
                    llvm::cl::desc("Enable SeaDsa omnipotent char"),
                    llvm::cl::init(false));
 
-namespace sea_dsa {
+namespace seadsa {
   bool IsTypeAware;
 }
 
@@ -102,4 +102,4 @@ bool FieldType::IsOmnipotentChar(llvm::Type *Ty) {
 
 bool FieldType::IsNotTypeAware() { return !IsTypeAware; }
 
-} // namespace sea_dsa
+} // namespace seadsa

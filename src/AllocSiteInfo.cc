@@ -1,4 +1,4 @@
-#include "sea_dsa/AllocSiteInfo.hh"
+#include "seadsa/AllocSiteInfo.hh"
 
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -12,14 +12,14 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 
-#include "sea_dsa/AllocWrapInfo.hh"
-#include "sea_dsa/TypeUtils.hh"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/TypeUtils.hh"
+#include "seadsa/support/Debug.h"
 
 #define ASI_LOG(...) LOG("alloc_site_info", __VA_ARGS__)
 // #define ASI_LOG(...) do { __VA_ARGS__ ; } while (false)
 
-using namespace sea_dsa;
+using namespace seadsa;
 using namespace llvm;
 
 char AllocSiteInfo::ID = 0;
@@ -156,5 +156,5 @@ llvm::Optional<unsigned> AllocSiteInfo::getAllocSiteSize(const Value &v) {
   return llvm::None;
 }
 
-static llvm::RegisterPass<sea_dsa::AllocSiteInfo> X("seadsa-alloc-site-info",
+static llvm::RegisterPass<seadsa::AllocSiteInfo> X("seadsa-alloc-site-info",
                                                     "Detects allocation sites");

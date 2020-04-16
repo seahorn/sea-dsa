@@ -14,8 +14,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ImmutableSet.h"
 
-#include "sea_dsa/AllocSite.hh"
-#include "sea_dsa/FieldType.hh"
+#include "seadsa/AllocSite.hh"
+#include "seadsa/FieldType.hh"
 
 #include <functional>
 
@@ -25,7 +25,7 @@ class DataLayout;
 class raw_ostream;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 
 class Node;
 class Cell;
@@ -872,22 +872,22 @@ Node *Node::getNode() { return isForwarding() ? m_forward.getNode() : this; }
 const Node *Node::getNode() const {
   return isForwarding() ? m_forward.getNode() : this;
 }
-} // namespace sea_dsa
+} // namespace seadsa
 
 namespace llvm {
-inline raw_ostream &operator<<(raw_ostream &o, const sea_dsa::Node &n) {
+inline raw_ostream &operator<<(raw_ostream &o, const seadsa::Node &n) {
   n.write(o);
   return o;
 }
-inline raw_ostream &operator<<(raw_ostream &o, const sea_dsa::Cell &c) {
+inline raw_ostream &operator<<(raw_ostream &o, const seadsa::Cell &c) {
   c.write(o);
   return o;
 }
 } // namespace llvm
 
 namespace std {
-template <> struct hash<sea_dsa::Cell> {
-  size_t operator()(const sea_dsa::Cell &c) const {
+template <> struct hash<seadsa::Cell> {
+  size_t operator()(const seadsa::Cell &c) const {
     size_t seed = 0;
     boost::hash_combine(seed, c.getNode());
     boost::hash_combine(seed, c.getRawOffset());

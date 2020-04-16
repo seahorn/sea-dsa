@@ -1,8 +1,8 @@
-#include "sea_dsa/AllocSite.hh"
+#include "seadsa/AllocSite.hh"
 
 #include "llvm/IR/Function.h"
 
-#include "sea_dsa/CallSite.hh"
+#include "seadsa/CallSite.hh"
 
 #include <algorithm>
 
@@ -11,7 +11,7 @@ static llvm::cl::opt<std::string> TrackAllocSite(
     llvm::cl::desc("DSA: Track allocation site <function_name,value_name>"),
     llvm::cl::init(""), llvm::cl::Hidden);
 
-namespace sea_dsa {
+namespace seadsa {
 
 llvm::StringRef getTrackedASFunction() {
   const size_t commaPos = TrackAllocSite.find(',');
@@ -123,4 +123,4 @@ void DsaAllocSite::printCallPaths(llvm::raw_ostream &os) const {
   }
 }
 
-} // namespace sea_dsa
+} // namespace seadsa

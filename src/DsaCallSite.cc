@@ -2,11 +2,11 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 
-#include "sea_dsa/CallSite.hh"
+#include "seadsa/CallSite.hh"
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 
 bool DsaCallSite::isPointerTy::operator()(const Value *v) {
   return v->getType()->isPointerTy();
@@ -151,4 +151,4 @@ void DsaCallSite::write(raw_ostream &o) const {
   }
 }
 
-} // namespace sea_dsa
+} // namespace seadsa

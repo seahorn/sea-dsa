@@ -7,20 +7,20 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "sea_dsa/Graph.hh"
+#include "seadsa/Graph.hh"
 
 namespace llvm {
 class DataLayout;
 class TargetLibraryInfo;
 } // namespace llvm
 
-namespace sea_dsa {
+namespace seadsa {
 class AllocWrapInfo;
 
 class LocalAnalysis {
   const llvm::DataLayout &m_dl;
   const llvm::TargetLibraryInfo &m_tli;
-  const sea_dsa::AllocWrapInfo &m_allocInfo;
+  const seadsa::AllocWrapInfo &m_allocInfo;
   bool m_track_callsites;
 
 public:
@@ -58,5 +58,5 @@ public:
 
   const Graph &getGraph(const llvm::Function &F) const;
 };
-} // namespace sea_dsa
+} // namespace seadsa
 #endif

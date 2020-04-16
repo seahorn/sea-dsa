@@ -9,18 +9,18 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/FileSystem.h"
 
-#include "sea_dsa/config.h"
-#include "sea_dsa/CompleteCallGraph.hh"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/config.h"
+#include "seadsa/CompleteCallGraph.hh"
+#include "seadsa/support/Debug.h"
 
 using namespace llvm;
 
-namespace sea_dsa {
+namespace seadsa {
 extern std::string DotOutputDir;
 }
 
 
-namespace sea_dsa {
+namespace seadsa {
 
 struct DsaCallGraphPrinter: public llvm::ModulePass {
   static char ID;
@@ -83,12 +83,12 @@ void DsaCallGraphPrinter::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 }
 
 Pass *createDsaCallGraphPrinterPass() {
-  return new sea_dsa::DsaCallGraphPrinter();
+  return new seadsa::DsaCallGraphPrinter();
 }
-} // namespace sea_dsa
+} // namespace seadsa
 
 
-static llvm::RegisterPass<sea_dsa::DsaCallGraphPrinter>
+static llvm::RegisterPass<seadsa::DsaCallGraphPrinter>
 X("seadsa-callgraph-printer", "Print the SeaDsa call graph to dot format");
 
 

@@ -1,4 +1,4 @@
-#include "sea_dsa/TopDown.hh"
+#include "seadsa/TopDown.hh"
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -13,13 +13,13 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/AllocWrapInfo.hh"
-#include "sea_dsa/CallSite.hh"
-#include "sea_dsa/Cloner.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/Local.hh"
-#include "sea_dsa/config.h"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/CallSite.hh"
+#include "seadsa/Cloner.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/Local.hh"
+#include "seadsa/config.h"
+#include "seadsa/support/Debug.h"
 
 using namespace llvm;
 
@@ -33,7 +33,7 @@ static llvm::cl::opt<bool>
                    llvm::cl::desc("Disable copying optimizations in top down"),
                    llvm::cl::init(false), llvm::cl::Hidden);
 
-namespace sea_dsa {
+namespace seadsa {
 
 // Clone caller nodes into callee and resolve arguments
 // XXX: this code is pretty much symmetric to the one defined in
@@ -226,4 +226,4 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   LOG("dsa-td", errs() << "Finished top-down analysis\n");
   return false;
 }
-} // namespace sea_dsa
+} // namespace seadsa

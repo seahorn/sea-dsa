@@ -7,11 +7,11 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "sea_dsa/DsaAnalysis.hh"
-#include "sea_dsa/Graph.hh"
-#include "sea_dsa/Info.hh"
-#include "sea_dsa/config.h"
-#include "sea_dsa/support/Debug.h"
+#include "seadsa/DsaAnalysis.hh"
+#include "seadsa/Graph.hh"
+#include "seadsa/Info.hh"
+#include "seadsa/config.h"
+#include "seadsa/support/Debug.h"
 
 static llvm::cl::opt<std::string> DsaToCsv(
     "sea-dsa-to-csv",
@@ -24,7 +24,7 @@ AllocasToFile("sea-dsa-allocas-to-file",
 	      llvm::cl::desc ("SeaDsa: print allocation sites into a file"),
 	      llvm::cl::init(""), llvm::cl::Hidden);
 
-using namespace sea_dsa;
+using namespace seadsa;
 using namespace llvm;
 
 static bool isStaticallyKnown (const DataLayout* dl, 
@@ -500,9 +500,9 @@ DsaInfo& DsaInfoPass::getDsaInfo () {
   return *(static_cast<DsaInfo*> (&*m_dsa_info));
 } 
 
-Pass *createDsaInfoPass() { return new sea_dsa::DsaInfoPass(); }
+Pass *createDsaInfoPass() { return new seadsa::DsaInfoPass(); }
 
-char sea_dsa::DsaInfoPass::ID = 0;
+char seadsa::DsaInfoPass::ID = 0;
 
-static llvm::RegisterPass<sea_dsa::DsaInfoPass> 
+static llvm::RegisterPass<seadsa::DsaInfoPass> 
 X ("seadsa-info", "Gather info about SeaDsa memory graphs");
