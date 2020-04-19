@@ -1,5 +1,5 @@
+cmake_minimum_required(VERSION 3.10.2)
 project(sea-dsa)
-cmake_minimum_required(VERSION 3.4.3)
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR )
   message (FATAL_ERROR
@@ -29,26 +29,12 @@ list (APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
 option(SEA_ENABLE_LLD "Use lld as C and C++ linker." OFF)
-if(SEA_ENABLE_LLD) 
+if(SEA_ENABLE_LLD)
   set(CMAKE_EXE_LINKER_FLAGS "-fuse-ld=lld")
 endif()
 
 
 option (SEA_DSA_STATIC_EXE "Static executable." OFF)
-
-## Boost
-if (TOP_LEVEL)
-  set (CUSTOM_BOOST_ROOT "" CACHE PATH "Path to custom boost installation.")
-  if (CUSTOM_BOOST_ROOT)
-    set (BOOST_ROOT ${CUSTOM_BOOST_ROOT})
-    set (Boost_NO_SYSTEM_PATHS "ON")
-  endif()
-
-  find_package (Boost 1.55)
-  if (Boost_FOUND)
-    include_directories (${Boost_INCLUDE_DIRS})
-  endif ()
-endif ()
 
 ## llvm
 if (TOP_LEVEL)
@@ -63,31 +49,31 @@ if (TOP_LEVEL)
     -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
     -DLLVM_TARGETS_TO_BUILD:STRING=X86 -DWITH_POLY:BOOL=OFF
-    -DLLVM_ENABLE_PEDANTIC=OFF 
+    -DLLVM_ENABLE_PEDANTIC=OFF
     -DLLVM_ENABLE_LLD=${SEA_ENABLE_LLD}
-    -DLLVM_ENABLE_PIC=ON -DLLVM_REQUIRES_RTTI:BOOL=TRUE
+    -DLLVM_ENABLE_PIC=ON
     -DLLVM_BUILD_LLVM_DYLIB:BOOL=${BUILD_SEA_DSA_LIBS_SHARED}
     -DLLVM_INCLUDE_TESTS:BOOL=OFF
     -DLLVM_INCLUDE_GO_TESTS=OFF
     -DLLVM_INCLUDE_EXAMPLES=OFF
     -DLLVM_INCLUDE_DOCS=OFF
-    -DLLVM_BINDINGS_LIST=" "    
+    -DLLVM_BINDINGS_LIST=" "
     LOG_CONFIGURE 1
     LOG_BUILD 1
     LOG_INSTALL 1)
 
-  find_package (LLVM 8.0 CONFIG NO_DEFAULT_PATH)
+  find_package (LLVM 8.0 CONFIG)
   if (NOT LLVM_FOUND)
     ExternalProject_Get_Property (llvm INSTALL_DIR)
     set (LLVM_ROOT ${INSTALL_DIR})
-    set (LLVM_DIR ${LLVM_ROOT}/lib/cmake/llvm CACHE PATH    
+    set (LLVM_DIR ${LLVM_ROOT}/lib/cmake/llvm CACHE PATH
       "Forced location of LLVM cmake config" FORCE)
     message (WARNING "No llvm found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
     return()
   else()
     set_target_properties(llvm PROPERTIES EXCLUDE_FROM_ALL ON)
   endif()
-  
+
   message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
   message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
@@ -97,30 +83,60 @@ if (TOP_LEVEL)
   include(HandleLLVMOptions)
   set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin)
   set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib)
-  
+
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LLVM_CXXFLAGS}")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LLVM_LDFLAGS}")
-  
-  set(LLVM_REQUIRES_RTTI TRUE)
-  set(LLVM_REQUIRES_EH TRUE)
-  
+
   include_directories(${LLVM_INCLUDE_DIRS})
   link_directories(${LLVM_LIBRARY_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
+
+  if (NOT LLVM_BUILD_TYPE STREQUAL CMAKE_BUILD_TYPE)
+    message(WARNING
+      "LLVM_BUILD_TYPE and CMAKE_BUILD_TYPE differ:\n"
+      "\tLLMV_BUILD_TYPE=${LLVM_BUILD_TYPE}\n"
+      "\tCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}\n"
+      "Runtime errors might occur.")
+    if (LLVM_BUILD_TYPE MATCHES "Release|RelWithDebInfo" AND 
+        CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo")
+      message(STATUS "Assuming that mixing Release and RelWithDebInfo is allowed.")
+    else()
+      message(FATAL_ERROR "Incompatible mix of LLVM_BUILD_TYPE and CMAKE_BUILD_TYPE")
+    endif()
+  endif()
 endif ()
 
-## sea-dsa
-add_definitions(-std=c++11)
+
+## Boost
+if (TOP_LEVEL)
+  set (CUSTOM_BOOST_ROOT "" CACHE PATH "Path to custom boost installation.")
+  if (CUSTOM_BOOST_ROOT)
+    set (BOOST_ROOT ${CUSTOM_BOOST_ROOT})
+    set (Boost_NO_SYSTEM_PATHS "ON")
+  endif()
+
+
+  find_package (Boost 1.65 REQUIRED)
+  if (Boost_FOUND)
+    include_directories (${Boost_INCLUDE_DIRS})
+    if(NOT LLVM_ENABLE_EH)
+      add_definitions(-DBOOST_NO_EXCEPTIONS)
+    endif()
+  endif ()
+endif ()
+
+# sea-dsa specific
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 add_definitions(-Wno-redeclared-class-member)
 add_definitions(-Wno-sometimes-uninitialized)
 add_definitions(-Wno-deprecated-declarations)
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
   add_definitions( -Wno-unused-local-typedefs)
-  else ()
-  if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-local-typedef")
-     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-inconsistent-missing-override")
-  endif ()
+elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  add_definitions("-Wno-unused-local-typedef")
+  add_definitions("-Wno-inconsistent-missing-override")
 endif ()
 
 
