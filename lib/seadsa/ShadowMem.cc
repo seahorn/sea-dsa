@@ -183,10 +183,11 @@ public:
     MemoryLocation A = getMemLoc(ptrA, instA, sizeA);
     MemoryLocation B = getMemLoc(ptrB, instB, sizeB);
 
-    if (m_tbaa && m_tbaa->alias(A, B) == AliasResult::NoAlias)
+    AAQueryInfo AAQI;
+    if (m_tbaa && m_tbaa->alias(A, B, AAQI) == AliasResult::NoAlias)
       return true;
 
-    return m_baa && m_baa->alias(A, B) == AliasResult::NoAlias;
+    return m_baa && m_baa->alias(A, B, AAQI) == AliasResult::NoAlias;
   }
 };
 } // end namespace
@@ -1194,43 +1195,51 @@ void ShadowMemImpl::visitMemTransferInst(MemTransferInst &I) {
   associateConcretePtr(useDefPair.second, dst, &I);
 }
 
+template<typename... ArgsTy>
+Constant* getOrInsertFunction(Module &M, StringRef Name, Type *RetTy, ArgsTy... Args) {
+  FunctionCallee fc = M.getOrInsertFunction(Name, RetTy, Args...);
+  Constant* ret = dyn_cast<Constant>(fc.getCallee());
+  assert(ret);
+  return ret;
+}
+
 void ShadowMemImpl::mkShadowFunctions(Module &M) {
   LLVMContext &ctx = M.getContext();
   m_Int32Ty = Type::getInt32Ty(ctx);
   Type *i8PtrTy = Type::getInt8PtrTy(ctx);
   Type *voidTy = Type::getVoidTy(ctx);
 
-  m_memLoadFn = M.getOrInsertFunction(m_memLoadTag, voidTy, m_Int32Ty,
-                                      m_Int32Ty, i8PtrTy);
+  m_memLoadFn = getOrInsertFunction(M, m_memLoadTag, voidTy, m_Int32Ty,
+                                    m_Int32Ty, i8PtrTy);
 
-  m_memTrsfrLoadFn = M.getOrInsertFunction(m_memTrsfrLoadTag, voidTy, m_Int32Ty,
-                                           m_Int32Ty, i8PtrTy);
+  m_memTrsfrLoadFn = getOrInsertFunction(M, m_memTrsfrLoadTag, voidTy,
+                                         m_Int32Ty, m_Int32Ty, i8PtrTy);
 
-  m_memStoreFn = M.getOrInsertFunction(m_memStoreTag, m_Int32Ty, m_Int32Ty,
-                                       m_Int32Ty, i8PtrTy);
+  m_memStoreFn = getOrInsertFunction(M, m_memStoreTag, m_Int32Ty, m_Int32Ty,
+                                     m_Int32Ty, i8PtrTy);
 
-  m_memGlobalVarInitFn = M.getOrInsertFunction(m_memGlobalVarInitTag, m_Int32Ty,
-                                               m_Int32Ty, m_Int32Ty, i8PtrTy);
+  m_memGlobalVarInitFn = getOrInsertFunction(
+      M, m_memGlobalVarInitTag, m_Int32Ty, m_Int32Ty, m_Int32Ty, i8PtrTy);
 
   m_memShadowInitFn =
-      M.getOrInsertFunction(m_memInitTag, m_Int32Ty, m_Int32Ty, i8PtrTy);
+      getOrInsertFunction(M, m_memInitTag, m_Int32Ty, m_Int32Ty, i8PtrTy);
 
   m_memShadowArgInitFn =
-      M.getOrInsertFunction(m_memArgInitTag, m_Int32Ty, m_Int32Ty, i8PtrTy);
+      getOrInsertFunction(M, m_memArgInitTag, m_Int32Ty, m_Int32Ty, i8PtrTy);
 
-  m_argRefFn = M.getOrInsertFunction(m_memArgRefTag, voidTy, m_Int32Ty,
-                                     m_Int32Ty, m_Int32Ty, i8PtrTy);
+  m_argRefFn = getOrInsertFunction(M, m_memArgRefTag, voidTy, m_Int32Ty,
+                                   m_Int32Ty, m_Int32Ty, i8PtrTy);
 
-  m_argModFn = M.getOrInsertFunction(m_memArgModTag, m_Int32Ty, m_Int32Ty,
-                                     m_Int32Ty, m_Int32Ty, i8PtrTy);
+  m_argModFn = getOrInsertFunction(M, m_memArgModTag, m_Int32Ty, m_Int32Ty,
+                                   m_Int32Ty, m_Int32Ty, i8PtrTy);
 
-  m_argNewFn = M.getOrInsertFunction(m_memArgNewTag, m_Int32Ty, m_Int32Ty,
-                                     m_Int32Ty, m_Int32Ty, i8PtrTy);
+  m_argNewFn = getOrInsertFunction(M, m_memArgNewTag, m_Int32Ty, m_Int32Ty,
+                                   m_Int32Ty, m_Int32Ty, i8PtrTy);
 
-  m_markIn = M.getOrInsertFunction(m_memFnInTag, voidTy, m_Int32Ty, m_Int32Ty,
-                                   m_Int32Ty, i8PtrTy);
-  m_markOut = M.getOrInsertFunction(m_memFnOutTag, voidTy, m_Int32Ty, m_Int32Ty,
-                                    m_Int32Ty, i8PtrTy);
+  m_markIn = getOrInsertFunction(M, m_memFnInTag, voidTy, m_Int32Ty, m_Int32Ty,
+                                 m_Int32Ty, i8PtrTy);
+  m_markOut = getOrInsertFunction(M, m_memFnOutTag, voidTy, m_Int32Ty,
+                                  m_Int32Ty, m_Int32Ty, i8PtrTy);
 
   m_memInitFunctions = {m_memShadowInitFn, m_memGlobalVarInitFn,
                         m_memShadowArgInitFn};
