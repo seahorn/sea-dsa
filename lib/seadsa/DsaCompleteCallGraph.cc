@@ -73,7 +73,7 @@ static Value *stripBitCast(Value *V) {
     return V;
   }
 }
-  
+
 // XXX: similar to Graph::import but with two modifications:
 // - the callee graph is modified during the cloning of call sites.
 // - call sites are copied.
@@ -224,7 +224,7 @@ void CompleteCallGraphAnalysis::printStats(Module& M, raw_ostream& o) {
   unsigned num_indirect_unresolved_calls = 0;
   unsigned num_asm_calls = 0;
   unsigned num_unexpected_calls = 0;
-  
+
   std::string str;
   raw_string_ostream str_os(str);
 
@@ -236,7 +236,7 @@ void CompleteCallGraphAnalysis::printStats(Module& M, raw_ostream& o) {
       str_os << *(Ty->getParamType(i));
       ++i;
       if (i < num_params) {
-	str_os << ",";
+  str_os << ",";
       }
     }
     str_os << ")";
@@ -333,14 +333,14 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   GraphMap graphs;
 
   // initialize empty graphs
-  for (auto &F : M) { 
+  for (auto &F : M) {
     if (F.isDeclaration() || F.empty())
       continue;
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
     graphs[&F] = fGraph;
   }
 
-  const bool track_callsites = true;  
+  const bool track_callsites = true;
   LocalAnalysis la(m_dl, m_tli, m_allocInfo, track_callsites);
 
   // Given a callsite, inline the callee's graph into the caller's graph.
@@ -379,7 +379,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   InstSet IncompleteCallSites;
   while (change) {
     IncompleteCallSites.clear();
-    
+
     /// This loop performs a bottom-up traversal while inlining
     /// callee's graphs into callers. The callgraph is augmented with
     /// new edges after each iteration.
@@ -486,24 +486,24 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
     for (auto &kv : graphs) {
       for (DsaCallSite &cs : kv.second->callsites()) {
         if (kv.first->getName().equals("main") ||
-	    // XXX: a callsite might not be cloned if the function has
-	    // not been inlined yet but in that case its allocation
-	    // sites should be empty and we skip the callsite.
-	    (!cs.isCloned())) {
+      // XXX: a callsite might not be cloned if the function has
+      // not been inlined yet but in that case its allocation
+      // sites should be empty and we skip the callsite.
+      (!cs.isCloned())) {
 
           // Get all possible callees from the allocation sites
           auto &alloc_sites = cs.getCell().getNode()->getAllocSites();
           if (alloc_sites.empty()) {
 #if 0
-	    // This can happen in early fixpoint iterations or if
-	    // some callsite is in a function that is never inlined
-	    // (e.g., if its address is taken and passed to an
-	    // external call that is supposed to call it).
-	    errs() << "WARNING: callsite at " << cs.getCaller()->getName()
-	     	   << " in graph " << kv.first->getName()
-	     	   << " without allocation site at iteration " << numIter << "\n"
-	     	   << "\t" << *cs.getInstruction() << "\n"
-	     	   << "\t" << *(cs.getCell().getNode()) << "\n";
+      // This can happen in early fixpoint iterations or if
+      // some callsite is in a function that is never inlined
+      // (e.g., if its address is taken and passed to an
+      // external call that is supposed to call it).
+      errs() << "WARNING: callsite at " << cs.getCaller()->getName()
+           << " in graph " << kv.first->getName()
+           << " without allocation site at iteration " << numIter << "\n"
+           << "\t" << *cs.getInstruction() << "\n"
+           << "\t" << *(cs.getCell().getNode()) << "\n";
 #endif
             continue;
           }
@@ -513,52 +513,56 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           assert(CGNCaller);
           CallSite CGNCS(const_cast<Instruction *>(cs.getInstruction()));
 
-	  /// At this point, we can try to resolve the indirect call
-	 
+          // XXX: remove const qualifier because addCalledFunction expects this
+          const CallBase *const_cb = dyn_cast<CallBase>(cs.getInstruction());
+          CallBase *cb = const_cast<CallBase*>(const_cb);
+
+          /// At this point, we can try to resolve the indirect call
           // Update the callgraph by adding a new edge to each
           // resolved callee.
-	  bool has_external_alloc_site = false;
+          bool has_external_alloc_site = false;
           for (const Value *v : alloc_sites) {
             if (const Function *fn = dyn_cast<const Function>(v)) {
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
               if (!hasEdge(CGNCaller, CGNCallee, CGNCS)) {
-                CGNCaller->addCalledFunction(CGNCS, CGNCallee);
-		m_callees[cs.getInstruction()].push_back(fn);
+                assert(cb);
+                CGNCaller->addCalledFunction(cb, CGNCallee);
+                m_callees[cs.getInstruction()].push_back(fn);
                 change = true;
               }
             } else {
               // If external call then we shouldn't remove the
               // original edge with the indirect call.
               IncompleteCallSites.insert(cs.getInstruction());
-	      has_external_alloc_site = true;
-	      LOG("dsa-callgraph-resolve",
-		  errs() << "Resolving indirect call by "
-		         << kv.first->getName() << " at "
-		         << cs.getInstruction()->getParent()->getParent()->getName()
+        has_external_alloc_site = true;
+        LOG("dsa-callgraph-resolve",
+      errs() << "Resolving indirect call by "
+             << kv.first->getName() << " at "
+             << cs.getInstruction()->getParent()->getParent()->getName()
                          << ":\n";
-		  cs.write(errs()); errs() << "\n";
-		  errs() << "Marked as incomplete.\n";);
+      cs.write(errs()); errs() << "\n";
+      errs() << "Marked as incomplete.\n";);
             }
           }
-	  
-	  if (!has_external_alloc_site) {
-	    // At this point we know about the indirect call that :
-	    // 1) it can be resolved. This happens either because:
-	    //    - we have already reached main during the bottom-up process or
-	    //    - the callsite cannot be inlined anymore.
-	    // 2) it has at least one allocation site (i.e., some
-	    //    callee to resolve it)
-	    // 3) it has no external allocation site.
-	    m_resolved.insert(cs.getInstruction());
-	    // LOG("dsa-callgraph-resolve",
-	    // 	errs() << "Resolving indirect call by "
-	    // 	       << kv.first->getName() << " at "
-	    // 	       << cs.getInstruction()->getParent()->getParent()->getName()
+
+    if (!has_external_alloc_site) {
+      // At this point we know about the indirect call that :
+      // 1) it can be resolved. This happens either because:
+      //    - we have already reached main during the bottom-up process or
+      //    - the callsite cannot be inlined anymore.
+      // 2) it has at least one allocation site (i.e., some
+      //    callee to resolve it)
+      // 3) it has no external allocation site.
+      m_resolved.insert(cs.getInstruction());
+      // LOG("dsa-callgraph-resolve",
+      //  errs() << "Resolving indirect call by "
+      //         << kv.first->getName() << " at "
+      //         << cs.getInstruction()->getParent()->getParent()->getName()
             //            << ":\n";
-	    // 	cs.write(errs()); errs() << "\n";
-	    // 	errs() << "Marked as complete.\n";);
-	  }
+      //  cs.write(errs()); errs() << "\n";
+      //  errs() << "Marked as complete.\n";);
+    }
         }
 
         // reset the cloned flag for next bottom-up iteration
@@ -578,27 +582,27 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
     ++numIter;
   }
-  
+
   /// Remove edges in the callgraph: remove original indirect call
   /// from call graph if we now for sure we fully resolved it.
   for (auto &F : M) {
-    if (CallGraphNode *CGNF = (*m_complete_cg)[&F]) {
-      // collect first callsites to avoid invalidating CGNF's
-      // iterators
-      std::vector<CallSite> toRemove;
-      for (auto &kv : llvm::make_range(CGNF->begin(), CGNF->end())) {
-        if (!kv.first)
-          continue;
-        CallSite CS(kv.first);
-	if (CS.isIndirectCall() &&
-            !kv.second->getFunction() /* has no callee */) {
-	  if (m_resolved.count(CS.getInstruction()) > 0)
-	    toRemove.push_back(CS);
-	}
+    CallGraphNode *CGNF = (*m_complete_cg)[&F];
+    if(!CGNF) continue;
+
+    // collect first callsites to avoid invalidating iterators
+    std::vector<CallSite> toRemove;
+    for (auto &kv : llvm::make_range(CGNF->begin(), CGNF->end())) {
+      if (!kv.first) continue;
+      CallSite CS(kv.first);
+      if (CS.isIndirectCall() && !kv.second->getFunction() /* has no callee */) {
+        if (m_resolved.count(CS.getInstruction()) > 0)
+          toRemove.push_back(CS);
       }
-      for (CallSite CS : toRemove) {
-        CGNF->removeCallEdgeFor(CS);
-      }
+    }
+    for (CallSite CS : toRemove) {
+      CallBase *cb = dyn_cast<CallBase>(CS.getInstruction());
+      assert(cb);
+      CGNF->removeCallEdgeFor(*cb);
     }
   }
 
@@ -654,7 +658,7 @@ CompleteCallGraphAnalysis::callee_iterator
 CompleteCallGraphAnalysis::end(llvm::CallSite& CS) {
   return m_callees[CS.getInstruction()].end();
 }
-  
+
 CompleteCallGraph::CompleteCallGraph(bool printStats)
   : ModulePass(ID), m_CCGA(nullptr), m_printStats(printStats) {}
 
@@ -683,7 +687,7 @@ CallGraph &CompleteCallGraph::getCompleteCallGraph() {
 }
 
 const CallGraph &CompleteCallGraph::getCompleteCallGraph() const {
-  return m_CCGA->getCompleteCallGraphRef();  
+  return m_CCGA->getCompleteCallGraphRef();
 }
 
 bool CompleteCallGraph::isComplete(CallSite& CS) const {
@@ -695,9 +699,9 @@ CompleteCallGraph::callee_iterator CompleteCallGraph::begin(llvm::CallSite& CS) 
 }
 
 CompleteCallGraph::callee_iterator CompleteCallGraph::end(llvm::CallSite& CS) {
-  return m_CCGA->end(CS);  
+  return m_CCGA->end(CS);
 }
-  
+
 char CompleteCallGraph::ID = 0;
 
 Pass *createDsaPrintCallGraphStatsPass() {
