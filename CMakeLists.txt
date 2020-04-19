@@ -9,8 +9,16 @@ endif()
 # determine if this is top-level or embedded project
 if (PROJECT_NAME STREQUAL CMAKE_PROJECT_NAME)
   set (TOP_LEVEL TRUE)
+
 else()
   set (TOP_LEVEL FALSE)
+endif()
+
+if(TOP_LEVEL)
+  if(CMAKE_VERSION VERSION_GREATER "3.13.0")
+    cmake_policy(SET CMP0074 NEW)
+    cmake_policy(SET CMP0077 NEW)
+  endif()
 endif()
 
 option (BUILD_SEA_DSA_LIBS_SHARED "Build all sea-dsa libraries shared." OFF)
@@ -62,7 +70,7 @@ if (TOP_LEVEL)
     LOG_BUILD 1
     LOG_INSTALL 1)
 
-  find_package (LLVM 8.0 CONFIG)
+  find_package (LLVM 9 CONFIG)
   if (NOT LLVM_FOUND)
     ExternalProject_Get_Property (llvm INSTALL_DIR)
     set (LLVM_ROOT ${INSTALL_DIR})
@@ -135,10 +143,9 @@ add_definitions(-Wno-deprecated-declarations)
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
   add_definitions( -Wno-unused-local-typedefs)
 elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-  add_definitions("-Wno-unused-local-typedef")
-  add_definitions("-Wno-inconsistent-missing-override")
+  add_definitions(-Wno-unused-local-typedef)
+  add_definitions(-Wno-inconsistent-missing-override)
 endif ()
-
 
 configure_file(include/seadsa/config.h.cmake
   ${CMAKE_BINARY_DIR}/include/seadsa/config.h)
