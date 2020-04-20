@@ -7,7 +7,8 @@
 
 namespace seadsa {
 
-struct RemovePtrToInt: public llvm::FunctionPass {
+class RemovePtrToInt: public llvm::FunctionPass {
+public:
   static char ID;
 
   RemovePtrToInt() : llvm::FunctionPass(ID) {}

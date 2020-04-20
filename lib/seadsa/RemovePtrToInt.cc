@@ -9,6 +9,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
+#include "seadsa/InitializePasses.hh"
 #include "seadsa/support/Debug.h"
 
 #define RPTI_LOG(...) LOG("remove-ptrtoint", __VA_ARGS__)
@@ -17,7 +18,6 @@ using namespace llvm;
 
 namespace seadsa {
 
-char RemovePtrToInt::ID = 0;
 
 static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
                            SmallPtrSetImpl<StoreInst *> &StoresToErase,
@@ -219,6 +219,8 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   return Changed;
 }
 
+char seadsa::RemovePtrToInt::ID = 0;
+
 void RemovePtrToInt::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesCFG();
   AU.addRequired<llvm::DominatorTreeWrapperPass>();
@@ -227,7 +229,10 @@ void RemovePtrToInt::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
 } // namespace seadsa
 
-static llvm::RegisterPass<seadsa::RemovePtrToInt>
-X("seadsa-remove-ptrtoint",
-  "Removes ptrtoint");
-  
+using namespace seadsa;
+INITIALIZE_PASS_BEGIN(RemovePtrToInt, "sea-remove-ptrtoint",
+                      "Remove ptrtoint instructions", false, false)
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_END(RemovePtrToInt, "sea-remove-ptrtoint",
+                    "Remove ptrtoint instructions", false, false)

@@ -12,6 +12,7 @@
 #include "seadsa/Info.hh"
 #include "seadsa/Stats.hh"
 #include "seadsa/support/RemovePtrToInt.hh"
+#include "seadsa/InitializePasses.hh"
 
 namespace seadsa {
 extern bool IsTypeAware;
@@ -23,13 +24,14 @@ using namespace llvm;
 static llvm::cl::opt<seadsa::GlobalAnalysisKind> DsaGlobalAnalysis(
     "sea-dsa", llvm::cl::desc("Choose the SeaDsa analysis"),
     llvm::cl::values(
-        clEnumValN(GlobalAnalysisKind::CONTEXT_SENSITIVE, "cs",
-                   "Context-sensitive for VC generation as in SAS'17 (default)"),
+        clEnumValN(
+            GlobalAnalysisKind::CONTEXT_SENSITIVE, "cs",
+            "Context-sensitive for VC generation as in SAS'17 (default)"),
         clEnumValN(GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE, "butd-cs",
-		   "Bottom-up + top-down"),
-	clEnumValN(GlobalAnalysisKind::BU, "bu", "Bottom-up"),
+                   "Bottom-up + top-down"),
+        clEnumValN(GlobalAnalysisKind::BU, "bu", "Bottom-up"),
         clEnumValN(GlobalAnalysisKind::CONTEXT_INSENSITIVE, "ci",
-		   "Context-insensitive for VC generation"),
+                   "Context-insensitive for VC generation"),
         clEnumValN(GlobalAnalysisKind::FLAT_MEMORY, "flat", "Flat memory")),
     llvm::cl::init(GlobalAnalysisKind::CONTEXT_SENSITIVE));
 
@@ -38,9 +40,9 @@ bool PrintDsaStats;
 }
 
 static llvm::cl::opt<bool, true>
-XDsaStats("sea-dsa-stats", llvm::cl::desc("Print stats about SeaDsa analysis"),
-	  llvm::cl::location(seadsa::PrintDsaStats),
-	  llvm::cl::init(false));
+    XDsaStats("sea-dsa-stats",
+              llvm::cl::desc("Print stats about SeaDsa analysis"),
+              llvm::cl::location(seadsa::PrintDsaStats), llvm::cl::init(false));
 
 void DsaAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<RemovePtrToInt>();
@@ -81,8 +83,8 @@ bool DsaAnalysis::runOnModule(Module &M) {
         *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory, true /* use flat*/));
     break;
   case GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE:
-    m_ga.reset(new BottomUpTopDownGlobalAnalysis(
-        *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory));
+    m_ga.reset(new BottomUpTopDownGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
+                                                 cg, m_setFactory));
     break;
   case GlobalAnalysisKind::BU:
     m_ga.reset(new BottomUpGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo, cg,
@@ -108,5 +110,11 @@ bool DsaAnalysis::runOnModule(Module &M) {
 
 char DsaAnalysis::ID = 0;
 
-static llvm::RegisterPass<DsaAnalysis>
-    X("seadsa-wrapper", "Entry point for all SeaDsa clients");
+using namespace seadsa;
+INITIALIZE_PASS_BEGIN(DsaAnalysis, "dsa-wrapper",
+                      "Entry point for all SeaDsa clients", false, false)
+INITIALIZE_PASS_DEPENDENCY(RemovePtrToInt)
+INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_END(DsaAnalysis, "dsa-wrapper",
+                    "Entry point for all SeaDsa clients", false, false)
