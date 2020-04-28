@@ -519,7 +519,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           // resolved callee.
 	  bool has_external_alloc_site = false;
           for (const Value *v : alloc_sites) {
-            if (const Function *fn = dyn_cast<const Function>(v)) {
+            if (const Function *fn = dyn_cast<const Function>(v->stripPointerCasts())) {
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
               if (!hasEdge(CGNCaller, CGNCallee, CGNCS)) {
