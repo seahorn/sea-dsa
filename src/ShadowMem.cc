@@ -74,7 +74,7 @@ bool recursivelyDeleteTriviallyDeadInstructions(
     llvm::Value *V, const llvm::TargetLibraryInfo *TLI = nullptr) {
 
   Instruction *I = dyn_cast<Instruction>(V);
-  if (!I->getParent())
+  if (!I || !I->getParent())
     return false;
   return llvm::RecursivelyDeleteTriviallyDeadInstructions(V, TLI);
 }
