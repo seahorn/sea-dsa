@@ -1,4 +1,4 @@
-add_llvm_library (SeaDsaAnalysis
+add_llvm_library (SeaDsaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   Graph.cc
   FieldType.cc
   DsaLocal.cc

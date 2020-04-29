@@ -12,7 +12,7 @@ set(LLVM_LINK_COMPONENTS
   objcarcopts)
 
 
-add_llvm_executable(seadsa seadsa.cc)
+add_llvm_executable(seadsa DISABLE_LLVM_LINK_LLVM_DYLIB seadsa.cc)
 target_link_libraries (seadsa PRIVATE SeaDsaAnalysis)
 llvm_config (seadsa ${LLVM_LINK_COMPONENTS})
 add_custom_target(sea-dsa-tool DEPENDS seadsa)
