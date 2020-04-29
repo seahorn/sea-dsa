@@ -56,7 +56,7 @@ static const Value *findUniqueReturnValue(const Function &F) {
     if (!RI)
       continue;
 
-    const Value *rv = RI->getOperand(0)->stripPointerCastsNoFollowAliases();
+    const Value *rv = RI->getOperand(0)->stripPointerCasts();
     if (onlyRetVal && onlyRetVal != rv)
       return nullptr;
 

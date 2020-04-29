@@ -95,7 +95,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     // bring a single allocation site, regardless of the unifications in the
     // caller graph.
     const Value *onlyAllocSite = nullptr;
-    const Value *argStripped = arg->stripPointerCastsNoFollowAliases();
+    const Value *argStripped = arg->stripPointerCasts();
 
     if (callerG.hasAllocSiteForValue(*argStripped)) {
       onlyAllocSite = argStripped;
