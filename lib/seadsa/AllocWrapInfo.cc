@@ -7,7 +7,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
-
+#include "llvm/Support/CommandLine.h"
 #include <vector>
 
 using namespace seadsa;
@@ -34,7 +34,7 @@ void AllocWrapInfo::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool AllocWrapInfo::runOnModule(Module &M) {
-  m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
 
   for (auto &name : ExtraAllocs) {
     m_allocs.insert(name);
@@ -85,13 +85,14 @@ void AllocWrapInfo::findAllocs(Module &M) {
   for (Function &F : M) {
     if (m_allocs.count(F.getName()))
       continue;
+    auto &tli = getTLI(F);
     // find the first call because MemoryBuiltins only provides
     // interface for call-sites and not for individual functions
     for (User *U : F.users()) {
       CallInst *CI = dyn_cast<CallInst>(U);
       if (!CI)
         continue;
-      if (llvm::isAllocationFn(CI, &getTLI(), true))
+      if (llvm::isAllocationFn(CI, &tli, true))
         m_allocs.insert(F.getName());
       break;
     }

@@ -3,6 +3,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "llvm/ADT/DenseSet.h"
@@ -422,14 +423,14 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
     if (ce->isCast() && ce->getOperand(0)->getType()->isPointerTy())
       return valueCell(*ce->getOperand(0));
     else if (ce->getOpcode() == Instruction::GetElementPtr) {
-      Value &base = *(ce->getOperand(0));      
+      Value &base = *(ce->getOperand(0));
 
       // We create first a cell for the gep'd pointer operand if it's
       // an IntToPtr
       if (const ConstantExpr *base_ce = dyn_cast<ConstantExpr>(&base)) {
-      	if (base_ce->getOpcode() == Instruction::IntToPtr) {
-      	  valueCell(base);
-      	}
+        if (base_ce->getOpcode() == Instruction::IntToPtr) {
+          valueCell(base);
+        }
       }
       SmallVector<Value *, 8> indicies(ce->op_begin() + 1, ce->op_end());
       visitGep(v, base, indicies);
@@ -558,20 +559,20 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 /// return {OldVal, Success}
 void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
   using namespace seadsa;
-  
+
   if (!m_graph.hasCell(*I.getPointerOperand()->stripPointerCasts())) {
     return;
   }
   Value *Ptr = I.getPointerOperand();
   Value *Cmp = I.getCompareOperand();
   Value *New = I.getNewValOperand();
-  
+
   Cell PtrC = valueCell(*Ptr);
   assert(!PtrC.isNull());
 
   assert(isa<StructType>(I.getType()));
-  Type *ResTy = cast<StructType>(I.getType())->getTypeAtIndex((unsigned) 0); 
-  
+  Type *ResTy = cast<StructType>(I.getType())->getTypeAtIndex((unsigned)0);
+
   PtrC.setModified();
   PtrC.setRead();
   PtrC.growSize(0, Ptr->getType());
@@ -586,7 +587,6 @@ void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
       PtrC.setLink(LoadedField, Cell(n, 0));
     }
     Cell Res = m_graph.mkCell(I, PtrC.getLink(LoadedField));
-
 
     if (!isSkip(*New)) {
       Cell NewC = valueCell(*New);
@@ -1434,7 +1434,7 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
 }
 
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
-  if (!isEscapingPtrToInt(I)) 
+  if (!isEscapingPtrToInt(I))
     return;
 
   assert(m_graph.hasCell(*I.getOperand(0)));
@@ -1460,6 +1460,8 @@ namespace seadsa {
 void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   LOG("dsa-progress",
       errs() << "Running seadsa::Local on " << F.getName() << "\n");
+
+  auto &tli = m_tliWrapper.getTLI(F);
   // create cells and nodes for formal arguments
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
@@ -1483,13 +1485,13 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   boost::reverse(bbs);
 
   if (F.getName().equals("main")) {
-    GlobalBuilder globalBuilder(F, g, m_dl, m_tli, m_allocInfo);
+    GlobalBuilder globalBuilder(F, g, m_dl, tli, m_allocInfo);
     globalBuilder.initGlobalVariables();
   }
 
-  IntraBlockBuilder intraBuilder(F, g, m_dl, m_tli, m_allocInfo,
+  IntraBlockBuilder intraBuilder(F, g, m_dl, tli, m_allocInfo,
                                  m_track_callsites);
-  InterBlockBuilder interBuilder(F, g, m_dl, m_tli, m_allocInfo);
+  InterBlockBuilder interBuilder(F, g, m_dl, tli, m_allocInfo);
   for (const BasicBlock *bb : bbs)
     intraBuilder.visit(*const_cast<BasicBlock *>(bb));
   for (const BasicBlock *bb : bbs)
@@ -1525,8 +1527,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
       g.write(errs()));
 }
 
-Local::Local()
-    : ModulePass(ID), m_dl(nullptr), m_tli(nullptr), m_allocInfo(nullptr) {}
+Local::Local() : ModulePass(ID), m_dl(nullptr), m_allocInfo(nullptr) {}
 
 void Local::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
@@ -1536,7 +1537,6 @@ void Local::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool Local::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
-  m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
 
   for (Function &F : M)
@@ -1550,7 +1550,8 @@ bool Local::runOnFunction(Function &F) {
 
   LOG("progress", errs() << "DSA: " << F.getName() << "\n";);
 
-  LocalAnalysis la(*m_dl, *m_tli, *m_allocInfo);
+  auto &tliWrapper = getAnalysis<TargetLibraryInfoWrapperPass>();
+  LocalAnalysis la(*m_dl, tliWrapper, *m_allocInfo);
   GraphRef g = std::make_shared<Graph>(*m_dl, m_setFactory);
   la.runOnFunction(F, *g);
   m_graphs[&F] = g;

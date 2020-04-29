@@ -204,7 +204,7 @@ bool isShadowMemInst(const llvm::Value &v) {
 class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   dsa::GlobalAnalysis &m_dsa;
   dsa::AllocSiteInfo &m_asi;
-  TargetLibraryInfo &m_tli;
+  TargetLibraryInfoWrapperPass &m_tliWrapper;
   const DataLayout *m_dl;
   CallGraph *m_callGraph;
   Pass &m_pass;
@@ -625,10 +625,10 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
 public:
   ShadowMemImpl(dsa::GlobalAnalysis &dsa, dsa::AllocSiteInfo &asi,
-                TargetLibraryInfo &tli, CallGraph *cg, Pass &pass,
+                TargetLibraryInfoWrapperPass &tliWrapper, CallGraph *cg, Pass &pass,
                 bool splitDsaNodes, bool computeReadMod, bool memOptimizer,
                 bool useTBAA)
-      : m_dsa(dsa), m_asi(asi), m_tli(tli), m_dl(nullptr), m_callGraph(cg),
+      : m_dsa(dsa), m_asi(asi), m_tliWrapper(tliWrapper), m_dl(nullptr), m_callGraph(cg),
         m_pass(pass), m_splitDsaNodes(splitDsaNodes),
         m_computeReadMod(computeReadMod), m_memOptimizer(memOptimizer),
         m_useTBAA(useTBAA) {}
@@ -807,22 +807,23 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
   m_graph = &m_dsa.getGraph(F);
   m_shadows.clear();
 
+  auto &tli = m_tliWrapper.getTLI(F);
   // Alias analyses in LLVM are function passes, so we can only get the results
   // once the function is known. The Pass Manager is not able to schedule the
   // AA's here, construct them manually as a workaround.
-  AAResults results(m_tli);
+  AAResults results(tli);
   DominatorTree &dt =
       m_pass.getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
   AssumptionCache &ac =
       m_pass.getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(F);
-  BasicAAResult baa(*m_dl, F, m_tli, ac, &dt);
+  BasicAAResult baa(*m_dl, F, tli, ac, &dt);
   // AA's need to be registered in the results object that will finish their
   // initialization.
   results.addAAResult(baa);
 
   std::unique_ptr<TypeBasedAAResult> tbaa = nullptr;
   if (m_useTBAA) {
-    tbaa = llvm::make_unique<TypeBasedAAResult>();
+    tbaa = std::make_unique<TypeBasedAAResult>();
     results.addAAResult(*tbaa);
   }
 
@@ -830,7 +831,7 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
 
   // -- instrument function F with pseudo-instructions
   m_llvmCtx = &F.getContext();
-  m_B = llvm::make_unique<IRBuilder<>>(*m_llvmCtx);
+  m_B = std::make_unique<IRBuilder<>>(*m_llvmCtx);
 
   this->visit(F);
 
@@ -1574,7 +1575,7 @@ void ShadowMemImpl::solveUses(Function &F) {
 
 /** ShadowMem class **/
 ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi,
-                     llvm::TargetLibraryInfo &tli, llvm::CallGraph *cg,
+                     llvm::TargetLibraryInfoWrapperPass &tli, llvm::CallGraph *cg,
                      llvm::Pass &pass, bool splitDsaNodes, bool computeReadMod,
                      bool memOptimizer, bool useTBAA)
     : m_impl(new ShadowMemImpl(dsa, asi, tli, cg, pass, splitDsaNodes,
@@ -1616,7 +1617,7 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
 
   GlobalAnalysis &dsa = getAnalysis<DsaAnalysis>().getDsaAnalysis();
   AllocSiteInfo &asi = getAnalysis<AllocSiteInfo>();
-  TargetLibraryInfo &tli = getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  auto &tliWrapper = getAnalysis<TargetLibraryInfoWrapperPass>();
   CallGraph *cg = nullptr;
   auto cgPass = getAnalysisIfAvailable<CallGraphWrapperPass>();
   if (cgPass)
@@ -1625,7 +1626,7 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
   LOG("shadow_verbose", errs() << "Module before shadow insertion:\n"
                                << M << "\n";);
 
-  m_shadowMem.reset(new ShadowMem(dsa, asi, tli, cg, *this, SplitFields,
+  m_shadowMem.reset(new ShadowMem(dsa, asi, tliWrapper, cg, *this, SplitFields,
                                   LocalReadMod, ShadowMemOptimize,
                                   ShadowMemUseTBAA));
 

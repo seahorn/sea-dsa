@@ -14,9 +14,11 @@
 
 namespace llvm {
 class DataLayout;
+class TargetLibraryInfoWrapperPass;
 class TargetLibraryInfo;
 class CallGraph;
 class Value;
+class Function;
 } // namespace llvm
 
 namespace seadsa {
@@ -25,7 +27,7 @@ class AllocWrapInfo;
 class DsaAnalysis : public llvm::ModulePass {
 
   const llvm::DataLayout *m_dl;
-  llvm::TargetLibraryInfo *m_tli;
+  llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
   const AllocWrapInfo *m_allocInfo;
   Graph::SetFactory m_setFactory;
   std::unique_ptr<GlobalAnalysis> m_ga;
@@ -35,8 +37,8 @@ public:
   static char ID;
 
   DsaAnalysis(bool print_stats = false)
-      : ModulePass(ID), m_dl(nullptr), m_tli(nullptr), m_allocInfo(nullptr),
-        m_ga(nullptr), m_print_stats(print_stats) {}
+      : ModulePass(ID), m_dl(nullptr), m_tliWrapper(nullptr),
+        m_allocInfo(nullptr), m_ga(nullptr), m_print_stats(print_stats) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
@@ -48,7 +50,11 @@ public:
 
   const llvm::DataLayout &getDataLayout();
 
-  const llvm::TargetLibraryInfo &getTLI();
+  llvm::TargetLibraryInfoWrapperPass &getTLIWrapper() {
+    assert(m_tliWrapper);
+    return *m_tliWrapper;
+  }
+  const llvm::TargetLibraryInfo &getTLI(const llvm::Function &F);
 
   GlobalAnalysis &getDsaAnalysis();
 };

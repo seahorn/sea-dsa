@@ -14,6 +14,7 @@ class LLVMContext;
 class Module;
 class Instruction;
 class TargetLibraryInfo;
+class TargetLibraryInfoWrapperPass;
 class Type;
 class Value;
 } // namespace llvm
@@ -22,7 +23,7 @@ namespace seadsa {
 class AllocWrapInfo;
 
 class AllocSiteInfo : public llvm::ModulePass {
-  llvm::TargetLibraryInfo *m_tli;
+  const llvm::TargetLibraryInfo *m_tli;
   const llvm::DataLayout *m_dl;
   AllocWrapInfo *m_awi;
 

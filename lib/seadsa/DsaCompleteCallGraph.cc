@@ -318,9 +318,9 @@ void CompleteCallGraphAnalysis::printStats(Module& M, raw_ostream& o) {
 
 
 CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
-    const llvm::DataLayout &dl, const llvm::TargetLibraryInfo &tli,
+    const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
     const AllocWrapInfo &allocInfo, llvm::CallGraph &cg, bool noescape)
-    : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
+    : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
       m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
 
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
@@ -341,7 +341,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   }
 
   const bool track_callsites = true;
-  LocalAnalysis la(m_dl, m_tli, m_allocInfo, track_callsites);
+  LocalAnalysis la(m_dl, m_tliWrapper, m_allocInfo, track_callsites);
 
   // Given a callsite, inline the callee's graph into the caller's graph.
   auto inlineCallee = [&graphs, this](DsaCallSite &dsaCS, unsigned numIter, int &cnt) {
@@ -670,11 +670,11 @@ void CompleteCallGraph::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool CompleteCallGraph::runOnModule(Module &M) {
-  auto dl = &M.getDataLayout();
-  auto tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  auto &dl = M.getDataLayout();
+  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto allocInfo = &getAnalysis<AllocWrapInfo>();
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-  m_CCGA.reset(new CompleteCallGraphAnalysis(*dl, *tli, *allocInfo, cg, true));
+  m_CCGA.reset(new CompleteCallGraphAnalysis(dl, tli, *allocInfo, cg, true));
   m_CCGA->runOnModule(M);
   if (PrintCallGraphStats || m_printStats) {
     m_CCGA->printStats(M, errs());

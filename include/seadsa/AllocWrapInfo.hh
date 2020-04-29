@@ -5,6 +5,7 @@
 #pragma once
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Pass.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 
 #include <set>
 #include <string>
@@ -14,6 +15,8 @@ class Function;
 class Module;
 class Instruction;
 class TargetLibraryInfo;
+class TargetLibraryInfoWrapperPass;
+class Function;
 class Value;
 } // namespace llvm
 
@@ -23,7 +26,7 @@ protected:
   std::set<std::string> m_allocs;
   std::set<std::string> m_deallocs;
 
-  llvm::TargetLibraryInfo *m_tli;
+  llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
 
   void findAllocs(llvm::Module &M);
   bool findWrappers(llvm::Module &M, std::set<std::string> &fn_names);
@@ -31,7 +34,7 @@ protected:
 
 public:
   static char ID;
-  AllocWrapInfo() : ModulePass(ID), m_tli(nullptr) {}
+  AllocWrapInfo() : ModulePass(ID), m_tliWrapper(nullptr) {}
 
   bool runOnModule(llvm::Module &) override;
   llvm::StringRef getPassName() const override {
@@ -43,9 +46,14 @@ public:
   bool isDeallocWrapper(llvm::Function &) const;
   const std::set<std::string> &getAllocWrapperNames() const { return m_allocs; }
 
-  const llvm::TargetLibraryInfo &getTLI() const {
-    assert(m_tli);
-    return *m_tli;
+
+  llvm::TargetLibraryInfoWrapperPass &getTLIWrapper() const {
+    assert(m_tliWrapper);
+    return *m_tliWrapper;
+  }
+  const llvm::TargetLibraryInfo &getTLI(const llvm::Function &F) const {
+    assert(m_tliWrapper);
+    return m_tliWrapper->getTLI(F);
   }
 };
 } // namespace seadsa

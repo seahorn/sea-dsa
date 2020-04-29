@@ -9,8 +9,8 @@
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/TypeUtils.hh"
@@ -39,7 +39,7 @@ void AllocSiteInfo::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool AllocSiteInfo::runOnModule(Module &M) {
-  m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  auto &tliWrapper = getAnalysis<TargetLibraryInfoWrapperPass>();
   m_dl = &M.getDataLayout();
   m_awi = &getAnalysis<AllocWrapInfo>();
 
@@ -50,10 +50,16 @@ bool AllocSiteInfo::runOnModule(Module &M) {
     if (fn.isDeclaration())
       continue;
 
+    m_tli = &tliWrapper.getTLI(fn);
+
     ASI_LOG(llvm::errs() << "Running AllocSiteInfo pass on function "
                          << fn.getName() << "\n");
     changed |= markAllocs(fn);
   }
+
+  // Assume there was at least one function, and we will re-use its TLI for
+  // globals
+  assert(m_tli);
 
   // Handle global variables with initializers.
   for (auto &gv : M.globals()) {
@@ -67,6 +73,9 @@ bool AllocSiteInfo::runOnModule(Module &M) {
 
   // TODO(Jakub): what about formals?
 
+
+  // -- reset TLI to avoid reusing it
+  m_tli = nullptr;
   return changed;
 }
 
@@ -157,4 +166,4 @@ llvm::Optional<unsigned> AllocSiteInfo::getAllocSiteSize(const Value &v) {
 }
 
 static llvm::RegisterPass<seadsa::AllocSiteInfo> X("seadsa-alloc-site-info",
-                                                    "Detects allocation sites");
+                                                   "Detects allocation sites");

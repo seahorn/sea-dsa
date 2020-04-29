@@ -13,6 +13,7 @@
 namespace llvm {
 class DataLayout;
 class TargetLibraryInfo;
+class TargetLibraryInfoWrapperPass;
 class CallGraph;
 } // namespace llvm
 
@@ -29,7 +30,7 @@ private:
   typedef std::shared_ptr<SimulationMapper> SimulationMapperRef;
 
   const llvm::DataLayout &m_dl;
-  const llvm::TargetLibraryInfo &m_tli;
+  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   bool m_flowSensitiveOpt;
@@ -40,10 +41,10 @@ public:
                                        Graph &callerG, bool flowSensitiveOpt = true);
 
   BottomUpAnalysis(const llvm::DataLayout &dl,
-                   const llvm::TargetLibraryInfo &tli,
+                   llvm::TargetLibraryInfoWrapperPass &tliWrapper,
                    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
 		   bool flowSensitiveOpt = true)
-    : m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
+    : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
       m_flowSensitiveOpt(flowSensitiveOpt) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);

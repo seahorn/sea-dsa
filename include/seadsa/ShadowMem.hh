@@ -11,6 +11,7 @@ namespace llvm {
 class Value;
 class Function;
 class TargetLibraryInfo;
+class TargetLibraryInfoWrapperPass;
 class DataLayout;
 class CallGraph;
 class CallInst;
@@ -46,7 +47,7 @@ class ShadowMem {
 
 public:
   ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi,
-            llvm::TargetLibraryInfo &tli, llvm::CallGraph *cg,
+            llvm::TargetLibraryInfoWrapperPass &tli, llvm::CallGraph *cg,
             llvm::Pass &pass /* for dominatorTree and assumptionCache*/,
             bool splitDsaNodes = false, bool computeReadMod = false,
             bool memOptimizer = true, bool useTBAA = true);

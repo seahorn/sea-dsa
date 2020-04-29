@@ -17,6 +17,7 @@
 namespace llvm {
 class DataLayout;
 class TargetLibraryInfo;
+class TargetLibraryInfoWrapperPass;
 class CallGraph;
 } // namespace llvm
 
@@ -45,7 +46,7 @@ protected:
   GlobalAnalysisKind _kind;
 
 public:
-  GlobalAnalysis(GlobalAnalysisKind kind): _kind(kind) {}
+  GlobalAnalysis(GlobalAnalysisKind kind) : _kind(kind) {}
 
   virtual ~GlobalAnalysis() {}
 
@@ -82,7 +83,7 @@ private:
   typedef std::unique_ptr<Graph> GraphRef;
 
   const llvm::DataLayout &m_dl;
-  const llvm::TargetLibraryInfo &m_tli;
+  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
@@ -91,16 +92,15 @@ private:
   boost::container::flat_set<const llvm::Function *> m_fns;
 
 public:
-  ContextInsensitiveGlobalAnalysis(const llvm::DataLayout &dl,
-                                   const llvm::TargetLibraryInfo &tli,
-                                   const AllocWrapInfo &allocInfo,
-                                   llvm::CallGraph &cg, SetFactory &setFactory,
-                                   const bool useFlatMemory)
-    : GlobalAnalysis(useFlatMemory ?
-		     GlobalAnalysisKind::FLAT_MEMORY :
-		     GlobalAnalysisKind::CONTEXT_INSENSITIVE),
-      m_dl(dl), m_tli(tli), m_allocInfo(allocInfo), m_cg(cg),
-      m_setFactory(setFactory), m_graph(nullptr) {}
+  ContextInsensitiveGlobalAnalysis(
+      const llvm::DataLayout &dl,
+      llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+      const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
+      SetFactory &setFactory, const bool useFlatMemory)
+      : GlobalAnalysis(useFlatMemory ? GlobalAnalysisKind::FLAT_MEMORY
+                                     : GlobalAnalysisKind::CONTEXT_INSENSITIVE),
+        m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
+        m_setFactory(setFactory), m_graph(nullptr) {}
 
   // unify caller/callee nodes within the same graph
   static void resolveArguments(DsaCallSite &cs, Graph &g);
@@ -118,10 +118,8 @@ public:
   const Graph &getSummaryGraph(const llvm::Function &F) const override {
     return getGraph(F);
   }
-  
-  Graph &getSummaryGraph(const llvm::Function &F) {
-    return getGraph(F);    
-  }
+
+  Graph &getSummaryGraph(const llvm::Function &F) { return getGraph(F); }
 
   bool hasSummaryGraph(const llvm::Function &F) const override {
     return hasGraph(F);
@@ -147,7 +145,7 @@ private:
 class ContextSensitiveGlobalAnalysis : public GlobalAnalysis {
 public:
   typedef typename Graph::SetFactory SetFactory;
-  
+
 private:
   typedef std::shared_ptr<Graph> GraphRef;
   typedef BottomUpAnalysis::GraphMap GraphMap;
@@ -158,18 +156,18 @@ private:
       CalleeCallerMapping;
 
   const llvm::DataLayout &m_dl;
-  const llvm::TargetLibraryInfo &m_tli;
+  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
 
-  // Context-sensitive graphs 
+  // Context-sensitive graphs
   GraphMap m_graphs;
   // Bottom-up graphs
   GraphMap m_bu_graphs;
   // Whether to store bottom-up graphs
   bool m_store_bu_graphs;
-  
+
   PropagationKind decidePropagation(const DsaCallSite &cs, Graph &callerG,
                                     Graph &calleeG);
 
@@ -183,12 +181,12 @@ private:
   bool checkNoMorePropagation(llvm::CallGraph &cg);
 
 public:
-  ContextSensitiveGlobalAnalysis(const llvm::DataLayout &dl,
-                                 const llvm::TargetLibraryInfo &tli,
-                                 const AllocWrapInfo &allocInfo,
-                                 llvm::CallGraph &cg, SetFactory &setFactory,
-				 bool storeSummaryGraphs = false);
-  
+  ContextSensitiveGlobalAnalysis(
+      const llvm::DataLayout &dl,
+      llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+      const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
+      SetFactory &setFactory, bool storeSummaryGraphs = false);
+
   bool runOnModule(llvm::Module &M) override;
 
   const Graph &getGraph(const llvm::Function &fn) const override;
@@ -198,10 +196,10 @@ public:
   bool hasGraph(const llvm::Function &fn) const override;
 
   const Graph &getSummaryGraph(const llvm::Function &F) const override;
-  
+
   Graph &getSummaryGraph(const llvm::Function &F);
 
-  bool hasSummaryGraph(const llvm::Function &F) const override;  
+  bool hasSummaryGraph(const llvm::Function &F) const override;
 };
 
 /**
@@ -218,7 +216,7 @@ private:
   typedef BottomUpAnalysis::GraphMap GraphMap;
 
   const llvm::DataLayout &m_dl;
-  const llvm::TargetLibraryInfo &m_tli;
+  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
@@ -228,13 +226,13 @@ private:
   GraphMap m_bu_graphs;
   // whether to store bottom-up graphs
   bool m_store_bu_graphs;
-  
+
 public:
-  BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
-                                const llvm::TargetLibraryInfo &tli,
-                                const AllocWrapInfo &allocInfo,
-                                llvm::CallGraph &cg, SetFactory &setFactory,
-				bool storeSummaryGraphs = false);
+  BottomUpTopDownGlobalAnalysis(
+      const llvm::DataLayout &dl,
+      llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+      const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
+      SetFactory &setFactory, bool storeSummaryGraphs = false);
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -245,10 +243,10 @@ public:
   bool hasGraph(const llvm::Function &fn) const override;
 
   const Graph &getSummaryGraph(const llvm::Function &F) const override;
-  
+
   Graph &getSummaryGraph(const llvm::Function &F);
 
-  bool hasSummaryGraph(const llvm::Function &F) const override;    
+  bool hasSummaryGraph(const llvm::Function &F) const override;
 };
 
 /**
@@ -263,7 +261,7 @@ private:
   typedef BottomUpAnalysis::GraphMap GraphMap;
 
   const llvm::DataLayout &m_dl;
-  const llvm::TargetLibraryInfo &m_tli;
+  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
@@ -271,9 +269,9 @@ private:
 
 public:
   BottomUpGlobalAnalysis(const llvm::DataLayout &dl,
-			 const llvm::TargetLibraryInfo &tli,
-			 const AllocWrapInfo &allocInfo,
-			 llvm::CallGraph &cg, SetFactory &setFactory);
+                         llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+                         const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
+                         SetFactory &setFactory);
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -284,18 +282,15 @@ public:
   bool hasGraph(const llvm::Function &fn) const override;
 
   const Graph &getSummaryGraph(const llvm::Function &F) const override {
-    return getGraph(F);    
-  }
-  
-  Graph &getSummaryGraph(const llvm::Function &F) {
     return getGraph(F);
   }
+
+  Graph &getSummaryGraph(const llvm::Function &F) { return getGraph(F); }
 
   bool hasSummaryGraph(const llvm::Function &F) const override {
     return hasGraph(F);
   }
 };
-
 
 // Llvm passes
 

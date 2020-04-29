@@ -10,9 +10,9 @@
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/Global.hh"
 #include "seadsa/Info.hh"
+#include "seadsa/InitializePasses.hh"
 #include "seadsa/Stats.hh"
 #include "seadsa/support/RemovePtrToInt.hh"
-#include "seadsa/InitializePasses.hh"
 
 namespace seadsa {
 extern bool IsTypeAware;
@@ -57,9 +57,9 @@ const DataLayout &DsaAnalysis::getDataLayout() {
   return *m_dl;
 }
 
-const TargetLibraryInfo &DsaAnalysis::getTLI() {
-  assert(m_tli);
-  return *m_tli;
+const TargetLibraryInfo &DsaAnalysis::getTLI(const Function &F) {
+  assert(m_tliWrapper);
+  return m_tliWrapper->getTLI(F);
 }
 
 GlobalAnalysis &DsaAnalysis::getDsaAnalysis() {
@@ -69,37 +69,38 @@ GlobalAnalysis &DsaAnalysis::getDsaAnalysis() {
 
 bool DsaAnalysis::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
-  m_tli = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+  m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
   switch (DsaGlobalAnalysis) {
   case GlobalAnalysisKind::CONTEXT_INSENSITIVE:
-    m_ga.reset(new ContextInsensitiveGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
-                                                    cg, m_setFactory, false));
+    m_ga.reset(new ContextInsensitiveGlobalAnalysis(
+        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory, false));
     break;
   case GlobalAnalysisKind::FLAT_MEMORY:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
-        *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory, true /* use flat*/));
+        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory,
+        true /* use flat*/));
     break;
   case GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE:
-    m_ga.reset(new BottomUpTopDownGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo,
-                                                 cg, m_setFactory));
+    m_ga.reset(new BottomUpTopDownGlobalAnalysis(
+        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory));
     break;
   case GlobalAnalysisKind::BU:
-    m_ga.reset(new BottomUpGlobalAnalysis(*m_dl, *m_tli, *m_allocInfo, cg,
-                                          m_setFactory));
+    m_ga.reset(new BottomUpGlobalAnalysis(*m_dl, *m_tliWrapper, *m_allocInfo,
+                                          cg, m_setFactory));
     break;
   default: /* CONTEXT_SENSITIVE */
     m_ga.reset(new ContextSensitiveGlobalAnalysis(
-        *m_dl, *m_tli, *m_allocInfo, cg, m_setFactory,
+        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory,
         true /* always store summary graphs*/));
   }
 
   m_ga->runOnModule(M);
 
   if (XDsaStats || m_print_stats) {
-    DsaInfo i(*m_dl, *m_tli, getDsaAnalysis());
+    DsaInfo i(*m_dl, *m_tliWrapper, getDsaAnalysis());
     i.runOnModule(M);
     DsaPrintStats p(i);
     p.runOnModule(M);
