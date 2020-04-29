@@ -2,6 +2,7 @@
 // seadsda -- Print heap graphs and call graph computed by sea-dsa
 ///
 
+#include "llvm/InitializePasses.h"
 #include "llvm/LinkAllPasses.h"
 #include "llvm/Analysis/CallPrinter.h"
 #include "llvm/IR/LegacyPassManager.h"
