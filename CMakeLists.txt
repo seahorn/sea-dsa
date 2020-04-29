@@ -72,7 +72,7 @@ if (TOP_LEVEL)
     LOG_BUILD 1
     LOG_INSTALL 1)
 
-  find_package (LLVM 9 CONFIG)
+  find_package (LLVM 10 CONFIG)
   if (NOT LLVM_FOUND)
     ExternalProject_Get_Property (llvm INSTALL_DIR)
     set (LLVM_ROOT ${INSTALL_DIR})
