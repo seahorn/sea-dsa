@@ -14,6 +14,8 @@ else()
   set (TOP_LEVEL FALSE)
 endif()
 
+
+
 if(TOP_LEVEL)
   if(CMAKE_VERSION VERSION_GREATER "3.13.0")
     cmake_policy(SET CMP0074 NEW)
@@ -134,8 +136,9 @@ if (TOP_LEVEL)
 endif ()
 
 # sea-dsa specific
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
+set(CMAKE_CXX_EXTENSIONS NO)
 
 add_definitions(-Wno-redeclared-class-member)
 add_definitions(-Wno-sometimes-uninitialized)
