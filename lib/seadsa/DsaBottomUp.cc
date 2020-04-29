@@ -12,6 +12,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/CallGraphUtils.hh"

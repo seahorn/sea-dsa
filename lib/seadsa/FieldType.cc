@@ -2,6 +2,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "seadsa/Graph.hh"
 #include "seadsa/TypeUtils.hh"

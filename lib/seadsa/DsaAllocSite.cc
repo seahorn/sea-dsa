@@ -1,6 +1,7 @@
 #include "seadsa/AllocSite.hh"
 
 #include "llvm/IR/Function.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "seadsa/CallSite.hh"
 
