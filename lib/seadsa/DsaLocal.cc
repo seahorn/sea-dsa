@@ -1136,10 +1136,8 @@ void IntraBlockBuilder::visitIndirectCall(CallSite &CS) {
   using namespace seadsa;
   auto *inst = CS.getInstruction();
   assert(inst);
-  if (isSkip(*inst))
-    return;
-
-  Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
+  if (!isSkip(*inst))
+    m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
 
   if (!m_track_callsites)
     return;
