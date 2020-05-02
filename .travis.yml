@@ -12,7 +12,7 @@ install: true
 
 script:
   ### build with docker
-  - docker build --build-arg UBUNTU=xenial --build-arg BUILD_TYPE=MinSizeRel --build-arg TRAVIS=true -t seadsa_xenial_build -f docker/seadsa-full-size-rel.Dockerfile .
+  - docker build -t seahorn/sea-dsa-builder:bionic-llvm10 -f docker/sea-dsa-builder.Dockerfile
 
 notifications:
    slack: seahornteam:NAUqZmZHFFviPH4ktQbJXgKu
