@@ -12,7 +12,7 @@ install: true
 
 script:
   ### build with docker
-  - docker build -t seahorn/sea-dsa-builder:bionic-llvm10 -f docker/sea-dsa-builder.Dockerfile
+  - docker build -t seahorn/sea-dsa-builder:bionic-llvm10 -f docker/sea-dsa-builder.Dockerfile .
 
 notifications:
    slack: seahornteam:NAUqZmZHFFviPH4ktQbJXgKu
