@@ -469,19 +469,32 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   /// Returns true if \p F is a \p seadsa_ family of functions
   static bool isSeaDsaFn(const Function *fn) {
-    return (fn && fn->getName().startswith("seadsa_"));
+    if (!fn) return false;
+    auto n = fn->getName();
+    return n.startswith("sea_dsa_") || n.startswith("seadsa_");
   }
 
   static bool isSeaDsaAliasFn(const Function *fn) {
-    return (fn && fn->getName().equals("seadsa_alias"));
+    if (!fn) return false;
+    auto name = fn->getName();
+    // due to name change from sea_dsa to seadsa, support both version
+    return name.equals("sea_dsa_alias") || name.equals("seadsa_alias");
   }
 
   static bool isSeaDsaCollapseFn(const Function *fn) {
-    return (fn && fn->getName().equals("seadsa_collapse"));
+    if (!fn)
+      return false;
+    auto name = fn->getName();
+    // due to name change from sea_dsa to seadsa, support both version
+    return name.equals("sea_dsa_collapse") || name.equals("seadsa_collapse");
   }
 
   static bool isSeaDsaMkSequenceFn(const Function *fn) {
-    return (fn && fn->getName().equals("seadsa_mk_seq"));
+    if (!fn)
+      return false;
+    auto name = fn->getName();
+    // due to name change from sea_dsa to seadsa, support both version
+    return name.equals("sea_dsa_mk_seq") || name.equals("seadsa_mk_seq");
   }
 
 public:
@@ -1686,8 +1699,8 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
       for (auto &kv: llvm::make_range(g.scalar_begin(), g.scalar_end()))
         if (kv.second->isRead() || kv.second->isModified())
           if (kv.second->getNode()->getAllocSites().empty()) {
-            errs() << "SCALAR " << *(kv.first) << "\n";
-            errs() << "WARNING: a node has no allocation site\n";
+            errs() << "SCALAR " << *(kv.first) << "\n"
+                   << "WARNING: a node has no allocation site\n";
       } for (auto &kv : llvm::make_range(g.formal_begin(), g.formal_end()))
         if (kv.second->isRead() || kv.second->isModified())
           if (kv.second->getNode()->getAllocSites().empty()) {
