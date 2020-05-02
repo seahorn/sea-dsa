@@ -1,3 +1,16 @@
+//===- Local Alias Analysis
+//
+// Part of the SeaHorn Project, under the modified BSD Licence with SeaHorn
+// exceptions.
+//
+// See LICENSE.txt for license information.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file contains the LOCAL step of SeaDsa Alias Analysis
+//
+//===----------------------------------------------------------------------===//
+
 #include "seadsa/Local.hh"
 
 #include "llvm/IR/Function.h"
@@ -28,40 +41,59 @@
 
 using namespace llvm;
 
-namespace llvm {
-
 static llvm::cl::opt<bool> TrustArgumentTypes(
     "sea-dsa-trust-args",
     llvm::cl::desc("Trust function argument types in SeaDsa Local analysis"),
     llvm::cl::init(true));
 
-// borrowed from SeaHorn
-class __BlockedEdges {
-  llvm::SmallPtrSet<const BasicBlock *, 8> m_set;
-  llvm::SmallVectorImpl<std::pair<const BasicBlock *, const BasicBlock *>>
-      &m_edges;
+/*****************************************************************************/
+/* HELPERS                                                                   */
+/*****************************************************************************/
+
+namespace {
+/**
+   adapted from SeaHorn
+
+   Keeps track of pair of basic blocks and reports a saved pair as blocked
+**/
+class BlockedEdges {
+public:
+  using BasicBlockPtrSet = llvm::SmallPtrSet<const BasicBlock *, 8>;
+  using BasicBlockPtrPair = std::pair<const BasicBlock *, const BasicBlock *>;
+  using BasicBlockPtrPairVec = llvm::SmallVectorImpl<BasicBlockPtrPair>;
+
+private:
+  BasicBlockPtrSet m_set;
+  BasicBlockPtrPairVec &m_edges;
+  bool m_dirty;
 
 public:
-  __BlockedEdges(
-      llvm::SmallVectorImpl<std::pair<const BasicBlock *, const BasicBlock *>>
-          &edges)
-      : m_edges(edges) {
+  BlockedEdges(BasicBlockPtrPairVec &edges) : m_edges(edges), m_dirty(true) {
     std::sort(m_edges.begin(), m_edges.end());
+    m_dirty = false;
   }
 
-  bool insert(const BasicBlock *bb) { return m_set.insert(bb).second; }
+  bool insert(const BasicBlock *bb) {
+    return m_set.insert(bb).second;
+    m_dirty = true;
+  }
 
   bool isBlockedEdge(const BasicBlock *src, const BasicBlock *dst) {
+    if (m_dirty)
+      std::stable_sort(m_edges.begin(), m_edges.end());
+    m_dirty = false;
     return std::binary_search(m_edges.begin(), m_edges.end(),
                               std::make_pair(src, dst));
   }
 };
+} // namespace
 
-template <> class po_iterator_storage<__BlockedEdges, true> {
-  __BlockedEdges &Visited;
+namespace llvm {
+template <> class po_iterator_storage<BlockedEdges, true> {
+  BlockedEdges &Visited;
 
 public:
-  po_iterator_storage(__BlockedEdges &VSet) : Visited(VSet) {}
+  po_iterator_storage(BlockedEdges &VSet) : Visited(VSet) {}
   po_iterator_storage(const po_iterator_storage &S) : Visited(S.Visited) {}
 
   bool insertEdge(Optional<const BasicBlock *> src, const BasicBlock *dst) {
@@ -69,64 +101,113 @@ public:
   }
   void finishPostorder(const BasicBlock *bb) {}
 };
-
 } // namespace llvm
 
 namespace {
-
-// borrowed from seahorn
-void revTopoSort(const llvm::Function &F,
-                 std::vector<const BasicBlock *> &out) {
+/* borrowed from seahorn
+   Reverse topological sort of (possibly cyclic) CFG
+ */
+template <typename Container>
+void revTopoSort(const llvm::Function &F, Container &out) {
   if (F.isDeclaration() || F.empty())
     return;
 
-  llvm::SmallVector<std::pair<const BasicBlock *, const BasicBlock *>, 8>
-      backEdges;
+  llvm::SmallVector<BlockedEdges::BasicBlockPtrPair, 8> backEdges;
   FindFunctionBackedges(F, backEdges);
 
-  const llvm::Function *f = &F;
-  __BlockedEdges ble(backEdges);
+  auto *f = &F;
+  BlockedEdges ble(backEdges);
   std::copy(po_ext_begin(f, ble), po_ext_end(f, ble), std::back_inserter(out));
 }
 
+/// Work-arround for a bug in llvm::CallSite::getCalledFunction
+/// properly handle bitcast
+Function *getCalledFunction(CallSite &CS) {
+  Function *fn = CS.getCalledFunction();
+  if (fn)
+    return fn;
+
+  Value *v = CS.getCalledValue();
+  if (v)
+    v = v->stripPointerCasts();
+  fn = dyn_cast<Function>(v);
+
+  return fn;
+}
+
+} // namespace
+
+/*****************************************************************************/
+/* ANALYSIS                                                                  */
+/* The analysis is broken into 3 phases, each represented by a separate class
+     - GlobalBuilder
+     - IntraBlockBuilder
+     - InterBlockBuilder
+
+   Common functionality of the Builders is factored to BlockBuilderBase.
+
+   A builder visits instructions and constructs a seadsa::Graph representing
+   their points-to graph.
+
+   GlobalBuilder processes all the global instructions (i.e., global variable
+   declarations)
+
+   IntraBlockBuilder processes all instructions of a basic block, except for
+   PHINodes
+
+   InterBlockBuilder processes all the PHINode instructions and combines
+   points-to information from basic blocks together. It must be ran after
+   IntraBlockBuilder
+
+ */
+/*****************************************************************************/
+
+namespace {
+// forward declaration
 std::pair<int64_t, uint64_t>
 computeGepOffset(Type *ptrTy, ArrayRef<Value *> Indicies, const DataLayout &dl);
 
-template <typename T> T gcd(T a, T b) {
-  T c;
-  while (b) {
-    c = a % b;
-    a = b;
-    b = c;
-  }
-  return a;
-}
-
+/*****************************************************************************/
+/* BlockBuilderBase */
+/*****************************************************************************/
+/// Base class for all Builders
 class BlockBuilderBase {
 protected:
+  /// Current function
   Function &m_func;
+  /// Current points-to graph
   seadsa::Graph &m_graph;
+
   const DataLayout &m_dl;
   const TargetLibraryInfo &m_tli;
   const seadsa::AllocWrapInfo &m_allocInfo;
 
-  seadsa::Cell valueCell(const Value &v);
+  /// Returns cell for a given llvm::Value
+  seadsa::Cell valueCell(const llvm::Value &v);
+
   void visitGep(const Value &gep, const Value &base,
                 ArrayRef<Value *> indicies);
   void visitCastIntToPtr(const Value &dest);
 
   bool isFixedOffset(const IntToPtrInst &inst, Value *&base, uint64_t &offset);
+
+  /// Returns true if the given llvm::Value should not be analyzed
   bool isSkip(Value &V) {
     if (!V.getType()->isPointerTy())
       return true;
-    // XXX skip if only uses are external functions
+
+    // TODO: Optionally make V as skipped if it is used only as an argument to a
+    // call to an external function. LLVM's pointer-use-visitor can be used to
+    // find this
     return false;
   }
 
-  static bool containsPointer(const Value &V) {
+  /// Returns true if \p _Ty has a pointer field
+  /// If \p _Ty is not an aggregate, returns true if \p _Ty is a pointer
+  static bool hasPointerTy(const llvm::Type &_Ty) {
     SmallVector<const Type *, 16> workList;
     SmallPtrSet<const Type *, 16> seen;
-    workList.push_back(V.getType());
+    workList.push_back(&_Ty);
 
     while (!workList.empty()) {
       const Type *Ty = workList.back();
@@ -149,12 +230,18 @@ protected:
     }
     return false;
   }
+  /// Returns true if type of \p V contains a pointer
+  static bool containsPointer(const Value &V) {
+    return hasPointerTy(*V.getType());
+  }
 
   static bool isNullConstant(const Value &v) {
     const Value *V = v.stripPointerCasts();
 
     if (isa<Constant>(V) && cast<Constant>(V)->isNullValue())
       return true;
+
+    // TODO: check whether v can simplify to a NullValue
 
     // XXX: some linux device drivers contain instructions gep null, ....
     if (const GetElementPtrInst *Gep = dyn_cast<const GetElementPtrInst>(V)) {
@@ -174,17 +261,19 @@ public:
         m_allocInfo(allocInfo) {}
 };
 
+/*****************************************************************************/
+/* GlobalBuilder */
+/*****************************************************************************/
 class GlobalBuilder : public BlockBuilderBase {
 
   /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp
   void init(const Constant *Init, seadsa::Cell &c, unsigned offset) {
-    if (isa<UndefValue>(Init)) {
+    if (isa<UndefValue>(Init))
       return;
-    }
 
     if (const ConstantVector *CP = dyn_cast<ConstantVector>(Init)) {
       unsigned ElementSize =
-          m_dl.getTypeAllocSize(CP->getType()->getElementType());
+          m_dl.getTypeAllocSize(CP->getType()->getElementType()).getFixedSize();
       for (unsigned i = 0, e = CP->getNumOperands(); i != e; ++i) {
         unsigned noffset = offset + i * ElementSize;
         seadsa::Cell nc = seadsa::Cell(c.getNode(), noffset);
@@ -199,7 +288,8 @@ class GlobalBuilder : public BlockBuilderBase {
 
     if (const ConstantArray *CPA = dyn_cast<ConstantArray>(Init)) {
       unsigned ElementSize =
-          m_dl.getTypeAllocSize(CPA->getType()->getElementType());
+          m_dl.getTypeAllocSize(CPA->getType()->getElementType())
+              .getFixedSize();
       for (unsigned i = 0, e = CPA->getNumOperands(); i != e; ++i) {
         unsigned noffset = offset + i * ElementSize;
         seadsa::Cell nc = seadsa::Cell(c.getNode(), noffset);
@@ -263,9 +353,8 @@ public:
       : BlockBuilderBase(func, graph, dl, tli, allocInfo) {}
 
   void initGlobalVariables() {
-    if (!m_func.getName().equals("main")) {
+    if (!m_func.getName().equals("main"))
       return;
-    }
 
     Module &M = *(m_func.getParent());
     for (auto &gv : M.globals()) {
@@ -280,6 +369,9 @@ public:
   }
 };
 
+/*****************************************************************************/
+/* InterBlockBuilder */
+/*****************************************************************************/
 class InterBlockBuilder : public InstVisitor<InterBlockBuilder>,
                           BlockBuilderBase {
   friend class InstVisitor<InterBlockBuilder>;
@@ -301,42 +393,45 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
   seadsa::Cell &phi = m_graph.mkCell(PHI, seadsa::Cell());
   for (unsigned i = 0, e = PHI.getNumIncomingValues(); i < e; ++i) {
     Value &v = *PHI.getIncomingValue(i);
+
     // -- skip null
-    if (isa<Constant>(&v) && cast<Constant>(&v)->isNullValue())
+    if (BlockBuilderBase::isNullConstant(v))
       continue;
 
     // -- skip load of null
-    if (LoadInst *LI = dyn_cast<LoadInst>(&v)) {
-      if (BlockBuilderBase::isNullConstant(
-              *LI->getPointerOperand()->stripPointerCasts())) {
+    if (auto *LI = dyn_cast<LoadInst>(&v)) {
+      if (BlockBuilderBase::isNullConstant(*LI->getPointerOperand()))
         continue;
-      }
     }
 
     // -- skip undef
     if (isa<Constant>(&v) && isa<UndefValue>(&v))
       continue;
 
+    // --- real code begins ---
     seadsa::Cell c = valueCell(v);
     if (c.isNull()) {
       // -- skip null: special case from ldv benchmarks
-      if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(&v)) {
-        if (BlockBuilderBase::isNullConstant(
-                *(GEP->getPointerOperand()->stripPointerCasts())))
+      if (auto *GEP = dyn_cast<GetElementPtrInst>(&v)) {
+        if (BlockBuilderBase::isNullConstant(*GEP->getPointerOperand()))
           continue;
       }
+      assert(false && "Unexpected null cell");
     }
-    assert(!c.isNull());
+
     phi.unify(c);
   }
   assert(!phi.isNull());
 }
 
+/*****************************************************************************/
+/* IntraBlockBuilder */
+/*****************************************************************************/
 class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
                           BlockBuilderBase {
   friend class InstVisitor<IntraBlockBuilder>;
 
-  // -- whether or not create a cell for an indirect callee
+  // if true, cells are created for indirect callee
   bool m_track_callsites;
 
   void visitAllocaInst(AllocaInst &AI);
@@ -346,6 +441,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitAtomicCmpXchgInst(AtomicCmpXchgInst &I);
   void visitAtomicRMWInst(AtomicRMWInst &I);
   void visitReturnInst(ReturnInst &RI);
+  // void visitVAStart(CallSite CS);
   // void visitVAArgInst(VAArgInst   &I);
   void visitIntToPtrInst(IntToPtrInst &I);
   void visitPtrToIntInst(PtrToIntInst &I);
@@ -363,18 +459,29 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitMemTransferInst(MemTransferInst &I);
 
   void visitCallSite(CallSite CS);
-  // void visitVAStart(CallSite CS);
+  void visitInlineAsmCall(CallSite &CS);
+  void visitExternalCall(CallSite &CS);
+  void visitIndirectCall(CallSite &CS);
+  void visitSeaDsaFnCall(CallSite &CS);
 
-  static bool isSeaDsaAliasFn(const Function *F) {
-    return (F->getName().equals("seadsa_alias"));
+  void visitAllocWrapperCall(CallSite &CS);
+  void visitAllocationFnCall(CallSite &CS);
+
+  /// Returns true if \p F is a \p seadsa_ family of functions
+  static bool isSeaDsaFn(const Function *fn) {
+    return (fn && fn->getName().startswith("seadsa_"));
   }
 
-  static bool isSeaDsaCollapseFn(const Function *F) {
-    return (F->getName().equals("seadsa_collapse"));
+  static bool isSeaDsaAliasFn(const Function *fn) {
+    return (fn && fn->getName().equals("seadsa_alias"));
   }
 
-  static bool isSeaDsaMkSequenceFn(const Function *F) {
-    return (F->getName().equals("seadsa_mk_seq"));
+  static bool isSeaDsaCollapseFn(const Function *fn) {
+    return (fn && fn->getName().equals("seadsa_collapse"));
+  }
+
+  static bool isSeaDsaMkSequenceFn(const Function *fn) {
+    return (fn && fn->getName().equals("seadsa_mk_seq"));
   }
 
 public:
@@ -409,9 +516,9 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
       isa<ConstantDataSequential>(&v) || isa<ConstantDataArray>(&v) ||
       isa<ConstantVector>(&v) || isa<ConstantDataVector>(&v)) {
     // XXX Handle properly once we have real examples with this failure
-    LOG("dsa",
-        errs() << "WARNING: unsound handling of a constant: " << v << "\n";);
-    // llvm_unreachable("Constant not handled!");
+    LOG("dsa", errs() << "WARNING: unsound handling of an aggregate constant "
+                         "as a fresh allocation: "
+                      << v << "\n";);
     return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
   }
 
@@ -492,8 +599,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   using namespace seadsa;
 
   // -- skip read from NULL
-  if (BlockBuilderBase::isNullConstant(
-          *LI.getPointerOperand()->stripPointerCasts()))
+  if (BlockBuilderBase::isNullConstant(*LI.getPointerOperand()))
     return;
 
   if (!m_graph.hasCell(*LI.getPointerOperand()->stripPointerCasts())) {
@@ -666,12 +772,23 @@ void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
   if (isSkip(I))
     return;
 
-  if (BlockBuilderBase::isNullConstant(*I.getOperand(0)->stripPointerCasts()))
+  if (BlockBuilderBase::isNullConstant(*I.getOperand(0)))
     return; // do nothing if null
 
   seadsa::Cell arg = valueCell(*I.getOperand(0));
   assert(!arg.isNull());
   m_graph.mkCell(I, arg);
+}
+
+// greatest common divisor
+template <typename T> T gcd(T a, T b) {
+  T c;
+  while (b) {
+    c = a % b;
+    a = b;
+    b = c;
+  }
+  return a;
 }
 
 /**
@@ -755,20 +872,18 @@ uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
 void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
                                 ArrayRef<Value *> indicies) {
   // -- skip NULL
-  if (const Constant *c = dyn_cast<Constant>(&ptr))
-    if (c->isNullValue()) {
-      return;
-    }
+  if (isNullConstant(ptr))
+    return;
 
-  /// Special cases in ldv benchmarks
-  if (const LoadInst *LI = dyn_cast<LoadInst>(&ptr)) {
-    if (BlockBuilderBase::isNullConstant(
-            *(LI->getPointerOperand()->stripPointerCasts())))
+  //  -- skip load from null
+  if (auto *LI = dyn_cast<LoadInst>(&ptr)) {
+    if (BlockBuilderBase::isNullConstant(*(LI->getPointerOperand())))
       return;
   }
-  if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(&ptr)) {
-    if (BlockBuilderBase::isNullConstant(
-            *(GEP->getPointerOperand()->stripPointerCasts())))
+
+  // -- skip gep from null
+  if (auto *GEP = dyn_cast<GetElementPtrInst>(&ptr)) {
+    if (BlockBuilderBase::isNullConstant(*(GEP->getPointerOperand())))
       return;
   }
 
@@ -963,138 +1078,198 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   }
 }
 
-void IntraBlockBuilder::visitCallSite(CallSite CS) {
+void IntraBlockBuilder::visitInlineAsmCall(CallSite &CS) {
   using namespace seadsa;
-  Function *callee =
-      dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts());
-  if (llvm::isAllocationFn(CS.getInstruction(), &m_tli, true) ||
-      (callee && m_allocInfo.isAllocWrapper(*callee))) {
-    assert(CS.getInstruction());
-    Node &n = m_graph.mkNode();
-    // -- record allocation site
-    seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*(CS.getInstruction()));
-    assert(site);
-    n.addAllocSite(*site);
-    // -- mark node as a heap node
-    n.setHeap();
+  assert(CS.isInlineAsm());
 
-    m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
+  auto &inst = *CS.getInstruction();
+  if (isSkip(inst))
+    return;
+  Cell &c = m_graph.mkCell(inst, Cell(m_graph.mkNode(), 0));
+  c.getNode()->setExternal();
+
+  // treat as allocation site
+  seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
+  assert(site);
+  c.getNode()->addAllocSite(*site);
+}
+
+void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
+  using namespace seadsa;
+  auto &inst = *CS.getInstruction();
+  if (isSkip(inst))
+    return;
+
+  auto *callee = getCalledFunction(CS);
+  assert(callee);
+  assert(callee->isDeclaration());
+
+  Cell &c = m_graph.mkCell(inst, Cell(m_graph.mkNode(), 0));
+  c.getNode()->setExternal();
+
+  if (callee->getName().startswith("verifier.nondet.abstract.memory"))
+    return;
+
+  // TODO: better handling of external funcations
+  // TOOD: Use function attributes and external specifications
+
+  // -- assume that every external function returns a freshly allocated pointer
+  seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
+  assert(site);
+  c.getNode()->addAllocSite(*site);
+}
+
+void IntraBlockBuilder::visitIndirectCall(CallSite &CS) {
+  using namespace seadsa;
+  auto *inst = CS.getInstruction();
+  assert(inst);
+  if (isSkip(*inst))
+    return;
+
+  Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
+
+  if (!m_track_callsites)
+    return;
+
+  assert(CS.getCalledValue());
+  const Value &calledV = *(CS.getCalledValue());
+  if (m_graph.hasCell(calledV)) {
+    Cell calledC = m_graph.getCell(calledV);
+    m_graph.mkCallSite(*inst, calledC);
+  } else {
+    LOG("dsa",
+        errs() << "WARNING: no cell found for callee in indirect call.\n";);
+  }
+}
+
+void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
+  using namespace seadsa;
+  auto *callee = getCalledFunction(CS);
+
+  if (isSeaDsaAliasFn(callee)) {
+    llvm::SmallVector<seadsa::Cell, 8> toMerge;
+    unsigned nargs = CS.arg_size();
+    for (unsigned i = 0; i < nargs; ++i) {
+      if (isSkip(*(CS.getArgument(i))))
+        continue;
+      if (!m_graph.hasCell(*(CS.getArgument(i))))
+        continue;
+      seadsa::Cell c = valueCell(*(CS.getArgument(i)));
+      if (c.isNull())
+        continue;
+      toMerge.push_back(c);
+    }
+    for (unsigned i = 1; i < toMerge.size(); ++i)
+      toMerge[0].unify(toMerge[i]);
     return;
   }
 
-  if (callee) {
-    /**
-        seadsa_alias(p1,...,pn)
-        unify the cells of p1,...,pn
-     **/
-    if (isSeaDsaAliasFn(callee)) {
-      std::vector<seadsa::Cell> toMerge;
-      unsigned nargs = CS.arg_size();
-      for (unsigned i = 0; i < nargs; ++i) {
-        if (isSkip(*(CS.getArgument(i))))
-          continue;
-        if (!m_graph.hasCell(*(CS.getArgument(i))))
-          continue;
-        seadsa::Cell c = valueCell(*(CS.getArgument(i)));
-        if (c.isNull())
-          continue;
-        toMerge.push_back(c);
-      }
-      for (unsigned i = 1; i < toMerge.size(); ++i)
-        toMerge[0].unify(toMerge[i]);
+  if (isSeaDsaCollapseFn(callee)) {
+    // seadsa_collapse(p) -- collapse the node to which p points to
+    if (isSkip(*(CS.getArgument(0))))
       return;
-    } else if (isSeaDsaCollapseFn(callee)) {
-      /**
-         seadsa_collapse(p)
-         collapse the node to which p points to
-       **/
-      if (!isSkip(*(CS.getArgument(0)))) {
-        if (m_graph.hasCell(*(CS.getArgument(0)))) {
-          seadsa::Cell c = valueCell(*(CS.getArgument(0)));
-          c.getNode()->collapseOffsets(__LINE__);
-        }
-      }
-      return;
-    } else if (isSeaDsaMkSequenceFn(callee)) {
-      /**
-         seadsa_mk_seq(p, sz)
-         mark the node pointed by p as sequence of size sz
-       **/
-      if (!isSkip(*(CS.getArgument(0)))) {
-        if (m_graph.hasCell(*(CS.getArgument(0)))) {
-          seadsa::Cell c = valueCell(*(CS.getArgument(0)));
-          Node *n = c.getNode();
-          if (!n->isArray()) {
-            ConstantInt *raw_sz = dyn_cast<ConstantInt>(CS.getArgument(1));
-            if (!raw_sz) {
-              errs() << "WARNING: skipped " << *CS.getInstruction()
-                     << " because second argument is not a number.\n";
-              return;
-            }
-            const uint64_t sz = raw_sz->getZExtValue();
-            if (n->size() <= sz) {
-              n->setArraySize(sz);
-            } else {
-              errs() << "WARNING: skipped " << *CS.getInstruction()
-                     << " because new size cannot be"
-                     << " smaller than the size of the node pointed by the "
-                        "pointer.\n";
-            }
-          } else {
-            errs() << "WARNING: skipped " << *CS.getInstruction()
-                   << " because it expects a pointer"
-                   << " that points to a non-sequence node.\n";
-          }
-        }
-      }
-      return;
+    if (m_graph.hasCell(*(CS.getArgument(0)))) {
+      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+      c.getNode()->collapseOffsets(__LINE__);
     }
+    return;
   }
 
-  if (Instruction *inst = CS.getInstruction()) {
-    if (!isSkip(*inst)) {
-      Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
-      if (CS.isInlineAsm()) {
-        c.getNode()->setExternal();
-        seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*inst);
-        assert(site);
-        c.getNode()->addAllocSite(*site);
-      } else if (Function *callee = CS.getCalledFunction()) {
-        if (callee->isDeclaration()) {
-          c.getNode()->setExternal();
-          // -- treat external function as allocation
-          // XXX: we ignore external calls created by AbstractMemory pass
-          if (!callee->getName().startswith(
-                  "verifier.nondet.abstract.memory")) {
-            seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*inst);
-            assert(site);
-            c.getNode()->addAllocSite(*site);
-          }
-          // TODO: many more things can be done to handle external
-          // TODO: functions soundly and precisely.  An absolutely
-          // safe thing is to merge all arguments with return (with
-          // globals) on any external function call. However, this is
-          // too aggressive for most cases. More refined analysis can
-          // be done using annotations of the external functions (like
-          // noalias, does-not-read-memory, etc.). The current
-          // solution is okay for now.
-        }
-      }
-    }
+  if (isSeaDsaMkSequenceFn(callee)) {
+    // seadsa_mk_seq(p, sz) -- mark the node pointed by p as sequence of size sz
+    if (isSkip(*(CS.getArgument(0))))
+      return;
+    if (!m_graph.hasCell(*(CS.getArgument(0))))
+      return;
 
-    if (m_track_callsites && CS.isIndirectCall()) {
-      const Value &calledV = *(CS.getCalledValue());
-      if (m_graph.hasCell(calledV)) {
-        Cell calledC = m_graph.getCell(calledV);
-        m_graph.mkCallSite(*inst, calledC);
+    seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+    Node *n = c.getNode();
+    if (!n->isArray()) {
+      auto *raw_sz = dyn_cast<ConstantInt>(CS.getArgument(1));
+      assert(raw_sz && "Second argument must be a number!");
+      if (!raw_sz)
+        return;
+
+      auto sz = raw_sz->getZExtValue();
+      if (n->size() <= sz) {
+        n->setArraySize(sz);
       } else {
-        errs() << "WARNING: no cell found for callee in indirect call.\n";
+        LOG("dsa",
+            errs() << "WARNING: skipped " << *CS.getInstruction()
+                   << " because new size cannot be"
+                   << " smaller than the size of the node pointed by the "
+                      "pointer.\n";);
       }
+    } else {
+      LOG("dsa", errs() << "WARNING: skipped " << *CS.getInstruction()
+                        << " because it expects a pointer"
+                        << " that points to a non-sequence node.\n";);
+    }
+    return;
+  }
+}
+
+void IntraBlockBuilder::visitAllocWrapperCall(CallSite &CS) {
+  visitAllocationFnCall(CS);
+}
+
+void IntraBlockBuilder::visitAllocationFnCall(CallSite &CS) {
+  using namespace seadsa;
+  assert(CS.getInstruction());
+  Node &n = m_graph.mkNode();
+  // -- record allocation site
+  seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*(CS.getInstruction()));
+  assert(site);
+  n.addAllocSite(*site);
+  // -- mark node as a heap node
+  n.setHeap();
+
+  m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
+}
+
+void IntraBlockBuilder::visitCallSite(CallSite CS) {
+  using namespace seadsa;
+
+  if (CS.isInlineAsm()) {
+    visitInlineAsmCall(CS);
+    return;
+  }
+
+  if (CS.isIndirectCall()) {
+    visitIndirectCall(CS);
+    return;
+  }
+
+  if (llvm::isAllocationFn(CS.getInstruction(), &m_tli, true)) {
+    visitAllocationFnCall(CS);
+    return;
+  }
+
+  // direct function call
+  if (auto *callee = getCalledFunction(CS)) {
+    if (m_allocInfo.isAllocWrapper(*callee)) {
+      visitAllocWrapperCall(CS);
+      return;
+    } else if (isSeaDsaFn(callee)) {
+      visitSeaDsaFnCall(CS);
+      return;
+    } else if (callee->isDeclaration()) {
+      visitExternalCall(CS);
+      return;
     }
   }
 
-  // Value *callee = CS.getCalledValue()->stripPointerCasts();
-  // TODO: handle inline assembly
+  // not handled direct call 
+  if (auto *inst = CS.getInstruction()) {
+    if (!isSkip(*inst))
+      Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
+    return;
+  }
+
+  // nothing is expected here
+  assert(false && "Unexpected CallSite");
+  llvm_unreachable("Unexpected");
+
   // TODO: handle variable argument functions
 }
 
@@ -1117,7 +1292,7 @@ void IntraBlockBuilder::visitMemSetInst(MemSetInst &I) {
   // can also update size using I.getLength ()
 }
 
-static bool hasNoPointerTy(const llvm::Type *t) {
+bool hasNoPointerTy(const llvm::Type *t) {
   if (!t)
     return true;
 
@@ -1134,7 +1309,7 @@ static bool hasNoPointerTy(const llvm::Type *t) {
   return true;
 }
 
-static bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
+bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   Value *srcPtr = MI.getSource();
   auto *srcTy = srcPtr->getType()->getPointerElementType();
 
@@ -1230,7 +1405,6 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   // TODO: can also update size of dest and source using I.getLength ()
 }
 
-namespace {
 // -- only used as a compare. do not needs DSA node
 bool shouldBeTrackedIntToPtr(const Value &def) {
   // XXX: use_begin will return the same Value def. We need to call
@@ -1256,8 +1430,6 @@ bool shouldBeTrackedIntToPtr(const Value &def) {
   }
   return true;
 }
-
-} // namespace
 
 /// Returns true if \p inst is a fixed numeric offset of a known pointer
 /// Ensures that \p base has a cell in the current dsa graph
@@ -1421,8 +1593,8 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
           continue;
       }
 
-      // if the value flows into one of these operands, we consider it escaping
-      // and stop tracking it further
+      // if the value flows into one of these operands, we consider it
+      // escaping and stop tracking it further
       if (isa<LoadInst>(*user) || isa<StoreInst>(*user) ||
           isa<CallInst>(*user) || isa<IntToPtrInst>(*user))
         return true;
@@ -1455,7 +1627,15 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
 }
 
 } // end namespace
+
+/*****************************************************************************/
+/* PUBLIC API                                                                */
+/*****************************************************************************/
 namespace seadsa {
+
+/*****************************************************************************/
+/* LocalAnalysis                                                             */
+/*****************************************************************************/
 
 void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   LOG("dsa-progress",
@@ -1527,6 +1707,10 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
       g.write(errs()));
 }
 
+/*****************************************************************************/
+/* Local -- LLVM Pass to run LocalAnalysis                                   */
+/*****************************************************************************/
+
 Local::Local() : ModulePass(ID), m_dl(nullptr), m_allocInfo(nullptr) {}
 
 void Local::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -1550,17 +1734,15 @@ bool Local::runOnFunction(Function &F) {
 
   LOG("progress", errs() << "DSA: " << F.getName() << "\n";);
 
-  auto &tliWrapper = getAnalysis<TargetLibraryInfoWrapperPass>();
-  LocalAnalysis la(*m_dl, tliWrapper, *m_allocInfo);
+  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+  LocalAnalysis la(*m_dl, tli, *m_allocInfo);
   GraphRef g = std::make_shared<Graph>(*m_dl, m_setFactory);
   la.runOnFunction(F, *g);
-  m_graphs[&F] = g;
+  m_graphs.insert({&F, g});
   return false;
 }
 
-bool Local::hasGraph(const Function &F) const {
-  return (m_graphs.find(&F) != m_graphs.end());
-}
+bool Local::hasGraph(const Function &F) const { return m_graphs.count(&F); }
 
 const Graph &Local::getGraph(const Function &F) const {
   auto it = m_graphs.find(&F);
@@ -1568,7 +1750,6 @@ const Graph &Local::getGraph(const Function &F) const {
   return *(it->second);
 }
 
-// Pass * createDsaLocalPass () {return new Local ();}
 } // namespace seadsa
 
 char seadsa::Local::ID = 0;
