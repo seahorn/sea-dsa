@@ -1629,9 +1629,15 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
       if (auto *CI = dyn_cast<const CallInst>(user)) {
         ImmutableCallSite CS(CI);
         const Function *callee = CS.getCalledFunction();
-        if (callee && (callee->getName() == "verifier.assume" ||
-                       callee->getName() == "llvm.assume"))
-          continue;
+        if (callee) {
+          // callee might not access memory but it can return ptrtoint passed to it
+          // if (callee->doesNotAccessMemory())
+          //   continue;
+          auto n = callee->getName();
+          if (n.startswith("__sea_set_extptr_slot") ||
+              n.equals("verifier.assume") || n.equals("llvm.assume"))
+            continue;
+        }
       }
 
       // if the value flows into one of these operands, we consider it
