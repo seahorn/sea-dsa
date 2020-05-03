@@ -31,6 +31,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/Analysis/ValueTracking.h"
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/Graph.hh"
@@ -1109,16 +1110,6 @@ void IntraBlockBuilder::visitInlineAsmCall(CallSite &CS) {
   c.getNode()->addAllocSite(*site);
 }
 
-bool hasReturnedArg(const Function &fn, const Argument *&_arg) {
-  for (auto &arg : fn.args()) {
-    if (arg.hasReturnedAttr()) {
-      _arg = &arg;
-      return true;
-    }
-  }
-  return false;
-}
-
 void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
   using namespace seadsa;
   auto &inst = *CS.getInstruction();
@@ -1142,9 +1133,8 @@ void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
                     << "func: " << *callee << "\n"
                     << "inst: " << *CS.getInstruction() << "\n";);
 
-  const Argument *arg = nullptr;
-  if (hasReturnedArg(*callee, arg)) {
-    Value *V = CS.getArgOperand(arg->getArgNo());
+  if (auto *V = llvm::getArgumentAliasingToReturnedPointer(cast<CallBase>(&inst), false)) {
+    // arg V is returned by the call, unify it with return
     assert(m_graph.hasCell(*V));
     Cell &argC = m_graph.mkCell(*V, Cell());
     c.unify(argC);
