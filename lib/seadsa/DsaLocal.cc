@@ -469,13 +469,15 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   /// Returns true if \p F is a \p seadsa_ family of functions
   static bool isSeaDsaFn(const Function *fn) {
-    if (!fn) return false;
+    if (!fn)
+      return false;
     auto n = fn->getName();
     return n.startswith("sea_dsa_") || n.startswith("seadsa_");
   }
 
   static bool isSeaDsaAliasFn(const Function *fn) {
-    if (!fn) return false;
+    if (!fn)
+      return false;
     auto name = fn->getName();
     // due to name change from sea_dsa to seadsa, support both version
     return name.equals("sea_dsa_alias") || name.equals("seadsa_alias");
@@ -1107,6 +1109,16 @@ void IntraBlockBuilder::visitInlineAsmCall(CallSite &CS) {
   c.getNode()->addAllocSite(*site);
 }
 
+bool hasReturnedArg(const Function &fn, const Argument *&_arg) {
+  for (auto &arg : fn.args()) {
+    if (arg.hasReturnedAttr()) {
+      _arg = &arg;
+      return true;
+    }
+  }
+  return false;
+}
+
 void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
   using namespace seadsa;
   auto &inst = *CS.getInstruction();
@@ -1126,10 +1138,28 @@ void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
   // TODO: better handling of external funcations
   // TOOD: Use function attributes and external specifications
 
-  // -- assume that every external function returns a freshly allocated pointer
-  seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
-  assert(site);
-  c.getNode()->addAllocSite(*site);
+  LOG("dsa", errs() << "Visiting call to an external function:\n"
+                    << "func: " << *callee << "\n"
+                    << "inst: " << *CS.getInstruction() << "\n";);
+
+  const Argument *arg = nullptr;
+  if (hasReturnedArg(*callee, arg)) {
+    Value *V = CS.getArgOperand(arg->getArgNo());
+    assert(m_graph.hasCell(*V));
+    Cell &argC = m_graph.mkCell(*V, Cell());
+    c.unify(argC);
+  } else if (callee->returnDoesNotAlias()) {
+    // if return does not alias, it is an allocation site hidden inside the function
+    seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
+    assert(site);
+    c.getNode()->addAllocSite(*site);
+  } else {
+    // -- assume that every external function returns a freshly allocated
+    // pointer
+    seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
+    assert(site);
+    c.getNode()->addAllocSite(*site);
+  }
 }
 
 void IntraBlockBuilder::visitIndirectCall(CallSite &CS) {
@@ -1270,7 +1300,7 @@ void IntraBlockBuilder::visitCallSite(CallSite CS) {
     }
   }
 
-  // not handled direct call 
+  // not handled direct call
   if (auto *inst = CS.getInstruction()) {
     if (!isSkip(*inst))
       Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
