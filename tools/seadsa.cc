@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
       pass_manager.add(seadsa::createDsaViewerPass());
     }
 
-    if (seadsa::PrintDsaStats) {
+    if (seadsa::PrintDsaStats && !MemDot && !MemViewer) {
       pass_manager.add(seadsa::createDsaPrintStatsPass());
     }
 
