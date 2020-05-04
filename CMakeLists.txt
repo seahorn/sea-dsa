@@ -21,6 +21,11 @@ if(TOP_LEVEL)
     cmake_policy(SET CMP0074 NEW)
     cmake_policy(SET CMP0077 NEW)
   endif()
+
+  if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
+      "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE)
+  endif()
 endif()
 
 option (BUILD_SEA_DSA_LIBS_SHARED "Build all sea-dsa libraries shared." OFF)
