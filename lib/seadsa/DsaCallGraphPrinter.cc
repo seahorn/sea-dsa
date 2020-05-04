@@ -4,10 +4,11 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/Analysis/CFGPrinter.h"
+#include "llvm/Analysis/CallPrinter.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/GraphWriter.h" 
 
 #include "seadsa/config.h"
 #include "seadsa/CompleteCallGraph.hh"
@@ -55,14 +56,14 @@ bool DsaCallGraphPrinter::runOnModule(Module &M) {
   auto &CCG = getAnalysis<CompleteCallGraph>();
   auto &dsaCallGraph = CCG.getCompleteCallGraph();
   
-  auto writeGraph = [&dsaCallGraph](std::string Filename) {
+  auto writeGraph = [](std::string Filename, CallGraph &CG) {
     std::error_code EC;
     errs() << "Writing '" << Filename << "'...";
     raw_fd_ostream File(Filename, EC, sys::fs::F_Text);
     std::string Title("Call graph");
-    const bool IsSimple = false;
+    const bool IsSimple = false;    
     if (!EC)
-      WriteGraph(File, &dsaCallGraph, IsSimple, Title);
+      WriteGraph(File, &CG, IsSimple, Title);
     else
       errs() << "  error opening file for writing!";
     errs() << "\n";
@@ -72,7 +73,7 @@ bool DsaCallGraphPrinter::runOnModule(Module &M) {
       errs() << "*** SEA-DSA CALL GRAPH ***\n";
       dsaCallGraph.print(errs()););
 
-  writeGraph(appendOutDir(m_outDir,"callgraph.dot"));
+  writeGraph(appendOutDir(m_outDir,"callgraph.dot"), dsaCallGraph);
   
   return false;
 }

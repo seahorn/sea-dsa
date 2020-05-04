@@ -4,6 +4,7 @@ add_definitions(-D__STDC_LIMIT_MACROS)
 set(LLVM_LINK_COMPONENTS
   irreader
   bitwriter
+  analysis
   ipo
   scalaropts
   instrumentation
