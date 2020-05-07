@@ -115,6 +115,7 @@ using namespace seadsa;
 INITIALIZE_PASS_BEGIN(DsaAnalysis, "dsa-wrapper",
                       "Entry point for all SeaDsa clients", false, false)
 INITIALIZE_PASS_DEPENDENCY(RemovePtrToInt)
+INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_END(DsaAnalysis, "dsa-wrapper",
