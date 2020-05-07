@@ -1,4 +1,5 @@
 #include "seadsa/AllocSiteInfo.hh"
+#include "seadsa/InitializePasses.hh"
 
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -165,5 +166,13 @@ llvm::Optional<unsigned> AllocSiteInfo::getAllocSiteSize(const Value &v) {
   return llvm::None;
 }
 
-static llvm::RegisterPass<seadsa::AllocSiteInfo> X("seadsa-alloc-site-info",
-                                                   "Detects allocation sites");
+// static llvm::RegisterPass<seadsa::AllocSiteInfo> X("seadsa-alloc-site-info",
+//                                                    "Detects allocation sites");
+
+using namespace seadsa;
+INITIALIZE_PASS_BEGIN(AllocSiteInfo, "seadsa-alloc-site-info",
+                      "Detects allocation sites", false, false)
+INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_END(AllocSiteInfo, "seadsa-alloc-site-info",
+		    "Detects allocation sites", false, false)
