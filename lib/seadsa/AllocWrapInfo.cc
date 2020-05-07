@@ -1,4 +1,5 @@
 #include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/InitializePasses.hh"
 
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
@@ -25,7 +26,6 @@ namespace {
 bool isNotStored(Value *V);
 }
 
-char AllocWrapInfo::ID = 0;
 
 void AllocWrapInfo::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
@@ -215,6 +215,12 @@ bool isNotStored(Value *V) {
 
 } // namespace
 
-static llvm::RegisterPass<seadsa::AllocWrapInfo>
-    X("seadsa-alloc-wrap-info",
-      "Detects allocator wrappers");
+char AllocWrapInfo::ID = 0;
+
+using namespace seadsa;
+INITIALIZE_PASS_BEGIN(AllocWrapInfo, "seadsa-alloc-wrap-info",
+                      "Detects allocator wrappers", false, false)
+INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_END(AllocWrapInfo, "seadsa-alloc-wrap-info",
+                      "Detects allocator wrappers", false, false)
