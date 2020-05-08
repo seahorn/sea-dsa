@@ -7,4 +7,5 @@ void initializeRemovePtrToIntPass(PassRegistry &);
 void initializeAllocWrapInfoPass(PassRegistry &);
 void initializeAllocSiteInfoPass(PassRegistry &);  
 void initializeDsaAnalysisPass(PassRegistry &);
+void initializeCompleteCallGraphPass(PassRegistry &);
 }

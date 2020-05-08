@@ -19,6 +19,7 @@
 #include "seadsa/Cloner.hh"
 #include "seadsa/CompleteCallGraph.hh"
 #include "seadsa/Graph.hh"
+#include "seadsa/InitializePasses.hh"
 #include "seadsa/Local.hh"
 #include "seadsa/config.h"
 #include "seadsa/support/Debug.h"
@@ -710,5 +711,12 @@ Pass *createDsaPrintCallGraphStatsPass() {
 
 } // namespace seadsa
 
-static llvm::RegisterPass<seadsa::CompleteCallGraph>
-    X("seadsa-complete-callgraph", "Construct SeaDsa call graph pass");
+using namespace seadsa;
+INITIALIZE_PASS_BEGIN(CompleteCallGraph, "seadsa-complete-callgraph",
+                      "Construct SeaDsa call graph pass", false, false)
+INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
+INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_END(CompleteCallGraph, "seadsa-complete-callgraph",
+		    "Construct SeaDsa call graph pass", false, false)
+
