@@ -149,7 +149,8 @@ int main(int argc, char **argv) {
   llvm::initializeRemovePtrToIntPass(Registry);
   llvm::initializeDsaAnalysisPass(Registry);
   llvm::initializeAllocWrapInfoPass(Registry);
-  llvm::initializeAllocSiteInfoPass(Registry);  
+  llvm::initializeAllocSiteInfoPass(Registry);
+  llvm::initializeCompleteCallGraphPass(Registry);    
   
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout();
