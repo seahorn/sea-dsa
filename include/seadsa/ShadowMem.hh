@@ -63,7 +63,7 @@ public:
 
   // Return the id of the field pointed by the given cell c.
   llvm::Optional<unsigned> getCellId(const Cell &c) const;
-  
+
   ShadowMemInstOp getShadowMemOp(const llvm::CallInst &ci) const;
 
   // Return cell associated to the shadow mem call instruction.
