@@ -24,4 +24,5 @@ add_llvm_library (SeaDsaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   DsaCallGraphPrinter.cc
   DsaColor.cc
   ShadowMem.cc
+  SeaMemorySSA.cc
   )
