@@ -589,10 +589,11 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   /// \brief Infer which PHINodes corresponds to shadow pseudo-assignments
   /// The type is stored as a meta-data on the node
   void inferTypeOfPHINodes(Function &F) {
-    // for every bb in topological order
-    for (auto *bb : llvm::inverse_post_order(&F.getEntryBlock())) {
+    // -- assume that basic blocks (ignoring back edges) are in topological
+    // order
+    for (auto &BB : F) {
       // for every PHINode
-      for (auto &phi : bb->phis()) {
+      for (auto &phi : BB.phis()) {
         // for every incoming value
         for (auto &val : phi.incoming_values()) {
           // if an incoming value has metadata, take it, and be done
