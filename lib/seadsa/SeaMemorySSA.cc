@@ -244,6 +244,7 @@ void SeaMemorySSA::buildForFunction(ShadowMem &shadow) {
         DMA = defMap.lookup(DUP.second);
         assert(DMA);
         LiveOnExitUses->push_back(new SeaMemoryUse(C, DMA, nullptr, nullptr));
+        LiveOnExitUses->back().setShadowMemOp(MemOp);
         break;
       case ShadowMemInstOp::LOAD:
       case ShadowMemInstOp::TRSFR_LOAD:
@@ -254,6 +255,7 @@ void SeaMemorySSA::buildForFunction(ShadowMem &shadow) {
         DMA = defMap.lookup(DUP.second);
         assert(DMA);
         newUse = new SeaMemoryUse(C, DMA, MI, BB);
+        newUse->setShadowMemOp(MemOp);
         acl->push_back(newUse);
         ValueToMemoryAccess.insert({MI, newUse});
         break;
@@ -264,6 +266,7 @@ void SeaMemorySSA::buildForFunction(ShadowMem &shadow) {
         assert(DUP.first);
         DMA = DUP.second ? defMap.lookup(DUP.second) : nullptr;
         newDef = new SeaMemoryDef(C, DMA, nullptr, BB, ++NextID);
+        newDef->setShadowMemOp(MemOp);
         newDef->setDsaCell(shadow.getShadowMemCell(*CI));
         LiveOnEntryDefs->push_back(newDef);
         defMap.insert({DUP.first, newDef});
@@ -278,6 +281,7 @@ void SeaMemorySSA::buildForFunction(ShadowMem &shadow) {
         DMA = DUP.second ? defMap.lookup(DUP.second) : nullptr;
         assert(DMA);
         newDef = new SeaMemoryDef(C, DMA, MI, BB, ++NextID);
+        newDef->setShadowMemOp(MemOp);
         newDef->setDsaCell(shadow.getShadowMemCell(*CI));
         acl->push_back(newDef);
         defMap.insert({DUP.first, newDef});

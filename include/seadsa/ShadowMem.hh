@@ -30,6 +30,21 @@ class Cell;
 } // namespace seadsa
 
 namespace seadsa {
+enum class ShadowMemInstOp {
+  LOAD,        /* load */
+  TRSFR_LOAD,  /* memory transfer load */
+  STORE,       /* store */
+  GLOBAL_INIT, /* initialization of global values */
+  INIT,        /* initialization of local shadow variables */
+  ARG_INIT,    /* initialization of shadow formal parameters */
+  ARG_REF,     /* input actual parameter */
+  ARG_MOD,     /* input/output actual parameter */
+  ARG_NEW,     /* output actual parameter */
+  FUN_IN,      /* input formal parameter */
+  FUN_OUT,     /* output formal parameter */
+  UNKNOWN
+};
+
 using namespace llvm;
 
 namespace SMSSAHelpers {
@@ -89,6 +104,9 @@ public:
   }
   const seadsa::Cell &getDsaCell() const { return m_Cell; }
 
+  void setShadowMemOp(ShadowMemInstOp op) { m_ShadowOp = op; }
+  ShadowMemInstOp getShadowMemOp() const { return m_ShadowOp; }
+
 protected:
   friend class SeaMemoryDef;
   friend class SeaMemoryPhi;
@@ -115,6 +133,7 @@ protected:
 private:
   BasicBlock *Block;
   seadsa::Cell m_Cell;
+  ShadowMemInstOp m_ShadowOp = ShadowMemInstOp::UNKNOWN;
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
@@ -556,21 +575,6 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(SeaMemoryPhi, SeaMemoryAccess)
 
 namespace seadsa {
 class ShadowMem;
-
-enum class ShadowMemInstOp {
-  LOAD,        /* load */
-  TRSFR_LOAD,  /* memory transfer load */
-  STORE,       /* store */
-  GLOBAL_INIT, /* initialization of global values */
-  INIT,        /* initialization of local shadow variables */
-  ARG_INIT,    /* initialization of shadow formal parameters */
-  ARG_REF,     /* input actual parameter */
-  ARG_MOD,     /* input/output actual parameter */
-  ARG_NEW,     /* output actual parameter */
-  FUN_IN,      /* input formal parameter */
-  FUN_OUT,     /* output formal parameter */
-  UNKNOWN
-};
 
 /// MemorySSA implementation backed up by SeaDsa
 ///
