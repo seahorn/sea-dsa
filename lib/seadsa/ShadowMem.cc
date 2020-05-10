@@ -211,6 +211,8 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   CallGraph *m_callGraph;
   Pass &m_pass;
 
+  DenseMap<llvm::Function *, std::unique_ptr<SeaMemorySSA>> m_MemorySSAPerFunc;
+
   bool m_splitDsaNodes;
   bool m_computeReadMod;
   bool m_memOptimizer;
@@ -770,6 +772,14 @@ public:
     return {def, use};
   }
 
+  SeaMemorySSA *getMemorySSA(Function &F, ShadowMem &Parent) {
+    auto Res = m_MemorySSAPerFunc.insert({&F, nullptr});
+    if (Res.second) {
+      Res.first->second = std::make_unique<SeaMemorySSA>(F, m_dsa);
+      Res.first->second->buildForFunction(Parent);
+    }
+    return Res.first->second.get();
+  }
   const llvm::StringRef m_metadataTag = "shadow.mem";
   const llvm::StringRef m_memDefTag = "shadow.mem.def";
   const llvm::StringRef m_memUseTag = "shadow.mem.use";
