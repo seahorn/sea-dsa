@@ -129,6 +129,11 @@ void SeaMemoryDef::print(raw_ostream &OS) const {
 
     if (Optional<AliasResult> AR = getOptimizedAccessType()) OS << " " << *AR;
   }
+
+  if (m_Cell.getNode()) {
+    OS << " <" << m_Cell.getOffset() << " @ N(" << m_Cell.getNode()->getId()
+       << ")>";
+  }
 }
 
 void SeaMemoryPhi::print(raw_ostream &OS) const {
