@@ -552,7 +552,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     auto *ci = mkShadowCall(B, c, m_markIn,
                             {B.getInt32(getFieldId(c)), v, B.getInt32(idx),
                              getUniqueScalar(*m_llvmCtx, B, c)});
-    markDefCall(ci, bytes);
+    markUseCall(ci, bytes);
     return *ci;
   }
 
@@ -745,10 +745,13 @@ public:
 
     CallSite CS(&ci);
     switch (getShadowMemOp(ci)) {
-    case ShadowMemInstOp::LOAD:
-    case ShadowMemInstOp::ARG_REF:
+    default:
+      break;
+    case ShadowMemInstOp::FUN_IN:
     case ShadowMemInstOp::FUN_OUT:
+    case ShadowMemInstOp::LOAD:
     case ShadowMemInstOp::TRSFR_LOAD:
+    case ShadowMemInstOp::ARG_REF:
       use = CS.getArgument(1);
       break;
     case ShadowMemInstOp::STORE:
@@ -757,14 +760,11 @@ public:
       use = CS.getArgument(1);
       def = &ci;
       break;
-    case ShadowMemInstOp::GLOBAL_INIT:
-    case ShadowMemInstOp::FUN_IN:
     case ShadowMemInstOp::INIT:
+    case ShadowMemInstOp::GLOBAL_INIT:
     case ShadowMemInstOp::ARG_INIT:
       def = &ci;
       break;
-    default:;
-      ;
     }
     return {def, use};
   }
