@@ -1562,6 +1562,10 @@ std::pair<Value *, Value *> ShadowMem::getShadowMemVars(CallInst &ci) const {
   return m_impl->getShadowMemVars(ci);
 }
 
+SeaMemorySSA *ShadowMem::getMemorySSA(Function &F) {
+  return m_impl->getMemorySSA(F, *this);
+}
+
 /** ShadowMemPass class **/
 ShadowMemPass::ShadowMemPass()
     : llvm::ModulePass(ShadowMemPass::ID), m_shadowMem(nullptr) {}
