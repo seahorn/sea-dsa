@@ -4,10 +4,10 @@
  * Memory SSA form.
  ****/
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Pass.h"
 #include <memory>
-#include "llvm/ADT/STLExtras.h"
 
 #include "seadsa/DsaAnalysis.hh"
 
@@ -83,6 +83,12 @@ public:
     return this->AllAccessType::getReverseIterator();
   }
 
+  void setDsaCell(const seadsa::Cell &c) { m_Cell = c; }
+  void setDsaCell(const llvm::Optional<Cell> &c) {
+    if (c.hasValue()) m_Cell = c.getValue();
+  }
+  const seadsa::Cell &getDsaCell() const { return m_Cell; }
+
 protected:
   friend class SeaMemoryDef;
   friend class SeaMemoryPhi;
@@ -108,6 +114,7 @@ protected:
 
 private:
   BasicBlock *Block;
+  seadsa::Cell m_Cell;
 };
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
@@ -381,9 +388,7 @@ public:
 
   /// Return incoming value number x
   SeaMemoryAccess *getIncomingValue(unsigned I) const { return getOperand(I); }
-  void setIncomingValue(unsigned I, SeaMemoryAccess *V) {
-    setOperand(I, V);
-  }
+  void setIncomingValue(unsigned I, SeaMemoryAccess *V) { setOperand(I, V); }
 
   static unsigned getOperandNumForIncomingValue(unsigned I) { return I; }
   static unsigned getIncomingValueNumForOperand(unsigned I) { return I; }

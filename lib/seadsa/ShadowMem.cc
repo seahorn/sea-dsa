@@ -688,9 +688,10 @@ public:
       return llvm::None;
   }
 
-  /// \brief Returns the cell associated to the shadow memory
-  /// instruction. If the instruction is not a shadow memory
-  /// instruction then it returns null.
+  /// \brief Returns the cell associated to the shadow memory instruction.
+  ///
+  /// If the instruction is not a shadow memory instruction then it returns
+  /// llvm::None.
   llvm::Optional<Cell> getShadowMemCell(const CallInst &ci) const {
     if (!isShadowMemInst(ci)) {
       LOG("shadow_cs", errs() << "Warning: " << ci
