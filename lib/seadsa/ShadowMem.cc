@@ -620,7 +620,6 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   using MaybeAllocSites = Optional<SmallDenseSet<Value *, 8>>;
   using AllocSitesCache = DenseMap<Value *, MaybeAllocSites>;
   bool isMemInit(const CallInst &memOp);
-  CallInst &getParentDef(CallInst &memOp);
   const MaybeAllocSites &getAllAllocSites(Value &ptr, AllocSitesCache &cache);
   bool mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache);
 
@@ -1329,25 +1328,6 @@ bool ShadowMemImpl::isMemInit(const CallInst &memOp) {
   auto *fn = memOp.getCalledFunction();
   assert(fn);
   return llvm::is_contained(m_memInitFunctions, fn);
-}
-
-CallInst &ShadowMemImpl::getParentDef(CallInst &memOp) {
-  assert(memOp.getMetadata(m_metadataTag));
-
-  if (isMemInit(memOp)) return memOp;
-
-  auto *fn = memOp.getCalledFunction();
-  assert(fn);
-  assert(fn == m_memLoadFn || fn == m_memStoreFn || fn == m_memTrsfrLoadFn);
-
-  assert(memOp.getNumOperands() >= 1);
-  Value *defArg = memOp.getOperand(1);
-  assert(defArg);
-  assert(isa<CallInst>(defArg));
-  auto *def = cast<CallInst>(defArg);
-  assert(def->getMetadata(m_memDefTag));
-
-  return *def;
 }
 
 const ShadowMemImpl::MaybeAllocSites &
