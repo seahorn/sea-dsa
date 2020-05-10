@@ -1495,31 +1495,39 @@ void ShadowMemImpl::solveUses(Function &F) {
   AllocSitesCache ptrToAllocSitesCache;
 
   // Visit shadow loads in topological order.
-  for (auto *bb : llvm::inverse_post_order(&F.getEntryBlock()))
-    for (auto &inst : *bb)
-      if (auto *call = dyn_cast<CallInst>(&inst))
-        if (call->getMetadata(m_memUseTag)) {
-          LOG("shadow_optimizer", llvm::errs() << "Solving " << *call << "\n");
+  // Assume that basic blocks are ordered in topological order in F
+  for (auto &BB : F) {
+    for (auto &inst : BB) {
+      if (auto *call = dyn_cast<CallInst>(&inst)) {
+        if (!call->getMetadata(m_memUseTag)) continue;
 
-          // Find the first potentially clobbering memDef (shadow store or
-          // shadow init).
-          CallInst *oldDef = nullptr;
-          CallInst *def = &getParentDef(*call);
-          while (oldDef != def &&
-                 !mayClobber(*def, *call, ptrToAllocSitesCache)) {
-            oldDef = def;
-            def = &getParentDef(*def);
-          }
+        LOG("shadow_optimizer", llvm::errs() << "Solving " << *call << "\n");
 
-          LOG("shadow_optimizer", llvm::errs() << "Def for: " << *call
-                                               << "\n\tis " << *def << "\n");
-
-          if (call->getOperand(1) != def) {
-            ++numOptimized;
-            call->setArgOperand(1, def);
-          }
+        // Find the first potentially clobbering memDef (shadow store or
+        // shadow init).
+        CallInst *prevDef = nullptr;
+        auto duPair = getShadowMemVars(*call);
+        CallInst *def = dyn_cast_or_null<CallInst>(duPair.second);
+        while (def && !mayClobber(*def, *call, ptrToAllocSitesCache)) {
+          prevDef = def;
+          auto dup = getShadowMemVars(*def);
+          def = dyn_cast_or_null<CallInst>(dup.second);
         }
+        if (!def) def = prevDef;
 
+        LOG("shadow_optimizer", {
+          if (def)
+            llvm::errs() << "Def for: " << *call << "\n\tis " << *def
+                         << "\n";
+        });
+
+        if (def && duPair.second != def) {
+          ++numOptimized;
+          call->setArgOperand(1, def);
+        }
+      }
+    }
+  }
   LOG("shadow_optimizer", llvm::errs() << "MemSSA optimizer: " << numOptimized
                                        << " use(s) solved.\n");
 }
