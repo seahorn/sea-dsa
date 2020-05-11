@@ -50,15 +50,9 @@ public:
     if (BB == &BB->getParent()->getEntryBlock()) {
       for (auto &MA : SMSSA->liveOnEntry())
         OS << "; " << MA << "\n";
-    } else if (auto const *FirstPhi =
-                   dyn_cast_or_null<SeaMemoryPhi>(SMSSA->getMemoryAccess(BB))) {
-      // -- print MemPhi for this basic block
-      for (auto &Phi : llvm::make_range(FirstPhi->getIterator(),
-                                        SMSSA->getBlockAccesses(BB)->end())) {
-        if (isa<SeaMemoryPhi>(Phi))
-          OS << "; " << Phi << "\n";
-        else
-          break;
+    } else {
+      for (auto &MA : SMSSA->getMemoryAccesses(BB)) {
+        OS << "; " << MA << "\n";
       }
     }
   }
@@ -76,14 +70,18 @@ public:
     if (auto *RI = dyn_cast<ReturnInst>(I)) {
       for (auto &MA : SMSSA->liveOnExit())
         OS << "; " << MA << "\n";
-    } else if (auto const *FirstMA = SMSSA->getMemoryAccess(I)) {
-      // iterate over all MUD accesses corresponding to I
-      for (auto &MA : llvm::make_range(FirstMA->getIterator(),
-                                       SMSSA->getBlockAccesses(BB)->end())) {
-        if (getMemoryInst(MA) != I) break;
-        OS << "; " << MA << "\n";
-      }
+    } else {
+      for (auto &MA : SMSSA->getMemoryAccesses(I))
+        OS << "; " << MA << " \n";
     }
+
+    // else if (auto const *FirstMA = SMSSA->getMemoryAccess(I)) {
+    //   // iterate over all MUD accesses corresponding to I
+    //   for (auto &MA : llvm::make_range(FirstMA->getIterator(),
+    //                                    SMSSA->getBlockAccesses(BB)->end())) {
+    //     if (getMemoryInst(MA) != I) break;
+    //     OS << "; " << MA << "\n";
+    //   }
   }
 };
 
