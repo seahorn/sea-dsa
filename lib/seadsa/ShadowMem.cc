@@ -1508,8 +1508,7 @@ void ShadowMemImpl::solveUses(Function &F) {
 
         LOG("shadow_optimizer", {
           if (def)
-            llvm::errs() << "Def for: " << *call << "\n\tis " << *def
-                         << "\n";
+            llvm::errs() << "Def for: " << *call << "\n\tis " << *def << "\n";
         });
 
         if (def && duPair.second != def) {
@@ -1531,7 +1530,19 @@ ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi,
     : m_impl(new ShadowMemImpl(dsa, asi, tli, cg, pass, splitDsaNodes,
                                computeReadMod, memOptimizer, useTBAA)) {}
 
-bool ShadowMem::runOnModule(Module &M) { return m_impl->runOnModule(M); }
+bool ShadowMem::runOnModule(Module &M) {
+  bool Change = m_impl->runOnModule(M);
+
+  LOG(
+      "memssa",
+      /// attempt to compute MemorySSA for every function that we have processed
+      for (auto &F
+           : M) {
+        if (F.isDeclaration()) continue;
+        getMemorySSA(F);
+      });
+  return Change;
+}
 
 GlobalAnalysis &ShadowMem::getDsaAnalysis() { return m_impl->getDsaAnalysis(); }
 
