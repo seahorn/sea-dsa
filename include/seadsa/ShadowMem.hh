@@ -5,8 +5,10 @@
  ****/
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/iterator.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Pass.h"
+
 #include <memory>
 
 #include "seadsa/DsaAnalysis.hh"
@@ -55,11 +57,12 @@ struct AllAccessTag {};
 // linked together using an intrusive list.
 class SeaMemoryAccess
     : public DerivedUser,
-      public ilist_node<SeaMemoryAccess,
+      public ilist_node<SeaMemoryAccess, ilist_sentinel_tracking<true>,
                         ilist_tag<SMSSAHelpers::AllAccessTag>> {
 public:
   using AllAccessType =
-      ilist_node<SeaMemoryAccess, ilist_tag<SMSSAHelpers::AllAccessTag>>;
+      ilist_node<SeaMemoryAccess, ilist_sentinel_tracking<true>,
+                 ilist_tag<SMSSAHelpers::AllAccessTag>>;
 
   SeaMemoryAccess(const SeaMemoryAccess &) = delete;
   SeaMemoryAccess &operator=(const SeaMemoryAccess &) = delete;
@@ -586,6 +589,9 @@ public:
   SeaMemorySSA(SeaMemorySSA &&) = delete;
   ~SeaMemorySSA();
 
+  using AccessList = iplist<SeaMemoryAccess, ilist_sentinel_tracking<true>,
+                            ilist_tag<SMSSAHelpers::AllAccessTag>>;
+
   SeaMemoryUseOrDef *getMemoryAccess(const Instruction *I) const {
     return cast_or_null<SeaMemoryUseOrDef>(ValueToMemoryAccess.lookup(I));
   }
@@ -595,11 +601,116 @@ public:
         ValueToMemoryAccess.lookup(cast<Value>(BB)));
   }
 
+  template <typename SeaMemPhiT = SeaMemoryPhi,
+            typename ACLIteratorT = AccessList::iterator>
+  class mem_phi_iterator_impl
+      : public iterator_facade_base<
+            mem_phi_iterator_impl<SeaMemPhiT, ACLIteratorT>,
+            std::forward_iterator_tag, SeaMemPhiT> {
+
+    friend SeaMemorySSA;
+    SeaMemPhiT *memPhi;
+    mem_phi_iterator_impl(SeaMemPhiT *memPhi) : memPhi(memPhi) {}
+
+  public:
+    mem_phi_iterator_impl() = default;
+
+    template <typename SeaMemPhiU, typename ACLIteratorU>
+    mem_phi_iterator_impl(
+        const mem_phi_iterator_impl<SeaMemPhiU, ACLIteratorU> &Arg)
+        : memPhi(Arg.memPhi) {}
+
+    bool operator==(const mem_phi_iterator_impl &Arg) const {
+      return memPhi == Arg.memPhi;
+    }
+    SeaMemPhiT &operator*() const { return *memPhi; }
+
+    using mem_phi_iterator_impl::iterator_facade_base::operator++;
+    mem_phi_iterator_impl &operator++() {
+      assert(memPhi && "Cannot increment past end of iterator");
+
+      auto it = std::next(ACLIteratorT(memPhi));
+      memPhi = it.isEnd() ? nullptr : dyn_cast<SeaMemPhiT>(it);
+      return *this;
+    }
+  };
+
+  using mem_phi_iterator = mem_phi_iterator_impl<>;
+  using const_mem_phi_iterator =
+      mem_phi_iterator_impl<const SeaMemoryPhi, AccessList::const_iterator>;
+
+  iterator_range<const_mem_phi_iterator>
+  getMemoryAccesses(const BasicBlock *BB) const {
+    return llvm::make_range(const_mem_phi_iterator(getMemoryAccess(BB)),
+                            const_mem_phi_iterator(nullptr));
+  }
+
+  template <typename SeaMemAccessT = SeaMemoryAccess,
+            typename ACLIteratorT = AccessList::iterator>
+  class inst_ma_iterator_impl
+      : public iterator_facade_base<
+            inst_ma_iterator_impl<SeaMemAccessT, ACLIteratorT>,
+            std::forward_iterator_tag, SeaMemAccessT> {
+    friend SeaMemorySSA;
+
+    SeaMemAccessT *MA;
+    const llvm::Instruction *inst;
+
+    const Instruction *getMemoryInst(SeaMemAccessT *MA) {
+      if (!MA) return nullptr;
+      if (auto *MUD = dyn_cast<const SeaMemoryUseOrDef>(MA)) {
+        return MUD->getMemoryInst();
+      }
+      return nullptr;
+    }
+
+    inst_ma_iterator_impl(SeaMemAccessT *MA) : MA(MA), inst(getMemoryInst(MA)) {
+      if (!inst) MA = nullptr;
+    }
+
+  public:
+    inst_ma_iterator_impl() = default;
+    template <typename SeaMemAccessU, typename ACLIteratorU>
+    inst_ma_iterator_impl(
+        const inst_ma_iterator_impl<SeaMemAccessU, ACLIteratorU> &Arg)
+        : MA(Arg.MA), inst(Arg.inst) {}
+
+    bool operator==(const inst_ma_iterator_impl &Arg) const {
+      return MA == Arg.MA;
+    }
+
+    SeaMemAccessT &operator*() const {
+      assert(MA);
+      return *MA;
+    }
+
+    using inst_ma_iterator_impl::iterator_facade_base::operator++;
+    inst_ma_iterator_impl &operator++() {
+      assert(MA && "Cannot increment past end of iterator");
+      auto it = std::next(ACLIteratorT(MA));
+      if (it.isEnd()) {
+        MA = nullptr;
+      } else {
+        // not at the end of ACL and current MA has the same instruction as us
+        auto nextInst = getMemoryInst(dyn_cast<SeaMemAccessT>(it));
+        MA = nextInst == inst ? dyn_cast<SeaMemAccessT>(it) : nullptr;
+      }
+      return *this;
+    }
+  };
+
+  using inst_ma_iteartor = inst_ma_iterator_impl<>;
+  using const_inst_ma_iterator =
+      inst_ma_iterator_impl<const SeaMemoryAccess, AccessList::const_iterator>;
+
+  iterator_range<const_inst_ma_iterator>
+  getMemoryAccesses(const Instruction *I) const {
+    return llvm::make_range(const_inst_ma_iterator(getMemoryAccess(I)),
+                            const_inst_ma_iterator(nullptr));
+  }
+
   void dump() const;
   void print(raw_ostream &) const;
-
-  using AccessList =
-      iplist<SeaMemoryAccess, ilist_tag<SMSSAHelpers::AllAccessTag>>;
 
   using iterator = AccessList::iterator;
   using const_iterator = AccessList::const_iterator;
