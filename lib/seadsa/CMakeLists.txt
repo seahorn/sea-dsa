@@ -9,10 +9,10 @@ add_llvm_library (SeaDsaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   DsaStats.cc
   Mapper.cc
   DsaBottomUp.cc
-  DsaTopDown.cc  
+  DsaTopDown.cc
   DsaAnalysis.cc
   DsaPrinter.cc
-  CallGraphWrapper.cc  
+  CallGraphWrapper.cc
   TypeUtils.cc
   Debug.cc
   NameValues.cc
@@ -25,4 +25,5 @@ add_llvm_library (SeaDsaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   DsaColor.cc
   ShadowMem.cc
   SeaMemorySSA.cc
+  SeaDsaAliasAnalysis.cc
   )

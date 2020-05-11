@@ -9,4 +9,5 @@ void initializeAllocSiteInfoPass(PassRegistry &);
 void initializeDsaAnalysisPass(PassRegistry &);
 void initializeCompleteCallGraphPass(PassRegistry &);
 void initializeDsaInfoPassPass(PassRegistry &);
+void initializeSeaDsaAAWrapperPassPass(PassRegistry &);
 }
