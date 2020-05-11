@@ -1,4 +1,5 @@
 #include "seadsa/ShadowMem.hh"
+#include "seadsa/SeaMemorySSA.hh"
 
 #include "seadsa/AllocSiteInfo.hh"
 #include "seadsa/CallSite.hh"
