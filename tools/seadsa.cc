@@ -24,9 +24,10 @@
 
 #include "seadsa/CompleteCallGraph.hh"
 #include "seadsa/DsaAnalysis.hh"
+#include "seadsa/InitializePasses.hh"
 #include "seadsa/ShadowMem.hh"
 #include "seadsa/support/Debug.h"
-#include "seadsa/InitializePasses.hh"
+#include "seadsa/SeaDsaAliasAnalysis.hh"
 
 static llvm::cl::opt<std::string>
     InputFilename(llvm::cl::Positional,
@@ -109,8 +110,7 @@ int main(int argc, char **argv) {
     llvm::errs() << "error: "
                  << "Bitcode was not properly read; " << err.getMessage()
                  << "\n";
-    if (llvm::errs().has_colors())
-      llvm::errs().resetColor();
+    if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
   }
 
@@ -122,8 +122,7 @@ int main(int argc, char **argv) {
       llvm::errs().changeColor(llvm::raw_ostream::RED);
     llvm::errs() << "error: Could not open " << AsmOutputFilename << ": "
                  << error_code.message() << "\n";
-    if (llvm::errs().has_colors())
-      llvm::errs().resetColor();
+    if (llvm::errs().has_colors()) llvm::errs().resetColor();
     return 3;
   }
 
@@ -150,8 +149,10 @@ int main(int argc, char **argv) {
   llvm::initializeDsaAnalysisPass(Registry);
   llvm::initializeAllocWrapInfoPass(Registry);
   llvm::initializeAllocSiteInfoPass(Registry);
-  llvm::initializeCompleteCallGraphPass(Registry);    
-  
+  llvm::initializeCompleteCallGraphPass(Registry);
+
+  llvm::initializeSeaDsaAAWrapperPassPass(Registry);
+
   // add an appropriate DataLayout instance for the module
   const llvm::DataLayout *dl = &module->getDataLayout();
   if (!dl && !DefaultDataLayout.empty()) {
@@ -161,16 +162,29 @@ int main(int argc, char **argv) {
 
   assert(dl && "Could not find Data Layout for the module");
 
+  // ==--== Alias Analysis Passes ==--==/
+
+  // -- first in the pipeline 
+  pass_manager.add(seadsa::createSeaDsaAAWrapperPass());
+
+  // XXX Comment other alias analyses for now to make sure that we
+  // XXX get to SeaDsa one first. Enable them once there are
+  // XXX tests that exercise alias analysis
+  // pass_manager.add(llvm::createTypeBasedAAWrapperPass());
+  // pass_manager.add(llvm::createScopedNoAliasAAWrapperPass());
+
+  // compute mod-ref information about functions . Good idea to (re)run it after
+  // indirect calls have been resolved See comments in PassManagerBuilder.cpp on
+  // how it interacts with Function passes
+  // pass_manager.add(llvm::createGlobalsAAWrapperPass());
+  // ==--== End of Alias Analysis Passes ==--==/
+
   if (RunShadowMem) {
     pass_manager.add(seadsa::createShadowMemPass());
   } else {
-    if (MemDot) {
-      pass_manager.add(seadsa::createDsaPrinterPass());
-    }
+    if (MemDot) { pass_manager.add(seadsa::createDsaPrinterPass()); }
 
-    if (MemViewer) {
-      pass_manager.add(seadsa::createDsaViewerPass());
-    }
+    if (MemViewer) { pass_manager.add(seadsa::createDsaViewerPass()); }
 
     if (seadsa::PrintDsaStats && !MemDot && !MemViewer) {
       pass_manager.add(seadsa::createDsaPrintStatsPass());
@@ -197,8 +211,7 @@ int main(int argc, char **argv) {
 
   pass_manager.run(*module.get());
 
-  if (!AsmOutputFilename.empty())
-    asmOutput->keep();
+  if (!AsmOutputFilename.empty()) asmOutput->keep();
 
   return 0;
 }
