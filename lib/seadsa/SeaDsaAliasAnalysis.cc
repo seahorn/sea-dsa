@@ -5,7 +5,9 @@
 #include "llvm/IR/Type.h"
 
 #include "seadsa/InitializePasses.hh"
+#include "seadsa/support/Debug.h"
 
+#define DEBUG_TYPE "sea-aa"
 using namespace llvm;
 using namespace seadsa;
 namespace dsa = seadsa;
@@ -20,6 +22,7 @@ SeaDsaAAResult::~SeaDsaAAResult() = default;
 
 llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
                                         const llvm::MemoryLocation &LocB, llvm::AAQueryInfo &AAQI) {
+  DOG(llvm::errs() << "\n\n\nAlias query: " << *LocA.Ptr << " and " << *LocB.Ptr << "\n\n\n";);
   if (LocA.Ptr == LocB.Ptr) return MustAlias;
   // -- fall back to default implementation
   return AAResultBase::alias(LocA, LocB, AAQI);
@@ -45,6 +48,7 @@ SeaDsaAAWrapperPass::SeaDsaAAWrapperPass() : ImmutablePass(ID) {
 }
 
 void SeaDsaAAWrapperPass::initializePass() {
+  DOG(errs() << "initializing SeaDsaAAWrapperPass\n");
   auto GetTLI = [this](Function &F) -> TargetLibraryInfo & {
     return this->getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F);
   };
