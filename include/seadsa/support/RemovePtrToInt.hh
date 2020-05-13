@@ -21,6 +21,7 @@ public:
   }
 };
 
+llvm::Pass* createRemovePtrToIntPass();
 } // namespace seadsa
 
 #endif

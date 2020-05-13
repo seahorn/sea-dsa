@@ -12,30 +12,43 @@
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/support/Debug.h"
 
-#define RPTI_LOG(...) LOG("remove-ptrtoint", __VA_ARGS__)
+#define DEBUG_TYPE "sea-remove-ptrtoint"
 
 using namespace llvm;
 
 namespace seadsa {
 
-
 static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
                            SmallPtrSetImpl<StoreInst *> &StoresToErase,
                            SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts) {
+  // -- clang-format off
+  /*
+
+    Rewrites the following use of ptrtoint
+
+    %20 = ptrtoint %struct.Entry* %m to i32
+    %22 = getelementptr inbounds %struct.Entry, %struct.Entry* %G, i32 0, i32 1
+    %23 = bitcast %struct.Entry** %22 to i32*
+    store i32 %20, i32* %23
+
+    Into
+
+    %22 = getelementptr inbounds %struct.Entry, %struct.Entry* %G, i32 0, i32 1
+    store %struct.Entry* %m, %struct.Entry** %22
+
+   */
+  // -- clang-format on
   assert(SI);
 
   auto *P2I = dyn_cast<PtrToIntInst>(SI->getValueOperand());
-  if (!P2I)
-    return false;
+  if (!P2I) return false;
 
   auto *BC = dyn_cast<BitCastInst>(SI->getPointerOperand());
-  if (!BC)
-    return false;
+  if (!BC) return false;
 
   auto *PtrVal = P2I->getPointerOperand();
   auto *PtrIntTy = DL.getIntPtrType(PtrVal->getType());
-  if (PtrIntTy != P2I->getType())
-    return false;
+  if (PtrIntTy != P2I->getType()) return false;
 
   auto *BCTy = BC->getType();
   if (!BCTy->isPointerTy() || BCTy->getPointerElementType() != PtrIntTy)
@@ -44,9 +57,9 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
   auto *BCVal = BC->getOperand(0);
   auto *NewStoreDestTy = BCVal->getType();
   auto *NewStoreValTy = NewStoreDestTy->getPointerElementType();
-  if (!NewStoreValTy->isPointerTy())
-    return false;
+  if (!NewStoreValTy->isPointerTy()) return false;
 
+  DOG(llvm::errs() << "RP2I: cleaning up: " << *SI << "\n";);
   IRBuilder<> IRB(SI);
   auto *NewBC = IRB.CreateBitCast(PtrVal, NewStoreValTy);
   IRB.CreateStore(NewBC, BCVal);
@@ -68,11 +81,10 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
 
   auto *IntVal = I2P->getOperand(0);
   auto *PN = dyn_cast<PHINode>(IntVal);
-  if (!PN)
-    return false;
+  if (!PN) return false;
 
-  RPTI_LOG(errs() << F.getName() << ":\n"; I2P->print(errs());
-           PN->print(errs() << "\n"); errs() << "\n");
+  DOG(errs() << F.getName() << ":\n"; I2P->print(errs());
+      PN->print(errs() << "\n"); errs() << "\n");
 
   if (NewPhis.count(PN) > 0) {
     IRBuilder<> IRB(I2P);
@@ -80,14 +92,13 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
     I2P->replaceAllUsesWith(IRB.CreateBitCast(NewPhi, I2P->getType()));
     MaybeUnusedInsts.insert(I2P);
 
-    RPTI_LOG(errs() << "\n!!!! Reused new PHI ~~~~~ \n");
+    DOG(errs() << "\n!!!! Reused new PHI ~~~~~ \n");
     return true;
   }
 
   if (!llvm::all_of(PN->incoming_values(),
                     [](Value *IVal) { return isa<PtrToIntInst>(IVal); })) {
-    RPTI_LOG(
-        errs() << "Not all incoming values are PtrToInstInsts, skipping PHI\n");
+    DOG(errs() << "Not all incoming values are PtrToInstInsts, skipping PHI\n");
     return false;
   }
 
@@ -108,7 +119,7 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
 
       IRB.SetInsertPoint(P2I);
       NewPN->addIncoming(IRB.CreateBitCast(Ptr, I2P->getType()), IBB);
-      RPTI_LOG(NewPN->print(errs(), 1));
+      DOG(NewPN->print(errs(), 1));
 
       MaybeUnusedInsts.insert(P2I);
     }
@@ -148,16 +159,14 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
 }
 
 bool RemovePtrToInt::runOnFunction(Function &F) {
-  if (F.isDeclaration())
-    return false;
+  if (F.isDeclaration()) return false;
 
   // Skip special functions
   if (F.getName().startswith("seahorn.") || F.getName().startswith("shadow.") ||
       F.getName().startswith("verifier."))
     return false;
 
-  RPTI_LOG(errs() << "\n~~~~~~~ Start of RP2I on " << F.getName()
-                  << " ~~~~~ \n");
+  DOG(errs() << "\n~~~~~~~ Begin of RP2I on " << F.getName() << " ~~~~~ \n");
 
   bool Changed = false;
   auto &DL = F.getParent()->getDataLayout();
@@ -207,14 +216,14 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
 
   for (auto *I : OrderedMaybeUnused)
     if (I->getNumUses() == 0) {
-      RPTI_LOG(errs() << "\terasing: " << I->getName() << "\n");
+      DOG(errs() << "\terasing: " << *I << "\n");
       I->eraseFromParent();
     } else {
-      RPTI_LOG(errs() << "\t_NOT_ erasing: " << I->getName() << "\n");
+      DOG(errs() << "\t_NOT_ erasing: " << *I << "\n");
     }
 
-  RPTI_LOG(errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
-           errs().flush());
+  DOG(errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
+      errs().flush());
 
   return Changed;
 }
@@ -227,6 +236,7 @@ void RemovePtrToInt::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
 }
 
+Pass *createRemovePtrToIntPass() { return new RemovePtrToInt(); }
 } // namespace seadsa
 
 using namespace seadsa;
