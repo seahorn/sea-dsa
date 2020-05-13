@@ -25,9 +25,9 @@
 #include "seadsa/CompleteCallGraph.hh"
 #include "seadsa/DsaAnalysis.hh"
 #include "seadsa/InitializePasses.hh"
+#include "seadsa/SeaDsaAliasAnalysis.hh"
 #include "seadsa/ShadowMem.hh"
 #include "seadsa/support/Debug.h"
-#include "seadsa/SeaDsaAliasAnalysis.hh"
 
 static llvm::cl::opt<std::string>
     InputFilename(llvm::cl::Positional,
@@ -164,8 +164,15 @@ int main(int argc, char **argv) {
 
   // ==--== Alias Analysis Passes ==--==/
 
-  // -- first in the pipeline 
+  // -- add to pass manager
   pass_manager.add(seadsa::createSeaDsaAAWrapperPass());
+  // -- make available through AAResultsWrapperPass via ExternalAAWrapperPass
+  pass_manager.add(llvm::createExternalAAWrapperPass(
+      [](llvm::Pass &P, llvm::Function &, llvm::AAResults &AAR) {
+        if (auto *WrapperPass =
+                P.getAnalysisIfAvailable<seadsa::SeaDsaAAWrapperPass>())
+          AAR.addAAResult(WrapperPass->getResult());
+      }));
 
   // XXX Comment other alias analyses for now to make sure that we
   // XXX get to SeaDsa one first. Enable them once there are
