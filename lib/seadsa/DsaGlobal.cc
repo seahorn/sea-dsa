@@ -570,7 +570,8 @@ bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation(CallGraph &cg) {
       }
     }
   }
-  errs() << "Sanity check succeed: global propagation completed!\n";
+
+  LOG("dsa", errs() << "Sanity check succeed: global propagation completed!\n";);
   return true;
 }
 
