@@ -9,4 +9,6 @@ void initializeAllocSiteInfoPass(PassRegistry &);
 void initializeDsaAnalysisPass(PassRegistry &);
 void initializeCompleteCallGraphPass(PassRegistry &);
 void initializeDsaInfoPassPass(PassRegistry &);
+void initializeShadowMemPassPass(PassRegistry &);
+void initializeStripShadowMemPassPass(PassRegistry &);      
 }

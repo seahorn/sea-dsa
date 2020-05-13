@@ -3,6 +3,7 @@
 #include "seadsa/AllocSiteInfo.hh"
 #include "seadsa/CallSite.hh"
 #include "seadsa/DsaAnalysis.hh"
+#include "seadsa/InitializePasses.hh"
 #include "seadsa/Mapper.hh"
 #include "seadsa/TypeUtils.hh"
 #include "seadsa/support/Debug.h"
@@ -1712,8 +1713,19 @@ char StripShadowMemPass::ID = 0;
 
 } // namespace seadsa
 
-static llvm::RegisterPass<seadsa::ShadowMemPass>
-    X("shadow-sea-dsa", "Add shadow.mem pseudo-functions");
+using namespace seadsa;
+INITIALIZE_PASS_BEGIN(ShadowMemPass, "shadow-sea-dsa",
+                      "Add shadow.mem pseudo-functions", false, false)
+INITIALIZE_PASS_DEPENDENCY(DsaAnalysis)
+INITIALIZE_PASS_DEPENDENCY(AllocSiteInfo)
+INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
+INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_END(ShadowMemPass, "shadow-sea-dsa",
+		    "Add shadow.mem pseudo-functions", false, false)
 
-static llvm::RegisterPass<seadsa::StripShadowMemPass>
-    Y("strip-shadow-sea-dsa", "Remove shadow.mem pseudo-functions");
+INITIALIZE_PASS_BEGIN(StripShadowMemPass, "strip-shadow-sea-dsa",
+                      "Remove shadow.mem pseudo-functions", false, false)
+INITIALIZE_PASS_END(StripShadowMemPass, "strip-shadow-sea-dsa",
+                      "Remove shadow.mem pseudo-functions", false, false)
