@@ -241,8 +241,10 @@ void SeaMemorySSA::buildForFunction(ShadowMem &shadow) {
         assert(DUP.second);
         DMA = defMap.lookup(DUP.second);
         assert(DMA);
-        LiveOnExitUses->push_back(new SeaMemoryUse(C, DMA, nullptr, nullptr));
+        newUse = new SeaMemoryUse(C, DMA, nullptr, nullptr);
+        LiveOnExitUses->push_back(newUse);
         LiveOnExitUses->back().setShadowMemOp(MemOp);
+        ShadowValueToMemoryAccess.insert({CI, newUse});
         break;
       case ShadowMemInstOp::LOAD:
       case ShadowMemInstOp::TRSFR_LOAD:
@@ -256,6 +258,7 @@ void SeaMemorySSA::buildForFunction(ShadowMem &shadow) {
         newUse->setShadowMemOp(MemOp);
         acl->push_back(newUse);
         ValueToMemoryAccess.insert({MI, newUse});
+        ShadowValueToMemoryAccess.insert({CI, newUse});
         break;
       case ShadowMemInstOp::GLOBAL_INIT:
       case ShadowMemInstOp::INIT:
@@ -268,6 +271,7 @@ void SeaMemorySSA::buildForFunction(ShadowMem &shadow) {
         newDef->setDsaCell(shadow.getShadowMemCell(*CI));
         LiveOnEntryDefs->push_back(newDef);
         defMap.insert({DUP.first, newDef});
+        ShadowValueToMemoryAccess.insert({CI, newDef});
         break;
       case ShadowMemInstOp::STORE:
       case ShadowMemInstOp::ARG_MOD:
@@ -284,6 +288,7 @@ void SeaMemorySSA::buildForFunction(ShadowMem &shadow) {
         acl->push_back(newDef);
         defMap.insert({DUP.first, newDef});
         ValueToMemoryAccess.insert({MI, newDef});
+        ShadowValueToMemoryAccess.insert({CI, newDef});
         break;
       }
     } else if (auto *PHI = dyn_cast<PHINode>(&I)) {
@@ -306,6 +311,7 @@ void SeaMemorySSA::buildForFunction(ShadowMem &shadow) {
       defMap.insert({PHI, newPhi});
       // inserts only the first one PhiNode
       ValueToMemoryAccess.insert({BB, newPhi});
+      ShadowValueToMemoryAccess.insert({PHI, newPhi});
     } else
       llvm_unreachable("Unexpected shadow.mem instructions");
   }

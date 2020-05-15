@@ -559,6 +559,17 @@ public:
         ValueToMemoryAccess.lookup(cast<Value>(BB)));
   }
 
+  /// Returns a SeaMemoryAccess for a given ShadowMem instruction
+  ///
+  /// ShadowMem instruction is either a call to \p shadow.mem function or a
+  /// PHINode that depends on shadow.mem instructions
+  ///
+  /// Returns nullptr if \p v does not have a corresponding ShadowMem
+  /// instruction
+  SeaMemoryAccess* getMemoryAccessForShadow(const Value *v) const {
+    return ShadowValueToMemoryAccess.lookup(v);
+  }
+
   template <typename SeaMemPhiT = SeaMemoryPhi,
             typename ACLIteratorT = AccessList::iterator>
   class mem_phi_iterator_impl
@@ -703,6 +714,8 @@ private:
 
   // Memory SSA mappings
   DenseMap<const Value *, SeaMemoryAccess *> ValueToMemoryAccess;
+
+  DenseMap<const Value*, SeaMemoryAccess *> ShadowValueToMemoryAccess;
 
   using AccessMap = DenseMap<const BasicBlock *, std::unique_ptr<AccessList>>;
   AccessMap PerBlockAccesses;
