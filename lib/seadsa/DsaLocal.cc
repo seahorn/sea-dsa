@@ -487,13 +487,13 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     auto name = fn->getName();
 
     // due to name change from sea_dsa to seadsa, support both version
-    if (name.equals("sea_dsa_modified") || name.equals("seadsa_modified"))
+    if (name.equals("sea_dsa_set_modified") || name.equals("seadsa_set_modified"))
       return &seadsa::Node::setModified;
 
-    if (name.equals("sea_dsa_read") || name.equals("seadsa_read"))
+    if (name.equals("sea_dsa_set_read") || name.equals("seadsa_set_read"))
       return &seadsa::Node::setRead;
 
-    if (name.equals("sea_dsa_ptrtoint") || name.equals("seadsa_ptr_to_int"))
+    if (name.equals("sea_dsa_set_ptrtoint") || name.equals("seadsa_set_ptrtoint"))
       return &seadsa::Node::setPtrToInt;
   }
 
