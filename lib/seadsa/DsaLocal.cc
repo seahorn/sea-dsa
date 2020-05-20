@@ -473,27 +473,26 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     if (!fn)
       return false;
     auto n = fn->getName();
-    return n.startswith("sea_dsa_") || n.startswith("seadsa_");
+    return n.startswith("sea_dsa_");
   }
 
   static bool isSeaDsaAttrbFn(const Function *fn) {
     if (!fn)
       return false;
     auto n = fn->getName();
-    return n.startswith("sea_dsa_set") || n.startswith("seadsa_set");
+    return n.startswith("sea_dsa_set");
   }
 
   static auto getSeaDsaAttrbFunc(const Function *fn) {
     auto name = fn->getName();
 
-    // due to name change from sea_dsa to seadsa, support both version
-    if (name.equals("sea_dsa_set_modified") || name.equals("seadsa_set_modified"))
+    if (name.equals("sea_dsa_set_modified"))
       return &seadsa::Node::setModified;
 
-    if (name.equals("sea_dsa_set_read") || name.equals("seadsa_set_read"))
+    if (name.equals("sea_dsa_set_read"))
       return &seadsa::Node::setRead;
 
-    if (name.equals("sea_dsa_set_ptrtoint") || name.equals("seadsa_set_ptrtoint"))
+    if (name.equals("sea_dsa_set_ptrtoint"))
       return &seadsa::Node::setPtrToInt;
   }
 
@@ -501,24 +500,21 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     if (!fn)
       return false;
     auto name = fn->getName();
-    // due to name change from sea_dsa to seadsa, support both version
-    return name.equals("sea_dsa_alias") || name.equals("seadsa_alias");
+    return name.equals("sea_dsa_alias");
   }
 
   static bool isSeaDsaCollapseFn(const Function *fn) {
     if (!fn)
       return false;
     auto name = fn->getName();
-    // due to name change from sea_dsa to seadsa, support both version
-    return name.equals("sea_dsa_collapse") || name.equals("seadsa_collapse");
+    return name.equals("sea_dsa_collapse");
   }
 
   static bool isSeaDsaMkSequenceFn(const Function *fn) {
     if (!fn)
       return false;
     auto name = fn->getName();
-    // due to name change from sea_dsa to seadsa, support both version
-    return name.equals("sea_dsa_mk_seq") || name.equals("seadsa_mk_seq");
+    return name.equals("sea_dsa_mk_seq");
   }
 
 public:
