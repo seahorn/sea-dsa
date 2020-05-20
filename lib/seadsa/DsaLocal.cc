@@ -425,6 +425,17 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
   assert(!phi.isNull());
 }
 
+
+enum class SeadsaFn {
+  MODIFY,
+  READ,
+  PTR_TO_INT,
+  ALIAS,
+  COLLAPSE,
+  MAKE_SEQ,
+  UNKNOWN
+};
+
 /*****************************************************************************/
 /* IntraBlockBuilder */
 /*****************************************************************************/
@@ -468,6 +479,27 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitAllocWrapperCall(CallSite &CS);
   void visitAllocationFnCall(CallSite &CS);
 
+  const llvm::StringRef m_seaFnModTag       = "sea_dsa_set_modified";
+  const llvm::StringRef m_seaFnReadTag      = "sea_dsa_set_read";
+  const llvm::StringRef m_seaFnPtrToIntTag  = "sea_dsa_set_ptrtoint";
+  const llvm::StringRef m_seaFnAliasTag     = "sea_dsa_alias";
+  const llvm::StringRef m_seaFnCollapseTag  = "sea_dsa_collapse";
+  const llvm::StringRef m_seaFnMkSeqTag     = "sea_dsa_mk_seq";
+
+  SeadsaFn getSeaDsaFn (const Function *fn) {
+    if (!fn)  return SeadsaFn::UNKNOWN;
+
+    if (fn->getName().equals(m_seaFnModTag))      return SeadsaFn::ALIAS;
+    if (fn->getName().equals(m_seaFnReadTag))     return SeadsaFn::READ;
+    if (fn->getName().equals(m_seaFnPtrToIntTag)) return SeadsaFn::PTR_TO_INT;
+    if (fn->getName().equals(m_seaFnAliasTag))    return SeadsaFn::ALIAS;
+    if (fn->getName().equals(m_seaFnCollapseTag)) return SeadsaFn::COLLAPSE;
+    if (fn->getName().equals(m_seaFnMkSeqTag))    return SeadsaFn::MAKE_SEQ;
+
+    return SeadsaFn::UNKNOWN;
+
+  }
+
   /// Returns true if \p F is a \p seadsa_ family of functions
   static bool isSeaDsaFn(const Function *fn) {
     if (!fn)
@@ -476,45 +508,26 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     return n.startswith("sea_dsa_");
   }
 
-  static bool isSeaDsaAttrbFn(const Function *fn) {
-    if (!fn)
-      return false;
-    auto n = fn->getName();
-    return n.startswith("sea_dsa_set");
+  static bool isSeaDsaAttrbFn(const SeadsaFn &fn) {
+    switch (fn) {
+      case SeadsaFn::MODIFY:
+      case SeadsaFn::READ:
+      case SeadsaFn::PTR_TO_INT:
+        return true;
+      default:
+        return false;
+    }
   }
 
-  static auto getSeaDsaAttrbFunc(const Function *fn) {
-    auto name = fn->getName();
-
-    if (name.equals("sea_dsa_set_modified"))
-      return &seadsa::Node::setModified;
-
-    if (name.equals("sea_dsa_set_read"))
-      return &seadsa::Node::setRead;
-
-    if (name.equals("sea_dsa_set_ptrtoint"))
-      return &seadsa::Node::setPtrToInt;
-  }
-
-  static bool isSeaDsaAliasFn(const Function *fn) {
-    if (!fn)
-      return false;
-    auto name = fn->getName();
-    return name.equals("sea_dsa_alias");
-  }
-
-  static bool isSeaDsaCollapseFn(const Function *fn) {
-    if (!fn)
-      return false;
-    auto name = fn->getName();
-    return name.equals("sea_dsa_collapse");
-  }
-
-  static bool isSeaDsaMkSequenceFn(const Function *fn) {
-    if (!fn)
-      return false;
-    auto name = fn->getName();
-    return name.equals("sea_dsa_mk_seq");
+  auto getSeaDsaAttrbFunc(const Function *fn) {   
+    switch (getSeaDsaFn(fn)) {
+      case SeadsaFn::MODIFY:
+        return &seadsa::Node::setModified;
+      case SeadsaFn::READ:
+        return &seadsa::Node::setRead;
+      case SeadsaFn::PTR_TO_INT:
+        return &seadsa::Node::setPtrToInt;
+    }
   }
 
 public:
@@ -1193,8 +1206,9 @@ void IntraBlockBuilder::visitIndirectCall(CallSite &CS) {
 void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   using namespace seadsa;
   auto *callee = getCalledFunction(CS);
+  SeadsaFn fn = getSeaDsaFn(callee);
 
-  if (isSeaDsaAttrbFn(callee)) {
+  if (isSeaDsaAttrbFn(fn)) {
     // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
     if (isSkip(*(CS.getArgument(0)))) 
       return;
@@ -1205,7 +1219,7 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     return;
   }
 
-  if (isSeaDsaAliasFn(callee)) {
+  if (fn == SeadsaFn::ALIAS) {
     llvm::SmallVector<seadsa::Cell, 8> toMerge;
     unsigned nargs = CS.arg_size();
     for (unsigned i = 0; i < nargs; ++i) {
@@ -1223,7 +1237,7 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     return;
   }
 
-  if (isSeaDsaCollapseFn(callee)) {
+  if (fn == SeadsaFn::COLLAPSE) {
     // seadsa_collapse(p) -- collapse the node to which p points to
     if (isSkip(*(CS.getArgument(0))))
       return;
@@ -1234,7 +1248,7 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     return;
   }
 
-  if (isSeaDsaMkSequenceFn(callee)) {
+  if (fn == SeadsaFn::MAKE_SEQ) {
     // seadsa_mk_seq(p, sz) -- mark the node pointed by p as sequence of size sz
     if (isSkip(*(CS.getArgument(0))))
       return;
