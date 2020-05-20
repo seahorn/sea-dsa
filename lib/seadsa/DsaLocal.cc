@@ -519,7 +519,9 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     }
   }
 
-  auto getSeaDsaAttrbFunc(const Function *fn) {   
+  typedef seadsa::Node &(seadsa::Node::*seaNodeSetter)(bool);
+  //return function pointer to seadsa::Node setter
+  seaNodeSetter getSeaDsaAttrbFunc(const Function *fn) {   
     switch (getSeaDsaFn(fn)) {
       case SeadsaFn::MODIFY:
         return &seadsa::Node::setModified;
@@ -527,6 +529,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
         return &seadsa::Node::setRead;
       case SeadsaFn::PTR_TO_INT:
         return &seadsa::Node::setPtrToInt;
+      default:
+        return nullptr;
     }
   }
 
@@ -1214,7 +1218,11 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
       return;
     if (m_graph.hasCell(*(CS.getArgument(0)))) {
       seadsa::Cell c = valueCell(*(CS.getArgument(0)));
-      (c.getNode()->*getSeaDsaAttrbFunc(callee))(true);
+
+      //get the appropriate setter, and execute on the object instance
+      seaNodeSetter func = getSeaDsaAttrbFunc(callee);
+      if(func)
+        (c.getNode()->*func)(true);
     }
     return;
   }
