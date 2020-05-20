@@ -476,28 +476,25 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     return n.startswith("sea_dsa_") || n.startswith("seadsa_");
   }
 
-  static bool isSeaDsaReadFn(const Function *fn) {
+  static bool isSeaDsaAttrbFn(const Function *fn) {
     if (!fn)
       return false;
-    auto name = fn->getName();
-    // due to name change from sea_dsa to seadsa, support both version
-    return name.equals("sea_dsa_read") || name.equals("seadsa_read");
+    auto n = fn->getName();
+    return n.startswith("sea_dsa_set") || n.startswith("seadsa_set");
   }
 
-  static bool isSeaDsaModFn(const Function *fn) {
-    if (!fn)
-      return false;
+  static auto getSeaDsaAttrbFunc(const Function *fn) {
     auto name = fn->getName();
-    // due to name change from sea_dsa to seadsa, support both version
-    return name.equals("sea_dsa_modified") || name.equals("seadsa_modified");
-  }
 
-  static bool isSeaDsaPtrToIntFn(const Function *fn) {
-    if (!fn)
-      return false;
-    auto name = fn->getName();
     // due to name change from sea_dsa to seadsa, support both version
-    return name.equals("sea_dsa_ptrtoint") || name.equals("seadsa_ptr_to_int");
+    if (name.equals("sea_dsa_modified") || name.equals("seadsa_modified"))
+      return &seadsa::Node::setModified;
+
+    if (name.equals("sea_dsa_read") || name.equals("seadsa_read"))
+      return &seadsa::Node::setRead;
+
+    if (name.equals("sea_dsa_ptrtoint") || name.equals("seadsa_ptr_to_int"))
+      return &seadsa::Node::setPtrToInt;
   }
 
   static bool isSeaDsaAliasFn(const Function *fn) {
@@ -1201,35 +1198,13 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   using namespace seadsa;
   auto *callee = getCalledFunction(CS);
 
-  if (isSeaDsaReadFn(callee)) {
+  if (isSeaDsaAttrbFn(callee)) {
     // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
     if (isSkip(*(CS.getArgument(0)))) 
       return;
     if (m_graph.hasCell(*(CS.getArgument(0)))) {
       seadsa::Cell c = valueCell(*(CS.getArgument(0)));
-      c.getNode()->setRead();
-    }
-    return;
-  }
-
-  if (isSeaDsaModFn(callee)) {
-    // sea_dsa_read(const void *p) -- mark the node pointed to by p as modified
-    if (isSkip(*(CS.getArgument(0)))) 
-      return;
-    if (m_graph.hasCell(*(CS.getArgument(0)))) {
-      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
-      c.getNode()->setModified();
-    }
-    return;
-  }
-
-  if (isSeaDsaPtrToIntFn(callee)) {
-    // sea_dsa_ptrtoint(const void *p) -- mark the node pointed to by p as ptr to int
-    if (isSkip(*(CS.getArgument(0)))) 
-      return;
-    if (m_graph.hasCell(*(CS.getArgument(0)))) {
-      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
-      c.getNode()->setRead();
+      (c.getNode()->*getSeaDsaAttrbFunc(callee))(true);
     }
     return;
   }

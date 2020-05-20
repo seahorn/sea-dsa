@@ -10,11 +10,11 @@ extern "C" {
 // sea-dsa will unify all argument's cells
 extern void seadsa_alias(const void *p, ...);
 // sea-dsa will mark the node pointed to by p as read (R)
-extern void sea_dsa_read(const void *p);
+extern void sea_dsa_set_read(const void *p);
 // sea-dsa will mark the node pointed to by p as modified (M)
-extern void sea_dsa_modified(const void *p);
+extern void sea_dsa_set_modified(const void *p);
 // sea-dsa will mark the node pointed to by p as ptr to int (2)
-extern void sea_dsa_ptrtoint(const void *p);
+extern void sea_dsa_set_ptrtoint(const void *p);
 // sea-dsa will collapse the argument's cell
 extern void seadsa_collapse(const void *p);
 // sea-dsa will return a fresh memory object
