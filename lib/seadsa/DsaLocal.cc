@@ -508,7 +508,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     return n.startswith("sea_dsa_");
   }
 
-  static bool isSeaDsaAttrbFn(const SeadsaFn &fn) {
+  static bool isSeaDsaAttrbFn(const SeadsaFn fn) {
     switch (fn) {
       case SeadsaFn::MODIFY:
       case SeadsaFn::READ:
