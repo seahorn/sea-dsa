@@ -479,25 +479,17 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitAllocWrapperCall(CallSite &CS);
   void visitAllocationFnCall(CallSite &CS);
 
-  const llvm::StringRef m_seaFnModTag       = "sea_dsa_set_modified";
-  const llvm::StringRef m_seaFnReadTag      = "sea_dsa_set_read";
-  const llvm::StringRef m_seaFnPtrToIntTag  = "sea_dsa_set_ptrtoint";
-  const llvm::StringRef m_seaFnAliasTag     = "sea_dsa_alias";
-  const llvm::StringRef m_seaFnCollapseTag  = "sea_dsa_collapse";
-  const llvm::StringRef m_seaFnMkSeqTag     = "sea_dsa_mk_seq";
-
   SeadsaFn getSeaDsaFn (const Function *fn) {
     if (!fn)  return SeadsaFn::UNKNOWN;
 
-    if (fn->getName().equals(m_seaFnModTag))      return SeadsaFn::ALIAS;
-    if (fn->getName().equals(m_seaFnReadTag))     return SeadsaFn::READ;
-    if (fn->getName().equals(m_seaFnPtrToIntTag)) return SeadsaFn::PTR_TO_INT;
-    if (fn->getName().equals(m_seaFnAliasTag))    return SeadsaFn::ALIAS;
-    if (fn->getName().equals(m_seaFnCollapseTag)) return SeadsaFn::COLLAPSE;
-    if (fn->getName().equals(m_seaFnMkSeqTag))    return SeadsaFn::MAKE_SEQ;
-
-    return SeadsaFn::UNKNOWN;
-
+    return StringSwitch<SeadsaFn>(fn->getName())
+              .Case("sea_dsa_set_modified", SeadsaFn::MODIFY)
+              .Case("sea_dsa_set_read"    , SeadsaFn::READ)
+              .Case("sea_dsa_set_ptrtoint", SeadsaFn::PTR_TO_INT)
+              .Case("sea_dsa_alias"       , SeadsaFn::ALIAS)
+              .Case("sea_dsa_collapse"    , SeadsaFn::COLLAPSE)
+              .Case("sea_dsa_mk_seq"      , SeadsaFn::MAKE_SEQ)
+              .Default(SeadsaFn::UNKNOWN);
   }
 
   /// Returns true if \p F is a \p seadsa_ family of functions
@@ -506,17 +498,6 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
       return false;
     auto n = fn->getName();
     return n.startswith("sea_dsa_");
-  }
-
-  static bool isSeaDsaAttrbFn(const SeadsaFn fn) {
-    switch (fn) {
-      case SeadsaFn::MODIFY:
-      case SeadsaFn::READ:
-      case SeadsaFn::PTR_TO_INT:
-        return true;
-      default:
-        return false;
-    }
   }
 
   typedef seadsa::Node &(seadsa::Node::*seaNodeSetter)(bool);
@@ -1212,81 +1193,91 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   auto *callee = getCalledFunction(CS);
   SeadsaFn fn = getSeaDsaFn(callee);
 
-  if (isSeaDsaAttrbFn(fn)) {
-    // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
-    if (isSkip(*(CS.getArgument(0)))) 
-      return;
-    if (m_graph.hasCell(*(CS.getArgument(0)))) {
-      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+  switch (fn) {
+    //attribute setters all have same behaviour
+      case SeadsaFn::MODIFY:
+      case SeadsaFn::READ:
+      case SeadsaFn::PTR_TO_INT:
+      {
+        // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
+        if (isSkip(*(CS.getArgument(0)))) 
+          return;
+        if (m_graph.hasCell(*(CS.getArgument(0)))) {
+          seadsa::Cell c = valueCell(*(CS.getArgument(0)));
 
-      //get the appropriate setter, and execute on the object instance
-      seaNodeSetter func = getSeaDsaAttrbFunc(callee);
-      if(func)
-        (c.getNode()->*func)(true);
-    }
-    return;
-  }
-
-  if (fn == SeadsaFn::ALIAS) {
-    llvm::SmallVector<seadsa::Cell, 8> toMerge;
-    unsigned nargs = CS.arg_size();
-    for (unsigned i = 0; i < nargs; ++i) {
-      if (isSkip(*(CS.getArgument(i))))
-        continue;
-      if (!m_graph.hasCell(*(CS.getArgument(i))))
-        continue;
-      seadsa::Cell c = valueCell(*(CS.getArgument(i)));
-      if (c.isNull())
-        continue;
-      toMerge.push_back(c);
-    }
-    for (unsigned i = 1; i < toMerge.size(); ++i)
-      toMerge[0].unify(toMerge[i]);
-    return;
-  }
-
-  if (fn == SeadsaFn::COLLAPSE) {
-    // seadsa_collapse(p) -- collapse the node to which p points to
-    if (isSkip(*(CS.getArgument(0))))
-      return;
-    if (m_graph.hasCell(*(CS.getArgument(0)))) {
-      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
-      c.getNode()->collapseOffsets(__LINE__);
-    }
-    return;
-  }
-
-  if (fn == SeadsaFn::MAKE_SEQ) {
-    // seadsa_mk_seq(p, sz) -- mark the node pointed by p as sequence of size sz
-    if (isSkip(*(CS.getArgument(0))))
-      return;
-    if (!m_graph.hasCell(*(CS.getArgument(0))))
-      return;
-
-    seadsa::Cell c = valueCell(*(CS.getArgument(0)));
-    Node *n = c.getNode();
-    if (!n->isArray()) {
-      auto *raw_sz = dyn_cast<ConstantInt>(CS.getArgument(1));
-      assert(raw_sz && "Second argument must be a number!");
-      if (!raw_sz)
+          //get the appropriate setter, and execute on the object instance
+          seaNodeSetter func = getSeaDsaAttrbFunc(callee);
+          if(func)
+            (c.getNode()->*func)(true);
+        }
         return;
-
-      auto sz = raw_sz->getZExtValue();
-      if (n->size() <= sz) {
-        n->setArraySize(sz);
-      } else {
-        LOG("dsa",
-            errs() << "WARNING: skipped " << *CS.getInstruction()
-                   << " because new size cannot be"
-                   << " smaller than the size of the node pointed by the "
-                      "pointer.\n";);
       }
-    } else {
-      LOG("dsa", errs() << "WARNING: skipped " << *CS.getInstruction()
-                        << " because it expects a pointer"
-                        << " that points to a non-sequence node.\n";);
-    }
-    return;
+
+      case SeadsaFn::ALIAS:
+      {
+        llvm::SmallVector<seadsa::Cell, 8> toMerge;
+        unsigned nargs = CS.arg_size();
+        for (unsigned i = 0; i < nargs; ++i) {
+          if (isSkip(*(CS.getArgument(i))))
+            continue;
+          if (!m_graph.hasCell(*(CS.getArgument(i))))
+            continue;
+          seadsa::Cell c = valueCell(*(CS.getArgument(i)));
+          if (c.isNull())
+            continue;
+          toMerge.push_back(c);
+        }
+        for (unsigned i = 1; i < toMerge.size(); ++i)
+          toMerge[0].unify(toMerge[i]);
+        return;
+      }
+
+      case SeadsaFn::COLLAPSE:
+      {
+        // seadsa_collapse(p) -- collapse the node to which p points to
+        if (isSkip(*(CS.getArgument(0))))
+          return;
+        if (m_graph.hasCell(*(CS.getArgument(0)))) {
+          seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+          c.getNode()->collapseOffsets(__LINE__);
+        }
+        return;
+      }
+
+      case SeadsaFn::MAKE_SEQ:
+      {
+        // seadsa_mk_seq(p, sz) -- mark the node pointed by p as sequence of size sz
+        if (isSkip(*(CS.getArgument(0))))
+          return;
+        if (!m_graph.hasCell(*(CS.getArgument(0))))
+          return;
+
+        seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+        Node *n = c.getNode();
+        if (!n->isArray()) {
+          auto *raw_sz = dyn_cast<ConstantInt>(CS.getArgument(1));
+          assert(raw_sz && "Second argument must be a number!");
+          if (!raw_sz)
+            return;
+
+          auto sz = raw_sz->getZExtValue();
+          if (n->size() <= sz) {
+            n->setArraySize(sz);
+          } else {
+            LOG("dsa",
+                errs() << "WARNING: skipped " << *CS.getInstruction()
+                      << " because new size cannot be"
+                      << " smaller than the size of the node pointed by the "
+                          "pointer.\n";);
+          }
+        } else {
+          LOG("dsa", errs() << "WARNING: skipped " << *CS.getInstruction()
+                            << " because it expects a pointer"
+                            << " that points to a non-sequence node.\n";);
+        }
+        return;
+      }
+
   }
 }
 
