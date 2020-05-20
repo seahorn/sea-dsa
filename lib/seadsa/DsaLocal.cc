@@ -476,6 +476,30 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     return n.startswith("sea_dsa_") || n.startswith("seadsa_");
   }
 
+  static bool isSeaDsaReadFn(const Function *fn) {
+    if (!fn)
+      return false;
+    auto name = fn->getName();
+    // due to name change from sea_dsa to seadsa, support both version
+    return name.equals("sea_dsa_read") || name.equals("seadsa_read");
+  }
+
+  static bool isSeaDsaModFn(const Function *fn) {
+    if (!fn)
+      return false;
+    auto name = fn->getName();
+    // due to name change from sea_dsa to seadsa, support both version
+    return name.equals("sea_dsa_modified") || name.equals("seadsa_modified");
+  }
+
+  static bool isSeaDsaPtrToIntFn(const Function *fn) {
+    if (!fn)
+      return false;
+    auto name = fn->getName();
+    // due to name change from sea_dsa to seadsa, support both version
+    return name.equals("sea_dsa_ptrtoint") || name.equals("seadsa_ptr_to_int");
+  }
+
   static bool isSeaDsaAliasFn(const Function *fn) {
     if (!fn)
       return false;
@@ -1176,6 +1200,39 @@ void IntraBlockBuilder::visitIndirectCall(CallSite &CS) {
 void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   using namespace seadsa;
   auto *callee = getCalledFunction(CS);
+
+  if (isSeaDsaReadFn(callee)) {
+    // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
+    if (isSkip(*(CS.getArgument(0)))) 
+      return;
+    if (m_graph.hasCell(*(CS.getArgument(0)))) {
+      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+      c.getNode()->setRead();
+    }
+    return;
+  }
+
+  if (isSeaDsaModFn(callee)) {
+    // sea_dsa_read(const void *p) -- mark the node pointed to by p as modified
+    if (isSkip(*(CS.getArgument(0)))) 
+      return;
+    if (m_graph.hasCell(*(CS.getArgument(0)))) {
+      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+      c.getNode()->setModified();
+    }
+    return;
+  }
+
+  if (isSeaDsaPtrToIntFn(callee)) {
+    // sea_dsa_ptrtoint(const void *p) -- mark the node pointed to by p as ptr to int
+    if (isSkip(*(CS.getArgument(0)))) 
+      return;
+    if (m_graph.hasCell(*(CS.getArgument(0)))) {
+      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+      c.getNode()->setRead();
+    }
+    return;
+  }
 
   if (isSeaDsaAliasFn(callee)) {
     llvm::SmallVector<seadsa::Cell, 8> toMerge;
