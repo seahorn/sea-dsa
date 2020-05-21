@@ -66,6 +66,10 @@ static llvm::cl::opt<bool> RunShadowMem("sea-dsa-shadow-mem",
                                         llvm::cl::desc("Run ShadowMemPass"),
                                         llvm::cl::Hidden,
                                         llvm::cl::init(false));
+static llvm::cl::opt<bool> AAEval(
+    "sea-dsa-aa-eval",
+    llvm::cl::desc("Exhaustive Alias Analaysis Precision Evaluation using seadsa"),
+    llvm::cl::init(false));
 
 namespace seadsa {
 SeaDsaLogOpt loc;
@@ -143,7 +147,7 @@ int main(int argc, char **argv) {
   //  llvm::initializeCallGraphPrinterPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
-  llvm::initializeGlobalsAAWrapperPassPass(Registry);
+  //llvm::initializeGlobalsAAWrapperPassPass(Registry);
 
   llvm::initializeRemovePtrToIntPass(Registry);
   llvm::initializeDsaAnalysisPass(Registry);
@@ -205,11 +209,15 @@ int main(int argc, char **argv) {
       pass_manager.add(seadsa::createDsaCallGraphPrinterPass());
     }
 
+    if (AAEval) {
+      pass_manager.add(llvm::createAAEvalPass());
+    }
+    
     if (!MemDot && !MemViewer && !seadsa::PrintDsaStats &&
-        !seadsa::PrintCallGraphStats && !CallGraphDot) {
+        !seadsa::PrintCallGraphStats && !CallGraphDot && !AAEval) {
       llvm::errs() << "No option selected: choose one option between "
                    << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, "
-                   << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats}\n";
+                   << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats, sea-dsa-aa-eval}\n";
     }
   }
 
