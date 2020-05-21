@@ -508,9 +508,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     return n.startswith("sea_dsa_");
   }
 
-  typedef seadsa::Node &(seadsa::Node::*seaNodeSetter)(bool);
   //return function pointer to seadsa::Node setter
-  seaNodeSetter getSeaDsaAttrbFunc(const Function *fn) {   
+  std::function<seadsa::Node&(seadsa::Node*, bool)> getSeaDsaAttrbFunc(const Function *fn) {   
     switch (getSeaDsaFn(fn)) {
       case SeadsaFn::MODIFY:
         return &seadsa::Node::setModified;
@@ -1214,9 +1213,9 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
           seadsa::Cell c = valueCell(*(CS.getArgument(0)));
 
           //get the appropriate setter, and execute on the object instance
-          seaNodeSetter func = getSeaDsaAttrbFunc(callee);
-          if(func)
-            (c.getNode()->*func)(true);
+          auto setter = getSeaDsaAttrbFunc(callee);
+          if(setter)
+            setter(c.getNode(), true);
         }
         return;
       }
