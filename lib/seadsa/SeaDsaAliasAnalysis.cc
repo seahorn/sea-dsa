@@ -101,12 +101,12 @@ static bool mayAlias(const Cell &c1, const Cell &c2, const DataLayout &dl) {
     return false;
   }
 
-  if (n1->isOffsetCollapsed() || n1->isArray()) {
+  if (n1->isOffsetCollapsed()) {
     return true;
   }
 
   unsigned o1, o2;
-  
+
   if (c1.getOffset() <= c2.getOffset()) {
     o1 = c1.getOffset();
     o2 = c2.getOffset();
