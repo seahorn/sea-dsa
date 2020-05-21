@@ -6,23 +6,30 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
+#include "seadsa/Graph.hh"
+
 #include <memory>
 
 namespace llvm {
+class CallGraph;
 class Function;
 class MemoryLocation;
-class TargetLibraryInfo;
+class TargetLibraryInfoWrapper;
 } // namespace llvm
 
 namespace seadsa {
+
+class AllocWrapInfo;
+class BottomUpTopDownGlobalAnalysis;
 
 class SeaDsaAAResult : public llvm::AAResultBase<SeaDsaAAResult> {
   using Base = llvm::AAResultBase<SeaDsaAAResult>;
   friend Base;
 
 public:
-  explicit SeaDsaAAResult(
-      std::function<const llvm::TargetLibraryInfo &(llvm::Function &F)> GetTLI);
+  explicit SeaDsaAAResult(llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+                          AllocWrapInfo &AWI);
+
   SeaDsaAAResult(SeaDsaAAResult &&RHS);
   ~SeaDsaAAResult();
 
@@ -31,25 +38,30 @@ public:
     return false;
   }
 
+  llvm::AliasResult alias(const llvm::MemoryLocation &,
+                          const llvm::MemoryLocation &, llvm::AAQueryInfo &);
 
-  llvm::AliasResult alias(const llvm::MemoryLocation &, const llvm::MemoryLocation &,
-                          llvm::AAQueryInfo &);
 private:
-  std::function<const llvm::TargetLibraryInfo &(llvm::Function &F)> GetTLI;
+  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
+  const llvm::DataLayout *m_dl;
+  AllocWrapInfo &m_awi;
+  std::unique_ptr<Graph::SetFactory> m_fac; // node factory for seadsa
+  std::unique_ptr<llvm::CallGraph> m_cg;
+  std::unique_ptr<BottomUpTopDownGlobalAnalysis> m_dsa;
 };
 
-class SeaDsaAA : public llvm::AnalysisInfoMixin<SeaDsaAA> {
-  friend llvm::AnalysisInfoMixin<SeaDsaAA>;
+// class SeaDsaAA : public llvm::AnalysisInfoMixin<SeaDsaAA> {
+//   friend llvm::AnalysisInfoMixin<SeaDsaAA>;
 
-  static llvm::AnalysisKey Key;
+//   static llvm::AnalysisKey Key;
 
-public:
-  using Result = SeaDsaAAResult;
-  using Function = llvm::Function;
-  using FunctionAnalysisManager = llvm::FunctionAnalysisManager;
+// public:
+//   using Result = SeaDsaAAResult;
+//   using Function = llvm::Function;
+//   using FunctionAnalysisManager = llvm::FunctionAnalysisManager;
 
-  Result run(Function &F, FunctionAnalysisManager &AM);
-};
+//   Result run(Function &F, FunctionAnalysisManager &AM);
+// };
 
 class SeaDsaAAWrapperPass : public llvm::ImmutablePass {
 
