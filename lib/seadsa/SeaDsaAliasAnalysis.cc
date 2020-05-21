@@ -22,11 +22,11 @@ namespace seadsa {
 SeaDsaAAResult::SeaDsaAAResult(
     TargetLibraryInfoWrapperPass &tliWrapper,
     AllocWrapInfo &awi)
-  : m_tliWrapper(tliWrapper), m_awi(awi), m_fac(nullptr), m_dsa(nullptr)  {}
+  : m_tliWrapper(tliWrapper), m_awi(awi), m_fac(nullptr), m_cg(nullptr), m_dsa(nullptr)  {}
   
 SeaDsaAAResult::SeaDsaAAResult(SeaDsaAAResult &&RHS)
   : AAResultBase(std::move(RHS)), m_tliWrapper(RHS.m_tliWrapper), m_awi(RHS.m_awi),
-    m_fac(std::move(RHS.m_fac)), m_dsa(std::move(RHS.m_dsa)) {}
+    m_fac(std::move(RHS.m_fac)), m_cg(std::move(RHS.m_cg)), m_dsa(std::move(RHS.m_dsa)) {}
   
 SeaDsaAAResult::~SeaDsaAAResult() = default;
 
@@ -152,8 +152,8 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
     if (Module *M = getModuleFromQuery(ValA, ValB)) {
       m_fac = std::make_unique<Graph::SetFactory>();
       dl = &(M->getDataLayout());
-      CallGraph cg(*M); 
-      m_dsa = std::make_unique<BottomUpTopDownGlobalAnalysis>(*dl, m_tliWrapper, m_awi, cg, *m_fac);
+      m_cg = std::make_unique<CallGraph>(*M); 
+      m_dsa = std::make_unique<BottomUpTopDownGlobalAnalysis>(*dl, m_tliWrapper, m_awi, *m_cg, *m_fac);
       DOG(llvm::errs() << "Running SeaDsaAA.\n");
       m_dsa->runOnModule(*M);
     } 

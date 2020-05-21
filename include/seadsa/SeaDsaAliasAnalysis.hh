@@ -11,6 +11,7 @@
 #include <memory>
 
 namespace llvm {
+class CallGraph;
 class Function;
 class MemoryLocation;
 class TargetLibraryInfoWrapper;
@@ -45,6 +46,7 @@ private:
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   AllocWrapInfo &m_awi;
   std::unique_ptr<Graph::SetFactory> m_fac; // node factory for seadsa
+  std::unique_ptr<llvm::CallGraph> m_cg;
   std::unique_ptr<BottomUpTopDownGlobalAnalysis> m_dsa;
 };
 
