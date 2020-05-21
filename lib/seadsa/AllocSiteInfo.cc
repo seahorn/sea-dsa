@@ -7,6 +7,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 
@@ -35,6 +36,8 @@ static MDNode *mkMetaConstant(llvm::Optional<unsigned> val, LLVMContext &ctx) {
 
 void AllocSiteInfo::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
+  // dependency for immutable AllowWrapInfo   
+  AU.addRequired<LoopInfoWrapperPass>();  
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
@@ -44,6 +47,8 @@ bool AllocSiteInfo::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_awi = &getAnalysis<AllocWrapInfo>();
 
+  m_awi->initialize(M, this);
+  
   bool changed = false;
 
   // Handle alloc sites inside functions.

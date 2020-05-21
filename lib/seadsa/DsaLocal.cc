@@ -23,6 +23,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Analysis/CFG.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -1765,6 +1766,8 @@ Local::Local() : ModulePass(ID), m_dl(nullptr), m_allocInfo(nullptr) {}
 
 void Local::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
+  // dependency for immutable AllowWrapInfo  
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
@@ -1772,7 +1775,8 @@ void Local::getAnalysisUsage(AnalysisUsage &AU) const {
 bool Local::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
-
+  m_allocInfo->initialize(M, this);
+  
   for (Function &F : M)
     runOnFunction(F);
   return false;

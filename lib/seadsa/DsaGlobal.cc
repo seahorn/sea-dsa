@@ -1,6 +1,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/DataLayout.h"
@@ -177,6 +178,8 @@ ContextInsensitiveGlobalPass::ContextInsensitiveGlobalPass()
 
 void ContextInsensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
+  // dependency for immutable AllowWrapInfo  
+  AU.addRequired<LoopInfoWrapperPass>(); 
   AU.addRequired<AllocWrapInfo>();
   if (UseDsaCallGraph) {
     AU.addRequired<CompleteCallGraph>();
@@ -190,6 +193,8 @@ bool ContextInsensitiveGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
+  allocInfo.initialize(M, this);
+  
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();
@@ -208,6 +213,8 @@ FlatMemoryGlobalPass::FlatMemoryGlobalPass()
 void FlatMemoryGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
+  // dependency for immutable AllowWrapInfo  
+  AU.addRequired<LoopInfoWrapperPass>();   
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
@@ -217,6 +224,7 @@ bool FlatMemoryGlobalPass::runOnModule(Module &M) {
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
+  allocInfo.initialize(M, this);  
 
   const bool useFlatMemory = true;
   m_ga.reset(new ContextInsensitiveGlobalAnalysis(dl, tli, allocInfo, cg,
@@ -751,6 +759,8 @@ void ContextSensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   } else {
     AU.addRequired<CallGraphWrapperPass>();
   }
+  // dependency for immutable AllowWrapInfo  
+  AU.addRequired<LoopInfoWrapperPass>();   
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
@@ -759,6 +769,7 @@ bool ContextSensitiveGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
+  allocInfo.initialize(M, this);  
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();
@@ -781,6 +792,8 @@ void BottomUpTopDownGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   } else {
     AU.addRequired<CallGraphWrapperPass>();
   }
+  // dependency for immutable AllowWrapInfo  
+  AU.addRequired<LoopInfoWrapperPass>();   
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
@@ -789,6 +802,7 @@ bool BottomUpTopDownGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
+  allocInfo.initialize(M, this);
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();
@@ -810,6 +824,8 @@ void BottomUpGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   } else {
     AU.addRequired<CallGraphWrapperPass>();
   }
+  // dependency for immutable AllowWrapInfo  
+  AU.addRequired<LoopInfoWrapperPass>();   
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
@@ -818,6 +834,7 @@ bool BottomUpGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
+  allocInfo.initialize(M, this);  
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();

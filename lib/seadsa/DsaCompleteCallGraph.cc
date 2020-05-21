@@ -1,6 +1,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/DataLayout.h"
@@ -666,6 +667,8 @@ CompleteCallGraph::CompleteCallGraph(bool printStats)
 void CompleteCallGraph::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
+  // dependency for immutable AllowWrapInfo  
+  AU.addRequired<LoopInfoWrapperPass>(); 
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
@@ -674,6 +677,7 @@ bool CompleteCallGraph::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto allocInfo = &getAnalysis<AllocWrapInfo>();
+  allocInfo->initialize(M, this);  
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   m_CCGA.reset(new CompleteCallGraphAnalysis(dl, tli, *allocInfo, cg, true));
   m_CCGA->runOnModule(M);
@@ -714,6 +718,7 @@ Pass *createDsaPrintCallGraphStatsPass() {
 using namespace seadsa;
 INITIALIZE_PASS_BEGIN(CompleteCallGraph, "seadsa-complete-callgraph",
                       "Construct SeaDsa call graph pass", false, false)
+INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)

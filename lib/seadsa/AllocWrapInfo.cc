@@ -26,14 +26,17 @@ namespace {
 bool isNotStored(Value *V);
 }
 
-
 void AllocWrapInfo::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
-  AU.addRequired<LoopInfoWrapperPass>();
   AU.setPreservesAll();
 }
 
-bool AllocWrapInfo::runOnModule(Module &M) {
+void AllocWrapInfo::initialize(Module &M, Pass *P) const {
+  // Initialize only once 
+  if (m_tliWrapper) {
+    return;
+  }
+
   m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
 
   for (auto &name : ExtraAllocs) {
@@ -71,17 +74,15 @@ bool AllocWrapInfo::runOnModule(Module &M) {
 
   // find allocation sites known to LTI
   findAllocs(M);
-  while (findWrappers(M, m_allocs)) { /* skip */
+  while (findWrappers(M, P, m_allocs)) { /* skip */
     ;
   }
-  while (findWrappers(M, m_deallocs)) { /* skip */
+  while (findWrappers(M, P, m_deallocs)) { /* skip */
     ;
   }
-
-  return false;
 }
 
-void AllocWrapInfo::findAllocs(Module &M) {
+void AllocWrapInfo::findAllocs(Module &M) const {
   for (Function &F : M) {
     if (m_allocs.count(F.getName()))
       continue;
@@ -100,14 +101,33 @@ void AllocWrapInfo::findAllocs(Module &M) {
 }
 
 bool AllocWrapInfo::isAllocWrapper(llvm::Function &fn) const {
+  if (!m_tliWrapper) {
+    llvm::errs() << "ERROR: AllocWrapInfo::initialize must be called\n";
+    assert(false);
+    return false;
+  }    
   return m_allocs.count(fn.getName()) != 0;
 }
 
 bool AllocWrapInfo::isDeallocWrapper(llvm::Function &fn) const {
+  if (!m_tliWrapper) {
+    llvm::errs() << "ERROR: AllocWrapInfo::initialize must be called\n";
+    assert(false);
+    return false;
+  }    
   return m_deallocs.count(fn.getName()) != 0;
 }
 
-bool AllocWrapInfo::findWrappers(Module &M, std::set<std::string> &fn_names) {
+const std::set<std::string> &AllocWrapInfo::getAllocWrapperNames(llvm::Module &M) const {
+  if (!m_tliWrapper) {
+    llvm::errs() << "ERROR: AllocWrapInfo::initialize must be called\n";
+    assert(false);
+  }    
+  return m_allocs;
+}
+
+bool AllocWrapInfo::findWrappers(Module &M, Pass *P,
+				 std::set<std::string> &fn_names) const {
   // -- copy fn_names since it will change
   std::vector<std::string> fns(fn_names.begin(), fn_names.end());
 
@@ -133,9 +153,12 @@ bool AllocWrapInfo::findWrappers(Module &M, std::set<std::string> &fn_names) {
       // -- possibly a wrapper, do more checks
       bool isWrapper = true;
 
+      // FIXME: we should use here getAnalysisIfAvailable. However, this
+      // method does not take a function as parameter.      
+      LoopInfo *LI = &(P->getAnalysis<LoopInfoWrapperPass>(*parentFn).getLoopInfo());	
       for (auto &bb : *parentFn) {
-        ReturnInst *ret = dyn_cast<ReturnInst>(bb.getTerminator());
-        if (ret && !flowsFrom(ret, CI)) {
+        ReturnInst *ret = dyn_cast<ReturnInst>(bb.getTerminator());	
+        if (ret && !flowsFrom(ret, CI, LI)) {
           isWrapper = false;
           break;
         }
@@ -154,30 +177,28 @@ bool AllocWrapInfo::findWrappers(Module &M, std::set<std::string> &fn_names) {
 /**
    Returns true if src flows into dst
  */
-bool AllocWrapInfo::flowsFrom(Value *dst, Value *src) {
+bool AllocWrapInfo::flowsFrom(Value *dst, Value *src, LoopInfo *LI) const {
   if (dst == src)
     return true;
 
   else if (ReturnInst *Ret = dyn_cast<ReturnInst>(dst)) {
-    return flowsFrom(Ret->getReturnValue(), src);
+    return flowsFrom(Ret->getReturnValue(), src, LI);
   }
 
   else if (PHINode *PN = dyn_cast<PHINode>(dst)) {
-    Function *F = PN->getParent()->getParent();
-    LoopInfo &LI = getAnalysis<LoopInfoWrapperPass>(*F).getLoopInfo();
     // If this is a loop phi, ignore.
-    if (LI.isLoopHeader(PN->getParent()))
+    if (!LI || LI->isLoopHeader(PN->getParent()))
       return false;
 
     bool ret = true;
     for (Use &v : PN->incoming_values()) {
-      ret &= flowsFrom(v.get(), src);
+      ret &= flowsFrom(v.get(), src, LI);
       if (!ret)
         break;
     }
     return ret;
   } else if (BitCastInst *BI = dyn_cast<BitCastInst>(dst)) {
-    return flowsFrom(BI->getOperand(0), src);
+    return flowsFrom(BI->getOperand(0), src, LI);
   } else if (isa<ConstantPointerNull>(dst))
     return true;
 
@@ -220,7 +241,6 @@ char AllocWrapInfo::ID = 0;
 using namespace seadsa;
 INITIALIZE_PASS_BEGIN(AllocWrapInfo, "seadsa-alloc-wrap-info",
                       "Detects allocator wrappers", false, false)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_END(AllocWrapInfo, "seadsa-alloc-wrap-info",
                       "Detects allocator wrappers", false, false)
