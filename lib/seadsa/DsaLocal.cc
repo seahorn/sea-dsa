@@ -501,8 +501,9 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   }
 
   //return function pointer to seadsa::Node setter
-  using seadsaNodeSetterFunc = std::function<seadsa::Node&(seadsa::Node*, bool)>;
-  seadsaNodeSetterFunc getSeaDsaAttrbFunc(const Function *fn) {   
+  using seadsaNodeSetterFunc =
+      std::function<seadsa::Node &(seadsa::Node *, bool)>;
+  seadsaNodeSetterFunc getSeaDsaAttrbFunc(const Function *fn) {
     switch (getSeaDsaFn(fn)) {
       case SeadsaFn::MODIFY:
         return &seadsa::Node::setModified;
