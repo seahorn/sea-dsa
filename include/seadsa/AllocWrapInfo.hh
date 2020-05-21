@@ -21,7 +21,7 @@ class Value;
 } // namespace llvm
 
 namespace seadsa {
-class AllocWrapInfo : public llvm::ModulePass {
+class AllocWrapInfo : public llvm::ImmutablePass {
 protected:
   std::set<std::string> m_allocs;
   std::set<std::string> m_deallocs;
@@ -34,7 +34,7 @@ protected:
 
 public:
   static char ID;
-  AllocWrapInfo() : ModulePass(ID), m_tliWrapper(nullptr) {}
+  AllocWrapInfo() : ImmutablePass(ID), m_tliWrapper(nullptr) {}
 
   bool runOnModule(llvm::Module &) override;
   llvm::StringRef getPassName() const override {
