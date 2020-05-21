@@ -479,25 +479,17 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitAllocWrapperCall(CallSite &CS);
   void visitAllocationFnCall(CallSite &CS);
 
-  const llvm::StringRef m_seaFnModTag       = "sea_dsa_set_modified";
-  const llvm::StringRef m_seaFnReadTag      = "sea_dsa_set_read";
-  const llvm::StringRef m_seaFnPtrToIntTag  = "sea_dsa_set_ptrtoint";
-  const llvm::StringRef m_seaFnAliasTag     = "sea_dsa_alias";
-  const llvm::StringRef m_seaFnCollapseTag  = "sea_dsa_collapse";
-  const llvm::StringRef m_seaFnMkSeqTag     = "sea_dsa_mk_seq";
-
   SeadsaFn getSeaDsaFn (const Function *fn) {
     if (!fn)  return SeadsaFn::UNKNOWN;
 
-    if (fn->getName().equals(m_seaFnModTag))      return SeadsaFn::ALIAS;
-    if (fn->getName().equals(m_seaFnReadTag))     return SeadsaFn::READ;
-    if (fn->getName().equals(m_seaFnPtrToIntTag)) return SeadsaFn::PTR_TO_INT;
-    if (fn->getName().equals(m_seaFnAliasTag))    return SeadsaFn::ALIAS;
-    if (fn->getName().equals(m_seaFnCollapseTag)) return SeadsaFn::COLLAPSE;
-    if (fn->getName().equals(m_seaFnMkSeqTag))    return SeadsaFn::MAKE_SEQ;
-
-    return SeadsaFn::UNKNOWN;
-
+    return StringSwitch<SeadsaFn>(fn->getName())
+              .Case("sea_dsa_set_modified", SeadsaFn::MODIFY)
+              .Case("sea_dsa_set_read"    , SeadsaFn::READ)
+              .Case("sea_dsa_set_ptrtoint", SeadsaFn::PTR_TO_INT)
+              .Case("sea_dsa_alias"       , SeadsaFn::ALIAS)
+              .Case("sea_dsa_collapse"    , SeadsaFn::COLLAPSE)
+              .Case("sea_dsa_mk_seq"      , SeadsaFn::MAKE_SEQ)
+              .Default(SeadsaFn::UNKNOWN);
   }
 
   /// Returns true if \p F is a \p seadsa_ family of functions
