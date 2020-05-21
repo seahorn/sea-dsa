@@ -12,8 +12,8 @@
 
 namespace llvm {
 class Function;
+class LoopInfo;
 class Module;
-class Instruction;
 class TargetLibraryInfo;
 class TargetLibraryInfoWrapperPass;
 class Function;
@@ -21,22 +21,24 @@ class Value;
 } // namespace llvm
 
 namespace seadsa {
-class AllocWrapInfo : public llvm::ModulePass {
+class AllocWrapInfo : public llvm::ImmutablePass {
 protected:
-  std::set<std::string> m_allocs;
-  std::set<std::string> m_deallocs;
+  mutable std::set<std::string> m_allocs;
+  mutable std::set<std::string> m_deallocs;
 
-  llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
+  mutable llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
 
-  void findAllocs(llvm::Module &M);
-  bool findWrappers(llvm::Module &M, std::set<std::string> &fn_names);
-  bool flowsFrom(llvm::Value *, llvm::Value *);
+  void findAllocs(llvm::Module &M) const;
+  bool findWrappers(llvm::Module &M, Pass *P, std::set<std::string> &fn_names) const; 
+  bool flowsFrom(llvm::Value *, llvm::Value *, llvm::LoopInfo *) const;
 
+  
 public:
   static char ID;
-  AllocWrapInfo() : ModulePass(ID), m_tliWrapper(nullptr) {}
+  AllocWrapInfo(): ImmutablePass(ID), m_tliWrapper(nullptr) {}
 
-  bool runOnModule(llvm::Module &) override;
+  void initialize(llvm::Module &, Pass *) const;
+  
   llvm::StringRef getPassName() const override {
     return "Find malloc/free wrapper functions";
   }
@@ -44,7 +46,7 @@ public:
 
   bool isAllocWrapper(llvm::Function &) const;
   bool isDeallocWrapper(llvm::Function &) const;
-  const std::set<std::string> &getAllocWrapperNames() const { return m_allocs; }
+  const std::set<std::string> &getAllocWrapperNames(llvm::Module &) const;
 
 
   llvm::TargetLibraryInfoWrapperPass &getTLIWrapper() const {
@@ -56,4 +58,5 @@ public:
     return m_tliWrapper->getTLI(F);
   }
 };
+
 } // namespace seadsa

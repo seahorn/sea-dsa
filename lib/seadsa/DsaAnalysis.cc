@@ -1,6 +1,7 @@
 #include "seadsa/DsaAnalysis.hh"
 
 #include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/DataLayout.h"
@@ -48,6 +49,8 @@ void DsaAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<RemovePtrToInt>();
   AU.addRequired<CallGraphWrapperPass>();
   AU.addRequired<TargetLibraryInfoWrapperPass>();
+  // dependency for AllocWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();  
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
 }
@@ -71,6 +74,7 @@ bool DsaAnalysis::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
+  m_allocInfo->initialize(M, this);
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
   switch (DsaGlobalAnalysis) {
@@ -115,6 +119,8 @@ using namespace seadsa;
 INITIALIZE_PASS_BEGIN(DsaAnalysis, "dsa-wrapper",
                       "Entry point for all SeaDsa clients", false, false)
 INITIALIZE_PASS_DEPENDENCY(RemovePtrToInt)
+// dependency for immutable AllowWrapInfo  
+INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass);
 INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
