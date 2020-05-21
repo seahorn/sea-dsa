@@ -44,6 +44,8 @@ bool AllocSiteInfo::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_awi = &getAnalysis<AllocWrapInfo>();
 
+  m_awi->initialize(M, this);
+  
   bool changed = false;
 
   // Handle alloc sites inside functions.

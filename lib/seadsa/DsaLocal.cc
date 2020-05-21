@@ -1759,7 +1759,8 @@ void Local::getAnalysisUsage(AnalysisUsage &AU) const {
 bool Local::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
-
+  m_allocInfo->initialize(M, this);
+  
   for (Function &F : M)
     runOnFunction(F);
   return false;
