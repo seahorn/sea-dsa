@@ -164,8 +164,8 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
     return AAResultBase::alias(LocA, LocB, AAQI);
   }
 
-  Function *FnA = const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValA));
-  Function *FnB = const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValB));
+  auto FnA = const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValA));
+  auto FnB = const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValB));
   if (!FnA || !FnB) {
     return AAResultBase::alias(LocA, LocB, AAQI);
   }
@@ -173,8 +173,8 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
   assert(m_dsa);
   assert(dl);
   
-  Graph &gA = m_dsa->getGraph(*FnA);
-  Graph &gB = m_dsa->getGraph(*FnB);  
+  auto &gA = m_dsa->getGraph(*FnA);
+  auto &gB = m_dsa->getGraph(*FnB);  
 
   if (&gA != &gB) {
     DOG(llvm::errs() << "SeaDsaAA does not handle inter-procedural queries at the moment.\n");
