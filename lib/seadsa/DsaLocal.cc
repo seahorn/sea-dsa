@@ -46,6 +46,10 @@ static llvm::cl::opt<bool> TrustArgumentTypes(
     "sea-dsa-trust-args",
     llvm::cl::desc("Trust function argument types in SeaDsa Local analysis"),
     llvm::cl::init(true));
+static llvm::cl::opt<bool> AssumeExternalFunctonsAllocators(
+    "sea-dsa-assume-external-functions-allocators",
+    llvm::cl::desc("Treat all external functions as potential memory allocators"),
+    llvm::cl::init(false));
 
 /*****************************************************************************/
 /* HELPERS                                                                   */
@@ -1120,7 +1124,7 @@ void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
     seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
     assert(site);
     c.getNode()->addAllocSite(*site);
-  } else {
+  } else if (AssumeExternalFunctonsAllocators){
     // -- assume that every external function returns a freshly allocated
     // pointer
     seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
