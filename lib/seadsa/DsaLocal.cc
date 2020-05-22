@@ -49,7 +49,8 @@ static llvm::cl::opt<bool> TrustArgumentTypes(
     llvm::cl::init(true));
 static llvm::cl::opt<bool> AssumeExternalFunctonsAllocators(
     "sea-dsa-assume-external-functions-allocators",
-    llvm::cl::desc("Treat all external functions as potential memory allocators"),
+    llvm::cl::desc(
+        "Treat all external functions as potential memory allocators"),
     llvm::cl::init(false));
 
 /*****************************************************************************/
@@ -1125,7 +1126,7 @@ void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
     seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
     assert(site);
     c.getNode()->addAllocSite(*site);
-  } else if (AssumeExternalFunctonsAllocators){
+  } else if (AssumeExternalFunctonsAllocators) {
     // -- assume that every external function returns a freshly allocated
     // pointer
     seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
@@ -1154,19 +1155,24 @@ void IntraBlockBuilder::visitIndirectCall(CallSite &CS) {
 }
 
 void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
+  using namespace llvm::PatternMatch;
   using namespace seadsa;
   auto *callee = getCalledFunction(CS);
   SeadsaFn fn = getSeaDsaFn(callee);
 
   switch (fn) {
-    // attribute setters all have same behaviour
+  // attribute setters all have same behaviour
   case SeadsaFn::MODIFY:
   case SeadsaFn::READ:
   case SeadsaFn::PTR_TO_INT: {
     // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
-    if (isSkip(*(CS.getArgument(0)))) return;
-    if (m_graph.hasCell(*(CS.getArgument(0)))) {
-      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+    Value *arg = nullptr;
+    if (!(match(CS.getArgument(0), m_Value(arg)) &&
+          arg->getType()->isPointerTy()))
+      return;
+    if (isSkip(*(arg))) return;
+    if (m_graph.hasCell(*(arg))) {
+      seadsa::Cell c = valueCell(*(arg));
 
       // get the appropriate setter, and execute on the object instance
       seadsaNodeSetterFunc setter = getSeaDsaAttrbFunc(callee);
@@ -1180,23 +1186,26 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     LOG("sea-dsa-alias", llvm::errs() << "In alias\n";);
     unsigned nargs = CS.arg_size();
     for (unsigned i = 0; i < nargs; ++i) {
-      auto *Arg = CS.getArgument(i);
-      if (isSkip(*Arg)) {
+      Value *arg = nullptr;
+      if (!(match(CS.getArgument(i), m_Value(arg)) &&
+            arg->getType()->isPointerTy()))
+        continue;
+      if (isSkip(*arg)) {
         LOG("sea-dsa-alias", llvm::errs()
-                                 << "Skip arg: " << *Arg << " reason(1)\n";);
+                                 << "Skip arg: " << *arg << " reason(1)\n";);
         continue;
       }
-      Arg = Arg->stripPointerCasts();
-      auto &ArgRef = *Arg;
+      arg = arg->stripPointerCasts();
+      auto &ArgRef = *arg;
       if (!m_graph.hasCell(ArgRef)) {
         LOG("sea-dsa-alias", llvm::errs()
-                                 << "Skip arg: " << *Arg << " reason(2)\n";);
+                                 << "Skip arg: " << *arg << " reason(2)\n";);
         continue;
       }
       seadsa::Cell c = valueCell(ArgRef);
       if (c.isNull()) {
         LOG("sea-dsa-alias", llvm::errs()
-                                 << "Skip arg: " << *Arg << " reason(2)\n";);
+                                 << "Skip arg: " << *arg << " reason(2)\n";);
         continue;
       }
       LOG("sea-dsa-alias", llvm::errs() << "Add to merge: " << ArgRef << "\n";);
@@ -1216,9 +1225,13 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
 
   case SeadsaFn::COLLAPSE: {
     // seadsa_collapse(p) -- collapse the node to which p points to
-    if (isSkip(*(CS.getArgument(0)))) return;
-    if (m_graph.hasCell(*(CS.getArgument(0)))) {
-      seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+    Value *arg = nullptr;
+    if (!(match(CS.getArgument(0), m_Value(arg)) &&
+          arg->getType()->isPointerTy()))
+      return;
+    if (isSkip(*(arg))) return;
+    if (m_graph.hasCell(*(arg))) {
+      seadsa::Cell c = valueCell(*(arg));
       c.getNode()->collapseOffsets(__LINE__);
     }
     return;
@@ -1226,19 +1239,25 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
 
   case SeadsaFn::MAKE_SEQ: {
     // seadsa_mk_seq(p, sz) -- mark the node pointed by p as sequence of size sz
-    if (isSkip(*(CS.getArgument(0)))) return;
-    if (!m_graph.hasCell(*(CS.getArgument(0)))) return;
+    Value *arg0 = nullptr;
+    ConstantInt *arg1 = nullptr;
 
-    seadsa::Cell c = valueCell(*(CS.getArgument(0)));
+    if (!(match(CS.getArgument(0), m_Value(arg0)) &&
+          arg0->getType()->isPointerTy()))
+      return;
+    if (!match(CS.getArgument(1), m_ConstantInt(arg1))) return;
+    if (isSkip(*arg0)) return;
+    if (!m_graph.hasCell(*arg0)) return;
+
+    seadsa::Cell c = valueCell(*arg0);
     Node *n = c.getNode();
     if (!n->isArray()) {
-      auto *raw_sz = dyn_cast<ConstantInt>(CS.getArgument(1));
-      assert(raw_sz && "Second argument must be a number!");
-      if (!raw_sz) return;
 
-      auto sz = raw_sz->getZExtValue();
-      if (n->size() <= sz) {
-        n->setArraySize(sz);
+      assert(!arg1->isZero() && "Second argument must be a number!");
+      if (arg1->isZero()) return;
+
+      if (n->size() <= arg1->getZExtValue()) {
+        n->setArraySize(arg1->getZExtValue());
       } else {
         LOG("dsa",
             errs() << "WARNING: skipped " << *CS.getInstruction()
@@ -1678,8 +1697,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
       Node &n = g.mkNode();
-      if (TrustArgumentTypes)
-        g.mkCell(a, Cell(n, 0));
+      if (TrustArgumentTypes) g.mkCell(a, Cell(n, 0));
       else
         g.mkCell(a, Cell(n, 0));
       // -- XXX: hook to record allocation site if F is main
