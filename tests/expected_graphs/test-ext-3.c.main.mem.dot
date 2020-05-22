@@ -1,0 +1,40 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x4848070 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:SM}"];
+	Node0x4845480 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*\}:SR|{<s0>\<0, unknown\>}}"];
+	Node0x4845c90 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*\}:SR|{<s0>\<0, unknown\>}}"];
+	Node0x48497b0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*\}:SR|{<s0>\<0, unknown\>}}"];
+	Node0x485a860 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32*\}:SR|{<s0>\<0, unknown\>}}"];
+	Node0x485c660 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:MR2}"];
+	Node0x485cbd0 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:2}"];
+	Node0x485d0f0 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:M}"];
+	Node0x485d610 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:R}"];
+	Node0x4844278 [shape=plaintext, label ="  %3 = alloca i32*, align 8"];
+	Node0x4844278 -> Node0x4845c90[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x48442d8 [shape=plaintext, label ="  %4 = alloca i32*, align 8"];
+	Node0x48442d8 -> Node0x48497b0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x4844a98 [shape=plaintext, label ="  %10 = load i32*, i32** %2, align 8"];
+	Node0x4844a98 -> Node0x485c660[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x4844f78 [shape=plaintext, label ="  %14 = load i32*, i32** %4, align 8"];
+	Node0x4844f78 -> Node0x485d0f0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x4844778 [shape=plaintext, label ="  %8 = load i32*, i32** %2, align 8"];
+	Node0x4844778 -> Node0x485c660[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x4844388 [shape=plaintext, label ="  %5 = alloca i32*, align 8"];
+	Node0x4844388 -> Node0x485a860[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x4844468 [shape=plaintext, label ="  %6 = load i32*, i32** %2, align 8"];
+	Node0x4844468 -> Node0x485c660[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x4843b28 [shape=plaintext, label ="  %1 = alloca i32, align 4"];
+	Node0x4843b28 -> Node0x4848070[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x4845108 [shape=plaintext, label ="  %16 = load i32*, i32** %5, align 8"];
+	Node0x4845108 -> Node0x485d610[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x48441e8 [shape=plaintext, label ="  %2 = alloca i32*, align 8"];
+	Node0x48441e8 -> Node0x4845480[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x4844d98 [shape=plaintext, label ="  %12 = load i32*, i32** %3, align 8"];
+	Node0x4844d98 -> Node0x485cbd0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x4845480:s0 -> Node0x485c660[arrowtail=tee,label="0",fontsize=8];
+	Node0x4845c90:s0 -> Node0x485cbd0[arrowtail=tee,label="0",fontsize=8];
+	Node0x48497b0:s0 -> Node0x485d0f0[arrowtail=tee,label="0",fontsize=8];
+	Node0x485a860:s0 -> Node0x485d610[arrowtail=tee,label="0",fontsize=8];
+}
