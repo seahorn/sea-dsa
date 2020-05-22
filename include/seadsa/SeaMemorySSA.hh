@@ -69,6 +69,8 @@ public:
   void setShadowMemOp(ShadowMemInstOp op) { m_ShadowOp = op; }
   ShadowMemInstOp getShadowMemOp() const { return m_ShadowOp; }
 
+  inline unsigned getID() const;
+
 protected:
   friend class SeaMemoryDef;
   friend class SeaMemoryPhi;
@@ -79,10 +81,6 @@ protected:
   /// Used by MemorySSA to change the block of a MemoryAccess when it is
   /// moved.
   void setBlock(BasicBlock *BB) { Block = BB; }
-
-  /// Used for debugging and tracking things about MemoryAccesses.
-  /// Guaranteed unique among MemoryAccesses, no guarantees otherwise.
-  inline unsigned getID() const;
 
   SeaMemoryAccess(LLVMContext &C, unsigned Vty, DeleteValueTy DeleteValue,
                   BasicBlock *BB, unsigned NumOperands)
@@ -567,6 +565,7 @@ public:
   /// Returns nullptr if \p v does not have a corresponding ShadowMem
   /// instruction
   SeaMemoryAccess* getMemoryAccessForShadow(const Value *v) const {
+    assert (isa<CallInst>(v) || isa<PHINode>(v));
     return ShadowValueToMemoryAccess.lookup(v);
   }
 
