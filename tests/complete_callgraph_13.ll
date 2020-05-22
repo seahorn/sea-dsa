@@ -1,4 +1,4 @@
-; RUN: %seadsa %s --sea-dsa-callgraph-dot --sea-dsa-dot-outdir=%T/complete_callgraph_13.ll
+; RUN: %seadsa %s -sea-dsa-assume-external-functions-allocators=true --sea-dsa-callgraph-dot --sea-dsa-dot-outdir=%T/complete_callgraph_13.ll
 ; RUN: %cmp-graphs %tests/complete_callgraph_13.dot %T/complete_callgraph_13.ll/callgraph.dot | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 
