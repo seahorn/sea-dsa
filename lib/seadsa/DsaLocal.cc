@@ -415,9 +415,12 @@ enum class SeadsaFn {
   MODIFY,
   READ,
   PTR_TO_INT,
+  INT_TO_PTR,
   ALIAS,
   COLLAPSE,
   MAKE_SEQ,
+  HEAP,
+  ALLOCA,
   UNKNOWN
 };
 
@@ -471,9 +474,12 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
         .Case("sea_dsa_set_modified", SeadsaFn::MODIFY)
         .Case("sea_dsa_set_read", SeadsaFn::READ)
         .Case("sea_dsa_set_ptrtoint", SeadsaFn::PTR_TO_INT)
+        .Case("sea_dsa_set_inttoptr", SeadsaFn::INT_TO_PTR)
         .Case("sea_dsa_alias", SeadsaFn::ALIAS)
         .Case("sea_dsa_collapse", SeadsaFn::COLLAPSE)
         .Case("sea_dsa_mk_seq", SeadsaFn::MAKE_SEQ)
+        .Case("sea_dsa_set_heap", SeadsaFn::HEAP)
+        .Case("sea_dsa_set_alloca", SeadsaFn::ALLOCA)
         .Default(SeadsaFn::UNKNOWN);
   }
 
@@ -495,6 +501,12 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
       return &seadsa::Node::setRead;
     case SeadsaFn::PTR_TO_INT:
       return &seadsa::Node::setPtrToInt;
+    case SeadsaFn::INT_TO_PTR:
+      return &seadsa::Node::setIntToPtr;
+    case SeadsaFn::HEAP:
+      return &seadsa::Node::setHeap;
+    case SeadsaFn::ALLOCA:
+      return &seadsa::Node::setAlloca;
     default:
       return nullptr;
     }
@@ -1164,7 +1176,10 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   // attribute setters all have same behaviour
   case SeadsaFn::MODIFY:
   case SeadsaFn::READ:
-  case SeadsaFn::PTR_TO_INT: {
+  case SeadsaFn::PTR_TO_INT:
+  case SeadsaFn::INT_TO_PTR:
+  case SeadsaFn::HEAP:
+  case SeadsaFn::ALLOCA: {
     // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
     Value *arg = nullptr;
     if (!(match(CS.getArgument(0), m_Value(arg)) &&
@@ -1272,6 +1287,9 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     }
     return;
   }
+
+  default:
+    return;
   }
 }
 

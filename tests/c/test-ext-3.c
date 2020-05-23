@@ -4,7 +4,7 @@
 
 // clang-format on
 
-#include "sea_dsa/sea_dsa.h"
+#include "sea_dsa.h"
 #include <stdlib.h>
 
 /*Example of how to use sea_dsa_set_* attribute setters */
@@ -20,14 +20,23 @@ int main(void) {
     // Test multiple attributes set
     int *p;
     sea_dsa_set_ptrtoint(p);
+    sea_dsa_set_inttoptr(p);
     sea_dsa_set_modified(p);
     sea_dsa_set_read(p);
+    sea_dsa_set_heap(p);
+    sea_dsa_set_alloca(p);
   }
 
   {
     // Test sea_dsa_set_ptrtoint
     int *p;
     sea_dsa_set_ptrtoint(p);
+  }
+
+  {
+    // Test sea_dsa_set_ptrtoint
+    int *p;
+    sea_dsa_set_inttoptr(p);
   }
 
   {
@@ -40,6 +49,18 @@ int main(void) {
     // Test sea_dsa_set_read
     int *p;
     sea_dsa_set_read(p);
+  }
+
+  {
+    // Test sea_dsa_set_heap
+    int *p;
+    sea_dsa_set_heap(p);
+  }
+
+  {
+    // Test sea_dsa_set_stack
+    int *p;
+    sea_dsa_set_alloca(p);
   }
   return 0;
 }

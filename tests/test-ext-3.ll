@@ -14,33 +14,60 @@ define dso_local i32 @main() #0 {
   %3 = alloca i32*, align 8
   %4 = alloca i32*, align 8
   %5 = alloca i32*, align 8
+  %6 = alloca i32*, align 8
+  %7 = alloca i32*, align 8
+  %8 = alloca i32*, align 8
   store i32 0, i32* %1, align 4
-  %6 = load i32*, i32** %2, align 8
-  %7 = bitcast i32* %6 to i8*
-  call void @sea_dsa_set_ptrtoint(i8* %7)
-  %8 = load i32*, i32** %2, align 8
-  %9 = bitcast i32* %8 to i8*
-  call void @sea_dsa_set_modified(i8* %9)
-  %10 = load i32*, i32** %2, align 8
-  %11 = bitcast i32* %10 to i8*
-  call void @sea_dsa_set_read(i8* %11)
-  %12 = load i32*, i32** %3, align 8
-  %13 = bitcast i32* %12 to i8*
-  call void @sea_dsa_set_ptrtoint(i8* %13)
-  %14 = load i32*, i32** %4, align 8
-  %15 = bitcast i32* %14 to i8*
-  call void @sea_dsa_set_modified(i8* %15)
-  %16 = load i32*, i32** %5, align 8
-  %17 = bitcast i32* %16 to i8*
-  call void @sea_dsa_set_read(i8* %17)
+  %9 = load i32*, i32** %2, align 8
+  %10 = bitcast i32* %9 to i8*
+  call void @sea_dsa_set_ptrtoint(i8* %10)
+  %11 = load i32*, i32** %2, align 8
+  %12 = bitcast i32* %11 to i8*
+  call void @sea_dsa_set_inttoptr(i8* %12)
+  %13 = load i32*, i32** %2, align 8
+  %14 = bitcast i32* %13 to i8*
+  call void @sea_dsa_set_modified(i8* %14)
+  %15 = load i32*, i32** %2, align 8
+  %16 = bitcast i32* %15 to i8*
+  call void @sea_dsa_set_read(i8* %16)
+  %17 = load i32*, i32** %2, align 8
+  %18 = bitcast i32* %17 to i8*
+  call void @sea_dsa_set_heap(i8* %18)
+  %19 = load i32*, i32** %2, align 8
+  %20 = bitcast i32* %19 to i8*
+  call void @sea_dsa_set_alloca(i8* %20)
+  %21 = load i32*, i32** %3, align 8
+  %22 = bitcast i32* %21 to i8*
+  call void @sea_dsa_set_ptrtoint(i8* %22)
+  %23 = load i32*, i32** %4, align 8
+  %24 = bitcast i32* %23 to i8*
+  call void @sea_dsa_set_inttoptr(i8* %24)
+  %25 = load i32*, i32** %5, align 8
+  %26 = bitcast i32* %25 to i8*
+  call void @sea_dsa_set_modified(i8* %26)
+  %27 = load i32*, i32** %6, align 8
+  %28 = bitcast i32* %27 to i8*
+  call void @sea_dsa_set_read(i8* %28)
+  %29 = load i32*, i32** %7, align 8
+  %30 = bitcast i32* %29 to i8*
+  call void @sea_dsa_set_heap(i8* %30)
+  %31 = load i32*, i32** %8, align 8
+  %32 = bitcast i32* %31 to i8*
+  call void @sea_dsa_set_alloca(i8* %32)
   ret i32 0
 }
 
 declare dso_local void @sea_dsa_set_ptrtoint(i8*) #1
 
+declare dso_local void @sea_dsa_set_inttoptr(i8*) #1
+
 declare dso_local void @sea_dsa_set_modified(i8*) #1
 
 declare dso_local void @sea_dsa_set_read(i8*) #1
+
+declare dso_local void @sea_dsa_set_heap(i8*) #1
+
+declare dso_local void @sea_dsa_set_alloca(i8*) #1
 
 attributes #0 = { noinline nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
