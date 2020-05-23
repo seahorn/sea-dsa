@@ -421,6 +421,7 @@ enum class SeadsaFn {
   MAKE_SEQ,
   HEAP,
   ALLOCA,
+  NEW,
   UNKNOWN
 };
 
@@ -465,7 +466,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitSeaDsaFnCall(CallSite &CS);
 
   void visitAllocWrapperCall(CallSite &CS);
-  void visitAllocationFnCall(CallSite &CS);
+  void visitAllocationFnCall(CallSite &CS, bool isHeap = true);
 
   SeadsaFn getSeaDsaFn(const Function *fn) {
     if (!fn) return SeadsaFn::UNKNOWN;
@@ -480,6 +481,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
         .Case("sea_dsa_mk_seq", SeadsaFn::MAKE_SEQ)
         .Case("sea_dsa_set_heap", SeadsaFn::HEAP)
         .Case("sea_dsa_set_alloca", SeadsaFn::ALLOCA)
+        .Case("sea_dsa_new", SeadsaFn::NEW)
         .Default(SeadsaFn::UNKNOWN);
   }
 
@@ -1196,6 +1198,12 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     return;
   }
 
+  case SeadsaFn::NEW: {
+    //generate an allocation call with no attributes set
+    visitAllocationFnCall(CS, false);
+    return;
+  }
+
   case SeadsaFn::ALIAS: {
     llvm::SmallVector<seadsa::Cell, 8> toMerge;
     LOG("sea-dsa-alias", llvm::errs() << "In alias\n";);
@@ -1297,7 +1305,7 @@ void IntraBlockBuilder::visitAllocWrapperCall(CallSite &CS) {
   visitAllocationFnCall(CS);
 }
 
-void IntraBlockBuilder::visitAllocationFnCall(CallSite &CS) {
+void IntraBlockBuilder::visitAllocationFnCall(CallSite &CS, bool isHeap) {
   using namespace seadsa;
   assert(CS.getInstruction());
   Node &n = m_graph.mkNode();
@@ -1306,7 +1314,7 @@ void IntraBlockBuilder::visitAllocationFnCall(CallSite &CS) {
   assert(site);
   n.addAllocSite(*site);
   // -- mark node as a heap node
-  n.setHeap();
+  if(isHeap)  n.setHeap();
 
   m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
 }
