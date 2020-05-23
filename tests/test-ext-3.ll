@@ -10,52 +10,56 @@ target triple = "x86_64-pc-linux-gnu"
 ; Function Attrs: noinline nounwind uwtable
 define dso_local i32 @main() #0 {
   %1 = alloca i32, align 4
-  %2 = alloca i32*, align 8
-  %3 = alloca i32*, align 8
-  %4 = alloca i32*, align 8
-  %5 = alloca i32*, align 8
-  %6 = alloca i32*, align 8
-  %7 = alloca i32*, align 8
-  %8 = alloca i32*, align 8
+  %2 = alloca i8*, align 8
+  %3 = alloca i8*, align 8
+  %4 = alloca i8*, align 8
+  %5 = alloca i8*, align 8
+  %6 = alloca i8*, align 8
+  %7 = alloca i8*, align 8
+  %8 = alloca i8*, align 8
   store i32 0, i32* %1, align 4
-  %9 = load i32*, i32** %2, align 8
-  %10 = bitcast i32* %9 to i8*
+  %9 = call i8* (...) @sea_dsa_new()
+  store i8* %9, i8** %2, align 8
+  %10 = load i8*, i8** %2, align 8
   call void @sea_dsa_set_ptrtoint(i8* %10)
-  %11 = load i32*, i32** %2, align 8
-  %12 = bitcast i32* %11 to i8*
-  call void @sea_dsa_set_inttoptr(i8* %12)
-  %13 = load i32*, i32** %2, align 8
-  %14 = bitcast i32* %13 to i8*
-  call void @sea_dsa_set_modified(i8* %14)
-  %15 = load i32*, i32** %2, align 8
-  %16 = bitcast i32* %15 to i8*
-  call void @sea_dsa_set_read(i8* %16)
-  %17 = load i32*, i32** %2, align 8
-  %18 = bitcast i32* %17 to i8*
-  call void @sea_dsa_set_heap(i8* %18)
-  %19 = load i32*, i32** %2, align 8
-  %20 = bitcast i32* %19 to i8*
-  call void @sea_dsa_set_alloca(i8* %20)
-  %21 = load i32*, i32** %3, align 8
-  %22 = bitcast i32* %21 to i8*
-  call void @sea_dsa_set_ptrtoint(i8* %22)
-  %23 = load i32*, i32** %4, align 8
-  %24 = bitcast i32* %23 to i8*
-  call void @sea_dsa_set_inttoptr(i8* %24)
-  %25 = load i32*, i32** %5, align 8
-  %26 = bitcast i32* %25 to i8*
-  call void @sea_dsa_set_modified(i8* %26)
-  %27 = load i32*, i32** %6, align 8
-  %28 = bitcast i32* %27 to i8*
-  call void @sea_dsa_set_read(i8* %28)
-  %29 = load i32*, i32** %7, align 8
-  %30 = bitcast i32* %29 to i8*
-  call void @sea_dsa_set_heap(i8* %30)
-  %31 = load i32*, i32** %8, align 8
-  %32 = bitcast i32* %31 to i8*
-  call void @sea_dsa_set_alloca(i8* %32)
+  %11 = load i8*, i8** %2, align 8
+  call void @sea_dsa_set_inttoptr(i8* %11)
+  %12 = load i8*, i8** %2, align 8
+  call void @sea_dsa_set_modified(i8* %12)
+  %13 = load i8*, i8** %2, align 8
+  call void @sea_dsa_set_read(i8* %13)
+  %14 = load i8*, i8** %2, align 8
+  call void @sea_dsa_set_heap(i8* %14)
+  %15 = load i8*, i8** %2, align 8
+  call void @sea_dsa_set_alloca(i8* %15)
+  %16 = call i8* (...) @sea_dsa_new()
+  store i8* %16, i8** %3, align 8
+  %17 = load i8*, i8** %3, align 8
+  call void @sea_dsa_set_ptrtoint(i8* %17)
+  %18 = call i8* (...) @sea_dsa_new()
+  store i8* %18, i8** %4, align 8
+  %19 = load i8*, i8** %4, align 8
+  call void @sea_dsa_set_inttoptr(i8* %19)
+  %20 = call i8* (...) @sea_dsa_new()
+  store i8* %20, i8** %5, align 8
+  %21 = load i8*, i8** %5, align 8
+  call void @sea_dsa_set_modified(i8* %21)
+  %22 = call i8* (...) @sea_dsa_new()
+  store i8* %22, i8** %6, align 8
+  %23 = load i8*, i8** %6, align 8
+  call void @sea_dsa_set_read(i8* %23)
+  %24 = call i8* (...) @sea_dsa_new()
+  store i8* %24, i8** %7, align 8
+  %25 = load i8*, i8** %7, align 8
+  call void @sea_dsa_set_heap(i8* %25)
+  %26 = call i8* (...) @sea_dsa_new()
+  store i8* %26, i8** %8, align 8
+  %27 = load i8*, i8** %8, align 8
+  call void @sea_dsa_set_alloca(i8* %27)
   ret i32 0
 }
+
+declare dso_local i8* @sea_dsa_new(...) #1
 
 declare dso_local void @sea_dsa_set_ptrtoint(i8*) #1
 

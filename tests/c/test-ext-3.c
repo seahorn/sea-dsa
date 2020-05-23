@@ -14,11 +14,9 @@ extern unsigned nd_uint(void);
 
 int main(void) {
 
-  // TODO: Use sea_dsa_new();
-
   {
     // Test multiple attributes set
-    int *p;
+    void *p = sea_dsa_new();
     sea_dsa_set_ptrtoint(p);
     sea_dsa_set_inttoptr(p);
     sea_dsa_set_modified(p);
@@ -29,37 +27,37 @@ int main(void) {
 
   {
     // Test sea_dsa_set_ptrtoint
-    int *p;
+    void *p = sea_dsa_new();
     sea_dsa_set_ptrtoint(p);
   }
 
   {
     // Test sea_dsa_set_ptrtoint
-    int *p;
+    void *p = sea_dsa_new();
     sea_dsa_set_inttoptr(p);
   }
 
   {
     // Test sea_dsa_set_modified
-    int *p;
+    void *p = sea_dsa_new();
     sea_dsa_set_modified(p);
   }
 
   {
     // Test sea_dsa_set_read
-    int *p;
+    void *p = sea_dsa_new();
     sea_dsa_set_read(p);
   }
 
   {
     // Test sea_dsa_set_heap
-    int *p;
+    void *p = sea_dsa_new();
     sea_dsa_set_heap(p);
   }
 
   {
     // Test sea_dsa_set_stack
-    int *p;
+    void *p = sea_dsa_new();
     sea_dsa_set_alloca(p);
   }
   return 0;
