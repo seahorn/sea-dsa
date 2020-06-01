@@ -202,7 +202,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
 
 char SeaDsaAAWrapperPass::ID = 0;
 
-ImmutablePass *seadsa::createSeaDsaAAWrapperPass() {
+ImmutablePass *createSeaDsaAAWrapperPass() {
   return new SeaDsaAAWrapperPass();
 }
 
@@ -224,7 +224,5 @@ void SeaDsaAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 } // namespace seadsa
 
-namespace llvm {
 INITIALIZE_PASS(SeaDsaAAWrapperPass, "seadsa-aa", "SeaDsa-Based Alias Analysis",
                 false, true)
-}
