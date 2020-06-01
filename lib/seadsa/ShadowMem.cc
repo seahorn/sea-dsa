@@ -10,6 +10,7 @@
 #include "seadsa/support/Debug.h"
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -593,9 +594,8 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   /// \brief Infer which PHINodes corresponds to shadow pseudo-assignments
   /// The type is stored as a meta-data on the node
   void inferTypeOfPHINodes(Function &F) {
-    // -- assume that basic blocks (ignoring back edges) are in topological
-    // order
-    for (auto &BB : F) {
+    for (BasicBlock *bb : llvm::depth_first(&F)) {
+      auto &BB = *bb;
       // for every PHINode
       for (auto &phi : BB.phis()) {
         // for every incoming value
