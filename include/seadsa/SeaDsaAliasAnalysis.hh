@@ -50,19 +50,6 @@ private:
   std::unique_ptr<BottomUpTopDownGlobalAnalysis> m_dsa;
 };
 
-// class SeaDsaAA : public llvm::AnalysisInfoMixin<SeaDsaAA> {
-//   friend llvm::AnalysisInfoMixin<SeaDsaAA>;
-
-//   static llvm::AnalysisKey Key;
-
-// public:
-//   using Result = SeaDsaAAResult;
-//   using Function = llvm::Function;
-//   using FunctionAnalysisManager = llvm::FunctionAnalysisManager;
-
-//   Result run(Function &F, FunctionAnalysisManager &AM);
-// };
-
 class SeaDsaAAWrapperPass : public llvm::ImmutablePass {
 
   std::unique_ptr<SeaDsaAAResult> Result;
