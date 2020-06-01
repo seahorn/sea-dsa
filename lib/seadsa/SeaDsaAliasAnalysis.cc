@@ -157,6 +157,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
       m_fac = std::make_unique<Graph::SetFactory>();
       m_dl = &(M->getDataLayout());
       m_cg = std::make_unique<CallGraph>(*M);
+      m_awi.initialize(*M, nullptr);
       m_dsa = std::make_unique<BottomUpTopDownGlobalAnalysis>(
           *m_dl, m_tliWrapper, m_awi, *m_cg, *m_fac);
       DOG(llvm::errs() << "Running SeaDsaAA.\n");
