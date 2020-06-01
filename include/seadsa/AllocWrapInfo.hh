@@ -37,7 +37,10 @@ public:
   static char ID;
   AllocWrapInfo(): ImmutablePass(ID), m_tliWrapper(nullptr) {}
 
-  void initialize(llvm::Module &, Pass *) const;
+  // P is used to call LoopInfoWrapperPass.
+  // It can be null if the client of AllocWrapInfo is an immutable
+  // pass (e.g.,SeaDsaAAWraperPass). 
+  void initialize(llvm::Module &, Pass *P) const;
   
   llvm::StringRef getPassName() const override {
     return "Find malloc/free wrapper functions";

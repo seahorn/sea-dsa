@@ -153,9 +153,15 @@ bool AllocWrapInfo::findWrappers(Module &M, Pass *P,
       // -- possibly a wrapper, do more checks
       bool isWrapper = true;
 
-      // FIXME: we should use here getAnalysisIfAvailable. However, this
-      // method does not take a function as parameter.      
-      LoopInfo *LI = &(P->getAnalysis<LoopInfoWrapperPass>(*parentFn).getLoopInfo());	
+      LoopInfo *LI = nullptr;
+      if (P) {
+	// XXX: we would like to use here
+	// getAnalysisIfAvailable. However, this method does not take
+	// a function as parameter. Instead, all AllocWrapInfo's
+	// clients must ensure that if P is not null then
+	// LoopInfoWrapperPass is available.
+	LI = &(P->getAnalysis<LoopInfoWrapperPass>(*parentFn).getLoopInfo());
+      }
       for (auto &bb : *parentFn) {
         ReturnInst *ret = dyn_cast<ReturnInst>(bb.getTerminator());	
         if (ret && !flowsFrom(ret, CI, LI)) {
