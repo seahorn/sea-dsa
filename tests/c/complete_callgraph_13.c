@@ -10,12 +10,11 @@ int sub(int a, int b){
 
 typedef int (*binfptr)(int, int);
 
-// seadsa assumes that external calls does not return a freshly
-// allocated pointer.
 extern binfptr nd_binfptr();
 
 int apply(int (*fn)(int, int), int x, int y) {
-  // Possible callee for fn is only &add because above assumption
+  // We don't resolve because possible callee is the pointer returned
+  // by external call nd_binfptr
   return fn(x,y);
 }
 binfptr bar(int (*fn)(int, int)) {

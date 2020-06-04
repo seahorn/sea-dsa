@@ -377,11 +377,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   /// To keep track if there is a change in the callgraph
   bool change = true;
   unsigned numIter = 1;
-  /// set of indirect calls that cannot be fully resolved.
-  InstSet IncompleteCallSites;
   while (change) {
-    IncompleteCallSites.clear();
-
     /// This loop performs a bottom-up traversal while inlining
     /// callee's graphs into callers. The callgraph is augmented with
     /// new edges after each iteration.
@@ -493,19 +489,20 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
       // sites should be empty and we skip the callsite.
       (!cs.isCloned())) {
 
+	  Node *csNode = cs.getCell().getNode();
           // Get all possible callees from the allocation sites
-          auto &alloc_sites = cs.getCell().getNode()->getAllocSites();
+          auto &alloc_sites = csNode->getAllocSites();
           if (alloc_sites.empty()) {
 #if 0
-      // This can happen in early fixpoint iterations or if
-      // some callsite is in a function that is never inlined
-      // (e.g., if its address is taken and passed to an
-      // external call that is supposed to call it).
-      errs() << "WARNING: callsite at " << cs.getCaller()->getName()
-           << " in graph " << kv.first->getName()
-           << " without allocation site at iteration " << numIter << "\n"
-           << "\t" << *cs.getInstruction() << "\n"
-           << "\t" << *(cs.getCell().getNode()) << "\n";
+	    // This can happen in early fixpoint iterations or if
+	    // some callsite is in a function that is never inlined
+	    // (e.g., if its address is taken and passed to an
+	    // external call that is supposed to call it).
+	    errs() << "WARNING: callsite at " << cs.getCaller()->getName()
+                   << " in graph " << kv.first->getName()
+		   << " without allocation site at iteration " << numIter << "\n"
+		   << "\t" << *cs.getInstruction() << "\n"
+		   << "\t" << *(cs.getCell().getNode()) << "\n";
 #endif
             continue;
           }
@@ -519,10 +516,10 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           const CallBase *const_cb = dyn_cast<CallBase>(cs.getInstruction());
           CallBase *cb = const_cast<CallBase*>(const_cb);
 
-          /// At this point, we can try to resolve the indirect call
+          // At this point, we can try to resolve the indirect call
           // Update the callgraph by adding a new edge to each
-          // resolved callee.
-          bool has_external_alloc_site = false;
+          // resolved callee. However, the call site is not marked as
+          // fully resolve if the dsa node is marked as external.
           for (const Value *v : alloc_sites) {
             if (const Function *fn = dyn_cast<const Function>(v)) {
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
@@ -533,38 +530,26 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
                 m_callees[cs.getInstruction()].push_back(fn);
                 change = true;
               }
-            } else {
-              // If external call then we shouldn't remove the
-              // original edge with the indirect call.
-              IncompleteCallSites.insert(cs.getInstruction());
-        has_external_alloc_site = true;
-        LOG("dsa-callgraph-resolve",
-      errs() << "Resolving indirect call by "
-             << kv.first->getName() << " at "
-             << cs.getInstruction()->getParent()->getParent()->getName()
-                         << ":\n";
-      cs.write(errs()); errs() << "\n";
-      errs() << "Marked as incomplete.\n";);
             }
           }
 
-    if (!has_external_alloc_site) {
-      // At this point we know about the indirect call that :
-      // 1) it can be resolved. This happens either because:
-      //    - we have already reached main during the bottom-up process or
-      //    - the callsite cannot be inlined anymore.
-      // 2) it has at least one allocation site (i.e., some
-      //    callee to resolve it)
-      // 3) it has no external allocation site.
-      m_resolved.insert(cs.getInstruction());
-      // LOG("dsa-callgraph-resolve",
-      //  errs() << "Resolving indirect call by "
-      //         << kv.first->getName() << " at "
-      //         << cs.getInstruction()->getParent()->getParent()->getName()
+	  if (!csNode->isExternal()) {
+	    // At this point we know about the indirect call that :
+	    // 1) it can be resolved. This happens either because:
+	    //    - we have already reached main during the bottom-up process or
+	    //    - the callsite cannot be inlined anymore.
+	    // 2) it has at least one allocation site (i.e., some
+	    //    callee to resolve it)
+	    // 3) it has no external allocation site.
+	    m_resolved.insert(cs.getInstruction());
+	    // LOG("dsa-callgraph-resolve",
+	    //  errs() << "Resolving indirect call by "
+	    //         << kv.first->getName() << " at "
+	    //         << cs.getInstruction()->getParent()->getParent()->getName()
             //            << ":\n";
-      //  cs.write(errs()); errs() << "\n";
-      //  errs() << "Marked as complete.\n";);
-    }
+	    //  cs.write(errs()); errs() << "\n";
+	    //  errs() << "Marked as complete.\n";);
+	  }
         }
 
         // reset the cloned flag for next bottom-up iteration
