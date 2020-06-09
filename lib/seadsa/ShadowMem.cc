@@ -9,8 +9,8 @@
 #include "seadsa/TypeUtils.hh"
 #include "seadsa/support/Debug.h"
 
-#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -852,7 +852,14 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
   for (const dsa::Node *n : reach)
     if (isModified(n, F) || isRead(n, F)) {
       // TODO: allocate for all slices of n, not just offset 0
-      getShadowForField(*n, 0);
+      if (!SplitFields || n->isOffsetCollapsed())
+        getShadowForField(*n, 0);
+      else /* SplitFileds */ {
+        {
+          for (auto &ty : n->types())
+            getShadowForField(*n, ty.first);
+        }
+      }
     }
 
   // allocate initial value for all used shadows
@@ -894,18 +901,18 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
   }
 
   B.SetInsertPoint(ret);
-  unsigned idx = 0;
-  for (const dsa::Node *n : reach) {
-    // TODO: extend to work with all slices
-    dsa::Cell c(const_cast<dsa::Node *>(n), 0);
 
+  // -- marks a cell with mem.in and mem.out markers
+  // -- idx is a global index to assign to the mark function
+  auto markInOut = [&](const dsa::Cell &c, unsigned idx) {
+    Node *n = c.getNode();
     // n is read and is not only return-node reachable (for
     // return-only reachable nodes, there is no initial value
     // because they are created within this function)
     if ((isRead(n, F) || isModified(n, F)) && retReach.count(n) <= 0) {
       assert(!inits[n].empty());
       /// initial value
-      mkMarkIn(B, c, inits[n][0], idx, llvm::None);
+      mkMarkIn(B, c, inits[n][c.getRawOffset()], idx, llvm::None);
     }
 
     if (isModified(n, F)) {
@@ -913,7 +920,21 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
       /// final value
       mkMarkOut(B, c, idx, llvm::None);
     }
-    ++idx;
+  };
+
+  unsigned idx = 0;
+  for (const dsa::Node *n : reach) {
+    // TODO: extend to work with all slices
+    if (!SplitFields || n->isOffsetCollapsed()) {
+      // -- treat cell to offset 0 as the whole node
+      dsa::Cell c(const_cast<dsa::Node *>(n), 0);
+      markInOut(c, idx++);
+    } else {
+      for (auto &ty : n->types()) {
+        dsa::Cell c(const_cast<dsa::Node *>(n), ty.first);
+        markInOut(c, idx++);
+      }
+    }
   }
 
   // -- convert new allocas to registers
@@ -1053,24 +1074,9 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
   /// remote node reads, writes, or creates the corresponding node.
 
   m_B->SetInsertPoint(const_cast<Instruction *>(CS.getInstruction()));
-  unsigned idx = 0;
-  for (const dsa::Node *CN : reach) {
-    LOG("global_shadow", errs() << *CN << "\n";
-        const Value *v = CN->getUniqueScalar();
-        if (v) errs() << "value: " << *CN->getUniqueScalar() << "\n";
-        else errs() << "no unique scalar\n";);
 
-    // skip nodes that are not read/written by the callee
-    if (!isRead(CN, CF) && !isModified(CN, CF)) continue;
-
-    // TODO: This must be done for every possible offset of the caller
-    // node,
-    // TODO: not just for offset 0
-
-    assert(CN);
-    dsa::Cell callerC = simMap.get(dsa::Cell(const_cast<dsa::Node *>(CN), 0));
-    assert(!callerC.isNull() && "Not found node in the simulation map");
-
+  auto markModRef = [&](const dsa::Node *CN, const dsa::Cell &callerC,
+                        unsigned idx) {
     AllocaInst *v = getShadowForField(callerC);
     unsigned id = getFieldId(callerC);
 
@@ -1090,7 +1096,33 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
       mkArgNewMod(*m_B, argFn, callerC, idx, llvm::None);
       // Unclear how to get the associated concrete pointer here.
     }
-    idx++;
+  };
+
+  unsigned idx = 0;
+  for (const dsa::Node *CN : reach) {
+    LOG("global_shadow", errs() << *CN << "\n";
+        const Value *v = CN->getUniqueScalar();
+        if (v) errs() << "value: " << *CN->getUniqueScalar() << "\n";
+        else errs() << "no unique scalar\n";);
+
+    // skip nodes that are not read/written by the callee
+    if (!isRead(CN, CF) && !isModified(CN, CF)) continue;
+
+    assert(CN);
+    dsa::Cell callerC = simMap.get(dsa::Cell(const_cast<dsa::Node *>(CN), 0));
+    assert(!callerC.isNull() && "Not found node in the simulation map");
+
+    Node *n = callerC.getNode();
+    if (!SplitFields || n->isOffsetCollapsed()) {
+      dsa::Cell fc(n, 0);
+      markModRef(CN, fc, idx++);
+    } else {
+      for (auto &ty : n->types()) {
+        if (ty.first < callerC.getOffset()) continue;
+        dsa::Cell fc(n, ty.first);
+        markModRef(CN, fc, idx++);
+      }
+    }
   }
 }
 
@@ -1681,9 +1713,9 @@ INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_END(ShadowMemPass, "shadow-sea-dsa",
-		    "Add shadow.mem pseudo-functions", false, false)
+                    "Add shadow.mem pseudo-functions", false, false)
 
 INITIALIZE_PASS_BEGIN(StripShadowMemPass, "strip-shadow-sea-dsa",
                       "Remove shadow.mem pseudo-functions", false, false)
 INITIALIZE_PASS_END(StripShadowMemPass, "strip-shadow-sea-dsa",
-                      "Remove shadow.mem pseudo-functions", false, false)
+                    "Remove shadow.mem pseudo-functions", false, false)
