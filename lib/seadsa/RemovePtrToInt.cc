@@ -112,7 +112,7 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
     Value *IVal = PN->getIncomingValue(i);
 
     if (auto *P2I = dyn_cast<PtrToIntInst>(IVal)) {
-      assert(DT.dominates(P2I, I2P));
+      // assert(DT.dominates(P2I, I2P));
 
       auto *Ptr = P2I->getPointerOperand();
       assert(Ptr);
