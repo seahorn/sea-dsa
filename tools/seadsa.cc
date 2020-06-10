@@ -173,6 +173,7 @@ int main(int argc, char **argv) {
   // ==--== Alias Analysis Passes ==--==/
 
   // -- add to pass manager
+  pass_manager.add(seadsa::createSpecGraphInfoPass());
   pass_manager.add(seadsa::createSeaDsaAAWrapperPass());
   // -- make available through AAResultsWrapperPass via ExternalAAWrapperPass
   pass_manager.add(llvm::createExternalAAWrapperPass(
@@ -212,7 +213,6 @@ int main(int argc, char **argv) {
     if (CallGraphDot) {
       pass_manager.add(seadsa::createDsaCallGraphPrinterPass());
     }
-    pass_manager.add(seadsa::createSpecGraphInfoPass());
 
     if (AAEval) {
       pass_manager.add(llvm::createAAEvalPass());
