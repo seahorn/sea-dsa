@@ -28,6 +28,7 @@
 #include "seadsa/SeaDsaAliasAnalysis.hh"
 #include "seadsa/ShadowMem.hh"
 #include "seadsa/support/Debug.h"
+#include "seadsa/support/RemovePtrToInt.hh"
 
 static llvm::cl::opt<std::string>
     InputFilename(llvm::cl::Positional,
@@ -166,6 +167,7 @@ int main(int argc, char **argv) {
 
   assert(dl && "Could not find Data Layout for the module");
 
+  pass_manager.add(seadsa::createRemovePtrToIntPass());
   // ==--== Alias Analysis Passes ==--==/
 
   // -- add to pass manager
