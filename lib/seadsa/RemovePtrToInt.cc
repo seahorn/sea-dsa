@@ -1,16 +1,18 @@
 #include "seadsa/support/RemovePtrToInt.hh"
 
+#include "seadsa/InitializePasses.hh"
+#include "seadsa/support/Debug.h"
+
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
-
-#include "seadsa/InitializePasses.hh"
-#include "seadsa/support/Debug.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 #define DEBUG_TYPE "sea-remove-ptrtoint"
 
@@ -72,6 +74,124 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
   return true;
 }
 
+/** Promotes integer expression to pointers to eliminate inttoptr instructions
+ */
+class PointerPromoter : public InstVisitor<PointerPromoter, Value *> {
+  Type *m_ty;
+  SmallPtrSetImpl<Instruction *> &m_toRemove;
+
+public:
+  PointerPromoter(SmallPtrSetImpl<Instruction *> &toRemove)
+      : m_ty(nullptr), m_toRemove(toRemove) {}
+
+  Value *visitInstruction(Instruction &I) { return nullptr; }
+
+  Value *visitPtrToIntInst(Instruction &I) {
+
+    m_toRemove.insert(&I);
+
+    auto *op = I.getOperand(0);
+    if (op->getType() == m_ty) return op;
+    IRBuilder<> IRB(&I);
+    return IRB.CreateBitCast(op, m_ty);
+  }
+
+  Value *visitPHINode(PHINode &I) {
+    // errs() << "Visiting: " << I << "\n";
+    std::vector<Value*> vals(I.getNumIncomingValues());
+
+    for (unsigned i = 0, e = I.getNumIncomingValues(); i < e; ++i) {
+      auto *val = dyn_cast<Instruction>(I.getIncomingValue(i)); 
+      if (!val) return nullptr;
+      auto *ptr = this->visit(val);
+      if (!ptr) return nullptr;
+      vals[i] = ptr;
+    }
+
+    IRBuilder<> IRB(&I);
+    auto *newPhi = IRB.CreatePHI(m_ty, I.getNumIncomingValues());
+
+    for (unsigned i = 0, e = I.getNumIncomingValues(); i < e; ++i) {
+      newPhi->addIncoming(vals[i], I.getIncomingBlock(i));
+    }
+    m_toRemove.insert(&I);
+    return newPhi;
+  }
+
+  Value *visitAdd(BinaryOperator &I) {
+    // errs() << "visitAdd: " << I << "\n";
+    auto *op0 = dyn_cast<Instruction>(I.getOperand(0));
+    if (!op0) return nullptr;
+
+    auto *ptr = this->visit(op0);
+    if (!ptr) return nullptr;
+
+    m_toRemove.insert(&I);
+    IRBuilder<> IRB(&I);
+
+    ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
+    auto *gep = IRB.CreateGEP(ptr, {I.getOperand(1)});
+    return IRB.CreateBitCast(ptr, m_ty);
+  }
+
+  Value *visitSub(BinaryOperator &I) {
+    // errs() << "visitSub: " << I << "\n";
+    return nullptr;
+  }
+
+  Value *visitLoad(LoadInst &I) {
+    assert(m_ty);
+    // errs() << "visitLoad: " << I << "\n";
+    auto *ptr = I.getPointerOperand();
+    IRBuilder<> IRB(&I);
+    ptr = IRB.CreateBitCast(ptr, m_ty->getPointerTo());
+    auto *res = IRB.CreateLoad(ptr);
+    res->setVolatile(I.isVolatile());
+    res->setAlignment(I.getAlign());
+    res->setOrdering(I.getOrdering());
+    res->setSyncScopeID(I.getSyncScopeID());
+    res->copyMetadata(I);
+
+    for (auto *u : I.users()) {
+      if (auto *SI = dyn_cast<StoreInst>(u)) {
+        if (SI->getValueOperand() != &I) { continue; }
+        IRB.SetInsertPoint(SI);
+        auto *ptr = SI->getPointerOperand();
+        ptr = IRB.CreateBitCast(ptr, m_ty->getPointerTo());
+        auto newStore = IRB.CreateStore(res, ptr);
+        newStore->setVolatile(SI->isVolatile());
+        newStore->setAlignment(SI->getAlign());
+        newStore->setOrdering(SI->getOrdering());
+        newStore->setSyncScopeID(SI->getSyncScopeID());
+        newStore->copyMetadata(*SI);
+
+        m_toRemove.insert(SI);
+      }
+    }
+
+    return res;
+  }
+
+  Value *visitIntToPtrInst(IntToPtrInst &I) {
+    // errs() << "Visiting: " << I << "\n";
+
+    assert(!m_ty);
+    m_ty = I.getType();
+
+    auto *op = dyn_cast<Instruction>(I.getOperand(0));
+    Value *ret = nullptr;
+    if (op) ret = this->visit(*op);
+
+    if (ret) {
+      I.replaceAllUsesWith(ret);
+      m_toRemove.insert(&I);
+    }
+
+    m_ty = nullptr;
+    return ret;
+  }
+};
+
 static bool
 visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
                   DominatorTree &DT,
@@ -80,8 +200,13 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
   assert(I2P);
 
   auto *IntVal = I2P->getOperand(0);
+
   auto *PN = dyn_cast<PHINode>(IntVal);
-  if (!PN) return false;
+  if (!PN) {
+    PointerPromoter pp(MaybeUnusedInsts);
+    return pp.visit(I2P);
+    return false;
+  }
 
   DOG(errs() << F.getName() << ":\n"; I2P->print(errs());
       PN->print(errs() << "\n"); errs() << "\n");
@@ -217,7 +342,8 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   for (auto *I : OrderedMaybeUnused)
     if (I->getNumUses() == 0) {
       DOG(errs() << "\terasing: " << *I << "\n");
-      I->eraseFromParent();
+      RecursivelyDeleteTriviallyDeadInstructions(I);
+      // I->eraseFromParent();
     } else {
       DOG(errs() << "\t_NOT_ erasing: " << *I << "\n");
     }
@@ -225,6 +351,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   DOG(errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
       errs().flush());
 
+  // errs() << F << "\n";
   return Changed;
 }
 
