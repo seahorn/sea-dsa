@@ -11,8 +11,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/CallGraphUtils.hh"
@@ -20,6 +20,7 @@
 #include "seadsa/Cloner.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/Local.hh"
+#include "seadsa/SpecGraphInfo.hh"
 #include "seadsa/config.h"
 #include "seadsa/support/Debug.h"
 
@@ -43,12 +44,10 @@ static const Value *findUniqueReturnValue(const Function &F) {
   for (const auto &BB : F) {
     auto *TI = BB.getTerminator();
     auto *RI = dyn_cast<ReturnInst>(TI);
-    if (!RI)
-      continue;
+    if (!RI) continue;
 
     const Value *rv = RI->getOperand(0)->stripPointerCasts();
-    if (onlyRetVal && onlyRetVal != rv)
-      return nullptr;
+    if (onlyRetVal && onlyRetVal != rv) return nullptr;
 
     onlyRetVal = rv;
   }
@@ -59,12 +58,12 @@ static const Value *findUniqueReturnValue(const Function &F) {
 // Clone callee nodes into caller and resolve arguments
 void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
                                                 Graph &calleeG, Graph &callerG,
-						bool flowSensitiveOpt) {
+                                                bool flowSensitiveOpt) {
   CloningContext context(*CS.getInstruction(), CloningContext::BottomUp);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(callerG, context, options);
   assert(context.m_cs);
-  
+
   // clone and unify globals
   for (auto &kv : calleeG.globals()) {
     Node &calleeN = *kv.second->getNode();
@@ -93,8 +92,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     const Value *onlyAllocSite = findUniqueReturnValue(callee);
     if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
       onlyAllocSite = nullptr;
-    if (!flowSensitiveOpt)
-      onlyAllocSite = nullptr;
+    if (!flowSensitiveOpt) onlyAllocSite = nullptr;
 
     const Cell &ret = calleeG.getRetCell(callee);
     Node &n = C.clone(*ret.getNode(), false, onlyAllocSite);
@@ -135,8 +133,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     GraphRef fGraph = nullptr;
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty())
-        continue;
+      if (!fn || fn->isDeclaration() || fn->empty()) continue;
 
       if (!fGraph) {
         assert(graphs.find(fn) != graphs.end());
@@ -151,8 +148,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     std::vector<CallGraphNode *> cgns = call_graph_utils::SortedCGNs(scc);
     for (CallGraphNode *cgn : cgns) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty())
-        continue;
+      if (!fn || fn->isDeclaration() || fn->empty()) continue;
 
       // -- resolve all function calls in the SCC
       auto callRecords = call_graph_utils::SortedCallSites(cgn);
@@ -160,14 +156,17 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         ImmutableCallSite CS(callRecord);
         DsaCallSite dsaCS(CS);
         const Function *callee = dsaCS.getCallee();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
+        auto val = (llvm::Value *)(callee);
+        auto name = val->getName();
+        if (!callee || callee->isDeclaration() || callee->empty()) continue;
 
         assert(graphs.count(dsaCS.getCaller()) > 0);
         assert(graphs.count(dsaCS.getCallee()) > 0);
 
         Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
-        Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
+        Graph &calleeG = m_specGraphInfo.hasGraph(*dsaCS.getCallee())
+                             ? m_specGraphInfo.getGraph(*dsaCS.getCallee())
+                             : *(graphs.find(dsaCS.getCallee())->second);
 
         static int cnt = 0;
         ++cnt;
@@ -183,16 +182,15 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << "\n");
 
         cloneAndResolveArguments(dsaCS, calleeG, callerG,
-				 m_flowSensitiveOpt && !NoBUFlowSensitiveOpt);
-	
+                                 m_flowSensitiveOpt && !NoBUFlowSensitiveOpt);
+
         LOG("dsa-bu", llvm::errs()
                           << "\tCaller size after clone: " << callerG.numNodes()
                           << ", collapsed: " << callerG.numCollapsed() << "\n");
       }
     }
 
-    if (fGraph)
-      fGraph->compress();
+    if (fGraph) fGraph->compress();
   }
 
   LOG(
@@ -208,4 +206,3 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 }
 
 } // namespace seadsa
-
