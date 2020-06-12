@@ -5,8 +5,10 @@
 #pragma once
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Pass.h"
 
+#include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/Local.hh"
 
 #include "llvm/IR/BasicBlock.h"
@@ -17,35 +19,38 @@
 namespace llvm {
 class Function;
 class Module;
-class Instruction;
-class TargetLibraryInfo;
 class TargetLibraryInfoWrapperPass;
 class Function;
-class Value;
-class StringRef;
 } // namespace llvm
 
 namespace seadsa {
-class Local;
+class LocalAnalysis;
+class AllocWrapInfo;
 
 class SpecGraphInfo : public llvm::ModulePass {
+  using GraphRef = std::shared_ptr<Graph>;
 
-  Local m_local;
-  llvm::StringRef m_specDir;
-  // populateSpecSet();
+  AllocWrapInfo *m_awi;
+  llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
+  Graph::SetFactory m_setFactory;
+  llvm::DenseMap<const llvm::Function *, GraphRef> m_graphs;
+
+  void getAvailableSpecs();
 
 public:
   static char ID;
 
-  SpecGraphInfo() : ModulePass(ID), m_local() {
-    // populateSpecSet();
-  }
-
-  bool runOnModule(llvm::Module &m);
-
-  bool hasFunction() const;
-  const Graph &getGraph(const llvm::Function &F) const;
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
+  SpecGraphInfo() : ModulePass(ID), m_awi(nullptr), m_tliWrapper(nullptr) {}
+  bool runOnModule(llvm::Module &m) override;
+  llvm::StringRef getPassName() const override { return "SeaDsa Spec Pass"; }
+  bool hasGraph(const llvm::Function &F) const;
+  Graph &getGraph(const llvm::Function &F) const;
 };
+
 llvm::Pass *createSpecGraphInfoPass();
 
 } // namespace seadsa
+
+// clang-format off
+// /home/anton/seahorn_full/seahorn/debug/run/bin/seadsa --sea-dsa=cs --sea-dsa-dot /home/anton/seahorn_full/seahorn/sea-dsa/tests/test-ext-3.ll --sea-dsa-stats --sea-dsa-specdir=/home/anton/seahorn_full/seahorn/sea-dsa/specs
