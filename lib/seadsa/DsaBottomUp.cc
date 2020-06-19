@@ -104,10 +104,9 @@ void BottomUpAnalysis::cloneAndResolveArguments(
 
   DsaCallSite::const_actual_iterator AI = CS.actual_begin(),
                                      AE = CS.actual_end();
-  for (Function::const_arg_iterator FI = callee.arg_begin(),
-                                    FE = callee.arg_end();
+  for (DsaCallSite::const_formal_iterator FI = CS.formal_func_begin(callee),
+                                          FE = CS.formal_func_end(callee);
        FI != FE && AI != AE; ++FI, ++AI) {
-    if (!(*FI).getType()->isPointerTy()) continue;
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
     if (calleeG.hasCell(*fml)) {
@@ -170,7 +169,6 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         if (!callee) continue;
         if (callee->isDeclaration() && !m_specGraphInfo.hasSpecFunc(*callee))
           continue;
-        auto calleeName = dsaCS.getCallee()->getName();
 
         assert(graphs.count(dsaCS.getCaller()) > 0);
         assert(graphs.count(dsaCS.getCallee()) > 0);
