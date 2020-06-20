@@ -27,6 +27,7 @@
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/SeaDsaAliasAnalysis.hh"
 #include "seadsa/ShadowMem.hh"
+#include "seadsa/SpecGraphInfo.hh"
 #include "seadsa/support/Debug.h"
 #include "seadsa/support/RemovePtrToInt.hh"
 
@@ -153,6 +154,7 @@ int main(int argc, char **argv) {
   llvm::initializeRemovePtrToIntPass(Registry);
   llvm::initializeDsaAnalysisPass(Registry);
   llvm::initializeAllocWrapInfoPass(Registry);
+  llvm::initializeSpecGraphInfoPass(Registry);
   llvm::initializeAllocSiteInfoPass(Registry);
   llvm::initializeCompleteCallGraphPass(Registry);
 
@@ -210,6 +212,7 @@ int main(int argc, char **argv) {
     if (CallGraphDot) {
       pass_manager.add(seadsa::createDsaCallGraphPrinterPass());
     }
+    pass_manager.add(seadsa::createSpecGraphInfoPass());
 
     if (AAEval) {
       pass_manager.add(llvm::createAAEvalPass());

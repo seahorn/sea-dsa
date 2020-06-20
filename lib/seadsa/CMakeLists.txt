@@ -26,4 +26,5 @@ add_llvm_library (SeaDsaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   ShadowMem.cc
   SeaMemorySSA.cc
   SeaDsaAliasAnalysis.cc
+  SpecGraphInfo.cc
   )
