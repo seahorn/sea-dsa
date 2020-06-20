@@ -15,6 +15,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
+#include <unordered_map>
 
 namespace llvm {
 class Function;
@@ -27,21 +28,23 @@ namespace seadsa {
 class LocalAnalysis;
 class AllocWrapInfo;
 
-class SpecGraphInfo : public llvm::ModulePass {
+class SpecGraphInfo : public llvm::ImmutablePass {
   using GraphRef = std::shared_ptr<Graph>;
 
-  AllocWrapInfo *m_awi;
-  llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
-  Graph::SetFactory m_setFactory;
-  llvm::DenseMap<const llvm::Function *, GraphRef> m_graphs;
-
-  void getAvailableSpecs();
+protected:
+  mutable AllocWrapInfo *m_awi;
+  mutable llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
+  mutable std::unordered_map<std::string, GraphRef> m_graphs;
+  mutable std::unique_ptr<llvm::Module> m_module;
+  mutable llvm::LLVMContext m_ctx;
+  mutable Graph::SetFactory m_setFactory;
 
 public:
   static char ID;
 
+  SpecGraphInfo() : ImmutablePass(ID), m_awi(nullptr), m_tliWrapper(nullptr) {}
+  void initialize() const;
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-  SpecGraphInfo() : ModulePass(ID), m_awi(nullptr), m_tliWrapper(nullptr) {}
   bool runOnModule(llvm::Module &m) override;
   llvm::StringRef getPassName() const override { return "SeaDsa Spec Pass"; }
   bool hasGraph(const llvm::Function &F) const;

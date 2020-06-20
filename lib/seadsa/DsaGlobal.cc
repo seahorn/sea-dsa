@@ -755,6 +755,7 @@ bool ContextSensitiveGlobalPass::runOnModule(Module &M) {
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &specGraphInfo = getAnalysis<SpecGraphInfo>();
+  specGraphInfo.initialize();
   allocInfo.initialize(M, this);  
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
@@ -790,6 +791,7 @@ bool BottomUpTopDownGlobalPass::runOnModule(Module &M) {
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &specGraphInfo = getAnalysis<SpecGraphInfo>();
+  specGraphInfo.initialize();
   allocInfo.initialize(M, this);
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
@@ -824,6 +826,7 @@ bool BottomUpGlobalPass::runOnModule(Module &M) {
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &specGraphInfo = getAnalysis<SpecGraphInfo>();
+  specGraphInfo.initialize();
   allocInfo.initialize(M, this);  
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {

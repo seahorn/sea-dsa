@@ -17,13 +17,13 @@
 #include <iostream>
 
 namespace seadsa {
-std::string SpecDir;
+std::string SpecFile;
 }
 
 static llvm::cl::opt<std::string, true>
-    XSpecDir("sea-dsa-specdir", llvm::cl::desc("<Input spec file directory>"),
-             llvm::cl::Optional, llvm::cl::location(seadsa::SpecDir),
-             llvm::cl::init(""), llvm::cl::value_desc("DIR"));
+    XSpecFile("sea-dsa-specfile", llvm::cl::desc("<Input spec bitcode file>"),
+              llvm::cl::Optional, llvm::cl::location(seadsa::SpecFile),
+              llvm::cl::init(""), llvm::cl::value_desc("filename"));
 
 namespace seadsa {
 
@@ -33,59 +33,43 @@ void SpecGraphInfo::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-bool SpecGraphInfo::runOnModule(llvm::Module &m) {
-  m_awi = &getAnalysis<seadsa::AllocWrapInfo>();
-  m_tliWrapper = &getAnalysis<llvm::TargetLibraryInfoWrapperPass>();
+void SpecGraphInfo::initialize() const {
 
-  getAvailableSpecs();
-  return false;
-}
-
-void SpecGraphInfo::getAvailableSpecs() {
   using namespace llvm::sys::fs;
   using namespace llvm;
 
-  Twine t(SpecDir);
-  std::error_code ec = std::error_code();
+  m_awi = &getAnalysis<AllocWrapInfo>();
+  m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
 
-  if (SpecDir.empty()) return;
+  if (SpecFile.empty()) return;
 
-  StringRef ref = SpecDir;
+  SMDiagnostic err;
 
-  for (auto it = directory_iterator(t, ec); it != directory_iterator();
-       it.increment(ec)) {
-    auto a = it->path();
-    if (!(it->type() == file_type::regular_file)) continue;
+  m_module = parseIRFile(SpecFile, err, m_ctx);
 
-    auto path = StringRef(it->path());
-    auto extension = llvm::sys::path::extension(path);
-    if (!extension.equals(".ll") && !extension.equals(".bc")) continue;
+  auto &dl = m_module->getDataLayout();
 
-    SMDiagnostic err;
-    LLVMContext context;
+  LocalAnalysis la(dl, *m_tliWrapper, *m_awi);
 
-    auto module = parseIRFile(path, err, context);
-    auto &dl = module->getDataLayout();
+  auto &spec_funcs = m_module->getFunctionList();
 
-    LocalAnalysis la(dl, *m_tliWrapper, *m_awi);
-
-    auto &spec_funcs = module->getFunctionList();
-
-    for (Function &func : spec_funcs) {
-      if (func.isDeclaration() || func.empty()) continue;
-      GraphRef graph = std::make_shared<Graph>(dl, m_setFactory);
-      la.runOnFunction(func, *graph);
-      m_graphs.insert({&func, graph});
-    }
+  for (llvm::Function &func : spec_funcs) {
+    if (func.isDeclaration() || func.empty()) continue;
+    auto graph = std::make_shared<Graph>(dl, m_setFactory);
+    la.runOnFunction(func, *graph);
+    m_graphs.insert({func.getName().str().append(".spec"), graph});
+    graph->viewGraph();
   }
-}
+} // namespace seadsa
+
+bool SpecGraphInfo::runOnModule(llvm::Module &m) { return false; }
 
 bool SpecGraphInfo::hasGraph(const llvm::Function &F) const {
-  return m_graphs.count(&F);
+  return m_graphs.count(F.getName().str().append(".spec"));
 }
 
 Graph &SpecGraphInfo::getGraph(const llvm::Function &F) const {
-  auto it = m_graphs.find(&F);
+  auto it = m_graphs.find(F.getName().str().append(".spec"));
   assert(it != m_graphs.end());
   return *(it->second);
 }

@@ -148,7 +148,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     std::vector<CallGraphNode *> cgns = call_graph_utils::SortedCGNs(scc);
     for (CallGraphNode *cgn : cgns) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty()) continue;
+      if (!fn || fn->empty()) continue;
 
       // -- resolve all function calls in the SCC
       auto callRecords = call_graph_utils::SortedCallSites(cgn);
