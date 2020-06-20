@@ -24,6 +24,7 @@ class CallGraph;
 namespace seadsa {
 
 class AllocWrapInfo;
+class SpecGraphInfo;
 
 enum class GlobalAnalysisKind {
   // useful for VC generation
@@ -158,6 +159,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
+  const SpecGraphInfo &m_specGraphInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
 
@@ -181,11 +183,12 @@ private:
   bool checkNoMorePropagation(llvm::CallGraph &cg);
 
 public:
-  ContextSensitiveGlobalAnalysis(
-      const llvm::DataLayout &dl,
-      llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-      const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-      SetFactory &setFactory, bool storeSummaryGraphs = false);
+  ContextSensitiveGlobalAnalysis(const llvm::DataLayout &dl,
+                                 llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+                                 const AllocWrapInfo &allocInfo,
+                                 const SpecGraphInfo &specGraphInfo,
+                                 llvm::CallGraph &cg, SetFactory &setFactory,
+                                 bool storeSummaryGraphs = false);
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -218,6 +221,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
+  const SpecGraphInfo &m_specGraphInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   // Context-sensitive graphs
@@ -228,11 +232,12 @@ private:
   bool m_store_bu_graphs;
 
 public:
-  BottomUpTopDownGlobalAnalysis(
-      const llvm::DataLayout &dl,
-      llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-      const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-      SetFactory &setFactory, bool storeSummaryGraphs = false);
+  BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
+                                llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+                                const AllocWrapInfo &allocInfo,
+                                const SpecGraphInfo &specGraphInfo,
+                                llvm::CallGraph &cg, SetFactory &setFactory,
+                                bool storeSummaryGraphs = false);
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -263,6 +268,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
+  const SpecGraphInfo &m_specGraphInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   GraphMap m_graphs;
@@ -270,8 +276,9 @@ private:
 public:
   BottomUpGlobalAnalysis(const llvm::DataLayout &dl,
                          llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-                         const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-                         SetFactory &setFactory);
+                         const AllocWrapInfo &allocInfo,
+                         const SpecGraphInfo &specGraphInfo,
+                         llvm::CallGraph &cg, SetFactory &setFactory);
 
   bool runOnModule(llvm::Module &M) override;
 
