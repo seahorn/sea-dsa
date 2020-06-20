@@ -4,6 +4,7 @@
 #include "seadsa/Global.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/InitializePasses.hh"
+#include "seadsa/SpecGraphInfo.hh"
 #include "seadsa/support/Debug.h"
 #include "llvm/Analysis/CFLAliasAnalysisUtils.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -19,14 +20,15 @@ namespace dsa = seadsa;
 namespace seadsa {
 
 SeaDsaAAResult::SeaDsaAAResult(TargetLibraryInfoWrapperPass &tliWrapper,
-                               AllocWrapInfo &awi)
-    : m_tliWrapper(tliWrapper), m_awi(awi), m_fac(nullptr), m_cg(nullptr),
-      m_dsa(nullptr) {}
+                               AllocWrapInfo &awi, SpecGraphInfo &sgi)
+    : m_tliWrapper(tliWrapper), m_awi(awi), m_sgi(sgi), m_fac(nullptr),
+      m_cg(nullptr), m_dsa(nullptr) {}
 
 SeaDsaAAResult::SeaDsaAAResult(SeaDsaAAResult &&RHS)
     : AAResultBase(std::move(RHS)), m_tliWrapper(RHS.m_tliWrapper),
-      m_dl(nullptr), m_awi(RHS.m_awi), m_fac(std::move(RHS.m_fac)),
-      m_cg(std::move(RHS.m_cg)), m_dsa(std::move(RHS.m_dsa)) {}
+      m_dl(nullptr), m_awi(RHS.m_awi), m_sgi(RHS.m_sgi),
+      m_fac(std::move(RHS.m_fac)), m_cg(std::move(RHS.m_cg)),
+      m_dsa(std::move(RHS.m_dsa)) {}
 
 SeaDsaAAResult::~SeaDsaAAResult() = default;
 
@@ -159,7 +161,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
       m_cg = std::make_unique<CallGraph>(*M);
       m_awi.initialize(*M, nullptr);
       m_dsa = std::make_unique<BottomUpTopDownGlobalAnalysis>(
-          *m_dl, m_tliWrapper, m_awi, *m_cg, *m_fac);
+          *m_dl, m_tliWrapper, m_awi, m_sgi, *m_cg, *m_fac);
       DOG(llvm::errs() << "Running SeaDsaAA.\n");
       m_dsa->runOnModule(*M);
     }
@@ -202,9 +204,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
 
 char SeaDsaAAWrapperPass::ID = 0;
 
-ImmutablePass *createSeaDsaAAWrapperPass() {
-  return new SeaDsaAAWrapperPass();
-}
+ImmutablePass *createSeaDsaAAWrapperPass() { return new SeaDsaAAWrapperPass(); }
 
 SeaDsaAAWrapperPass::SeaDsaAAWrapperPass() : ImmutablePass(ID) {
   initializeSeaDsaAAWrapperPassPass(*PassRegistry::getPassRegistry());
@@ -214,13 +214,15 @@ void SeaDsaAAWrapperPass::initializePass() {
   DOG(errs() << "initializing SeaDsaAAWrapperPass\n");
   auto &tliWrapper = this->getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &awi = this->getAnalysis<AllocWrapInfo>();
-  Result.reset(new SeaDsaAAResult(tliWrapper, awi));
+  auto &sgi = this->getAnalysis<SpecGraphInfo>();
+  Result.reset(new SeaDsaAAResult(tliWrapper, awi, sgi));
 }
 
 void SeaDsaAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
+  AU.addRequired<SpecGraphInfo>();
 }
 } // namespace seadsa
 
