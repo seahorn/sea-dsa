@@ -612,7 +612,8 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
       errs() << "Started bottom-up + top-down global analysis ... \n");
 
   for (auto &F : M) {
-    if (F.isDeclaration() || F.empty()) continue;
+    if (F.empty() && !m_specGraphInfo.hasSpecFunc(F)) continue;
+    if (F.isDeclaration() && !m_specGraphInfo.hasSpecFunc(F)) continue;
 
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
     m_graphs[&F] = fGraph;
