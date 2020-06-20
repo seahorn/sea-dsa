@@ -308,7 +308,8 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 #endif
 
   for (auto &F : M) {
-    if (F.isDeclaration() || F.empty()) continue;
+    if (F.empty() && !m_specGraphInfo.hasSpecFunc(F)) continue;
+    if (F.isDeclaration() && !m_specGraphInfo.hasSpecFunc(F)) continue;
 
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
     m_graphs[&F] = fGraph;
@@ -520,7 +521,7 @@ void ContextSensitiveGlobalAnalysis::propagateBottomUp(const DsaCallSite &cs,
 
   const bool flowSensitiveOpt = false;
   BottomUpAnalysis::cloneAndResolveArguments(cs, calleeG, callerG,
-                                             flowSensitiveOpt);
+                                             m_specGraphInfo, flowSensitiveOpt);
 
   LOG(
       "dsa-global", if (decidePropagation(cs, calleeG, callerG) == UP) {

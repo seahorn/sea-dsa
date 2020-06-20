@@ -29,15 +29,15 @@ class LocalAnalysis;
 class AllocWrapInfo;
 
 class SpecGraphInfo : public llvm::ImmutablePass {
-  using GraphRef = std::shared_ptr<Graph>;
 
 protected:
   mutable AllocWrapInfo *m_awi;
   mutable llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
-  mutable std::unordered_map<std::string, GraphRef> m_graphs;
-  mutable std::unique_ptr<llvm::Module> m_module;
+  mutable std::unordered_map<std::string, llvm::Function &> m_funcs;
+
+  // m_module must be deallocated before m_ctx, keep in this order
   mutable llvm::LLVMContext m_ctx;
-  mutable Graph::SetFactory m_setFactory;
+  mutable std::unique_ptr<llvm::Module> m_module;
 
 public:
   static char ID;
@@ -45,15 +45,12 @@ public:
   SpecGraphInfo() : ImmutablePass(ID), m_awi(nullptr), m_tliWrapper(nullptr) {}
   void initialize() const;
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-  bool runOnModule(llvm::Module &m) override;
   llvm::StringRef getPassName() const override { return "SeaDsa Spec Pass"; }
-  bool hasGraph(const llvm::Function &F) const;
-  Graph &getGraph(const llvm::Function &F) const;
+
+  bool hasSpecFunc(const llvm::Function &F) const;
+  llvm::Function &getSpecFunc(const llvm::Function &F) const;
 };
 
 llvm::Pass *createSpecGraphInfoPass();
 
 } // namespace seadsa
-
-// clang-format off
-// /home/anton/seahorn_full/seahorn/debug/run/bin/seadsa --sea-dsa=cs --sea-dsa-dot /home/anton/seahorn_full/seahorn/sea-dsa/tests/test-ext-3.ll --sea-dsa-stats --sea-dsa-specdir=/home/anton/seahorn_full/seahorn/sea-dsa/specs

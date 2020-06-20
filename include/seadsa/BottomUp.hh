@@ -40,6 +40,7 @@ private:
 public:
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &calleeG,
                                        Graph &callerG,
+                                       const SpecGraphInfo &specGraphInfo,
                                        bool flowSensitiveOpt = true);
 
   BottomUpAnalysis(const llvm::DataLayout &dl,

@@ -56,9 +56,9 @@ static const Value *findUniqueReturnValue(const Function &F) {
 }
 
 // Clone callee nodes into caller and resolve arguments
-void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
-                                                Graph &calleeG, Graph &callerG,
-                                                bool flowSensitiveOpt) {
+void BottomUpAnalysis::cloneAndResolveArguments(
+    const DsaCallSite &CS, Graph &calleeG, Graph &callerG,
+    const SpecGraphInfo &specGraphInfo, bool flowSensitiveOpt) {
   CloningContext context(*CS.getInstruction(), CloningContext::BottomUp);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(callerG, context, options);
@@ -83,7 +83,9 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
   }
 
   // clone and unify return
-  const Function &callee = *CS.getCallee();
+  const Function &callee = specGraphInfo.hasSpecFunc(*CS.getCallee())
+                               ? specGraphInfo.getSpecFunc(*CS.getCallee())
+                               : *CS.getCallee();
   if (calleeG.hasRetCell(callee)) {
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
 
@@ -100,17 +102,18 @@ void BottomUpAnalysis::cloneAndResolveArguments(const DsaCallSite &CS,
     nc.unify(c);
   }
 
-  // clone and unify actuals and formals
   DsaCallSite::const_actual_iterator AI = CS.actual_begin(),
                                      AE = CS.actual_end();
-  for (DsaCallSite::const_formal_iterator FI = CS.formal_begin(),
-                                          FE = CS.formal_end();
+  for (Function::const_arg_iterator FI = callee.arg_begin(),
+                                    FE = callee.arg_end();
        FI != FE && AI != AE; ++FI, ++AI) {
+    if (!(*FI).getType()->isPointerTy()) continue;
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
     if (calleeG.hasCell(*fml)) {
       const Cell &formalC = calleeG.getCell(*fml);
       Node &n = C.clone(*formalC.getNode());
+      n.setExternal(false);
       Cell c(n, formalC.getRawOffset());
       Cell &nc = callerG.mkCell(*arg, Cell());
       nc.unify(c);
@@ -133,40 +136,47 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     GraphRef fGraph = nullptr;
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty()) continue;
+      if (!fn) continue;
+      if (fn->isDeclaration() && !m_specGraphInfo.hasSpecFunc(*fn)) continue;
 
       if (!fGraph) {
         assert(graphs.find(fn) != graphs.end());
         fGraph = graphs[fn];
         assert(fGraph);
       }
+      if (m_specGraphInfo.hasSpecFunc(*fn)) {
+        Function &spec_fn = m_specGraphInfo.getSpecFunc(*fn);
+        la.runOnFunction(spec_fn, *fGraph);
 
-      la.runOnFunction(*fn, *fGraph);
+      } else {
+        la.runOnFunction(*fn, *fGraph);
+      }
+
       graphs[fn] = fGraph;
     }
 
     std::vector<CallGraphNode *> cgns = call_graph_utils::SortedCGNs(scc);
     for (CallGraphNode *cgn : cgns) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->empty()) continue;
+      if (!fn) continue;
 
       // -- resolve all function calls in the SCC
-      auto callRecords = call_graph_utils::SortedCallSites(cgn);
+      auto callRecords =
+          call_graph_utils::SortedCallSites(cgn, m_specGraphInfo);
       for (auto *callRecord : callRecords) {
         ImmutableCallSite CS(callRecord);
         DsaCallSite dsaCS(CS);
         const Function *callee = dsaCS.getCallee();
-        auto val = (llvm::Value *)(callee);
-        auto name = val->getName();
-        if (!callee || callee->isDeclaration() || callee->empty()) continue;
+        if (!callee) continue;
+        if (callee->isDeclaration() && !m_specGraphInfo.hasSpecFunc(*callee))
+          continue;
+        auto calleeName = dsaCS.getCallee()->getName();
 
         assert(graphs.count(dsaCS.getCaller()) > 0);
         assert(graphs.count(dsaCS.getCallee()) > 0);
 
         Graph &callerG = *(graphs.find(dsaCS.getCaller())->second);
-        Graph &calleeG = m_specGraphInfo.hasGraph(*dsaCS.getCallee())
-                             ? m_specGraphInfo.getGraph(*dsaCS.getCallee())
-                             : *(graphs.find(dsaCS.getCallee())->second);
+        Graph &calleeG = *(graphs.find(dsaCS.getCallee())->second);
 
         static int cnt = 0;
         ++cnt;
@@ -181,7 +191,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << ", caller collapsed:\t" << callerG.numCollapsed()
                           << "\n");
 
-        cloneAndResolveArguments(dsaCS, calleeG, callerG,
+        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_specGraphInfo,
                                  m_flowSensitiveOpt && !NoBUFlowSensitiveOpt);
 
         LOG("dsa-bu", llvm::errs()

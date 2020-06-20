@@ -1,28 +1,30 @@
 #pragma once
 
-#include "llvm/IR/CallSite.h"
-#include "llvm/Analysis/CallGraph.h"
+#include "seadsa/CallSite.hh"
+#include "seadsa/SpecGraphInfo.hh"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
-#include "seadsa/CallSite.hh"
+#include "llvm/Analysis/CallGraph.h"
+#include "llvm/IR/CallSite.h"
 
-namespace seadsa{
+namespace seadsa {
 namespace call_graph_utils {
 
 // Return a dsa callsite from a llvm CallGraph edge
-template<typename CallRecord>
-llvm::Optional<DsaCallSite> getDsaCallSite(CallRecord& callRecord) {
-  const llvm::Function* callee = callRecord.second->getFunction();
-  if (!callee || callee->isDeclaration() || callee->empty())
-    return llvm::None;
-  
+template <typename CallRecord>
+llvm::Optional<DsaCallSite> getDsaCallSite(CallRecord &callRecord) {
+  const llvm::Function *callee = callRecord.second->getFunction();
+  if (!callee || callee->isDeclaration() || callee->empty()) return llvm::None;
+
   llvm::CallSite CS(callRecord.first);
   if (CS.isIndirectCall()) {
     DsaCallSite dsaCS(*CS.getInstruction(), *callee);
-    return (dsaCS.getCallee() ? llvm::Optional<DsaCallSite>(dsaCS) : llvm::None);    
+    return (dsaCS.getCallee() ? llvm::Optional<DsaCallSite>(dsaCS)
+                              : llvm::None);
   } else {
     DsaCallSite dsaCS(*CS.getInstruction());
-    return (dsaCS.getCallee() ? llvm::Optional<DsaCallSite>(dsaCS) : llvm::None);
+    return (dsaCS.getCallee() ? llvm::Optional<DsaCallSite>(dsaCS)
+                              : llvm::None);
   }
 }
 
@@ -31,42 +33,48 @@ std::vector<llvm::CallGraphNode *> SortedCGNs(const T &t) {
   std::vector<llvm::CallGraphNode *> cgns;
   for (llvm::CallGraphNode *cgn : t) {
     llvm::Function *fn = cgn->getFunction();
-    if (!fn || fn->isDeclaration() || fn->empty())
-      continue;
+    if (!fn || fn->empty()) continue;
 
     cgns.push_back(cgn);
   }
 
-  std::stable_sort(
-      cgns.begin(), cgns.end(), [](llvm::CallGraphNode *first, llvm::CallGraphNode *snd) {
-        return first->getFunction()->getName() < snd->getFunction()->getName();
-      });
+  std::stable_sort(cgns.begin(), cgns.end(),
+                   [](llvm::CallGraphNode *first, llvm::CallGraphNode *snd) {
+                     return first->getFunction()->getName() <
+                            snd->getFunction()->getName();
+                   });
 
   return cgns;
 }
 
-inline std::vector<const llvm::Value *> SortedCallSites(llvm::CallGraphNode *cgn) {
+inline std::vector<const llvm::Value *>
+SortedCallSites(llvm::CallGraphNode *cgn, const SpecGraphInfo &specGraphInfo) {
   std::vector<const llvm::Value *> res;
   res.reserve(cgn->size());
 
   for (auto &callRecord : *cgn) {
     llvm::ImmutableCallSite CS(callRecord.first);
     DsaCallSite dsaCS(CS);
-    const llvm::Function *callee = dsaCS.getCallee();
-    if (!callee || callee->isDeclaration() || callee->empty())
-      continue;
 
+    const llvm::Function *callee_func = dsaCS.getCallee();
+    if (!callee_func) continue;
+
+    const llvm::Function &callee = specGraphInfo.hasSpecFunc(*callee_func)
+                                       ? specGraphInfo.getSpecFunc(*callee_func)
+                                       : *callee_func;
+
+    if (callee.isDeclaration() || callee.empty()) continue;
     res.push_back(callRecord.first);
   }
 
   std::stable_sort(res.begin(), res.end(),
                    [](const llvm::Value *first, const llvm::Value *snd) {
-		     llvm::ImmutableCallSite CS1(first);
+                     llvm::ImmutableCallSite CS1(first);
                      DsaCallSite dsaCS1(CS1);
                      llvm::StringRef callerN1 = dsaCS1.getCaller()->getName();
                      llvm::StringRef calleeN1 = dsaCS1.getCallee()->getName();
 
-		     llvm::ImmutableCallSite CS2(snd);
+                     llvm::ImmutableCallSite CS2(snd);
                      DsaCallSite dsaCS2(CS2);
                      llvm::StringRef callerN2 = dsaCS2.getCaller()->getName();
                      llvm::StringRef calleeN2 = dsaCS2.getCallee()->getName();
@@ -78,6 +86,5 @@ inline std::vector<const llvm::Value *> SortedCallSites(llvm::CallGraphNode *cgn
   return res;
 }
 
-
-} // end namespace
-} // end namespace
+} // namespace call_graph_utils
+} // namespace seadsa

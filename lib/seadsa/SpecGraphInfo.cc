@@ -55,23 +55,18 @@ void SpecGraphInfo::initialize() const {
 
   for (llvm::Function &func : spec_funcs) {
     if (func.isDeclaration() || func.empty()) continue;
-    auto graph = std::make_shared<Graph>(dl, m_setFactory);
-    la.runOnFunction(func, *graph);
-    m_graphs.insert({func.getName().str().append(".spec"), graph});
-    graph->viewGraph();
+    m_funcs.insert({func.getName().str(), func});
   }
 } // namespace seadsa
 
-bool SpecGraphInfo::runOnModule(llvm::Module &m) { return false; }
-
-bool SpecGraphInfo::hasGraph(const llvm::Function &F) const {
-  return m_graphs.count(F.getName().str().append(".spec"));
+bool SpecGraphInfo::hasSpecFunc(const llvm::Function &F) const {
+  return m_funcs.count(F.getName().str());
 }
 
-Graph &SpecGraphInfo::getGraph(const llvm::Function &F) const {
-  auto it = m_graphs.find(F.getName().str().append(".spec"));
-  assert(it != m_graphs.end());
-  return *(it->second);
+llvm::Function &SpecGraphInfo::getSpecFunc(const llvm::Function &F) const {
+  auto it = m_funcs.find(F.getName().str());
+  assert(it != m_funcs.end());
+  return it->second;
 }
 
 char SpecGraphInfo::ID = 0;
