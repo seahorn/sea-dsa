@@ -561,6 +561,14 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
     return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
   }
 
+  if (isNoAliasFn(&v, &m_tli)) {
+    Cell &c = m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
+    seadsa::DsaAllocSite *site = m_graph.mkAllocSite(v);
+    assert(site);
+    c.getNode()->addAllocSite(*site);
+    return c;
+  }
+
   // -- special case for aggregate types. Cell creation is handled elsewhere
   if (v.getType()->isAggregateType())
     return Cell();
