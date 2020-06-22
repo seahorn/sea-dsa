@@ -33,7 +33,7 @@ class SpecGraphInfo : public llvm::ImmutablePass {
 protected:
   mutable AllocWrapInfo *m_awi;
   mutable llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
-  mutable std::unordered_map<std::string, llvm::Function &> m_funcs;
+  mutable std::unordered_map<std::string, llvm::Function *> m_funcs;
 
   // m_module must be deallocated before m_ctx, keep in this order
   mutable llvm::LLVMContext m_ctx;
@@ -48,7 +48,7 @@ public:
   llvm::StringRef getPassName() const override { return "SeaDsa Spec Pass"; }
 
   bool hasSpecFunc(const llvm::Function &F) const;
-  llvm::Function &getSpecFunc(const llvm::Function &F) const;
+  llvm::Function *getSpecFunc(const llvm::Function &F) const;
 };
 
 llvm::Pass *createSpecGraphInfoPass();

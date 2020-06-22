@@ -59,9 +59,10 @@ SortedCallSites(llvm::CallGraphNode *cgn, const SpecGraphInfo &specGraphInfo) {
     const llvm::Function *callee_func = dsaCS.getCallee();
     if (!callee_func) continue;
 
-    const llvm::Function &callee = specGraphInfo.hasSpecFunc(*callee_func)
-                                       ? specGraphInfo.getSpecFunc(*callee_func)
-                                       : *callee_func;
+    const llvm::Function &callee =
+        specGraphInfo.hasSpecFunc(*callee_func)
+            ? *specGraphInfo.getSpecFunc(*callee_func)
+            : *callee_func;
 
     if (callee.isDeclaration() || callee.empty()) continue;
     res.push_back(callRecord.first);

@@ -84,7 +84,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(
 
   // clone and unify return
   const Function &callee = specGraphInfo.hasSpecFunc(*CS.getCallee())
-                               ? specGraphInfo.getSpecFunc(*CS.getCallee())
+                               ? *specGraphInfo.getSpecFunc(*CS.getCallee())
                                : *CS.getCallee();
   if (calleeG.hasRetCell(callee)) {
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
@@ -144,7 +144,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         assert(fGraph);
       }
       if (m_specGraphInfo.hasSpecFunc(*fn)) {
-        Function &spec_fn = m_specGraphInfo.getSpecFunc(*fn);
+        Function &spec_fn = *m_specGraphInfo.getSpecFunc(*fn);
         la.runOnFunction(spec_fn, *fGraph);
 
       } else {

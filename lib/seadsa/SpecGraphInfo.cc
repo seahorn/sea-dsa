@@ -51,7 +51,7 @@ void SpecGraphInfo::initialize() const {
 
   for (llvm::Function &func : spec_funcs) {
     if (func.isDeclaration() || func.empty()) continue;
-    m_funcs.insert({func.getName().str(), func});
+    m_funcs.insert({func.getName().str(), &func});
   }
 } // namespace seadsa
 
@@ -59,7 +59,7 @@ bool SpecGraphInfo::hasSpecFunc(const llvm::Function &F) const {
   return m_funcs.count(F.getName().str());
 }
 
-llvm::Function &SpecGraphInfo::getSpecFunc(const llvm::Function &F) const {
+llvm::Function *SpecGraphInfo::getSpecFunc(const llvm::Function &F) const {
   auto it = m_funcs.find(F.getName().str());
   assert(it != m_funcs.end());
   return it->second;
