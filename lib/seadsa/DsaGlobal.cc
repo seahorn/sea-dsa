@@ -175,9 +175,10 @@ ContextInsensitiveGlobalPass::ContextInsensitiveGlobalPass()
 
 void ContextInsensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>(); 
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
+  AU.addRequired<SpecGraphInfo>();
   if (UseDsaCallGraph) {
     AU.addRequired<CompleteCallGraph>();
   } else {
@@ -190,8 +191,9 @@ bool ContextInsensitiveGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
+  auto &specGraphInfo = getAnalysis<SpecGraphInfo>();
   allocInfo.initialize(M, this);
-  
+
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();
@@ -199,8 +201,8 @@ bool ContextInsensitiveGlobalPass::runOnModule(Module &M) {
     cg = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
   }
   const bool useFlatMemory = false;
-  m_ga.reset(new ContextInsensitiveGlobalAnalysis(dl, tli, allocInfo, *cg,
-                                                  m_setFactory, useFlatMemory));
+  m_ga.reset(new ContextInsensitiveGlobalAnalysis(
+      dl, tli, allocInfo, specGraphInfo, *cg, m_setFactory, useFlatMemory));
   return m_ga->runOnModule(M);
 }
 
@@ -210,9 +212,10 @@ FlatMemoryGlobalPass::FlatMemoryGlobalPass()
 void FlatMemoryGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>();   
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
+  AU.addRequired<SpecGraphInfo>();
   AU.setPreservesAll();
 }
 
@@ -221,11 +224,12 @@ bool FlatMemoryGlobalPass::runOnModule(Module &M) {
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
-  allocInfo.initialize(M, this);  
+  auto &specGraphInfo = getAnalysis<SpecGraphInfo>();
+  allocInfo.initialize(M, this);
 
   const bool useFlatMemory = true;
-  m_ga.reset(new ContextInsensitiveGlobalAnalysis(dl, tli, allocInfo, cg,
-                                                  m_setFactory, useFlatMemory));
+  m_ga.reset(new ContextInsensitiveGlobalAnalysis(
+      dl, tli, allocInfo, specGraphInfo, cg, m_setFactory, useFlatMemory));
   return m_ga->runOnModule(M);
 }
 
@@ -746,8 +750,8 @@ void ContextSensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   } else {
     AU.addRequired<CallGraphWrapperPass>();
   }
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>();   
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.addRequired<SpecGraphInfo>();
   AU.setPreservesAll();
@@ -759,7 +763,7 @@ bool ContextSensitiveGlobalPass::runOnModule(Module &M) {
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &specGraphInfo = getAnalysis<SpecGraphInfo>();
   specGraphInfo.initialize();
-  allocInfo.initialize(M, this);  
+  allocInfo.initialize(M, this);
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();
@@ -782,8 +786,8 @@ void BottomUpTopDownGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   } else {
     AU.addRequired<CallGraphWrapperPass>();
   }
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>();   
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.addRequired<SpecGraphInfo>();
   AU.setPreservesAll();
@@ -817,8 +821,8 @@ void BottomUpGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   } else {
     AU.addRequired<CallGraphWrapperPass>();
   }
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>();   
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.addRequired<SpecGraphInfo>();
   AU.setPreservesAll();
@@ -830,7 +834,7 @@ bool BottomUpGlobalPass::runOnModule(Module &M) {
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &specGraphInfo = getAnalysis<SpecGraphInfo>();
   specGraphInfo.initialize();
-  allocInfo.initialize(M, this);  
+  allocInfo.initialize(M, this);
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();

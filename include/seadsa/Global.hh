@@ -86,6 +86,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
+  const SpecGraphInfo &m_specGraphInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   GraphRef m_graph;
@@ -96,12 +97,13 @@ public:
   ContextInsensitiveGlobalAnalysis(
       const llvm::DataLayout &dl,
       llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-      const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-      SetFactory &setFactory, const bool useFlatMemory)
+      const AllocWrapInfo &allocInfo, const SpecGraphInfo &specGraphInfo,
+      llvm::CallGraph &cg, SetFactory &setFactory, const bool useFlatMemory)
       : GlobalAnalysis(useFlatMemory ? GlobalAnalysisKind::FLAT_MEMORY
                                      : GlobalAnalysisKind::CONTEXT_INSENSITIVE),
-        m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
-        m_setFactory(setFactory), m_graph(nullptr) {}
+        m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+        m_specGraphInfo(specGraphInfo), m_cg(cg), m_setFactory(setFactory),
+        m_graph(nullptr) {}
 
   // unify caller/callee nodes within the same graph
   static void resolveArguments(DsaCallSite &cs, Graph &g);

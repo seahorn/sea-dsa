@@ -51,7 +51,7 @@ void DsaAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<CallGraphWrapperPass>();
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   // dependency for AllocWrapInfo
-  AU.addRequired<LoopInfoWrapperPass>();  
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.addRequired<SpecGraphInfo>();
   AU.setPreservesAll();
@@ -84,11 +84,12 @@ bool DsaAnalysis::runOnModule(Module &M) {
   switch (DsaGlobalAnalysis) {
   case GlobalAnalysisKind::CONTEXT_INSENSITIVE:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
-        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory, false));
+        *m_dl, *m_tliWrapper, *m_allocInfo, *m_specGraphInfo, cg, m_setFactory,
+        false));
     break;
   case GlobalAnalysisKind::FLAT_MEMORY:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
-        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory,
+        *m_dl, *m_tliWrapper, *m_allocInfo, *m_specGraphInfo, cg, m_setFactory,
         true /* use flat*/));
     break;
   case GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE:
@@ -124,7 +125,7 @@ using namespace seadsa;
 INITIALIZE_PASS_BEGIN(DsaAnalysis, "dsa-wrapper",
                       "Entry point for all SeaDsa clients", false, false)
 INITIALIZE_PASS_DEPENDENCY(RemovePtrToInt)
-// dependency for immutable AllowWrapInfo  
+// dependency for immutable AllowWrapInfo
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass);
 INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
