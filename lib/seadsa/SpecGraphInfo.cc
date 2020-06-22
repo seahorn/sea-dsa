@@ -47,10 +47,6 @@ void SpecGraphInfo::initialize() const {
 
   m_module = parseIRFile(SpecFile, err, m_ctx);
 
-  auto &dl = m_module->getDataLayout();
-
-  LocalAnalysis la(dl, *m_tliWrapper, *m_awi);
-
   auto &spec_funcs = m_module->getFunctionList();
 
   for (llvm::Function &func : spec_funcs) {
