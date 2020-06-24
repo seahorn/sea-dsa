@@ -20,7 +20,7 @@ class TargetLibraryInfoWrapper;
 namespace seadsa {
 
 class AllocWrapInfo;
-class SpecGraphInfo;
+class DsaLibFuncInfo;
 class BottomUpTopDownGlobalAnalysis;
 
 class SeaDsaAAResult : public llvm::AAResultBase<SeaDsaAAResult> {
@@ -29,7 +29,7 @@ class SeaDsaAAResult : public llvm::AAResultBase<SeaDsaAAResult> {
 
 public:
   explicit SeaDsaAAResult(llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-                          AllocWrapInfo &AWI, SpecGraphInfo &sgi);
+                          AllocWrapInfo &AWI, DsaLibFuncInfo &dlfi);
 
   SeaDsaAAResult(SeaDsaAAResult &&RHS);
   ~SeaDsaAAResult();
@@ -46,7 +46,7 @@ private:
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const llvm::DataLayout *m_dl;
   AllocWrapInfo &m_awi;
-  SpecGraphInfo &m_sgi;
+  DsaLibFuncInfo &m_dlfi;
   std::unique_ptr<Graph::SetFactory> m_fac; // node factory for seadsa
   std::unique_ptr<llvm::CallGraph> m_cg;
   std::unique_ptr<BottomUpTopDownGlobalAnalysis> m_dsa;

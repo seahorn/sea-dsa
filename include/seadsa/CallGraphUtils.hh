@@ -1,7 +1,7 @@
 #pragma once
 
 #include "seadsa/CallSite.hh"
-#include "seadsa/SpecGraphInfo.hh"
+#include "seadsa/DsaLibFuncInfo.hh"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -48,7 +48,8 @@ std::vector<llvm::CallGraphNode *> SortedCGNs(const T &t) {
 }
 
 inline std::vector<const llvm::Value *>
-SortedCallSites(llvm::CallGraphNode *cgn, const SpecGraphInfo &specGraphInfo) {
+SortedCallSites(llvm::CallGraphNode *cgn,
+                const DsaLibFuncInfo &dsaLibFuncInfo) {
   std::vector<const llvm::Value *> res;
   res.reserve(cgn->size());
 
@@ -60,8 +61,8 @@ SortedCallSites(llvm::CallGraphNode *cgn, const SpecGraphInfo &specGraphInfo) {
     if (!callee_func) continue;
 
     const llvm::Function &callee =
-        specGraphInfo.hasSpecFunc(*callee_func)
-            ? *specGraphInfo.getSpecFunc(*callee_func)
+        dsaLibFuncInfo.hasSpecFunc(*callee_func)
+            ? *dsaLibFuncInfo.getSpecFunc(*callee_func)
             : *callee_func;
 
     if (callee.isDeclaration() || callee.empty()) continue;

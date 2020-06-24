@@ -69,7 +69,7 @@ char DsaLibFuncInfo::ID = 0;
 } // namespace seadsa
 
 namespace seadsa {
-llvm::Pass *createDsaLibFuncInfoPass() { return new DsaLibFuncInfo(); }
+llvm::Pass *createSpecGraphInfoPass() { return new DsaLibFuncInfo(); }
 } // namespace seadsa
 
 using namespace seadsa;

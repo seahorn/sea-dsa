@@ -24,7 +24,7 @@ class CallGraph;
 namespace seadsa {
 
 class AllocWrapInfo;
-class SpecGraphInfo;
+class DsaLibFuncInfo;
 
 enum class GlobalAnalysisKind {
   // useful for VC generation
@@ -86,7 +86,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
-  const SpecGraphInfo &m_specGraphInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   GraphRef m_graph;
@@ -97,12 +97,12 @@ public:
   ContextInsensitiveGlobalAnalysis(
       const llvm::DataLayout &dl,
       llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-      const AllocWrapInfo &allocInfo, const SpecGraphInfo &specGraphInfo,
+      const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
       llvm::CallGraph &cg, SetFactory &setFactory, const bool useFlatMemory)
       : GlobalAnalysis(useFlatMemory ? GlobalAnalysisKind::FLAT_MEMORY
                                      : GlobalAnalysisKind::CONTEXT_INSENSITIVE),
         m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
-        m_specGraphInfo(specGraphInfo), m_cg(cg), m_setFactory(setFactory),
+        m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg), m_setFactory(setFactory),
         m_graph(nullptr) {}
 
   // unify caller/callee nodes within the same graph
@@ -161,7 +161,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
-  const SpecGraphInfo &m_specGraphInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
 
@@ -188,7 +188,7 @@ public:
   ContextSensitiveGlobalAnalysis(const llvm::DataLayout &dl,
                                  llvm::TargetLibraryInfoWrapperPass &tliWrapper,
                                  const AllocWrapInfo &allocInfo,
-                                 const SpecGraphInfo &specGraphInfo,
+                                 const DsaLibFuncInfo &dsaLibFuncInfo,
                                  llvm::CallGraph &cg, SetFactory &setFactory,
                                  bool storeSummaryGraphs = false);
 
@@ -223,7 +223,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
-  const SpecGraphInfo &m_specGraphInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   // Context-sensitive graphs
@@ -237,7 +237,7 @@ public:
   BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
                                 llvm::TargetLibraryInfoWrapperPass &tliWrapper,
                                 const AllocWrapInfo &allocInfo,
-                                const SpecGraphInfo &specGraphInfo,
+                                const DsaLibFuncInfo &dsaLibFuncInfo,
                                 llvm::CallGraph &cg, SetFactory &setFactory,
                                 bool storeSummaryGraphs = false);
 
@@ -270,7 +270,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
-  const SpecGraphInfo &m_specGraphInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   GraphMap m_graphs;
@@ -279,7 +279,7 @@ public:
   BottomUpGlobalAnalysis(const llvm::DataLayout &dl,
                          llvm::TargetLibraryInfoWrapperPass &tliWrapper,
                          const AllocWrapInfo &allocInfo,
-                         const SpecGraphInfo &specGraphInfo,
+                         const DsaLibFuncInfo &dsaLibFuncInfo,
                          llvm::CallGraph &cg, SetFactory &setFactory);
 
   bool runOnModule(llvm::Module &M) override;

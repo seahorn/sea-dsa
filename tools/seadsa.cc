@@ -24,10 +24,10 @@
 
 #include "seadsa/CompleteCallGraph.hh"
 #include "seadsa/DsaAnalysis.hh"
+#include "seadsa/DsaLibFuncInfo.hh"
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/SeaDsaAliasAnalysis.hh"
 #include "seadsa/ShadowMem.hh"
-#include "seadsa/SpecGraphInfo.hh"
 #include "seadsa/support/Debug.h"
 #include "seadsa/support/RemovePtrToInt.hh"
 
@@ -68,10 +68,11 @@ static llvm::cl::opt<bool> RunShadowMem("sea-dsa-shadow-mem",
                                         llvm::cl::desc("Run ShadowMemPass"),
                                         llvm::cl::Hidden,
                                         llvm::cl::init(false));
-static llvm::cl::opt<bool> AAEval(
-    "sea-dsa-aa-eval",
-    llvm::cl::desc("Exhaustive Alias Analaysis Precision Evaluation using seadsa"),
-    llvm::cl::init(false));
+static llvm::cl::opt<bool>
+    AAEval("sea-dsa-aa-eval",
+           llvm::cl::desc(
+               "Exhaustive Alias Analaysis Precision Evaluation using seadsa"),
+           llvm::cl::init(false));
 
 namespace seadsa {
 SeaDsaLogOpt loc;
@@ -149,12 +150,12 @@ int main(int argc, char **argv) {
   //  llvm::initializeCallGraphPrinterPass(Registry);
   llvm::initializeCallGraphViewerPass(Registry);
   // XXX: not sure if needed anymore
-  //llvm::initializeGlobalsAAWrapperPassPass(Registry);
+  // llvm::initializeGlobalsAAWrapperPassPass(Registry);
 
   llvm::initializeRemovePtrToIntPass(Registry);
   llvm::initializeDsaAnalysisPass(Registry);
   llvm::initializeAllocWrapInfoPass(Registry);
-  llvm::initializeSpecGraphInfoPass(Registry);
+  llvm::initializeDsaLibFuncInfoPass(Registry);
   llvm::initializeAllocSiteInfoPass(Registry);
   llvm::initializeCompleteCallGraphPass(Registry);
 
@@ -173,7 +174,7 @@ int main(int argc, char **argv) {
   // ==--== Alias Analysis Passes ==--==/
 
   // -- add to pass manager
-  pass_manager.add(seadsa::createSpecGraphInfoPass());
+  pass_manager.add(seadsa::createDsaLibFuncInfoPass());
   pass_manager.add(seadsa::createSeaDsaAAWrapperPass());
   // -- make available through AAResultsWrapperPass via ExternalAAWrapperPass
   pass_manager.add(llvm::createExternalAAWrapperPass(
@@ -214,15 +215,14 @@ int main(int argc, char **argv) {
       pass_manager.add(seadsa::createDsaCallGraphPrinterPass());
     }
 
-    if (AAEval) {
-      pass_manager.add(llvm::createAAEvalPass());
-    }
-    
+    if (AAEval) { pass_manager.add(llvm::createAAEvalPass()); }
+
     if (!MemDot && !MemViewer && !seadsa::PrintDsaStats &&
         !seadsa::PrintCallGraphStats && !CallGraphDot && !AAEval) {
       llvm::errs() << "No option selected: choose one option between "
                    << "{sea-dsa-dot, sea-dsa-viewer, sea-dsa-stats, "
-                   << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats, sea-dsa-aa-eval}\n";
+                   << "sea-dsa-callgraph-dot, sea-dsa-callgraph-stats, "
+                      "sea-dsa-aa-eval}\n";
     }
   }
 

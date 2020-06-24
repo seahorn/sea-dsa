@@ -18,9 +18,9 @@
 #include "seadsa/CallGraphUtils.hh"
 #include "seadsa/CallSite.hh"
 #include "seadsa/Cloner.hh"
+#include "seadsa/DsaLibFuncInfo.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/Local.hh"
-#include "seadsa/SpecGraphInfo.hh"
 #include "seadsa/config.h"
 #include "seadsa/support/Debug.h"
 
@@ -58,7 +58,7 @@ static const Value *findUniqueReturnValue(const Function &F) {
 // Clone callee nodes into caller and resolve arguments
 void BottomUpAnalysis::cloneAndResolveArguments(
     const DsaCallSite &CS, Graph &calleeG, Graph &callerG,
-    const SpecGraphInfo &specGraphInfo, bool flowSensitiveOpt) {
+    const DsaLibFuncInfo &dsaLibFuncInfo, bool flowSensitiveOpt) {
   CloningContext context(*CS.getInstruction(), CloningContext::BottomUp);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(callerG, context, options);
@@ -83,8 +83,8 @@ void BottomUpAnalysis::cloneAndResolveArguments(
   }
 
   // clone and unify return
-  const Function &callee = specGraphInfo.hasSpecFunc(*CS.getCallee())
-                               ? *specGraphInfo.getSpecFunc(*CS.getCallee())
+  const Function &callee = dsaLibFuncInfo.hasSpecFunc(*CS.getCallee())
+                               ? *dsaLibFuncInfo.getSpecFunc(*CS.getCallee())
                                : *CS.getCallee();
   if (calleeG.hasRetCell(callee)) {
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
@@ -136,15 +136,15 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
       if (!fn) continue;
-      if (fn->isDeclaration() && !m_specGraphInfo.hasSpecFunc(*fn)) continue;
+      if (fn->isDeclaration() && !m_dsaLibFuncInfo.hasSpecFunc(*fn)) continue;
 
       if (!fGraph) {
         assert(graphs.find(fn) != graphs.end());
         fGraph = graphs[fn];
         assert(fGraph);
       }
-      if (m_specGraphInfo.hasSpecFunc(*fn)) {
-        Function &spec_fn = *m_specGraphInfo.getSpecFunc(*fn);
+      if (m_dsaLibFuncInfo.hasSpecFunc(*fn)) {
+        Function &spec_fn = *m_dsaLibFuncInfo.getSpecFunc(*fn);
         la.runOnFunction(spec_fn, *fGraph);
 
       } else {
@@ -161,13 +161,13 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
       // -- resolve all function calls in the SCC
       auto callRecords =
-          call_graph_utils::SortedCallSites(cgn, m_specGraphInfo);
+          call_graph_utils::SortedCallSites(cgn, m_dsaLibFuncInfo);
       for (auto *callRecord : callRecords) {
         ImmutableCallSite CS(callRecord);
         DsaCallSite dsaCS(CS);
         const Function *callee = dsaCS.getCallee();
         if (!callee) continue;
-        if (callee->isDeclaration() && !m_specGraphInfo.hasSpecFunc(*callee))
+        if (callee->isDeclaration() && !m_dsaLibFuncInfo.hasSpecFunc(*callee))
           continue;
 
         assert(graphs.count(dsaCS.getCaller()) > 0);
@@ -189,7 +189,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << ", caller collapsed:\t" << callerG.numCollapsed()
                           << "\n");
 
-        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_specGraphInfo,
+        cloneAndResolveArguments(dsaCS, calleeG, callerG, m_dsaLibFuncInfo,
                                  m_flowSensitiveOpt && !NoBUFlowSensitiveOpt);
 
         LOG("dsa-bu", llvm::errs()

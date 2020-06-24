@@ -6,7 +6,7 @@ namespace llvm {
 void initializeRemovePtrToIntPass(PassRegistry &);
 void initializeAllocWrapInfoPass(PassRegistry &);
 void initializeAllocSiteInfoPass(PassRegistry &);
-void initializeSpecGraphInfoPass(PassRegistry &);
+void initializeDsaLibFuncInfoPass(PassRegistry &);
 void initializeDsaAnalysisPass(PassRegistry &);
 void initializeCompleteCallGraphPass(PassRegistry &);
 void initializeDsaInfoPassPass(PassRegistry &);

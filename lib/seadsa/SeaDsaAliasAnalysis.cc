@@ -1,10 +1,10 @@
 #include "seadsa/SeaDsaAliasAnalysis.hh"
 
 #include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/DsaLibFuncInfo.hh"
 #include "seadsa/Global.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/InitializePasses.hh"
-#include "seadsa/SpecGraphInfo.hh"
 #include "seadsa/support/Debug.h"
 #include "llvm/Analysis/CFLAliasAnalysisUtils.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -20,13 +20,13 @@ namespace dsa = seadsa;
 namespace seadsa {
 
 SeaDsaAAResult::SeaDsaAAResult(TargetLibraryInfoWrapperPass &tliWrapper,
-                               AllocWrapInfo &awi, SpecGraphInfo &sgi)
-    : m_tliWrapper(tliWrapper), m_awi(awi), m_sgi(sgi), m_fac(nullptr),
+                               AllocWrapInfo &awi, DsaLibFuncInfo &dlfi)
+    : m_tliWrapper(tliWrapper), m_awi(awi), m_dlfi(dlfi), m_fac(nullptr),
       m_cg(nullptr), m_dsa(nullptr) {}
 
 SeaDsaAAResult::SeaDsaAAResult(SeaDsaAAResult &&RHS)
     : AAResultBase(std::move(RHS)), m_tliWrapper(RHS.m_tliWrapper),
-      m_dl(nullptr), m_awi(RHS.m_awi), m_sgi(RHS.m_sgi),
+      m_dl(nullptr), m_awi(RHS.m_awi), m_dlfi(RHS.m_dlfi),
       m_fac(std::move(RHS.m_fac)), m_cg(std::move(RHS.m_cg)),
       m_dsa(std::move(RHS.m_dsa)) {}
 
@@ -45,9 +45,7 @@ static Module *getModuleFromQuery(Value *ValA, Value *ValB) {
     return nullptr;
   }
   Module *M = nullptr;
-  if (MaybeFnA) {
-    M = MaybeFnA->getParent();
-  }
+  if (MaybeFnA) { M = MaybeFnA->getParent(); }
   if (MaybeFnB) {
     if (M != MaybeFnA->getParent()) {
       DOG(llvm::errs()
@@ -90,25 +88,19 @@ static bool mayAlias(const Cell &c1, const Cell &c2, const DataLayout &dl) {
            n->isUnknown();
   };
 
-  if (c1.isNull() || c2.isNull()) {
-    return true;
-  }
+  if (c1.isNull() || c2.isNull()) { return true; }
 
   const Node *n1 = c1.getNode();
   const Node *n2 = c2.getNode();
 
-  if (maybeUnsafe(n1) || maybeUnsafe(n2)) {
-    return true;
-  }
+  if (maybeUnsafe(n1) || maybeUnsafe(n2)) { return true; }
 
   if (n1 != n2) {
     // different nodes cannot alias
     return false;
   }
 
-  if (n1->isOffsetCollapsed()) {
-    return true;
-  }
+  if (n1->isOffsetCollapsed()) { return true; }
 
   unsigned o1, o2;
 
@@ -122,14 +114,10 @@ static bool mayAlias(const Cell &c1, const Cell &c2, const DataLayout &dl) {
 
   assert(o1 <= o2);
 
-  if (!n1->hasAccessedType(o1)) {
-    return true;
-  }
+  if (!n1->hasAccessedType(o1)) { return true; }
 
   auto sizeOfOffset1 = sizeOf(n1->getAccessedType(o1), dl);
-  if (!sizeOfOffset1.hasValue()) {
-    return true;
-  }
+  if (!sizeOfOffset1.hasValue()) { return true; }
 
   // if offsets can overlap then may alias
   return (o1 + sizeOfOffset1.getValue()) >= o2;
@@ -148,9 +136,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
     return NoAlias;
   }
 
-  if (ValA == ValB) {
-    return MustAlias;
-  }
+  if (ValA == ValB) { return MustAlias; }
 
   const DataLayout *dl = nullptr;
   // Run seadsa if we have not done it yet
@@ -161,22 +147,18 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
       m_cg = std::make_unique<CallGraph>(*M);
       m_awi.initialize(*M, nullptr);
       m_dsa = std::make_unique<BottomUpTopDownGlobalAnalysis>(
-          *m_dl, m_tliWrapper, m_awi, m_sgi, *m_cg, *m_fac);
+          *m_dl, m_tliWrapper, m_awi, m_dlfi, *m_cg, *m_fac);
       DOG(llvm::errs() << "Running SeaDsaAA.\n");
       m_dsa->runOnModule(*M);
     }
   }
 
   // We tried to run seadsa but we couldn't
-  if (!m_dsa) {
-    return AAResultBase::alias(LocA, LocB, AAQI);
-  }
+  if (!m_dsa) { return AAResultBase::alias(LocA, LocB, AAQI); }
 
   auto FnA = const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValA));
   auto FnB = const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValB));
-  if (!FnA || !FnB) {
-    return AAResultBase::alias(LocA, LocB, AAQI);
-  }
+  if (!FnA || !FnB) { return AAResultBase::alias(LocA, LocB, AAQI); }
 
   assert(m_dsa);
   assert(m_dl);
@@ -193,9 +175,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
   if (gA.hasCell(*ValA) && gA.hasCell(*ValB)) {
     const Cell &c1 = gA.getCell(*ValA);
     const Cell &c2 = gA.getCell(*ValB);
-    if (!mayAlias(c1, c2, *m_dl)) {
-      return NoAlias;
-    }
+    if (!mayAlias(c1, c2, *m_dl)) { return NoAlias; }
   }
 
   // -- fall back to default implementation
@@ -214,15 +194,15 @@ void SeaDsaAAWrapperPass::initializePass() {
   DOG(errs() << "initializing SeaDsaAAWrapperPass\n");
   auto &tliWrapper = this->getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &awi = this->getAnalysis<AllocWrapInfo>();
-  auto &sgi = this->getAnalysis<SpecGraphInfo>();
-  Result.reset(new SeaDsaAAResult(tliWrapper, awi, sgi));
+  auto &dlfi = this->getAnalysis<DsaLibFuncInfo>();
+  Result.reset(new SeaDsaAAResult(tliWrapper, awi, dlfi));
 }
 
 void SeaDsaAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
-  AU.addRequired<SpecGraphInfo>();
+  AU.addRequired<DsaLibFuncInfo>();
 }
 } // namespace seadsa
 

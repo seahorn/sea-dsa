@@ -28,7 +28,7 @@ namespace seadsa {
 class LocalAnalysis;
 class AllocWrapInfo;
 
-class DsaLibFuncInfo : public llvm::ImmutablePass {
+class SpecGraphInfo : public llvm::ImmutablePass {
 
 protected:
   mutable AllocWrapInfo *m_awi;
@@ -42,7 +42,7 @@ protected:
 public:
   static char ID;
 
-  DsaLibFuncInfo() : ImmutablePass(ID), m_awi(nullptr), m_tliWrapper(nullptr) {}
+  SpecGraphInfo() : ImmutablePass(ID), m_awi(nullptr), m_tliWrapper(nullptr) {}
   void initialize() const;
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
   llvm::StringRef getPassName() const override { return "SeaDsa Spec Pass"; }
@@ -51,6 +51,6 @@ public:
   llvm::Function *getSpecFunc(const llvm::Function &F) const;
 };
 
-llvm::Pass *createDsaLibFuncInfoPass();
+llvm::Pass *createSpecGraphInfoPass();
 
 } // namespace seadsa

@@ -309,10 +309,10 @@ void CompleteCallGraphAnalysis::printStats(Module &M, raw_ostream &o) {
 
 CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
     const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-    const AllocWrapInfo &allocInfo, const SpecGraphInfo &specGraphInfo,
+    const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
     llvm::CallGraph &cg, bool noescape)
     : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
-      m_specGraphInfo(specGraphInfo), m_cg(cg),
+      m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg),
       m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
 
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
@@ -643,7 +643,7 @@ void CompleteCallGraph::getAnalysisUsage(AnalysisUsage &AU) const {
   // dependency for immutable AllowWrapInfo
   AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
-  AU.addRequired<SpecGraphInfo>();
+  AU.addRequired<DsaLibFuncInfo>();
   AU.setPreservesAll();
 }
 
@@ -651,11 +651,11 @@ bool CompleteCallGraph::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto allocInfo = &getAnalysis<AllocWrapInfo>();
-  auto specGraphInfo = &getAnalysis<SpecGraphInfo>();
+  auto dsaLibFuncInfo = &getAnalysis<DsaLibFuncInfo>();
   allocInfo->initialize(M, this);
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   m_CCGA.reset(new CompleteCallGraphAnalysis(dl, tli, *allocInfo,
-                                             *specGraphInfo, cg, true));
+                                             *dsaLibFuncInfo, cg, true));
   m_CCGA->runOnModule(M);
   if (PrintCallGraphStats || m_printStats) { m_CCGA->printStats(M, errs()); }
   return false;

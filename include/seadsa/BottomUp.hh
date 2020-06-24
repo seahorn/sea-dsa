@@ -19,7 +19,7 @@ class CallGraph;
 
 namespace seadsa {
 class AllocWrapInfo;
-class SpecGraphInfo;
+class DsaLibFuncInfo;
 
 class BottomUpAnalysis {
 
@@ -33,23 +33,23 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
-  const SpecGraphInfo &m_specGraphInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   bool m_flowSensitiveOpt;
 
 public:
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &calleeG,
                                        Graph &callerG,
-                                       const SpecGraphInfo &specGraphInfo,
+                                       const DsaLibFuncInfo &dsaLibFuncInfo,
                                        bool flowSensitiveOpt = true);
 
   BottomUpAnalysis(const llvm::DataLayout &dl,
                    llvm::TargetLibraryInfoWrapperPass &tliWrapper,
                    const AllocWrapInfo &allocInfo,
-                   const SpecGraphInfo &specGraphInfo, llvm::CallGraph &cg,
+                   const DsaLibFuncInfo &dsaLibFuncInfo, llvm::CallGraph &cg,
                    bool flowSensitiveOpt = true)
       : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
-        m_specGraphInfo(specGraphInfo), m_cg(cg),
+        m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg),
         m_flowSensitiveOpt(flowSensitiveOpt) {}
 
   bool runOnModule(llvm::Module &M, GraphMap &graphs);
