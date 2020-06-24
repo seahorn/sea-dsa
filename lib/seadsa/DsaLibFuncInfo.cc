@@ -16,14 +16,9 @@
 #include "seadsa/support/Debug.h"
 #include <iostream>
 
-namespace seadsa {
-std::string SpecFile;
-}
-
-static llvm::cl::opt<std::string, true>
-    XSpecFile("sea-dsa-specfile", llvm::cl::desc("<Input spec bitcode file>"),
-              llvm::cl::Optional, llvm::cl::location(seadsa::SpecFile),
-              llvm::cl::init(""), llvm::cl::value_desc("filename"));
+static llvm::cl::list<std::string>
+    XSpecFiles("sea-dsa-specfile", llvm::cl::desc("<Input spec bitcode file>"),
+               llvm::cl::ZeroOrMore, llvm::cl::value_desc("filename"));
 
 namespace seadsa {
 
@@ -41,17 +36,20 @@ void DsaLibFuncInfo::initialize() const {
   m_awi = &getAnalysis<AllocWrapInfo>();
   m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
 
-  if (SpecFile.empty()) return;
+  if (isInitialized || XSpecFiles.empty()) return;
+  isInitialized = true;
 
   SMDiagnostic err;
 
-  m_module = parseIRFile(SpecFile, err, m_ctx);
+  for (auto &specFile : XSpecFiles) {
+    m_modules.push_back(parseIRFile(specFile, err, m_ctx));
 
-  auto &spec_funcs = m_module->getFunctionList();
+    auto &spec_funcs = m_modules.back()->getFunctionList();
 
-  for (llvm::Function &func : spec_funcs) {
-    if (func.isDeclaration() || func.empty()) continue;
-    m_funcs.insert({func.getName().str(), &func});
+    for (llvm::Function &func : spec_funcs) {
+      if (func.isDeclaration() || func.empty()) continue;
+      m_funcs.insert({func.getName().str(), &func});
+    }
   }
 } // namespace seadsa
 
@@ -69,7 +67,7 @@ char DsaLibFuncInfo::ID = 0;
 } // namespace seadsa
 
 namespace seadsa {
-llvm::Pass *createSpecGraphInfoPass() { return new DsaLibFuncInfo(); }
+llvm::Pass *createDsaLibFuncInfoPass() { return new DsaLibFuncInfo(); }
 } // namespace seadsa
 
 using namespace seadsa;
