@@ -20,6 +20,70 @@ using namespace llvm;
 
 namespace seadsa {
 
+/*
+ *
+ clang-format off
+
+ Rewrites
+  %_311 = bitcast i8** @msg_buf to i32*
+  %_312 = load i32, i32* %_311, align 4
+  %_313 = bitcast %struct.iovec* %_9 to i32*
+  store i32 %_312, i32* %_313, align 4
+
+  into
+
+  %_311.ptr = bitcast i8** @msg_buf to i8**
+  %_312.ptr = load i8*, i8** @_311.ptr, align 4
+  %_313.ptr = bitcast %struct.iovec* %_9 to i8**
+  store i8* %_312.ptr, i8** %_313.ptr, align 4
+
+  clang-format on
+ */
+static bool
+visitIntStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
+                  SmallPtrSetImpl<StoreInst *> &StoresToErase,
+                  SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts) {
+
+  auto *IntPtrTy = DL.getIntPtrType(SI->getContext());
+  auto *LI = dyn_cast<LoadInst>(SI->getValueOperand());
+
+  if (!LI) return false;
+  if (LI->getType() != IntPtrTy) return false;
+
+  auto *loadAddrCast = dyn_cast<BitCastInst>(LI->getPointerOperand());
+  if (!loadAddrCast) return false;
+
+  auto *storeAddrCast = dyn_cast<BitCastInst>(SI->getPointerOperand());
+  if (!storeAddrCast) return false;
+
+  auto *loadAddr = loadAddrCast->getOperand(0);
+  auto *storeAddr = storeAddrCast->getOperand(0);
+
+  IRBuilder<> IRB(LI);
+
+  auto *Int8PtrPtrTy = Type::getInt8PtrTy(SI->getContext())->getPointerTo();
+  auto newLI = IRB.CreateLoad(IRB.CreateBitCast(loadAddr, Int8PtrPtrTy));
+  if (LI->hasName()) newLI->setName(LI->getName());
+  newLI->setAlignment(LI->getAlign());
+  newLI->setOrdering(LI->getOrdering());
+  newLI->setSyncScopeID(LI->getSyncScopeID());
+
+  IRB.SetInsertPoint(SI);
+  auto newSI =
+      IRB.CreateStore(newLI, IRB.CreateBitCast(storeAddr, Int8PtrPtrTy));
+  newSI->setAlignment(SI->getAlign());
+  newSI->setOrdering(SI->getOrdering());
+  newSI->setSyncScopeID(SI->getSyncScopeID());
+
+  DOG(llvm::errs() << "Replaced\n" << *SI << "\nby\n" << *newSI << "\n";);
+
+  StoresToErase.insert(SI);
+  MaybeUnusedInsts.insert(LI);
+  MaybeUnusedInsts.insert(loadAddrCast);
+  MaybeUnusedInsts.insert(storeAddrCast);
+  return true;
+}
+
 static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
                            SmallPtrSetImpl<StoreInst *> &StoresToErase,
                            SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts) {
@@ -98,10 +162,10 @@ public:
 
   Value *visitPHINode(PHINode &I) {
     // errs() << "Visiting: " << I << "\n";
-    std::vector<Value*> vals(I.getNumIncomingValues());
+    std::vector<Value *> vals(I.getNumIncomingValues());
 
     for (unsigned i = 0, e = I.getNumIncomingValues(); i < e; ++i) {
-      auto *val = dyn_cast<Instruction>(I.getIncomingValue(i)); 
+      auto *val = dyn_cast<Instruction>(I.getIncomingValue(i));
       if (!val) return nullptr;
       auto *ptr = this->visit(val);
       if (!ptr) return nullptr;
@@ -258,8 +322,9 @@ visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
     //      IRB.SetInsertPoint(LI);
     //
     //      auto *CastedLoaded = IRB.CreateBitCast(Loaded,
-    //      I2P->getType()->getPointerTo(0), Loaded->getName() + ".rpti"); auto
-    //      *NewLI = IRB.CreateLoad(CastedLoaded, LI->getName() + ".rpti");
+    //      I2P->getType()->getPointerTo(0), Loaded->getName() + ".rpti");
+    //      auto *NewLI = IRB.CreateLoad(CastedLoaded, LI->getName() +
+    //      ".rpti");
     //
     //      NewPN->addIncoming(NewLI, IBB);
     //      NewLI->dump();
@@ -305,7 +370,12 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   for (auto &BB : F) {
     for (auto &I : BB) {
       if (auto *SI = dyn_cast<StoreInst>(&I)) {
-        Changed |= visitStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
+        bool flag;
+        flag = visitStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
+        // XXX assuming that the call only happens if flag is still false
+        flag = flag ||
+               visitIntStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
+        Changed |= flag;
         continue;
       }
 
@@ -348,10 +418,10 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       DOG(errs() << "\t_NOT_ erasing: " << *I << "\n");
     }
 
-  DOG(errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
-      errs().flush());
+  DOG(llvm::errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
+      llvm::errs().flush());
 
-  // errs() << F << "\n";
+  // llvm::errs() << F << "\n";
   return Changed;
 }
 
