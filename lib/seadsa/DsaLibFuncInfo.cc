@@ -48,17 +48,17 @@ void DsaLibFuncInfo::initialize() const {
 
     for (llvm::Function &func : spec_funcs) {
       if (func.isDeclaration() || func.empty()) continue;
-      m_funcs.insert({func.getName().str(), &func});
+      m_funcs.insert({func.getName(), &func});
     }
   }
 } // namespace seadsa
 
 bool DsaLibFuncInfo::hasSpecFunc(const llvm::Function &F) const {
-  return m_funcs.count(F.getName().str());
+  return m_funcs.count(F.getName());
 }
 
 llvm::Function *DsaLibFuncInfo::getSpecFunc(const llvm::Function &F) const {
-  auto it = m_funcs.find(F.getName().str());
+  auto it = m_funcs.find(F.getName());
   assert(it != m_funcs.end());
   return it->second;
 }
