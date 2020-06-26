@@ -1,6 +1,7 @@
 #include "seadsa/BottomUp.hh"
 
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/CallSite.h"
@@ -102,10 +103,11 @@ void BottomUpAnalysis::cloneAndResolveArguments(
     nc.unify(c);
   }
 
+  auto range = llvm::make_filter_range(callee.args(), [](auto &arg) { return arg.getType()->isPointerTy(); });
+
   DsaCallSite::const_actual_iterator AI = CS.actual_begin(),
                                      AE = CS.actual_end();
-  for (DsaCallSite::const_formal_iterator FI = CS.formal_func_begin(callee),
-                                          FE = CS.formal_func_end(callee);
+  for (auto FI = range.begin(), FE = range.end();
        FI != FE && AI != AE; ++FI, ++AI) {
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;

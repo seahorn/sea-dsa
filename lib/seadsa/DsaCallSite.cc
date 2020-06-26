@@ -114,20 +114,6 @@ DsaCallSite::const_formal_iterator DsaCallSite::formal_end() const {
                                      getCallee()->arg_end());
 }
 
-DsaCallSite::const_formal_iterator
-DsaCallSite::formal_func_begin(const llvm::Function &F) const {
-  isPointerTy p;
-  assert(getCallee());
-  return boost::make_filter_iterator(p, F.arg_begin(), F.arg_end());
-}
-
-DsaCallSite::const_formal_iterator
-DsaCallSite::formal_func_end(const llvm::Function &F) const {
-  isPointerTy p;
-  assert(getCallee());
-  return boost::make_filter_iterator(p, F.arg_end(), F.arg_end());
-}
-
 DsaCallSite::const_actual_iterator DsaCallSite::actual_begin() const {
   isPointerTy p;
   return boost::make_filter_iterator(p, m_cs.arg_begin(), m_cs.arg_end());
