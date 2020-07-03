@@ -14,11 +14,22 @@
 #include "seadsa/Graph.hh"
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/support/Debug.h"
+#include <filesystem>
 #include <iostream>
 
 static llvm::cl::list<std::string>
     XSpecFiles("sea-dsa-specfile", llvm::cl::desc("<Input spec bitcode file>"),
                llvm::cl::ZeroOrMore, llvm::cl::value_desc("filename"));
+
+static llvm::cl::opt<bool>
+    XUse32BitSpec("sea-dsa-use-32bit-specs",
+                  llvm::cl::desc("Use 32bit specs instead of 64bit"),
+                  llvm::cl::Optional, llvm::cl::init(false));
+
+static llvm::cl::opt<bool> XUseClibSpec(
+    "sea-dsa-use-clib-spec",
+    llvm::cl::desc("Replace clib functions with spec defined by seadsa"),
+    llvm::cl::Optional, llvm::cl::init(false));
 
 namespace seadsa {
 
@@ -33,19 +44,43 @@ void DsaLibFuncInfo::initialize() const {
   using namespace llvm::sys::fs;
   using namespace llvm;
 
-  m_awi = &getAnalysis<AllocWrapInfo>();
-  m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
-
   if (isInitialized || XSpecFiles.empty()) return;
   isInitialized = true;
 
+  m_awi = &getAnalysis<AllocWrapInfo>();
+  m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
+
   SMDiagnostic err;
+
+  auto exePath = getMainExecutable(nullptr, nullptr);
+  StringRef exeDir = llvm::sys::path::parent_path(exePath);
+
+  if (XUseClibSpec) {
+    if (XUse32BitSpec) {
+      const StringRef libcSpecRel = "../lib/libc-32.spec.bc";
+      llvm::SmallString<256> libcSpecAbs = libcSpecRel;
+      make_absolute(exeDir, libcSpecAbs);
+
+      m_modules.push_back(parseIRFile(libcSpecAbs.str(), err, m_ctx));
+    } else {
+      const StringRef libcSpecRel = "../lib/libc.spec.bc";
+      llvm::SmallString<256> libcSpecAbs = libcSpecRel;
+      make_absolute(exeDir, libcSpecAbs);
+
+      m_modules.push_back(parseIRFile(libcSpecAbs.str(), err, m_ctx));
+    }
+
+    auto &clib_funcs = m_modules.back()->getFunctionList();
+    for (llvm::Function &func : clib_funcs) {
+      if (func.isDeclaration() || func.empty()) continue;
+      m_funcs.insert({func.getName(), &func});
+    }
+  }
 
   for (auto &specFile : XSpecFiles) {
     m_modules.push_back(parseIRFile(specFile, err, m_ctx));
 
     auto &spec_funcs = m_modules.back()->getFunctionList();
-
     for (llvm::Function &func : spec_funcs) {
       if (func.isDeclaration() || func.empty()) continue;
       m_funcs.insert({func.getName(), &func});
