@@ -14,7 +14,6 @@
 #include "seadsa/Graph.hh"
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/support/Debug.h"
-#include <filesystem>
 #include <iostream>
 
 static llvm::cl::list<std::string>
