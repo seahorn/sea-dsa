@@ -1273,6 +1273,11 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     }
     return;
   }
+
+  default: {
+    visitExternalCall(CS);
+    return;
+  }
   }
 }
 
@@ -1766,7 +1771,7 @@ Local::Local() : ModulePass(ID), m_dl(nullptr), m_allocInfo(nullptr) {}
 
 void Local::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
-  // dependency for immutable AllowWrapInfo  
+  // dependency for immutable AllowWrapInfo
   AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
@@ -1776,7 +1781,7 @@ bool Local::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   m_allocInfo->initialize(M, this);
-  
+
   for (Function &F : M)
     runOnFunction(F);
   return false;
