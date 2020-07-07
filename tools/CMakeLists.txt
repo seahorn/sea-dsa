@@ -1,6 +1,6 @@
 add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
-find_program(CLANG-FORMAT clang-format REQUIRED)
+find_program(CLANG-FORMAT NAMES clang-format clang-format-mp-10 clang-format-10 REQUIRED)
 
 
 set(SPEC_DIR ${CMAKE_CURRENT_BINARY_DIR}/specs)
@@ -43,7 +43,7 @@ add_custom_command(
   OUTPUT ${SPEC_DIR}/libc.spec.c 
   DEPENDS libcSpecGen 
   COMMAND libcSpecGen
-  COMMAND clang-format -i ${SPEC_DIR}/libc.spec.c
+  COMMAND ${CLANG-FORMAT} -i ${SPEC_DIR}/libc.spec.c
 )
 
 add_library(LibcSpecs OBJECT ${SPEC_DIR}/libc.spec.c)
