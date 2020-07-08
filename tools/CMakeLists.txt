@@ -46,11 +46,11 @@ add_custom_command(
   COMMAND ${CLANG-FORMAT} -i ${SPEC_DIR}/libc.spec.c
 )
 
-add_library(LibcSpecs OBJECT ${SPEC_DIR}/libc.spec.c)
-set_target_properties(LibcSpecs PROPERTIES 
+add_library(LibcSpecs-64 OBJECT ${SPEC_DIR}/libc.spec.c)
+set_target_properties(LibcSpecs-64 PROPERTIES 
   COMPILE_FLAGS "-emit-llvm" LINK_FLAGS "-emit-llvm")
 
- install (FILES  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LibcSpecs.dir/specs/libc.spec.c.o
+ install (FILES  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LibcSpecs-64.dir/specs/libc.spec.c.o
    DESTINATION lib
    RENAME libc.spec.bc)
 

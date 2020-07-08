@@ -62,7 +62,7 @@ void DsaLibFuncInfo::initialize() const {
 
       m_modules.push_back(parseIRFile(libcSpecAbs.str(), err, m_ctx));
     } else {
-      const StringRef libcSpecRel = "../lib/libc.spec.bc";
+      const StringRef libcSpecRel = "../lib/libc-64.spec.bc";
       llvm::SmallString<256> libcSpecAbs = libcSpecRel;
       make_absolute(exeDir, libcSpecAbs);
 
