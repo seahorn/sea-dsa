@@ -195,11 +195,12 @@ public:
 
     ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
     auto *gep = IRB.CreateGEP(ptr, {I.getOperand(1)});
-    return IRB.CreateBitCast(ptr, m_ty);
+    return IRB.CreateBitCast(gep, m_ty);
   }
 
   Value *visitSub(BinaryOperator &I) {
     // errs() << "visitSub: " << I << "\n";
+    // XXX TODO
     return nullptr;
   }
 
