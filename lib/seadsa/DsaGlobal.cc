@@ -312,9 +312,8 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 #endif
 
   for (auto &F : M) {
-    if (F.empty() && !m_dsaLibFuncInfo.hasSpecFunc(F)) continue;
-    if (F.isDeclaration() && !m_dsaLibFuncInfo.hasSpecFunc(F)) continue;
-
+    if ((F.isDeclaration() || F.empty()) && !m_dsaLibFuncInfo.hasSpecFunc(F))
+      continue;
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
     m_graphs[&F] = fGraph;
   }
@@ -616,8 +615,8 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
       errs() << "Started bottom-up + top-down global analysis ... \n");
 
   for (auto &F : M) {
-    if (F.empty() && !m_dsaLibFuncInfo.hasSpecFunc(F)) continue;
-    if (F.isDeclaration() && !m_dsaLibFuncInfo.hasSpecFunc(F)) continue;
+    if ((F.isDeclaration() || F.empty()) && !m_dsaLibFuncInfo.hasSpecFunc(F))
+      continue;
 
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
     m_graphs[&F] = fGraph;
@@ -699,7 +698,8 @@ bool BottomUpGlobalAnalysis::runOnModule(Module &M) {
 
   for (auto &F : M) {
     if (F.empty() && !m_dsaLibFuncInfo.hasSpecFunc(F)) continue;
-    if (F.isDeclaration() && !m_dsaLibFuncInfo.hasSpecFunc(F)) continue;
+    if ((F.isDeclaration() || F.empty()) && !m_dsaLibFuncInfo.hasSpecFunc(F))
+      continue;
 
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
     m_graphs[&F] = fGraph;
