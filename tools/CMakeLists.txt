@@ -34,34 +34,38 @@ if (SEA_DSA_STATIC_EXE)
   set_target_properties (seadsa PROPERTIES LINK_SEARCH_END_STATIC ON)
 endif()
 
-file(
-  MAKE_DIRECTORY
-  ${SPEC_DIR}
-)
 
-add_custom_command(
-  OUTPUT ${SPEC_DIR}/libc.spec.c 
-  DEPENDS libcSpecGen 
-  COMMAND libcSpecGen
-  COMMAND ${CLANG-FORMAT} -i ${SPEC_DIR}/libc.spec.c
-)
+if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  file(
+    MAKE_DIRECTORY
+    ${SPEC_DIR}
+  )
 
-add_library(LibcSpecs-64 OBJECT ${SPEC_DIR}/libc.spec.c)
-set_target_properties(LibcSpecs-64 PROPERTIES 
-  COMPILE_FLAGS "-emit-llvm" LINK_FLAGS "-emit-llvm")
+  add_custom_command(
+    OUTPUT ${SPEC_DIR}/libc.spec.c 
+    DEPENDS libcSpecGen 
+    COMMAND libcSpecGen
+    COMMAND ${CLANG-FORMAT} -i ${SPEC_DIR}/libc.spec.c
+  )
 
- install (FILES  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LibcSpecs-64.dir/specs/libc.spec.c.o
-   DESTINATION lib
-   RENAME libc.spec.bc)
+  add_library(LibcSpecs-64 OBJECT ${SPEC_DIR}/libc.spec.c)
+  set_target_properties(LibcSpecs-64 PROPERTIES 
+    COMPILE_FLAGS "-emit-llvm" LINK_FLAGS "-emit-llvm")
 
-option(SEAHORN_BUILD_32_BIT_SPEC "Build 32bit library specs" OFF)
-if(SEAHORN_BUILD_32_BIT_SPEC) 
-  add_library(LibcSpecs-32 OBJECT ${SPEC_DIR}/libc.spec.c)
-  set_target_properties(LibcSpecs-32 PROPERTIES
-    COMPILE_FLAGS "-emit-llvm -m32" LINK_FLAGS "-emit-llvm -m32")
-
-    install (FILES  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LibcSpecs-32.dir/specs/libc.spec.c.o
+  install (FILES  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LibcSpecs-64.dir/specs/libc.spec.c.o
     DESTINATION lib
-    RENAME libc-32.spec.bc)
+    RENAME libc.spec.bc)
 
+  option(SEAHORN_BUILD_32_BIT_SPEC "Build 32bit library specs" OFF)
+  if(SEAHORN_BUILD_32_BIT_SPEC) 
+    add_library(LibcSpecs-32 OBJECT ${SPEC_DIR}/libc.spec.c)
+    set_target_properties(LibcSpecs-32 PROPERTIES
+      COMPILE_FLAGS "-emit-llvm -m32" LINK_FLAGS "-emit-llvm -m32")
+
+      install (FILES  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LibcSpecs-32.dir/specs/libc.spec.c.o
+      DESTINATION lib
+      RENAME libc-32.spec.bc)
+  endif()
+else()
+  message (WARNING "Unable to build specs \n\t Set C compiler to clang with -DCMAKE_C_COMPILER")
 endif()

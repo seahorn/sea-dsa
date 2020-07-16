@@ -45,7 +45,7 @@ public:
   static char ID;
 
   DsaLibFuncInfo() : ImmutablePass(ID), m_awi(nullptr), m_tliWrapper(nullptr) {}
-  void initialize() const;
+  void initialize(const llvm::Module &m) const;
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
   llvm::StringRef getPassName() const override { return "SeaDsa Spec Pass"; }
 

@@ -77,7 +77,7 @@ bool DsaAnalysis::runOnModule(Module &M) {
   m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   m_dsaLibFuncInfo = &getAnalysis<DsaLibFuncInfo>();
-  m_dsaLibFuncInfo->initialize();
+  m_dsaLibFuncInfo->initialize(M);
   m_allocInfo->initialize(M, this);
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 

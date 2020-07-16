@@ -20,11 +20,6 @@ static llvm::cl::list<std::string>
     XSpecFiles("sea-dsa-specfile", llvm::cl::desc("<Input spec bitcode file>"),
                llvm::cl::ZeroOrMore, llvm::cl::value_desc("filename"));
 
-static llvm::cl::opt<bool>
-    XUse32BitSpec("sea-dsa-use-32bit-specs",
-                  llvm::cl::desc("Use 32bit specs instead of 64bit"),
-                  llvm::cl::Optional, llvm::cl::init(false));
-
 static llvm::cl::opt<bool> XUseClibSpec(
     "sea-dsa-use-clib-spec",
     llvm::cl::desc("Replace clib functions with spec defined by seadsa"),
@@ -38,13 +33,14 @@ void DsaLibFuncInfo::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-void DsaLibFuncInfo::initialize() const {
+void DsaLibFuncInfo::initialize(const llvm::Module &M) const {
 
   using namespace llvm::sys::fs;
   using namespace llvm;
 
-  if (isInitialized || XSpecFiles.empty()) return;
+  if (isInitialized || (XSpecFiles.empty() && !XUseClibSpec)) return;
   isInitialized = true;
+  auto dl = M.getDataLayout();
 
   m_awi = &getAnalysis<AllocWrapInfo>();
   m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
@@ -55,34 +51,52 @@ void DsaLibFuncInfo::initialize() const {
   StringRef exeDir = llvm::sys::path::parent_path(exePath);
 
   if (XUseClibSpec) {
-    if (XUse32BitSpec) {
+    if (dl.getPointerSizeInBits() == 32) {
       const StringRef libcSpecRel = "../lib/libc-32.spec.bc";
       llvm::SmallString<256> libcSpecAbs = libcSpecRel;
       make_absolute(exeDir, libcSpecAbs);
 
-      m_modules.push_back(parseIRFile(libcSpecAbs.str(), err, m_ctx));
+      ModuleRef specM = parseIRFile(libcSpecAbs.str(), err, m_ctx);
+      if (specM.get() == 0)
+        LOG("sea-libFunc", errs() << "Error reading Clib spec file: "
+                                  << err.getMessage() << "\n");
+      else
+        m_modules.push_back(std::move(specM));
     } else {
       const StringRef libcSpecRel = "../lib/libc-64.spec.bc";
       llvm::SmallString<256> libcSpecAbs = libcSpecRel;
       make_absolute(exeDir, libcSpecAbs);
 
-      m_modules.push_back(parseIRFile(libcSpecAbs.str(), err, m_ctx));
+      ModuleRef specM = parseIRFile(libcSpecAbs.str(), err, m_ctx);
+      if (specM.get() == 0)
+        LOG("sea-libFunc", errs() << "Error reading Clib spec file: "
+                                  << err.getMessage() << "\n");
+      else
+        m_modules.push_back(std::move(specM));
     }
 
-    auto &clib_funcs = m_modules.back()->getFunctionList();
-    for (llvm::Function &func : clib_funcs) {
-      if (func.isDeclaration() || func.empty()) continue;
-      m_funcs.insert({func.getName(), &func});
+    if (!m_modules.empty()) {
+      auto &clib_funcs = m_modules.back()->getFunctionList();
+      for (llvm::Function &func : clib_funcs) {
+        if (func.isDeclaration() || func.empty()) continue;
+        m_funcs.insert({func.getName(), &func});
+      }
     }
   }
 
   for (auto &specFile : XSpecFiles) {
-    m_modules.push_back(parseIRFile(specFile, err, m_ctx));
+    ModuleRef specM = parseIRFile(specFile, err, m_ctx);
+    if (specM.get() == 0) {
+      LOG("sea-libFunc", errs() << "Error reading" << specFile << ": "
+                                << err.getMessage() << "\n");
+    } else {
+      m_modules.push_back(std::move(specM));
 
-    auto &spec_funcs = m_modules.back()->getFunctionList();
-    for (llvm::Function &func : spec_funcs) {
-      if (func.isDeclaration() || func.empty()) continue;
-      m_funcs.insert({func.getName(), &func});
+      auto &spec_funcs = m_modules.back()->getFunctionList();
+      for (llvm::Function &func : spec_funcs) {
+        if (func.isDeclaration() || func.empty()) continue;
+        m_funcs.insert({func.getName(), &func});
+      }
     }
   }
 } // namespace seadsa
