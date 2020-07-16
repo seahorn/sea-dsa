@@ -2,9 +2,6 @@ add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
 find_program(CLANG-FORMAT NAMES clang-format clang-format-mp-10 clang-format-10 REQUIRED)
 
-
-set(SPEC_DIR ${CMAKE_CURRENT_BINARY_DIR}/specs)
-
 set(LLVM_LINK_COMPONENTS
   irreader
   bitwriter
@@ -34,37 +31,42 @@ if (SEA_DSA_STATIC_EXE)
   set_target_properties (seadsa PROPERTIES LINK_SEARCH_END_STATIC ON)
 endif()
 
+message(${CMAKE_CURRENT_SOURCE_DIR})
 
 if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-  file(
-    MAKE_DIRECTORY
-    ${SPEC_DIR}
-  )
 
-  add_custom_command(
-    OUTPUT ${SPEC_DIR}/libc.spec.c 
-    DEPENDS libcSpecGen 
+  add_custom_target(GenerateSpecs ALL
     COMMAND libcSpecGen
-    COMMAND ${CLANG-FORMAT} -i ${SPEC_DIR}/libc.spec.c
+    COMMAND ${CLANG-FORMAT} -i libc.spec.c
+    DEPENDS libcSpecGen
   )
 
-  add_library(LibcSpecs-64 OBJECT ${SPEC_DIR}/libc.spec.c)
-  set_target_properties(LibcSpecs-64 PROPERTIES 
-    COMPILE_FLAGS "-emit-llvm" LINK_FLAGS "-emit-llvm")
+  add_custom_target(LibcSpec-64 ALL
+                  COMMAND ${CMAKE_C_COMPILER}
+                          -I${CMAKE_CURRENT_SOURCE_DIR}/../include
+                          -emit-llvm -c ${CXX_COMPILER_FLAGS}
+                          -march=native -O3
+                          -o libc-64.spec.bc
+                          libc.spec.c
+                  DEPENDS GenerateSpecs)
 
-  install (FILES  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LibcSpecs-64.dir/specs/libc.spec.c.o
-    DESTINATION lib
-    RENAME libc.spec.bc)
+  install (FILES ${CMAKE_CURRENT_BINARY_DIR}/libc-64.spec.bc
+            DESTINATION lib)
 
   option(SEAHORN_BUILD_32_BIT_SPEC "Build 32bit library specs" OFF)
   if(SEAHORN_BUILD_32_BIT_SPEC) 
-    add_library(LibcSpecs-32 OBJECT ${SPEC_DIR}/libc.spec.c)
-    set_target_properties(LibcSpecs-32 PROPERTIES
-      COMPILE_FLAGS "-emit-llvm -m32" LINK_FLAGS "-emit-llvm -m32")
 
-      install (FILES  ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/LibcSpecs-32.dir/specs/libc.spec.c.o
-      DESTINATION lib
-      RENAME libc-32.spec.bc)
+  add_custom_target(LibcSpec-32 ALL
+                  COMMAND ${CMAKE_C_COMPILER}
+                          -I${CMAKE_CURRENT_SOURCE_DIR}/../include
+                          -emit-llvm -c ${CXX_COMPILER_FLAGS}
+                          -march=native -O3
+                          -o libc-32.spec.bc
+                          libc.spec.c
+                  DEPENDS GenerateSpecs)
+
+    install (FILES ${CMAKE_CURRENT_BINARY_DIR}/libc-32.spec.bc
+              DESTINATION lib)
   endif()
 else()
   message (WARNING "Unable to build specs \n\t Set C compiler to clang with -DCMAKE_C_COMPILER")

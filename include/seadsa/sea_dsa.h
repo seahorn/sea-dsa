@@ -13,6 +13,8 @@ extern void sea_dsa_alias(const void *p, ...);
 extern void sea_dsa_set_read(const void *p);
 // sea-dsa will mark the node pointed to by p as modified (M)
 extern void sea_dsa_set_modified(const void *p);
+// sea-dsa will mark the node pointed to by p as heap (H)
+extern void sea_dsa_set_heap(const void *p);
 // sea-dsa will mark the node pointed to by p as ptr to int (2)
 extern void sea_dsa_set_ptrtoint(const void *p);
 // sea-dsa will collapse the argument's cell

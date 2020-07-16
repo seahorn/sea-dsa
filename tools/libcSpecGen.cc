@@ -1,40 +1,39 @@
+// Author: Anton Vassilev
+// Email: avvassil@uwaterloo.ca
+// This file generates simple "spec" implementations for a number of functions
+// in the c standard library
+
 #include <fstream>
-#include <string>
-#include <regex>
-#include <vector>
 #include <iostream>
+#include <regex>
+#include <string>
 #include <sys/stat.h>
+#include <vector>
 #define numOps 10
 
 #define sizeof_array(ARRAY) (sizeof(ARRAY) / sizeof(ARRAY[0]))
 
-const std::string mkread(const std::string &var)
-{
+const std::string mkread(const std::string &var) {
   return std::string("sea_dsa_set_read(" + var + ");\n");
 }
 
-const std::string mkwrite(const std::string &var)
-{
+const std::string mkwrite(const std::string &var) {
   return std::string("sea_dsa_set_modified(" + var + ");\n");
 }
 
-const std::string mkheap(const std::string &var)
-{
+const std::string mkheap(const std::string &var) {
   return std::string("sea_dsa_set_heap(" + var + ");\n");
 }
 
-std::string collapse(const std::string &var)
-{
+std::string collapse(const std::string &var) {
   return std::string("sea_dsa_collapse(" + var + ");\n");
 }
 
-std::string alias(const std::vector<std::string> &vect)
-{
+std::string alias(const std::vector<std::string> &vect) {
   std::string callsite;
   callsite = "sea_dsa_alias(";
 
-  for (int i = 0; i < vect.size() - 1; i++)
-  {
+  for (int i = 0; i < vect.size() - 1; i++) {
     callsite.append(vect[i]);
     callsite.append(", ");
   }
@@ -44,8 +43,11 @@ std::string alias(const std::vector<std::string> &vect)
   return callsite;
 }
 
-struct libAction
-{
+std::string new_mem(const std::string &var) {
+  return std::string(var + " = sea_dsa_new();\n");
+}
+
+struct libAction {
   // The return value/arguments that should be marked read.
   bool read[numOps];
 
@@ -62,61 +64,34 @@ struct libAction
   bool collapse;
 };
 
-#define NRET_NARGS               \
-  {                              \
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0 \
-  }
-#define YRET_NARGS               \
-  {                              \
-    1, 0, 0, 0, 0, 0, 0, 0, 0, 0 \
-  }
-#define NRET_YARGS               \
-  {                              \
-    0, 1, 1, 1, 1, 1, 1, 1, 1, 1 \
-  }
-#define YRET_YARGS               \
-  {                              \
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1 \
-  }
-#define NRET_NYARGS              \
-  {                              \
-    0, 0, 1, 1, 1, 1, 1, 1, 1, 1 \
-  }
-#define YRET_NYARGS              \
-  {                              \
-    1, 0, 1, 1, 1, 1, 1, 1, 1, 1 \
-  }
-#define NRET_YNARGS              \
-  {                              \
-    0, 1, 0, 0, 0, 0, 0, 0, 0, 0 \
-  }
-#define YRET_YNARGS              \
-  {                              \
-    1, 1, 0, 0, 0, 0, 0, 0, 0, 0 \
-  }
-#define YRET_NNYARGS             \
-  {                              \
-    1, 0, 0, 1, 1, 1, 1, 1, 1, 1 \
-  }
-#define YRET_YNYARGS             \
-  {                              \
-    1, 1, 0, 1, 1, 1, 1, 1, 1, 1 \
-  }
-#define NRET_NNYARGS             \
-  {                              \
-    0, 0, 0, 1, 1, 1, 1, 1, 1, 1 \
-  }
-#define YRET_NNYNARGS            \
-  {                              \
-    1, 0, 0, 1, 0, 0, 0, 0, 0, 0 \
-  }
-#define NRET_NNNYARGS            \
-  {                              \
-    0, 0, 0, 0, 1, 1, 1, 1, 1, 1 \
-  }
+#define NRET_NARGS                                                             \
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+#define YRET_NARGS                                                             \
+  { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+#define NRET_YARGS                                                             \
+  { 0, 1, 1, 1, 1, 1, 1, 1, 1, 1 }
+#define YRET_YARGS                                                             \
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }
+#define NRET_NYARGS                                                            \
+  { 0, 0, 1, 1, 1, 1, 1, 1, 1, 1 }
+#define YRET_NYARGS                                                            \
+  { 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 }
+#define NRET_YNARGS                                                            \
+  { 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 }
+#define YRET_YNARGS                                                            \
+  { 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 }
+#define YRET_NNYARGS                                                           \
+  { 1, 0, 0, 1, 1, 1, 1, 1, 1, 1 }
+#define YRET_YNYARGS                                                           \
+  { 1, 1, 0, 1, 1, 1, 1, 1, 1, 1 }
+#define NRET_NNYARGS                                                           \
+  { 0, 0, 0, 1, 1, 1, 1, 1, 1, 1 }
+#define YRET_NNYNARGS                                                          \
+  { 1, 0, 0, 1, 0, 0, 0, 0, 0, 0 }
+#define NRET_NNNYARGS                                                          \
+  { 0, 0, 0, 0, 1, 1, 1, 1, 1, 1 }
 
-const struct
-{
+const struct {
   const std::string name;
   const libAction action;
 } recFuncs[] = {
@@ -232,7 +207,8 @@ const struct
 
     {"memchr", {NRET_YARGS, YRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
     {"wmemchr", {NRET_YARGS, YRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
-    //{"posix_memalign",  {NRET_YARGS, YRET_YNARGS, NRET_NARGS,  NRET_NARGS, false}},
+    //{"posix_memalign",  {NRET_YARGS, YRET_YNARGS, NRET_NARGS,  NRET_NARGS,
+    // false}},
 
     {"perror", {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
@@ -245,7 +221,8 @@ const struct
     {"fwrite", {NRET_YARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
     {"fread", {NRET_NYARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
 
-    {"__errno_location", {NRET_NARGS, YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+    {"__errno_location",
+     {NRET_NARGS, YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
     {"puts", {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
     {"gets", {NRET_NARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, false}},
@@ -259,21 +236,25 @@ const struct
     {"fputc", {NRET_YARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
 };
 
-const struct
-{
+const struct {
   const std::string retType;
   const std::string name;
   const std::vector<std::string> params;
 } decls[] = {
     {"int", "stat", {"const char *restrict path", "struct stat *restrict buf"}},
     {"int", "fstat", {"int fd", "struct stat *st"}},
-    {"int", "lstat", {"const char *restrict path", "struct stat *restrict buf"}},
+    {"int",
+     "lstat",
+     {"const char *restrict path", "struct stat *restrict buf"}},
     {"char *", "getenv", {"const char *name"}},
     {"int", "getrusage", {"int who", "struct rusage *ru"}},
     {"int", "getrlimit", {"int resource", "struct rlimit *rlim"}},
     {"int", "setrlimit", {"int resource", "const struct rlimit *rlim"}},
     {"char *", "getcwd", {"char *buf", "size_t size"}},
-    {"int", "select", {"int n", "fd_set *restrict rfds", "fd_set *restrict wfds", "fd_set *restrict efds", "struct timeval *restrict tv"}},
+    {"int",
+     "select",
+     {"int n", "fd_set *restrict rfds", "fd_set *restrict wfds",
+      "fd_set *restrict efds", "struct timeval *restrict tv"}},
     {"int", "remove", {"const char *path"}},
     {"int", "rename", {"const char *old", "const char *new"}},
     {"int", "unlink", {"const char *path"}},
@@ -302,9 +283,16 @@ const struct
     {"int", "printf", {"const char *restrict fmt", "..."}},
     {"int", "fprintf", {"FILE *restrict f", "const char *restrict fmt", "..."}},
     {"int", "sprintf", {"char *restrict s", "const char *restrict fmt", "..."}},
-    {"int", "snprintf", {"char *restrict s", "size_t n, const char *restrict fmt", "..."}},
-    {"int", "vsnprintf", {"char *restrict s, size_t n", "const char *restrict fmt", "va_list ap"}},
-    {"int", "sscanf", {"const char *restrict s", "const char *restrict fmt", "..."}},
+    {"int",
+     "snprintf",
+     {"char *restrict s", "size_t n, const char *restrict fmt", "..."}},
+    {"int",
+     "vsnprintf",
+     {"char *restrict s", "size_t n", "const char *restrict fmt",
+      "va_list ap"}},
+    {"int",
+     "sscanf",
+     {"const char *restrict s", "const char *restrict fmt", "..."}},
     {"int", "scanf", {"const char *restrict fmt", "..."}},
     {"int", "fscanf", {"FILE *restrict f", "const char *restrict fmt", "..."}},
     {"void *", "calloc", {"size_t m", "size_t n"}},
@@ -327,22 +315,38 @@ const struct
     {"int", "strcasecmp", {"const char *_l", "const char *_r"}},
     {"int", "wcscasecmp", {"const wchar_t *l", "const wchar_t *r"}},
     {"int", "strncasecmp", {"const char *_l", "const char *_r", "size_t n"}},
-    {"int", "wcsncasecmp", {"const wchar_t *l", "const wchar_t *r", "size_t n"}},
+    {"int",
+     "wcsncasecmp",
+     {"const wchar_t *l", "const wchar_t *r", "size_t n"}},
     {"char *", "strcat", {"char *restrict dest", "const char *restrict src"}},
-    {"char *", "strncat", {"char *restrict d", "const char *restrict s", "size_t n"}},
+    {"char *",
+     "strncat",
+     {"char *restrict d", "const char *restrict s", "size_t n"}},
     {"char *", "strcpy", {"char *restrict dest", "const char *restrict src"}},
-    {"wchar_t *", "wcscpy", {"wchar_t *restrict d", "const wchar_t *restrict s"}},
-    {"char *", "strncpy", {"char *restrict d", "const char *restrict s", "size_t n"}},
-    {"wchar_t *", "wcsncpy", {"wchar_t *restrict d", "const wchar_t *restrict s", "size_t n"}},
-    {"void *", "memcpy", {"void *restrict dest", "const void *restrict src", "size_t n"}},
-    {"void *", "memccpy", {"void *restrict dest", "const void *restrict src", "int c", "size_t n"}},
+    {"wchar_t *",
+     "wcscpy",
+     {"wchar_t *restrict d", "const wchar_t *restrict s"}},
+    {"char *",
+     "strncpy",
+     {"char *restrict d", "const char *restrict s", "size_t n"}},
+    {"wchar_t *",
+     "wcsncpy",
+     {"wchar_t *restrict d", "const wchar_t *restrict s", "size_t n"}},
+    {"void *",
+     "memcpy",
+     {"void *restrict dest", "const void *restrict src", "size_t n"}},
+    {"void *",
+     "memccpy",
+     {"void *restrict dest", "const void *restrict src", "int c", "size_t n"}},
     {"void *", "memmove", {"void *dest", "const void *src", "size_t n"}},
     {"void", "bcopy", {"const void *s1", "void *s2", "size_t n"}},
     {"int", "bcmp", {"const void *s1", "const void *s2", "size_t n"}},
     {"char *", "strerror", {"int e"}},
     {"void", "clearerr", {"FILE *f"}},
     {"char *", "strstr", {"const char *h", "const char *n"}},
-    {"wchar_t *", "wcsstr", {"const wchar_t *restrict h", "const wchar_t *restrict n"}},
+    {"wchar_t *",
+     "wcsstr",
+     {"const wchar_t *restrict h", "const wchar_t *restrict n"}},
     {"size_t", "strspn", {"const char *s", "const char *c"}},
     {"size_t", "wcsspn", {"const wchar_t *s", "const wchar_t *c"}},
     {"size_t", "strcspn", {"const char *s", "const char *c"}},
@@ -359,12 +363,20 @@ const struct
     {"void", "perror", {"const char *msg"}},
     {"int", "fflush", {"FILE *f"}},
     {"int", "fclose", {"FILE *f"}},
-    {"FILE *", "fopen", {"const char *restrict filename", "const char *restrict mode"}},
+    {"FILE *",
+     "fopen",
+     {"const char *restrict filename", "const char *restrict mode"}},
     {"long", "ftell", {"FILE *f"}},
     {"int", "fseek", {"FILE *f", "long off", "int whence"}},
     {"void", "rewind", {"FILE *f"}},
-    {"size_t", "fwrite", {"const void *restrict src", "size_t size", "size_t nmemb", "FILE *restrict f"}},
-    {"size_t", "fread", {"void *restrict destv", "size_t size", "size_t nmemb", "FILE *restrict f"}},
+    {"size_t",
+     "fwrite",
+     {"const void *restrict src", "size_t size", "size_t nmemb",
+      "FILE *restrict f"}},
+    {"size_t",
+     "fread",
+     {"void *restrict destv", "size_t size", "size_t nmemb",
+      "FILE *restrict f"}},
     {"int *", "__errno_location", {"void"}},
     {"int", "puts", {"const char *s"}},
     {"char *", "gets", {"char *s"}},
@@ -377,24 +389,20 @@ const struct
     {"int", "fputs", {"const char *restrict s", "FILE *restrict f"}},
     {"int", "fputc", {"int c", "FILE *f"}}};
 
-std::string getVarName(const std::string &str)
-{
+std::string getVarName(const std::string &str) {
 
   auto pos = str.find_last_of(' ');
   pos++;
-  if (str.at(pos) == '*')
-    pos++;
+  if (str.at(pos) == '*') pos++;
 
   return str.substr(pos, str.length() - pos);
 }
 
-bool isPtrType(const std::string &str)
-{
+bool isPtrType(const std::string &str) {
   return (str.find('*') != std::string::npos);
 }
 
-void processFunc(int index, std::ofstream &out_file)
-{
+void processFunc(int index, std::ofstream &out_file) {
   int actionIndex = 1;
 
   auto decl = decls[index];
@@ -403,109 +411,102 @@ void processFunc(int index, std::ofstream &out_file)
 
   std::vector<std::string> toMerge;
 
-  for (auto param : decl.params)
-  {
-    if (isPtrType(param))
-    {
-      if (recFunc.action.heap[actionIndex])
-      {
-        out_file << mkheap(getVarName(param));
-      }
-      if (recFunc.action.read[actionIndex])
-      {
-        out_file << mkread(getVarName(param));
-      }
-      if (recFunc.action.write[actionIndex])
-      {
-        out_file << mkwrite(getVarName(param));
-      }
-      if (recFunc.action.mergeNodes[actionIndex])
-      {
-        toMerge.push_back(getVarName(param));
-      }
+  if (decl.name == "vsnprintf")
 
-      //only increment action index when we have a pointer to memory
-      actionIndex++;
+    for (auto param : decl.params) {
+      if (isPtrType(param)) {
+        if (recFunc.action.heap[actionIndex]) {
+          out_file << mkheap(getVarName(param));
+        }
+        if (recFunc.action.read[actionIndex]) {
+          out_file << mkread(getVarName(param));
+        }
+        if (recFunc.action.write[actionIndex]) {
+          out_file << mkwrite(getVarName(param));
+        }
+        if (recFunc.action.mergeNodes[actionIndex]) {
+          toMerge.push_back(getVarName(param));
+        }
+
+        // only increment action index when we have a pointer to memory
+        actionIndex++;
+      }
     }
-  }
 
-  //handle return value
-  if (isPtrType(decl.retType))
-    out_file << decl.retType << " retVal;\n";
+  // handle return value
+  if (isPtrType(decl.retType)) out_file << decl.retType << " retVal;\n";
   else if (decl.retType != "void")
     out_file << decl.retType << " retVal = 0;\n";
 
-  //Merge all marked pointers
+  // Merge all marked pointers
   if (isPtrType(decl.retType) && recFunc.action.mergeNodes[0])
     toMerge.push_back(std::string("retVal"));
 
-  if (toMerge.size())
-    out_file << alias(toMerge);
+  if (isPtrType(decl.retType) && !recFunc.action.mergeNodes[0]) {
+    out_file << new_mem("retVal");
+    if (recFunc.action.heap[0]) { out_file << mkheap(getVarName("retVal")); }
+    if (recFunc.action.read[0]) { out_file << mkread(getVarName("retVal")); }
+    if (recFunc.action.write[0]) { out_file << mkwrite(getVarName("retVal")); }
+  }
 
-  //collapse all marked pointers
-  if (recFunc.action.collapse)
-  {
-    if (isPtrType(decl.retType))
-      out_file << collapse("retVal");
+  if (toMerge.size()) out_file << alias(toMerge);
 
-    for (auto param : decl.params)
-    {
-      if (isPtrType(param))
-        out_file << collapse(getVarName(param));
+  // collapse all marked pointers
+  if (recFunc.action.collapse) {
+    if (isPtrType(decl.retType)) out_file << collapse("retVal");
+
+    for (auto param : decl.params) {
+      if (isPtrType(param)) out_file << collapse(getVarName(param));
     }
   }
 
-  //return something (if applicable)
-  if (decl.retType != "void")
-    out_file << "return retVal;\n";
-
+  // return something (if applicable)
+  if (decl.retType != "void") out_file << "return retVal;\n";
 }
 
-int main()
-{
+int main() {
 
-    std::string name("specs/" + std::string("libc.spec.c"));
+  std::string name("libc.spec.c");
 
-    std::ofstream out_file;
-    out_file.open(name);
+  std::ofstream out_file;
+  out_file.open(name);
 
-    if (out_file.is_open()) {
-      out_file << "#include \"seadsa/sea_dsa.h\"\n";
-      out_file << "#include <stdlib.h>\n";
-      out_file << "#include <stddef.h>\n";
-      out_file << "#include <stdio.h>\n";
-      out_file << "#include <stdint.h>\n";
-      out_file << "#include <time.h>\n";
-      out_file << "#include <time.h>\n\n";
-    }
-    else {
-      throw std::invalid_argument("Couldn't open file");
-    }
+  if (out_file.is_open()) {
+    out_file << "#include \"seadsa/sea_dsa.h\"\n";
+    out_file << "#include <stdlib.h>\n";
+    out_file << "#include <stddef.h>\n";
+    out_file << "#include <stdio.h>\n";
+    out_file << "#include <stdint.h>\n";
+    out_file << "#include <utime.h>\n";
+    out_file << "#include <time.h>\n";
+    out_file << "#include <sys/stat.h>\n";
+    out_file << "#include <sys/resource.h>\n";
+    out_file << "#include <sys/times.h>\n";
+    out_file << "#include <sys/timeb.h>\n\n";
+  } else {
+    throw std::invalid_argument("Couldn't open file");
+  }
 
-  for (int x = 0; x < sizeof_array(recFuncs); x++)
-  {
-
+  for (int x = 0; x < sizeof_array(recFuncs); x++) {
 
     out_file << decls[x].retType;
     out_file << " ";
     out_file << decls[x].name;
     out_file << "(";
 
-    for (int i = 0; i < decls[x].params.size() - 1; i++)
-    {
+    for (int i = 0; i < decls[x].params.size() - 1; i++) {
       out_file << decls[x].params[i];
       out_file << ", ";
     }
     out_file << decls[x].params[decls[x].params.size() - 1];
     out_file << ") {\n";
 
-    //definition created here
+    // definition created here
     processFunc(x, out_file);
 
     out_file << "\n}";
   }
-    
+
   out_file.close();
   return 0;
 }
-
