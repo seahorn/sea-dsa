@@ -91,6 +91,8 @@ struct libAction {
 #define NRET_NNNYARGS                                                          \
   { 0, 0, 0, 0, 1, 1, 1, 1, 1, 1 }
 
+// Table taken from:
+// https://github.com/seahorn/llvm-dsa/blob/master/lib/DSA/StdLibPass.cpp
 const struct {
   const std::string name;
   const libAction action;
