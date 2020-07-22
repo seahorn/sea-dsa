@@ -390,34 +390,11 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   for (auto *SI : StoresToErase)
     SI->eraseFromParent();
 
-  // Instructions to erase may depend on one another. Sort them and delete in
-  // 'deterministic'.
-  DT.updateDFSNumbers();
-  SmallVector<Instruction *, 16> OrderedMaybeUnused(MaybeUnusedInsts.begin(),
-                                                    MaybeUnusedInsts.end());
-  std::sort(OrderedMaybeUnused.begin(), OrderedMaybeUnused.end(),
-            [&DT](Instruction *First, Instruction *Second) {
-              auto *FirstDTNode = DT.getNode(First->getParent());
-              const unsigned FirstDFSNum =
-                  FirstDTNode ? FirstDTNode->getDFSNumIn() : 0;
-
-              auto *SecondDTNode = DT.getNode(Second->getParent());
-              const unsigned SecondDFSNum =
-                  SecondDTNode ? SecondDTNode->getDFSNumIn() : 0;
-
-              return std::make_tuple(FirstDFSNum, First->getNumUses(), First) >
-                     std::make_tuple(SecondDFSNum, Second->getNumUses(),
-                                     Second);
-            });
-
-  for (auto *I : OrderedMaybeUnused)
-    if (I->getNumUses() == 0) {
-      DOG(errs() << "\terasing: " << *I << "\n");
-      RecursivelyDeleteTriviallyDeadInstructions(I);
-      // I->eraseFromParent();
-    } else {
-      DOG(errs() << "\t_NOT_ erasing: " << *I << "\n");
-    }
+  SmallVector<Instruction *, 16> TriviallyDeadInstructions(
+      llvm::make_filter_range(MaybeUnusedInsts, [](Instruction *I) {
+        return isInstructionTriviallyDead(I);
+      }));
+  RecursivelyDeleteTriviallyDeadInstructions(TriviallyDeadInstructions);
 
   DOG(llvm::errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
       llvm::errs().flush());
