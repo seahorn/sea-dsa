@@ -56,7 +56,7 @@ void DsaLibFuncInfo::initialize(const llvm::Module &M) const {
       llvm::SmallString<256> libcSpecAbs = libcSpecRel;
       make_absolute(exeDir, libcSpecAbs);
 
-      ModuleRef specM = parseIRFile(libcSpecAbs.str(), err, m_ctx);
+      ModuleRef specM = parseIRFile(libcSpecAbs.str(), err, M.getContext());
       if (specM.get() == 0)
         LOG("sea-libFunc", errs() << "Error reading Clib spec file: "
                                   << err.getMessage() << "\n");
@@ -67,7 +67,7 @@ void DsaLibFuncInfo::initialize(const llvm::Module &M) const {
       llvm::SmallString<256> libcSpecAbs = libcSpecRel;
       make_absolute(exeDir, libcSpecAbs);
 
-      ModuleRef specM = parseIRFile(libcSpecAbs.str(), err, m_ctx);
+      ModuleRef specM = parseIRFile(libcSpecAbs.str(), err, M.getContext());
       if (specM.get() == 0)
         LOG("sea-libFunc", errs() << "Error reading Clib spec file: "
                                   << err.getMessage() << "\n");
@@ -85,7 +85,7 @@ void DsaLibFuncInfo::initialize(const llvm::Module &M) const {
   }
 
   for (auto &specFile : XSpecFiles) {
-    ModuleRef specM = parseIRFile(specFile, err, m_ctx);
+    ModuleRef specM = parseIRFile(specFile, err, M.getContext());
     if (specM.get() == 0) {
       LOG("sea-libFunc", errs() << "Error reading" << specFile << ": "
                                 << err.getMessage() << "\n");
