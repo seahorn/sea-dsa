@@ -12,9 +12,15 @@ namespace call_graph_utils {
 
 // Return a dsa callsite from a llvm CallGraph edge
 template <typename CallRecord>
-llvm::Optional<DsaCallSite> getDsaCallSite(CallRecord &callRecord) {
+llvm::Optional<DsaCallSite>
+getDsaCallSite(CallRecord &callRecord, const DsaLibFuncInfo *dlfi = nullptr) {
   const llvm::Function *callee = callRecord.second->getFunction();
-  if (!callee || callee->isDeclaration() || callee->empty()) return llvm::None;
+  if (!callee) return llvm::None;
+  if ((callee->isDeclaration() || callee->empty()) &&
+      (dlfi && !dlfi->hasSpecFunc(*callee)))
+    return llvm::None;
+
+  if (dlfi && dlfi->hasSpecFunc(*callee)) callee = dlfi->getSpecFunc(*callee);
 
   llvm::CallSite CS(callRecord.first);
   if (CS.isIndirectCall()) {

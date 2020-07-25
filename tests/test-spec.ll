@@ -1,5 +1,10 @@
 ; RUN: %seadsa  %butd_dsa --sea-dsa-dot %s --sea-dsa-dot-outdir=%T/test-spec.ll --sea-dsa-specfile=%S/spec_func.ll
 ; RUN: %cmp-graphs %tests/test-spec.c.main.mem.dot %T/test-spec.ll/main.mem.dot | OutputCheck %s -d --comment=";"
+; RUN: %seadsa  %cs_dsa --sea-dsa-dot %s --sea-dsa-dot-outdir=%T/test-spec.ll --sea-dsa-specfile=%S/spec_func.ll
+; RUN: %cmp-graphs %tests/test-spec.c.main.mem.dot %T/test-spec.ll/main.mem.dot | OutputCheck %s -d --comment=";"
+; RUN: %seadsa  %ci_dsa --sea-dsa-dot %s --sea-dsa-dot-outdir=%T/test-spec.ll --sea-dsa-specfile=%S/spec_func.ll
+; RUN: %cmp-graphs %tests/test-spec-ci.c.main.mem.dot %T/test-spec.ll/main.mem.dot | OutputCheck %s -d --comment=";"
+
 ; CHECK: ^OK$
 
 ; ModuleID = 'test-spec.c'

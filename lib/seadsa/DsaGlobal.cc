@@ -56,24 +56,32 @@ namespace seadsa {
 /// Context-insensitive analysis
 /////
 // Unify callsite arguments within the same graph
-void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs,
-                                                        Graph &g) {
+void ContextInsensitiveGlobalAnalysis::resolveArguments(
+    DsaCallSite &cs, Graph &g, const DsaLibFuncInfo &dlfi) {
 
   // unify return
-  const Function &callee = *cs.getCallee();
-  if (g.hasRetCell(callee)) {
+  auto callee = cs.getCallee();
+  auto calleeSpec =
+      dlfi.hasSpecFunc(*callee) ? dlfi.getSpecFunc(*callee) : callee;
+
+  auto name = calleeSpec->getName();
+
+  if (g.hasRetCell(*calleeSpec)) {
     Cell &nc = g.mkCell(*cs.getInstruction(), Cell());
-    const Cell &r = g.getRetCell(callee);
+    const Cell &r = g.getRetCell(*calleeSpec);
     Cell c(*r.getNode(), r.getRawOffset());
     nc.unify(c);
   }
 
+  auto range = llvm::make_filter_range(calleeSpec->args(), [](auto &arg) {
+    return arg.getType()->isPointerTy();
+  });
+
   // unify actuals and formals
   DsaCallSite::const_actual_iterator AI = cs.actual_begin(),
                                      AE = cs.actual_end();
-  for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(),
-                                          FE = cs.formal_end();
-       FI != FE && AI != AE; ++FI, ++AI) {
+  for (auto FI = range.begin(), FE = range.end(); FI != FE && AI != AE;
+       ++FI, ++AI) {
     const Value *arg = (*AI).get();
     const Value *farg = &*FI;
     if (g.hasCell(*farg)) {
@@ -105,18 +113,25 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
     // --- all scc members share the same local graph
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty()) continue;
-
+      if (!fn) continue;
+      if ((fn->isDeclaration() || fn->empty()) &&
+          !m_dsaLibFuncInfo.hasSpecFunc(*fn))
+        continue;
       // compute local graph
+
+      auto spec = m_dsaLibFuncInfo.hasSpecFunc(*fn)
+                      ? m_dsaLibFuncInfo.getSpecFunc(*fn)
+                      : fn;
+
       GraphRef fGraph = nullptr;
       if (kind() == GlobalAnalysisKind::FLAT_MEMORY)
         fGraph.reset(new FlatGraph(m_dl, m_setFactory));
       else
         fGraph.reset(new Graph(m_dl, m_setFactory));
 
-      la.runOnFunction(*fn, *fGraph);
+      la.runOnFunction(*spec, *fGraph);
 
-      m_fns.insert(fn);
+      m_fns.insert(spec);
       m_graph->import(*fGraph, true);
     }
 
@@ -126,16 +141,20 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
       // XXX probably not needed since if the function is external
       // XXX it will have no call records
-      if (!fn || fn->isDeclaration() || fn->empty()) continue;
+      if (!fn) continue;
+
+      if ((fn->isDeclaration() || fn->empty()) &&
+          !m_dsaLibFuncInfo.hasSpecFunc(*fn))
+        continue;
 
       // -- iterate over all call instructions of the current function fn
       // -- they are indexed in the CallGraphNode data structure
       for (auto &callRecord : *cgn) {
         llvm::Optional<DsaCallSite> dsaCS =
-            call_graph_utils::getDsaCallSite(callRecord);
-        if (!dsaCS.hasValue()) { continue; }
+            call_graph_utils::getDsaCallSite(callRecord, &m_dsaLibFuncInfo);
+        if ((!dsaCS.hasValue())) { continue; }
         assert(fn == dsaCS.getValue().getCaller());
-        resolveArguments(dsaCS.getValue(), *m_graph);
+        resolveArguments(dsaCS.getValue(), *m_graph, m_dsaLibFuncInfo);
       }
     }
     m_graph->compress();
@@ -193,6 +212,7 @@ bool ContextInsensitiveGlobalPass::runOnModule(Module &M) {
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
   allocInfo.initialize(M, this);
+  dsaLibFuncInfo.initialize(M);
 
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
@@ -226,6 +246,7 @@ bool FlatMemoryGlobalPass::runOnModule(Module &M) {
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
   allocInfo.initialize(M, this);
+  dsaLibFuncInfo.initialize(M);
 
   const bool useFlatMemory = true;
   m_ga.reset(new ContextInsensitiveGlobalAnalysis(
@@ -697,7 +718,6 @@ bool BottomUpGlobalAnalysis::runOnModule(Module &M) {
   LOG("dsa-global", errs() << "Started bottom-up global analysis ... \n");
 
   for (auto &F : M) {
-    if (F.empty() && !m_dsaLibFuncInfo.hasSpecFunc(F)) continue;
     if ((F.isDeclaration() || F.empty()) && !m_dsaLibFuncInfo.hasSpecFunc(F))
       continue;
 

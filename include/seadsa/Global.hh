@@ -106,7 +106,8 @@ public:
         m_graph(nullptr) {}
 
   // unify caller/callee nodes within the same graph
-  static void resolveArguments(DsaCallSite &cs, Graph &g);
+  static void resolveArguments(DsaCallSite &cs, Graph &g,
+                               const DsaLibFuncInfo &dlfi);
 
   bool runOnModule(llvm::Module &M) override;
 
