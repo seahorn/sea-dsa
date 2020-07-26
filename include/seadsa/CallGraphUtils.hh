@@ -16,9 +16,9 @@ llvm::Optional<DsaCallSite>
 getDsaCallSite(CallRecord &callRecord, const DsaLibFuncInfo *dlfi = nullptr) {
   const llvm::Function *callee = callRecord.second->getFunction();
   if (!callee) return llvm::None;
-  if ((callee->isDeclaration() || callee->empty()) &&
-      (dlfi && !dlfi->hasSpecFunc(*callee)))
-    return llvm::None;
+  if (callee->isDeclaration() || callee->empty()) {
+    if (!dlfi || !dlfi->hasSpecFunc(*callee)) return llvm::None;
+  }
 
   if (dlfi && dlfi->hasSpecFunc(*callee)) callee = dlfi->getSpecFunc(*callee);
 
