@@ -33,9 +33,7 @@ class DsaLibFuncInfo : public llvm::ImmutablePass {
 
 protected:
   mutable bool m_isInitialized = false;
-  mutable std::unordered_map<std::string, llvm::Function *> m_funcs;
-
-  // m_module must be deallocated before m_ctx, keep in this order
+  mutable llvm::StringMap<llvm::Function *> m_funcs;
   mutable std::vector<ModuleRef> m_modules;
 
 public:
