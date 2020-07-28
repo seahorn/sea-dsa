@@ -653,6 +653,7 @@ bool CompleteCallGraph::runOnModule(Module &M) {
   auto allocInfo = &getAnalysis<AllocWrapInfo>();
   auto dsaLibFuncInfo = &getAnalysis<DsaLibFuncInfo>();
   allocInfo->initialize(M, this);
+  dsaLibFuncInfo->initialize(M);  
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   m_CCGA.reset(new CompleteCallGraphAnalysis(dl, tli, *allocInfo,
                                              *dsaLibFuncInfo, cg, true));
@@ -693,6 +694,7 @@ INITIALIZE_PASS_BEGIN(CompleteCallGraph, "seadsa-complete-callgraph",
                       "Construct SeaDsa call graph pass", false, false)
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
+INITIALIZE_PASS_DEPENDENCY(DsaLibFuncInfo)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_END(CompleteCallGraph, "seadsa-complete-callgraph",
