@@ -24,6 +24,7 @@ class CallGraph;
 namespace seadsa {
 
 class AllocWrapInfo;
+class DsaLibFuncInfo;
 
 enum class GlobalAnalysisKind {
   // useful for VC generation
@@ -85,6 +86,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   GraphRef m_graph;
@@ -95,15 +97,17 @@ public:
   ContextInsensitiveGlobalAnalysis(
       const llvm::DataLayout &dl,
       llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-      const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-      SetFactory &setFactory, const bool useFlatMemory)
+      const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
+      llvm::CallGraph &cg, SetFactory &setFactory, const bool useFlatMemory)
       : GlobalAnalysis(useFlatMemory ? GlobalAnalysisKind::FLAT_MEMORY
                                      : GlobalAnalysisKind::CONTEXT_INSENSITIVE),
-        m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
-        m_setFactory(setFactory), m_graph(nullptr) {}
+        m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+        m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg), m_setFactory(setFactory),
+        m_graph(nullptr) {}
 
   // unify caller/callee nodes within the same graph
-  static void resolveArguments(DsaCallSite &cs, Graph &g);
+  static void resolveArguments(DsaCallSite &cs, Graph &g,
+                               const DsaLibFuncInfo &dlfi);
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -158,6 +162,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
 
@@ -181,11 +186,12 @@ private:
   bool checkNoMorePropagation(llvm::CallGraph &cg);
 
 public:
-  ContextSensitiveGlobalAnalysis(
-      const llvm::DataLayout &dl,
-      llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-      const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-      SetFactory &setFactory, bool storeSummaryGraphs = false);
+  ContextSensitiveGlobalAnalysis(const llvm::DataLayout &dl,
+                                 llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+                                 const AllocWrapInfo &allocInfo,
+                                 const DsaLibFuncInfo &dsaLibFuncInfo,
+                                 llvm::CallGraph &cg, SetFactory &setFactory,
+                                 bool storeSummaryGraphs = false);
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -218,6 +224,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   // Context-sensitive graphs
@@ -228,11 +235,12 @@ private:
   bool m_store_bu_graphs;
 
 public:
-  BottomUpTopDownGlobalAnalysis(
-      const llvm::DataLayout &dl,
-      llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-      const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-      SetFactory &setFactory, bool storeSummaryGraphs = false);
+  BottomUpTopDownGlobalAnalysis(const llvm::DataLayout &dl,
+                                llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+                                const AllocWrapInfo &allocInfo,
+                                const DsaLibFuncInfo &dsaLibFuncInfo,
+                                llvm::CallGraph &cg, SetFactory &setFactory,
+                                bool storeSummaryGraphs = false);
 
   bool runOnModule(llvm::Module &M) override;
 
@@ -263,6 +271,7 @@ private:
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   const AllocWrapInfo &m_allocInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   SetFactory &m_setFactory;
   GraphMap m_graphs;
@@ -270,8 +279,9 @@ private:
 public:
   BottomUpGlobalAnalysis(const llvm::DataLayout &dl,
                          llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-                         const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
-                         SetFactory &setFactory);
+                         const AllocWrapInfo &allocInfo,
+                         const DsaLibFuncInfo &dsaLibFuncInfo,
+                         llvm::CallGraph &cg, SetFactory &setFactory);
 
   bool runOnModule(llvm::Module &M) override;
 

@@ -7,8 +7,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-// XXX: included for Cell. 
-#include "seadsa/Graph.hh" 
+// XXX: included for Cell.
+#include "seadsa/Graph.hh"
 
 #include "boost/iterator/filter_iterator.hpp"
 
@@ -36,8 +36,8 @@ class DsaCallSite {
   // -- bottom-up pass.
   bool m_cloned;
   // -- class invariant: m_callee != nullptr
-  const llvm::Function* m_callee;
-  
+  const llvm::Function *m_callee;
+
 public:
   using const_formal_iterator =
       boost::filter_iterator<isPointerTy,
@@ -45,15 +45,15 @@ public:
   using const_actual_iterator =
       boost::filter_iterator<isPointerTy,
                              typename llvm::ImmutableCallSite::arg_iterator>;
-  
+
   DsaCallSite(const llvm::ImmutableCallSite &cs);
   DsaCallSite(const llvm::Instruction &cs);
   DsaCallSite(const llvm::Instruction &cs, Cell c);
   DsaCallSite(const llvm::Instruction &cs, const llvm::Function &callee);
-  
+
   bool operator==(const DsaCallSite &o) const {
     return (getInstruction() == o.getInstruction() &&
-	    getCallee() == o.getCallee());
+            getCallee() == o.getCallee());
   }
 
   bool operator<(const DsaCallSite &o) const {
@@ -65,7 +65,7 @@ public:
       return false;
     }
   }
-  
+
   bool hasCell() const;
   const Cell &getCell() const;
   Cell &getCell();
@@ -77,7 +77,7 @@ public:
   bool isCloned() const;
 
   void markCloned(bool v = true);
-  
+
   const llvm::Value *getRetVal() const;
 
   const llvm::Function *getCallee() const;
@@ -89,6 +89,10 @@ public:
 
   const_formal_iterator formal_begin() const;
   const_formal_iterator formal_end() const;
+
+  const_formal_iterator formal_func_begin(const llvm::Function &F) const;
+  const_formal_iterator formal_func_end(const llvm::Function &F) const;
+
   llvm::iterator_range<const_formal_iterator> formals() const {
     return llvm::make_range(formal_begin(), formal_end());
   }
@@ -98,8 +102,9 @@ public:
   llvm::iterator_range<const_actual_iterator> actuals() const {
     return llvm::make_range(actual_begin(), actual_end());
   }
-  
-  void write(llvm::raw_ostream &o) const;  
+
+  void write(llvm::raw_ostream &o) const;
 };
+
 } // namespace seadsa
 #endif

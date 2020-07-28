@@ -9,6 +9,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "seadsa/AllocWrapInfo.hh"
+#include "seadsa/DsaLibFuncInfo.hh"
 #include "seadsa/Global.hh"
 #include "seadsa/Info.hh"
 #include "seadsa/InitializePasses.hh"
@@ -50,8 +51,9 @@ void DsaAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<CallGraphWrapperPass>();
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   // dependency for AllocWrapInfo
-  AU.addRequired<LoopInfoWrapperPass>();  
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
+  AU.addRequired<DsaLibFuncInfo>();
   AU.setPreservesAll();
 }
 
@@ -74,30 +76,34 @@ bool DsaAnalysis::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
+  m_dsaLibFuncInfo = &getAnalysis<DsaLibFuncInfo>();
+  m_dsaLibFuncInfo->initialize(M);
   m_allocInfo->initialize(M, this);
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
   switch (DsaGlobalAnalysis) {
   case GlobalAnalysisKind::CONTEXT_INSENSITIVE:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
-        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory, false));
+        *m_dl, *m_tliWrapper, *m_allocInfo, *m_dsaLibFuncInfo, cg, m_setFactory,
+        false));
     break;
   case GlobalAnalysisKind::FLAT_MEMORY:
     m_ga.reset(new ContextInsensitiveGlobalAnalysis(
-        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory,
+        *m_dl, *m_tliWrapper, *m_allocInfo, *m_dsaLibFuncInfo, cg, m_setFactory,
         true /* use flat*/));
     break;
   case GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE:
-    m_ga.reset(new BottomUpTopDownGlobalAnalysis(
-        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory));
+    m_ga.reset(
+        new BottomUpTopDownGlobalAnalysis(*m_dl, *m_tliWrapper, *m_allocInfo,
+                                          *m_dsaLibFuncInfo, cg, m_setFactory));
     break;
   case GlobalAnalysisKind::BU:
     m_ga.reset(new BottomUpGlobalAnalysis(*m_dl, *m_tliWrapper, *m_allocInfo,
-                                          cg, m_setFactory));
+                                          *m_dsaLibFuncInfo, cg, m_setFactory));
     break;
   default: /* CONTEXT_SENSITIVE */
     m_ga.reset(new ContextSensitiveGlobalAnalysis(
-        *m_dl, *m_tliWrapper, *m_allocInfo, cg, m_setFactory,
+        *m_dl, *m_tliWrapper, *m_allocInfo, *m_dsaLibFuncInfo, cg, m_setFactory,
         true /* always store summary graphs*/));
   }
 
@@ -119,10 +125,11 @@ using namespace seadsa;
 INITIALIZE_PASS_BEGIN(DsaAnalysis, "dsa-wrapper",
                       "Entry point for all SeaDsa clients", false, false)
 INITIALIZE_PASS_DEPENDENCY(RemovePtrToInt)
-// dependency for immutable AllowWrapInfo  
+// dependency for immutable AllowWrapInfo
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass);
 INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(DsaLibFuncInfo)
 INITIALIZE_PASS_END(DsaAnalysis, "dsa-wrapper",
                     "Entry point for all SeaDsa clients", false, false)

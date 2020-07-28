@@ -23,12 +23,14 @@ class Function;
 
 namespace seadsa {
 class AllocWrapInfo;
+class DsaLibFuncInfo;
 
 class DsaAnalysis : public llvm::ModulePass {
 
   const llvm::DataLayout *m_dl;
   llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
   const AllocWrapInfo *m_allocInfo;
+  const DsaLibFuncInfo *m_dsaLibFuncInfo;
   Graph::SetFactory m_setFactory;
   std::unique_ptr<GlobalAnalysis> m_ga;
   bool m_print_stats;
@@ -38,7 +40,8 @@ public:
 
   DsaAnalysis(bool print_stats = false)
       : ModulePass(ID), m_dl(nullptr), m_tliWrapper(nullptr),
-        m_allocInfo(nullptr), m_ga(nullptr), m_print_stats(print_stats) {}
+        m_allocInfo(nullptr), m_dsaLibFuncInfo(nullptr), m_ga(nullptr),
+        m_print_stats(print_stats) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 

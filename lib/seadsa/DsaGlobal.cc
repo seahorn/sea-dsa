@@ -20,6 +20,7 @@
 #include "seadsa/CallSite.hh"
 #include "seadsa/Cloner.hh"
 #include "seadsa/CompleteCallGraph.hh"
+#include "seadsa/DsaLibFuncInfo.hh"
 #include "seadsa/Global.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/GraphUtils.hh"
@@ -55,24 +56,32 @@ namespace seadsa {
 /// Context-insensitive analysis
 /////
 // Unify callsite arguments within the same graph
-void ContextInsensitiveGlobalAnalysis::resolveArguments(DsaCallSite &cs,
-                                                        Graph &g) {
+void ContextInsensitiveGlobalAnalysis::resolveArguments(
+    DsaCallSite &cs, Graph &g, const DsaLibFuncInfo &dlfi) {
 
   // unify return
-  const Function &callee = *cs.getCallee();
-  if (g.hasRetCell(callee)) {
+  auto callee = cs.getCallee();
+  auto calleeSpec =
+      dlfi.hasSpecFunc(*callee) ? dlfi.getSpecFunc(*callee) : callee;
+
+  auto name = calleeSpec->getName();
+
+  if (g.hasRetCell(*calleeSpec)) {
     Cell &nc = g.mkCell(*cs.getInstruction(), Cell());
-    const Cell &r = g.getRetCell(callee);
+    const Cell &r = g.getRetCell(*calleeSpec);
     Cell c(*r.getNode(), r.getRawOffset());
     nc.unify(c);
   }
 
+  auto range = llvm::make_filter_range(calleeSpec->args(), [](auto &arg) {
+    return arg.getType()->isPointerTy();
+  });
+
   // unify actuals and formals
   DsaCallSite::const_actual_iterator AI = cs.actual_begin(),
                                      AE = cs.actual_end();
-  for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(),
-                                          FE = cs.formal_end();
-       FI != FE && AI != AE; ++FI, ++AI) {
+  for (auto FI = range.begin(), FE = range.end(); FI != FE && AI != AE;
+       ++FI, ++AI) {
     const Value *arg = (*AI).get();
     const Value *farg = &*FI;
     if (g.hasCell(*farg)) {
@@ -104,19 +113,25 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
     // --- all scc members share the same local graph
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty())
+      if (!fn) continue;
+      if ((fn->isDeclaration() || fn->empty()) &&
+          !m_dsaLibFuncInfo.hasSpecFunc(*fn))
         continue;
-
       // compute local graph
+
+      auto spec = m_dsaLibFuncInfo.hasSpecFunc(*fn)
+                      ? m_dsaLibFuncInfo.getSpecFunc(*fn)
+                      : fn;
+
       GraphRef fGraph = nullptr;
       if (kind() == GlobalAnalysisKind::FLAT_MEMORY)
         fGraph.reset(new FlatGraph(m_dl, m_setFactory));
       else
         fGraph.reset(new Graph(m_dl, m_setFactory));
 
-      la.runOnFunction(*fn, *fGraph);
+      la.runOnFunction(*spec, *fGraph);
 
-      m_fns.insert(fn);
+      m_fns.insert(spec);
       m_graph->import(*fGraph, true);
     }
 
@@ -126,19 +141,20 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
 
       // XXX probably not needed since if the function is external
       // XXX it will have no call records
-      if (!fn || fn->isDeclaration() || fn->empty())
+      if (!fn) continue;
+
+      if ((fn->isDeclaration() || fn->empty()) &&
+          !m_dsaLibFuncInfo.hasSpecFunc(*fn))
         continue;
 
       // -- iterate over all call instructions of the current function fn
       // -- they are indexed in the CallGraphNode data structure
       for (auto &callRecord : *cgn) {
         llvm::Optional<DsaCallSite> dsaCS =
-            call_graph_utils::getDsaCallSite(callRecord);
-        if (!dsaCS.hasValue()) {
-          continue;
-        }
+            call_graph_utils::getDsaCallSite(callRecord, &m_dsaLibFuncInfo);
+        if ((!dsaCS.hasValue())) { continue; }
         assert(fn == dsaCS.getValue().getCaller());
-        resolveArguments(dsaCS.getValue(), *m_graph);
+        resolveArguments(dsaCS.getValue(), *m_graph, m_dsaLibFuncInfo);
       }
     }
     m_graph->compress();
@@ -178,9 +194,10 @@ ContextInsensitiveGlobalPass::ContextInsensitiveGlobalPass()
 
 void ContextInsensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>(); 
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
+  AU.addRequired<DsaLibFuncInfo>();
   if (UseDsaCallGraph) {
     AU.addRequired<CompleteCallGraph>();
   } else {
@@ -193,8 +210,10 @@ bool ContextInsensitiveGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
+  auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
   allocInfo.initialize(M, this);
-  
+  dsaLibFuncInfo.initialize(M);
+
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();
@@ -202,8 +221,8 @@ bool ContextInsensitiveGlobalPass::runOnModule(Module &M) {
     cg = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
   }
   const bool useFlatMemory = false;
-  m_ga.reset(new ContextInsensitiveGlobalAnalysis(dl, tli, allocInfo, *cg,
-                                                  m_setFactory, useFlatMemory));
+  m_ga.reset(new ContextInsensitiveGlobalAnalysis(
+      dl, tli, allocInfo, dsaLibFuncInfo, *cg, m_setFactory, useFlatMemory));
   return m_ga->runOnModule(M);
 }
 
@@ -213,9 +232,10 @@ FlatMemoryGlobalPass::FlatMemoryGlobalPass()
 void FlatMemoryGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<CallGraphWrapperPass>();
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>();   
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
+  AU.addRequired<DsaLibFuncInfo>();
   AU.setPreservesAll();
 }
 
@@ -224,11 +244,13 @@ bool FlatMemoryGlobalPass::runOnModule(Module &M) {
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
-  allocInfo.initialize(M, this);  
+  auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
+  allocInfo.initialize(M, this);
+  dsaLibFuncInfo.initialize(M);
 
   const bool useFlatMemory = true;
-  m_ga.reset(new ContextInsensitiveGlobalAnalysis(dl, tli, allocInfo, cg,
-                                                  m_setFactory, useFlatMemory));
+  m_ga.reset(new ContextInsensitiveGlobalAnalysis(
+      dl, tli, allocInfo, dsaLibFuncInfo, cg, m_setFactory, useFlatMemory));
   return m_ga->runOnModule(M);
 }
 
@@ -251,9 +273,7 @@ template <typename T> size_t WorkList<T>::size() const {
 }
 template <typename T> void WorkList<T>::enqueue(const T &e) {
   auto p = m_pimpl->m_s.insert(e);
-  if (p.second) {
-    m_pimpl->m_w.push(e);
-  }
+  if (p.second) { m_pimpl->m_w.push(e); }
 }
 template <typename T> const T &WorkList<T>::dequeue() {
   const T &e = m_pimpl->m_w.front();
@@ -275,13 +295,13 @@ std::unique_ptr<Graph> cloneGraph(const llvm::DataLayout &dl,
 //////
 
 ContextSensitiveGlobalAnalysis::ContextSensitiveGlobalAnalysis(
-    const llvm::DataLayout &dl,
-    llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg, SetFactory &setFactory,
-    bool storeSummaryGraphs)
+    const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+    const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
+    llvm::CallGraph &cg, SetFactory &setFactory, bool storeSummaryGraphs)
     : GlobalAnalysis(GlobalAnalysisKind::CONTEXT_SENSITIVE), m_dl(dl),
       m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
-      m_setFactory(setFactory), m_store_bu_graphs(storeSummaryGraphs) {}
+      m_dsaLibFuncInfo(dsaLibFuncInfo), m_setFactory(setFactory),
+      m_store_bu_graphs(storeSummaryGraphs) {}
 
 bool ContextSensitiveGlobalAnalysis::checkAllNodesAreMapped(
     const Function &fn, Graph &fnG, const SimulationMapper &sm) {
@@ -313,9 +333,8 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
 #endif
 
   for (auto &F : M) {
-    if (F.isDeclaration() || F.empty())
+    if ((F.isDeclaration() || F.empty()) && !m_dsaLibFuncInfo.hasSpecFunc(F))
       continue;
-
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
     m_graphs[&F] = fGraph;
   }
@@ -323,7 +342,8 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   // -- Run bottom up analysis on the whole call graph
   //    and initialize worklist
   const bool flowSensitiveOpt = false;
-  BottomUpAnalysis bu(m_dl, m_tliWrapper, m_allocInfo, m_cg, flowSensitiveOpt);
+  BottomUpAnalysis bu(m_dl, m_tliWrapper, m_allocInfo, m_dsaLibFuncInfo, m_cg,
+                      flowSensitiveOpt);
   bu.runOnModule(M, m_graphs);
 
   if (m_store_bu_graphs) {
@@ -344,17 +364,13 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
     auto &scc = *it;
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty()) {
-        continue;
-      }
+      if (!fn || fn->isDeclaration() || fn->empty()) { continue; }
       // -- store the simulation maps from the SCC
       for (auto &callRecord : *cgn) {
 
         llvm::Optional<DsaCallSite> dsaCS =
             call_graph_utils::getDsaCallSite(callRecord);
-        if (!dsaCS.hasValue()) {
-          continue;
-        }
+        if (!dsaCS.hasValue()) { continue; }
 
         assert(m_graphs.count(dsaCS.getValue().getCaller()) > 0);
         assert(m_graphs.count(dsaCS.getValue().getCallee()) > 0);
@@ -365,9 +381,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
         SimulationMapperRef sm(new SimulationMapper());
         bool res = Graph::computeCalleeCallerMapping(
             dsaCS.getValue(), calleeG, callerG, *sm, do_sanity_checks);
-        if (!res) {
-          llvm_unreachable("Simulation mapping check failed");
-        }
+        if (!res) { llvm_unreachable("Simulation mapping check failed"); }
         callee_caller_map.insert(std::make_pair(dsaCS.getValue(), sm));
 
         if (do_sanity_checks) {
@@ -398,8 +412,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
     auto const &simMapper = *(kv.second);
     assert(simMapper.isFunction());
 
-    if (!simMapper.isInjective())
-      w.enqueue(kv.first); // they do need top-down
+    if (!simMapper.isInjective()) w.enqueue(kv.first); // they do need top-down
   }
 
   /// -- top-down/bottom-up propagation until no change
@@ -412,8 +425,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   while (!w.empty()) {
     DsaCallSite dsaCS = w.dequeue();
     auto callee = dsaCS.getCallee();
-    if (!callee || callee->isDeclaration() || callee->empty())
-      continue;
+    if (!callee || callee->isDeclaration() || callee->empty()) continue;
 
     LOG("dsa-global", errs()
                           << "Selected callsite " << *(dsaCS.getInstruction())
@@ -532,8 +544,8 @@ void ContextSensitiveGlobalAnalysis::propagateBottomUp(const DsaCallSite &cs,
                                                        Graph &callerG) {
 
   const bool flowSensitiveOpt = false;
-  BottomUpAnalysis::cloneAndResolveArguments(cs, calleeG, callerG,
-                                             flowSensitiveOpt);
+  BottomUpAnalysis::cloneAndResolveArguments(
+      cs, calleeG, callerG, m_dsaLibFuncInfo, flowSensitiveOpt);
 
   LOG(
       "dsa-global", if (decidePropagation(cs, calleeG, callerG) == UP) {
@@ -552,15 +564,12 @@ bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation(CallGraph &cg) {
     auto &scc = *it;
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty())
-        continue;
+      if (!fn || fn->isDeclaration() || fn->empty()) continue;
 
       for (auto &callRecord : *cgn) {
         llvm::Optional<DsaCallSite> dsaCS =
             call_graph_utils::getDsaCallSite(callRecord);
-        if (!dsaCS.hasValue()) {
-          continue;
-        }
+        if (!dsaCS.hasValue()) { continue; }
 
         assert(m_graphs.count(dsaCS.getValue().getCaller()) > 0);
         assert(m_graphs.count(dsaCS.getValue().getCallee()) > 0);
@@ -579,7 +588,8 @@ bool ContextSensitiveGlobalAnalysis::checkNoMorePropagation(CallGraph &cg) {
     }
   }
 
-  LOG("dsa", errs() << "Sanity check succeed: global propagation completed!\n";);
+  LOG("dsa",
+      errs() << "Sanity check succeed: global propagation completed!\n";);
   return true;
 }
 
@@ -613,20 +623,20 @@ bool ContextSensitiveGlobalAnalysis::hasSummaryGraph(const Function &fn) const {
 /// Context-sensitive analysis: bottom-up + top-down
 ///////
 BottomUpTopDownGlobalAnalysis::BottomUpTopDownGlobalAnalysis(
-    const llvm::DataLayout &dl,
-    llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg, SetFactory &setFactory,
-    bool storeSummaryGraphs)
+    const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+    const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
+    llvm::CallGraph &cg, SetFactory &setFactory, bool storeSummaryGraphs)
     : GlobalAnalysis(GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE), m_dl(dl),
-      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
-      m_setFactory(setFactory), m_store_bu_graphs(storeSummaryGraphs) {}
+      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+      m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg), m_setFactory(setFactory),
+      m_store_bu_graphs(storeSummaryGraphs) {}
 
 bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
   LOG("dsa-global",
       errs() << "Started bottom-up + top-down global analysis ... \n");
 
   for (auto &F : M) {
-    if (F.isDeclaration() || F.empty())
+    if ((F.isDeclaration() || F.empty()) && !m_dsaLibFuncInfo.hasSpecFunc(F))
       continue;
 
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
@@ -635,7 +645,7 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run bottom up analysis on the whole call graph: callees before
   // -- callers.
-  BottomUpAnalysis bu(m_dl, m_tliWrapper, m_allocInfo, m_cg);
+  BottomUpAnalysis bu(m_dl, m_tliWrapper, m_allocInfo, m_dsaLibFuncInfo, m_cg);
   bu.runOnModule(M, m_graphs);
 
   if (m_store_bu_graphs) {
@@ -698,16 +708,17 @@ bool BottomUpTopDownGlobalAnalysis::hasSummaryGraph(const Function &fn) const {
 ///////
 BottomUpGlobalAnalysis::BottomUpGlobalAnalysis(
     const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-    const AllocWrapInfo &allocInfo, llvm::CallGraph &cg, SetFactory &setFactory)
+    const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
+    llvm::CallGraph &cg, SetFactory &setFactory)
     : GlobalAnalysis(GlobalAnalysisKind::BU), m_dl(dl),
-      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
-      m_setFactory(setFactory) {}
+      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+      m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg), m_setFactory(setFactory) {}
 
 bool BottomUpGlobalAnalysis::runOnModule(Module &M) {
   LOG("dsa-global", errs() << "Started bottom-up global analysis ... \n");
 
   for (auto &F : M) {
-    if (F.isDeclaration() || F.empty())
+    if ((F.isDeclaration() || F.empty()) && !m_dsaLibFuncInfo.hasSpecFunc(F))
       continue;
 
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
@@ -716,7 +727,7 @@ bool BottomUpGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run bottom up analysis on the whole call graph: callees before
   // -- callers.
-  BottomUpAnalysis bu(m_dl, m_tliWrapper, m_allocInfo, m_cg);
+  BottomUpAnalysis bu(m_dl, m_tliWrapper, m_allocInfo, m_dsaLibFuncInfo, m_cg);
   bu.runOnModule(M, m_graphs);
 
   // Removing dead nodes (if any)
@@ -759,9 +770,10 @@ void ContextSensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   } else {
     AU.addRequired<CallGraphWrapperPass>();
   }
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>();   
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
+  AU.addRequired<DsaLibFuncInfo>();
   AU.setPreservesAll();
 }
 
@@ -769,7 +781,9 @@ bool ContextSensitiveGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
-  allocInfo.initialize(M, this);  
+  auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
+  dsaLibFuncInfo.initialize(M);
+  allocInfo.initialize(M, this);
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();
@@ -777,8 +791,8 @@ bool ContextSensitiveGlobalPass::runOnModule(Module &M) {
     cg = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
   }
 
-  m_ga.reset(new ContextSensitiveGlobalAnalysis(dl, tli, allocInfo, *cg,
-                                                m_setFactory));
+  m_ga.reset(new ContextSensitiveGlobalAnalysis(
+      dl, tli, allocInfo, dsaLibFuncInfo, *cg, m_setFactory));
   return m_ga->runOnModule(M);
 }
 
@@ -792,9 +806,10 @@ void BottomUpTopDownGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   } else {
     AU.addRequired<CallGraphWrapperPass>();
   }
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>();   
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
+  AU.addRequired<DsaLibFuncInfo>();
   AU.setPreservesAll();
 }
 
@@ -802,6 +817,8 @@ bool BottomUpTopDownGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
+  auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
+  dsaLibFuncInfo.initialize(M);
   allocInfo.initialize(M, this);
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
@@ -810,8 +827,8 @@ bool BottomUpTopDownGlobalPass::runOnModule(Module &M) {
     cg = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
   }
 
-  m_ga.reset(
-      new BottomUpTopDownGlobalAnalysis(dl, tli, allocInfo, *cg, m_setFactory));
+  m_ga.reset(new BottomUpTopDownGlobalAnalysis(
+      dl, tli, allocInfo, dsaLibFuncInfo, *cg, m_setFactory));
   return m_ga->runOnModule(M);
 }
 
@@ -824,9 +841,10 @@ void BottomUpGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
   } else {
     AU.addRequired<CallGraphWrapperPass>();
   }
-  // dependency for immutable AllowWrapInfo  
-  AU.addRequired<LoopInfoWrapperPass>();   
+  // dependency for immutable AllowWrapInfo
+  AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
+  AU.addRequired<DsaLibFuncInfo>();
   AU.setPreservesAll();
 }
 
@@ -834,7 +852,9 @@ bool BottomUpGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
   auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
-  allocInfo.initialize(M, this);  
+  auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
+  dsaLibFuncInfo.initialize(M);
+  allocInfo.initialize(M, this);
   CallGraph *cg = nullptr;
   if (UseDsaCallGraph) {
     cg = &getAnalysis<CompleteCallGraph>().getCompleteCallGraph();
@@ -842,7 +862,8 @@ bool BottomUpGlobalPass::runOnModule(Module &M) {
     cg = &getAnalysis<CallGraphWrapperPass>().getCallGraph();
   }
 
-  m_ga.reset(new BottomUpGlobalAnalysis(dl, tli, allocInfo, *cg, m_setFactory));
+  m_ga.reset(new BottomUpGlobalAnalysis(dl, tli, allocInfo, dsaLibFuncInfo, *cg,
+                                        m_setFactory));
   return m_ga->runOnModule(M);
 }
 
@@ -907,16 +928,13 @@ bool CallGraphClosure<GA, Op>::runOnModule(Module &M) {
     auto &scc = *it;
     for (CallGraphNode *cgn : scc) {
       Function *fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty())
-        continue;
+      if (!fn || fn->isDeclaration() || fn->empty()) continue;
 
       for (auto &callRecord : *cgn) {
 
         llvm::Optional<DsaCallSite> dsaCS =
             call_graph_utils::getDsaCallSite(callRecord);
-        if (!dsaCS.hasValue()) {
-          continue;
-        }
+        if (!dsaCS.hasValue()) { continue; }
 
         if (m_ga.hasGraph(*dsaCS.getValue().getCaller()) &&
             m_ga.hasGraph(*dsaCS.getValue().getCallee())) {

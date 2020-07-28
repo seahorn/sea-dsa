@@ -415,6 +415,7 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
 enum class SeadsaFn {
   MODIFY,
   READ,
+  HEAP,
   PTR_TO_INT,
   ALIAS,
   COLLAPSE,
@@ -471,6 +472,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     return StringSwitch<SeadsaFn>(fn->getName())
         .Case("sea_dsa_set_modified", SeadsaFn::MODIFY)
         .Case("sea_dsa_set_read", SeadsaFn::READ)
+        .Case("sea_dsa_set_heap", SeadsaFn::HEAP)
         .Case("sea_dsa_set_ptrtoint", SeadsaFn::PTR_TO_INT)
         .Case("sea_dsa_alias", SeadsaFn::ALIAS)
         .Case("sea_dsa_collapse", SeadsaFn::COLLAPSE)
@@ -494,6 +496,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
       return &seadsa::Node::setModified;
     case SeadsaFn::READ:
       return &seadsa::Node::setRead;
+    case SeadsaFn::HEAP:
+      return &seadsa::Node::setHeap;
     case SeadsaFn::PTR_TO_INT:
       return &seadsa::Node::setPtrToInt;
     default:
@@ -1165,6 +1169,7 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   // attribute setters all have same behaviour
   case SeadsaFn::MODIFY:
   case SeadsaFn::READ:
+  case SeadsaFn::HEAP:
   case SeadsaFn::PTR_TO_INT: {
     // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
     Value *arg = nullptr;
@@ -1271,6 +1276,11 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
                         << " because it expects a pointer"
                         << " that points to a non-sequence node.\n";);
     }
+    return;
+  }
+
+  default: {
+    visitExternalCall(CS);
     return;
   }
   }
@@ -1766,7 +1776,7 @@ Local::Local() : ModulePass(ID), m_dl(nullptr), m_allocInfo(nullptr) {}
 
 void Local::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
-  // dependency for immutable AllowWrapInfo  
+  // dependency for immutable AllowWrapInfo
   AU.addRequired<LoopInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.setPreservesAll();
@@ -1776,7 +1786,7 @@ bool Local::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_allocInfo = &getAnalysis<AllocWrapInfo>();
   m_allocInfo->initialize(M, this);
-  
+
   for (Function &F : M)
     runOnFunction(F);
   return false;

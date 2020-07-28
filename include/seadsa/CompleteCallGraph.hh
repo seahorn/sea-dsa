@@ -22,6 +22,7 @@ class raw_ostream;
 
 namespace seadsa {
 class AllocWrapInfo;
+class DsaLibFuncInfo;
 class Cloner;
 class CompleteCallGraph;
 
@@ -42,6 +43,7 @@ private:
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   Graph::SetFactory m_setFactory;
   const AllocWrapInfo &m_allocInfo;
+  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   std::unique_ptr<llvm::CallGraph> m_complete_cg;
   // true if assume that stack allocated memory does not escape
@@ -60,7 +62,9 @@ private:
 public:
   CompleteCallGraphAnalysis(const llvm::DataLayout &dl,
                             llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-                            const AllocWrapInfo &allocInfo, llvm::CallGraph &cg,
+                            const AllocWrapInfo &allocInfo,
+                            const DsaLibFuncInfo &dsaLibFuncInfo,
+                            llvm::CallGraph &cg,
                             bool noescape = true /* TODO: CLI*/);
 
   bool runOnModule(llvm::Module &M);
