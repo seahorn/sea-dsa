@@ -32,7 +32,7 @@ class DsaLibFuncInfo : public llvm::ImmutablePass {
   using ModuleRef = std::unique_ptr<llvm::Module>;
 
 protected:
-  mutable bool isInitialized = false;
+  mutable bool m_isInitialized = false;
   mutable AllocWrapInfo *m_awi;
   mutable llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
   mutable std::unordered_map<std::string, llvm::Function *> m_funcs;

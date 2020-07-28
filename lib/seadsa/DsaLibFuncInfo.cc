@@ -38,8 +38,8 @@ void DsaLibFuncInfo::initialize(const llvm::Module &M) const {
   using namespace llvm::sys::fs;
   using namespace llvm;
 
-  if (isInitialized || (XSpecFiles.empty() && !XUseClibSpec)) return;
-  isInitialized = true;
+  if (m_isInitialized || (XSpecFiles.empty() && !XUseClibSpec)) return;
+  m_isInitialized = true;
   auto dl = M.getDataLayout();
 
   m_awi = &getAnalysis<AllocWrapInfo>();
