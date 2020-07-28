@@ -33,8 +33,6 @@ class DsaLibFuncInfo : public llvm::ImmutablePass {
 
 protected:
   mutable bool m_isInitialized = false;
-  mutable AllocWrapInfo *m_awi;
-  mutable llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
   mutable std::unordered_map<std::string, llvm::Function *> m_funcs;
 
   // m_module must be deallocated before m_ctx, keep in this order
@@ -43,7 +41,7 @@ protected:
 public:
   static char ID;
 
-  DsaLibFuncInfo() : ImmutablePass(ID), m_awi(nullptr), m_tliWrapper(nullptr) {}
+  DsaLibFuncInfo() : ImmutablePass(ID) {}
   void initialize(const llvm::Module &m) const;
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
   llvm::StringRef getPassName() const override { return "SeaDsa Spec Pass"; }

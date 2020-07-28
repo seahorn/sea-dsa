@@ -42,9 +42,6 @@ void DsaLibFuncInfo::initialize(const llvm::Module &M) const {
   m_isInitialized = true;
   auto dl = M.getDataLayout();
 
-  m_awi = &getAnalysis<AllocWrapInfo>();
-  m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
-
   SMDiagnostic err;
 
   auto exePath = getMainExecutable(nullptr, nullptr);
@@ -123,7 +120,5 @@ using namespace llvm;
 
 INITIALIZE_PASS_BEGIN(DsaLibFuncInfo, "seadsa-spec-graph-info",
                       "Creates local analysis from spec", false, false)
-INITIALIZE_PASS_DEPENDENCY(AllocWrapInfo)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_END(DsaLibFuncInfo, "seadsa-spec-graph-info",
                     "Creates local analysis from spec", false, false)
