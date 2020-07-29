@@ -23,9 +23,9 @@ verification framework and its analyses.
 `SeaDsa` is written in C++ and uses the Boost library. The main requirements
 are: 
 
-- C++ compiler supporting c++11
-- Boost >= 1.55
-- LLVM 5.0
+- C++ compiler supporting c++14
+- Boost >= 1.65
+- LLVM 10
 
 To run tests, install the following packages:
 
@@ -69,10 +69,10 @@ project's `CMakeLists.txt`:
 
 ### Standalone (for developers) ###
 
-If you already installed `llvm-5.0` on your machine:
+If you already installed `llvm-10` on your machine:
 
     mkdir build && cd build
-	cmake -DCMAKE_INSTALL_PREFIX=run -DLLVM_DIR=__here_llvm-5.0__/share/llvm/cmake  ..
+	cmake -DCMAKE_INSTALL_PREFIX=run -DLLVM_DIR=__here_llvm-10__/share/llvm/cmake  ..
    	cmake --build . --target install
 	
 Otherwise:
