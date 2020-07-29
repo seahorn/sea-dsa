@@ -884,7 +884,7 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
     // TODO: Need to think how to handle functions that do not return in
     // interprocedural encoding. For now, we print a warning and ignore this
     // case.
-    errs() << "WARNING: Function " << F.getName() << "never returns."
+    errs() << "WARNING: Function " << F.getName() << " never returns."
            << "Inter-procedural analysis with such functions might not be "
            << "supported.";
     return true;
