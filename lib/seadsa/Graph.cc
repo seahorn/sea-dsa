@@ -1255,6 +1255,46 @@ bool Graph::computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
   return true;
 }
 
+bool Graph::computeSimulationMapping(Graph &fromG, Graph &toG,  
+				     SimulationMapper &simMap,
+				     bool onlyModified) {
+  // Find a simulation relation for all globals
+  for (auto &kv : fromG.globals()) {
+    Cell &c = *kv.second;
+    if (!onlyModified || c.isModified()) {    
+      Cell &nc = toG.mkCell(*kv.first, Cell());
+      if (!simMap.insert(c, nc)) {
+	return false;
+      }
+    }
+  }
+
+  // Find a simulation relation for all function formal parameters
+  for (auto &kv : fromG.formals()) {
+    Cell &c = *kv.second;
+    if (!onlyModified || c.isModified()) {        
+      Cell &nc = toG.mkCell(*kv.first, Cell());
+      if (!simMap.insert(c, nc)) {
+	return false;
+      }
+    }
+  }
+
+  // Find a simulation relation for all function return parameters
+  for (auto &kv : fromG.returns()) {
+    Cell &c = *kv.second;
+    if (!onlyModified || c.isModified()) {        
+      if (toG.hasRetCell(*kv.first)) {
+	Cell &nc = toG.getRetCell(*kv.first);
+	if (!simMap.insert(c, nc)) {
+	  return false;
+	}
+      }
+    }
+  }
+  return true;
+}
+  
 void Graph::import(const Graph &g, bool withFormals) {
   Cloner C(*this, CloningContext::mkNoContext(), Cloner::Options::Basic);
   for (auto &kv : g.m_values) {
