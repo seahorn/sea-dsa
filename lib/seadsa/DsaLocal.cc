@@ -548,22 +548,35 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   if (const ConstantExpr *ce = dyn_cast<const ConstantExpr>(&v)) {
     if (ce->isCast() && ce->getOperand(0)->getType()->isPointerTy())
       return valueCell(*ce->getOperand(0));
-    else if (ce->getOpcode() == Instruction::GetElementPtr) {
-      Value &base = *(ce->getOperand(0));
+    else {
+      Cell *C = nullptr;
+      if (ce->getOpcode() == Instruction::GetElementPtr) {
+	Value &base = *(ce->getOperand(0));
 
-      // We create first a cell for the gep'd pointer operand if it's
-      // an IntToPtr
-      if (const ConstantExpr *base_ce = dyn_cast<ConstantExpr>(&base)) {
-        if (base_ce->getOpcode() == Instruction::IntToPtr) { valueCell(base); }
+	// We create first a cell for the gep'd pointer operand if it's
+	// an IntToPtr
+	if (const ConstantExpr *base_ce = dyn_cast<ConstantExpr>(&base)) {
+	  if (base_ce->getOpcode() == Instruction::IntToPtr) { valueCell(base); }
+	}
+	SmallVector<Value *, 8> indicies(ce->op_begin() + 1, ce->op_end());
+	visitGep(v, base, indicies);
+	if (m_graph.hasCell(*ce)) {
+	  C = &(m_graph.mkCell(*ce, Cell()));
+	}
+      } else if (ce->getOpcode() == Instruction::IntToPtr) {
+	visitCastIntToPtr(*ce);
+	if (m_graph.hasCell(*ce)) {
+	  C = &(m_graph.mkCell(*ce, Cell()));
+	}
       }
-      SmallVector<Value *, 8> indicies(ce->op_begin() + 1, ce->op_end());
-      visitGep(v, base, indicies);
-      assert(m_graph.hasCell(v));
-      return m_graph.mkCell(v, Cell());
-    } else if (ce->getOpcode() == Instruction::IntToPtr) {
-      visitCastIntToPtr(*ce);
-      assert(m_graph.hasCell(*ce));
-      return m_graph.mkCell(*ce, Cell());
+      
+      if (C) {
+	return *C;
+      } else {
+	LOG("dsa", errs() << "WARNING: unsound handling of a constant "
+	    << "as a fresh allocation: " << *ce << "\n";);
+	return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
+      }
     }
   }
 
