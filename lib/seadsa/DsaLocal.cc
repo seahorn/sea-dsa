@@ -906,7 +906,20 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     if (BlockBuilderBase::isNullConstant(*(GEP->getPointerOperand()))) return;
   }
 
-  if (!m_graph.hasCell(ptr) && !isa<GlobalValue>(&ptr)) {
+  // -- empty gep that points directly to the base
+  if (gep.stripPointerCasts() == &ptr) return;
+
+  if (m_graph.hasCell(gep)) {
+    // gep can have already a cell if it can be stripped to another
+    // pointer different from the base or is a constant gep that has already
+    // been visited.
+    assert(gep.stripPointerCasts() != &gep || llvm::isa<ConstantExpr>(&gep));
+    return;
+  }
+  
+  seadsa::Cell base = valueCell(ptr);
+
+  if (base.isNull()) {
     LOG("dsa", {
       errs() << "Cell not found for gep:\t";
       gep.print(errs());
@@ -923,22 +936,9 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     assert(false && "No cell for gep'd ptr");
     return;
   }
-
-  // -- empty gep that points directly to the base
-  if (gep.stripPointerCasts() == &ptr) return;
-
-  seadsa::Cell base = valueCell(ptr);
-  assert(!base.isNull());
-
-  if (m_graph.hasCell(gep)) {
-    // gep can have already a cell if it can be stripped to another
-    // pointer different from the base or is a constant gep that has already
-    // been visited.
-    assert(gep.stripPointerCasts() != &gep || llvm::isa<ConstantExpr>(&gep));
-    return;
-  }
-
+  
   assert(!m_graph.hasCell(gep));
+  assert(!base.isNull());
   seadsa::Node *baseNode = base.getNode();
   if (baseNode->isOffsetCollapsed()) {
     m_graph.mkCell(gep, seadsa::Cell(baseNode, 0));
@@ -986,7 +986,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     m_graph.mkCell(gep, seadsa::Cell(base, off.first));
   }
 }
-
+  
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
   Value &ptr = *I.getPointerOperand();
 
