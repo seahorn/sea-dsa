@@ -87,7 +87,8 @@ public:
   }
 
   bool isBlockedEdge(const BasicBlock *src, const BasicBlock *dst) {
-    if (m_dirty) std::stable_sort(m_edges.begin(), m_edges.end());
+    if (m_dirty)
+      std::stable_sort(m_edges.begin(), m_edges.end());
     m_dirty = false;
     return std::binary_search(m_edges.begin(), m_edges.end(),
                               std::make_pair(src, dst));
@@ -116,7 +117,8 @@ namespace {
  */
 template <typename Container>
 void revTopoSort(const llvm::Function &F, Container &out) {
-  if (F.isDeclaration() || F.empty()) return;
+  if (F.isDeclaration() || F.empty())
+    return;
 
   llvm::SmallVector<BlockedEdges::BasicBlockPtrPair, 8> backEdges;
   FindFunctionBackedges(F, backEdges);
@@ -130,10 +132,12 @@ void revTopoSort(const llvm::Function &F, Container &out) {
 /// properly handle bitcast
 Function *getCalledFunction(CallSite &CS) {
   Function *fn = CS.getCalledFunction();
-  if (fn) return fn;
+  if (fn)
+    return fn;
 
   Value *v = CS.getCalledValue();
-  if (v) v = v->stripPointerCasts();
+  if (v)
+    v = v->stripPointerCasts();
   fn = dyn_cast<Function>(v);
 
   return fn;
@@ -197,7 +201,8 @@ protected:
 
   /// Returns true if the given llvm::Value should not be analyzed
   bool isSkip(Value &V) {
-    if (!V.getType()->isPointerTy()) return true;
+    if (!V.getType()->isPointerTy())
+      return true;
 
     // TODO: Optionally make V as skipped if it is used only as an argument to a
     // call to an external function. LLVM's pointer-use-visitor can be used to
@@ -215,9 +220,12 @@ protected:
     while (!workList.empty()) {
       const Type *Ty = workList.back();
       workList.pop_back();
-      if (!seen.insert(Ty).second) continue;
+      if (!seen.insert(Ty).second)
+        continue;
 
-      if (Ty->isPointerTy()) { return true; }
+      if (Ty->isPointerTy()) {
+        return true;
+      }
 
       if (const StructType *ST = dyn_cast<StructType>(Ty)) {
         for (unsigned i = 0, sz = ST->getNumElements(); i < sz; ++i) {
@@ -238,7 +246,8 @@ protected:
   static bool isNullConstant(const Value &v) {
     const Value *V = v.stripPointerCasts();
 
-    if (isa<Constant>(V) && cast<Constant>(V)->isNullValue()) return true;
+    if (isa<Constant>(V) && cast<Constant>(V)->isNullValue())
+      return true;
 
     // TODO: check whether v can simplify to a NullValue
 
@@ -267,7 +276,8 @@ class GlobalBuilder : public BlockBuilderBase {
 
   /// from: llvm/lib/ExecutionEngine/ExecutionEngine.cpp
   void init(const Constant *Init, seadsa::Cell &c, unsigned offset) {
-    if (isa<UndefValue>(Init)) return;
+    if (isa<UndefValue>(Init))
+      return;
 
     if (const ConstantVector *CP = dyn_cast<ConstantVector>(Init)) {
       unsigned ElementSize =
@@ -280,7 +290,9 @@ class GlobalBuilder : public BlockBuilderBase {
       return;
     }
 
-    if (isa<ConstantAggregateZero>(Init)) { return; }
+    if (isa<ConstantAggregateZero>(Init)) {
+      return;
+    }
 
     if (const ConstantArray *CPA = dyn_cast<ConstantArray>(Init)) {
       unsigned ElementSize =
@@ -305,7 +317,9 @@ class GlobalBuilder : public BlockBuilderBase {
       return;
     }
 
-    if (isa<ConstantDataSequential>(Init)) { return; }
+    if (isa<ConstantDataSequential>(Init)) {
+      return;
+    }
 
     if (Init->getType()->isPointerTy() && !isa<ConstantPointerNull>(Init)) {
       if (cast<PointerType>(Init->getType())
@@ -347,11 +361,13 @@ public:
       : BlockBuilderBase(func, graph, dl, tli, allocInfo) {}
 
   void initGlobalVariables() {
-    if (!m_func.getName().equals("main")) return;
+    if (!m_func.getName().equals("main"))
+      return;
 
     Module &M = *(m_func.getParent());
     for (auto &gv : M.globals()) {
-      if (gv.getName().equals("llvm.used")) continue;
+      if (gv.getName().equals("llvm.used"))
+        continue;
 
       if (gv.hasInitializer()) {
         seadsa::Cell c = valueCell(gv);
@@ -378,7 +394,8 @@ public:
 };
 
 void InterBlockBuilder::visitPHINode(PHINode &PHI) {
-  if (!PHI.getType()->isPointerTy()) return;
+  if (!PHI.getType()->isPointerTy())
+    return;
 
   assert(m_graph.hasCell(PHI));
   seadsa::Cell &phi = m_graph.mkCell(PHI, seadsa::Cell());
@@ -386,15 +403,18 @@ void InterBlockBuilder::visitPHINode(PHINode &PHI) {
     Value &v = *PHI.getIncomingValue(i);
 
     // -- skip null
-    if (BlockBuilderBase::isNullConstant(v)) continue;
+    if (BlockBuilderBase::isNullConstant(v))
+      continue;
 
     // -- skip load of null
     if (auto *LI = dyn_cast<LoadInst>(&v)) {
-      if (BlockBuilderBase::isNullConstant(*LI->getPointerOperand())) continue;
+      if (BlockBuilderBase::isNullConstant(*LI->getPointerOperand()))
+        continue;
     }
 
     // -- skip undef
-    if (isa<Constant>(&v) && isa<UndefValue>(&v)) continue;
+    if (isa<Constant>(&v) && isa<UndefValue>(&v))
+      continue;
 
     // --- real code begins ---
     seadsa::Cell c = valueCell(v);
@@ -467,7 +487,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitAllocationFnCall(CallSite &CS);
 
   SeadsaFn getSeaDsaFn(const Function *fn) {
-    if (!fn) return SeadsaFn::UNKNOWN;
+    if (!fn)
+      return SeadsaFn::UNKNOWN;
 
     return StringSwitch<SeadsaFn>(fn->getName())
         .Case("sea_dsa_set_modified", SeadsaFn::MODIFY)
@@ -482,7 +503,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   /// Returns true if \p F is a \p seadsa_ family of functions
   static bool isSeaDsaFn(const Function *fn) {
-    if (!fn) return false;
+    if (!fn)
+      return false;
     auto n = fn->getName();
     return n.startswith("sea_dsa_");
   }
@@ -528,7 +550,8 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
     return c;
   }
 
-  if (isa<UndefValue>(&v)) return Cell();
+  if (isa<UndefValue>(&v))
+    return Cell();
   if (isa<GlobalAlias>(&v))
     return valueCell(*cast<GlobalAlias>(&v)->getAliasee());
 
@@ -543,7 +566,8 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   }
 
   // -- special case for aggregate types. Cell creation is handled elsewhere
-  if (v.getType()->isAggregateType()) return Cell();
+  if (v.getType()->isAggregateType())
+    return Cell();
 
   if (const ConstantExpr *ce = dyn_cast<const ConstantExpr>(&v)) {
     if (ce->isCast() && ce->getOperand(0)->getType()->isPointerTy())
@@ -551,31 +575,33 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
     else {
       Cell *C = nullptr;
       if (ce->getOpcode() == Instruction::GetElementPtr) {
-	Value &base = *(ce->getOperand(0));
+        Value &base = *(ce->getOperand(0));
 
-	// We create first a cell for the gep'd pointer operand if it's
-	// an IntToPtr
-	if (const ConstantExpr *base_ce = dyn_cast<ConstantExpr>(&base)) {
-	  if (base_ce->getOpcode() == Instruction::IntToPtr) { valueCell(base); }
-	}
-	SmallVector<Value *, 8> indicies(ce->op_begin() + 1, ce->op_end());
-	visitGep(v, base, indicies);
-	if (m_graph.hasCell(*ce)) {
-	  C = &(m_graph.mkCell(*ce, Cell()));
-	}
+        // We create first a cell for the gep'd pointer operand if it's
+        // an IntToPtr
+        if (const ConstantExpr *base_ce = dyn_cast<ConstantExpr>(&base)) {
+          if (base_ce->getOpcode() == Instruction::IntToPtr) {
+            valueCell(base);
+          }
+        }
+        SmallVector<Value *, 8> indicies(ce->op_begin() + 1, ce->op_end());
+        visitGep(v, base, indicies);
+        if (m_graph.hasCell(*ce)) {
+          C = &(m_graph.mkCell(*ce, Cell()));
+        }
       } else if (ce->getOpcode() == Instruction::IntToPtr) {
-	visitCastIntToPtr(*ce);
-	if (m_graph.hasCell(*ce)) {
-	  C = &(m_graph.mkCell(*ce, Cell()));
-	}
+        visitCastIntToPtr(*ce);
+        if (m_graph.hasCell(*ce)) {
+          C = &(m_graph.mkCell(*ce, Cell()));
+        }
       }
-      
+
       if (C) {
-	return *C;
+        return *C;
       } else {
-	LOG("dsa", errs() << "WARNING: unsound handling of a constant "
-	    << "as a fresh allocation: " << *ce << "\n";);
-	return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
+        LOG("dsa", errs() << "WARNING: unsound handling of a constant "
+                          << "as a fresh allocation: " << *ce << "\n";);
+        return m_graph.mkCell(v, Cell(m_graph.mkNode(), 0));
       }
     }
   }
@@ -590,7 +616,8 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
 }
 
 void IntraBlockBuilder::visitInstruction(Instruction &I) {
-  if (isSkip(I)) return;
+  if (isSkip(I))
+    return;
 
   m_graph.mkCell(I, seadsa::Cell(m_graph.mkNode(), 0));
 }
@@ -611,7 +638,8 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
 
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   using namespace seadsa;
-  if (isSkip(SI)) return;
+  if (isSkip(SI))
+    return;
 
   assert(!m_graph.hasCell(SI));
 
@@ -627,14 +655,16 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   using namespace seadsa;
 
   // -- skip read from NULL
-  if (BlockBuilderBase::isNullConstant(*LI.getPointerOperand())) return;
+  if (BlockBuilderBase::isNullConstant(*LI.getPointerOperand()))
+    return;
 
   if (!m_graph.hasCell(*LI.getPointerOperand()->stripPointerCasts())) {
     /// XXX: this is very likely because the pointer operand is the
     /// result of applying one or several gep instructions starting
     /// from NULL. Note that this is undefined behavior but it
     /// occurs in ldv benchmarks.
-    if (!isa<ConstantExpr>(LI.getPointerOperand()->stripPointerCasts())) return;
+    if (!isa<ConstantExpr>(LI.getPointerOperand()->stripPointerCasts()))
+      return;
   }
 
   /// XXX: special case for casted functions to remove the return value
@@ -692,7 +722,9 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
   using namespace seadsa;
 
-  if (!m_graph.hasCell(*I.getPointerOperand()->stripPointerCasts())) { return; }
+  if (!m_graph.hasCell(*I.getPointerOperand()->stripPointerCasts())) {
+    return;
+  }
   Value *Ptr = I.getPointerOperand();
   Value *Cmp = I.getCompareOperand();
   Value *New = I.getNewValOperand();
@@ -762,7 +794,8 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
     /// result of applying one or several gep instructions starting
     /// from NULL. Note that this is undefined behavior but it
     /// occurs in ldv benchmarks.
-    if (!isa<ConstantExpr>(SI.getPointerOperand()->stripPointerCasts())) return;
+    if (!isa<ConstantExpr>(SI.getPointerOperand()->stripPointerCasts()))
+      return;
   }
 
   Cell base = valueCell(*SI.getPointerOperand()->stripPointerCasts());
@@ -792,7 +825,8 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
 }
 
 void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
-  if (isSkip(I)) return;
+  if (isSkip(I))
+    return;
 
   if (BlockBuilderBase::isNullConstant(*I.getOperand(0)))
     return; // do nothing if null
@@ -894,20 +928,24 @@ uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
 void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
                                 ArrayRef<Value *> indicies) {
   // -- skip NULL
-  if (isNullConstant(ptr)) return;
+  if (isNullConstant(ptr))
+    return;
 
   //  -- skip load from null
   if (auto *LI = dyn_cast<LoadInst>(&ptr)) {
-    if (BlockBuilderBase::isNullConstant(*(LI->getPointerOperand()))) return;
+    if (BlockBuilderBase::isNullConstant(*(LI->getPointerOperand())))
+      return;
   }
 
   // -- skip gep from null
   if (auto *GEP = dyn_cast<GetElementPtrInst>(&ptr)) {
-    if (BlockBuilderBase::isNullConstant(*(GEP->getPointerOperand()))) return;
+    if (BlockBuilderBase::isNullConstant(*(GEP->getPointerOperand())))
+      return;
   }
 
   // -- empty gep that points directly to the base
-  if (gep.stripPointerCasts() == &ptr) return;
+  if (gep.stripPointerCasts() == &ptr)
+    return;
 
   if (m_graph.hasCell(gep)) {
     // gep can have already a cell if it can be stripped to another
@@ -916,7 +954,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     assert(gep.stripPointerCasts() != &gep || llvm::isa<ConstantExpr>(&gep));
     return;
   }
-  
+
   seadsa::Cell base = valueCell(ptr);
 
   if (base.isNull()) {
@@ -936,7 +974,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     assert(false && "No cell for gep'd ptr");
     return;
   }
-  
+
   assert(!m_graph.hasCell(gep));
   assert(!base.isNull());
   seadsa::Node *baseNode = base.getNode();
@@ -986,7 +1024,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     m_graph.mkCell(gep, seadsa::Cell(base, off.first));
   }
 }
-  
+
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
   Value &ptr = *I.getPointerOperand();
 
@@ -1101,7 +1139,8 @@ void IntraBlockBuilder::visitInlineAsmCall(CallSite &CS) {
   assert(CS.isInlineAsm());
 
   auto &inst = *CS.getInstruction();
-  if (isSkip(inst)) return;
+  if (isSkip(inst))
+    return;
   Cell &c = m_graph.mkCell(inst, Cell(m_graph.mkNode(), 0));
   c.getNode()->setExternal();
 
@@ -1114,7 +1153,8 @@ void IntraBlockBuilder::visitInlineAsmCall(CallSite &CS) {
 void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
   using namespace seadsa;
   auto &inst = *CS.getInstruction();
-  if (isSkip(inst)) return;
+  if (isSkip(inst))
+    return;
 
   auto *callee = getCalledFunction(CS);
   assert(callee);
@@ -1123,7 +1163,8 @@ void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
   Cell &c = m_graph.mkCell(inst, Cell(m_graph.mkNode(), 0));
   c.getNode()->setExternal();
 
-  if (callee->getName().startswith("verifier.nondet.abstract.memory")) return;
+  if (callee->getName().startswith("verifier.nondet.abstract.memory"))
+    return;
 
   // TODO: better handling of external funcations
   // TOOD: Use function attributes and external specifications
@@ -1157,9 +1198,11 @@ void IntraBlockBuilder::visitIndirectCall(CallSite &CS) {
   using namespace seadsa;
   auto *inst = CS.getInstruction();
   assert(inst);
-  if (!isSkip(*inst)) m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
+  if (!isSkip(*inst))
+    m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
 
-  if (!m_track_callsites) return;
+  if (!m_track_callsites)
+    return;
 
   assert(CS.getCalledValue());
   const Value &calledV = *(CS.getCalledValue());
@@ -1189,13 +1232,15 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     if (!(match(CS.getArgument(0), m_Value(arg)) &&
           arg->getType()->isPointerTy()))
       return;
-    if (isSkip(*(arg))) return;
+    if (isSkip(*(arg)))
+      return;
     if (m_graph.hasCell(*(arg))) {
       seadsa::Cell c = valueCell(*(arg));
 
       // get the appropriate setter, and execute on the object instance
       seadsaNodeSetterFunc setter = getSeaDsaAttrbFunc(callee);
-      if (setter) setter(c.getNode(), true);
+      if (setter)
+        setter(c.getNode(), true);
     }
     return;
   }
@@ -1248,7 +1293,8 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     if (!(match(CS.getArgument(0), m_Value(arg)) &&
           arg->getType()->isPointerTy()))
       return;
-    if (isSkip(*(arg))) return;
+    if (isSkip(*(arg)))
+      return;
     if (m_graph.hasCell(*(arg))) {
       seadsa::Cell c = valueCell(*(arg));
       c.getNode()->collapseOffsets(__LINE__);
@@ -1264,16 +1310,20 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     if (!(match(CS.getArgument(0), m_Value(arg0)) &&
           arg0->getType()->isPointerTy()))
       return;
-    if (!match(CS.getArgument(1), m_ConstantInt(arg1))) return;
-    if (isSkip(*arg0)) return;
-    if (!m_graph.hasCell(*arg0)) return;
+    if (!match(CS.getArgument(1), m_ConstantInt(arg1)))
+      return;
+    if (isSkip(*arg0))
+      return;
+    if (!m_graph.hasCell(*arg0))
+      return;
 
     seadsa::Cell c = valueCell(*arg0);
     Node *n = c.getNode();
     if (!n->isArray()) {
 
       assert(!arg1->isZero() && "Second argument must be a number!");
-      if (arg1->isZero()) return;
+      if (arg1->isZero())
+        return;
 
       if (n->size() <= arg1->getZExtValue()) {
         n->setArraySize(arg1->getZExtValue());
@@ -1375,20 +1425,24 @@ void IntraBlockBuilder::visitShuffleVectorInst(ShuffleVectorInst &I) {
 void IntraBlockBuilder::visitMemSetInst(MemSetInst &I) {
   seadsa::Cell dest = valueCell(*(I.getDest()));
   // assert (!dest.isNull ());
-  if (!dest.isNull()) dest.setModified();
+  if (!dest.isNull())
+    dest.setModified();
 
   // TODO:
   // can also update size using I.getLength ()
 }
 
 bool hasNoPointerTy(const llvm::Type *t) {
-  if (!t) return true;
+  if (!t)
+    return true;
 
-  if (t->isPointerTy()) return false;
+  if (t->isPointerTy())
+    return false;
   if (const StructType *sty = dyn_cast<const StructType>(t)) {
     for (auto it = sty->element_begin(), end = sty->element_end(); it != end;
          ++it)
-      if (!hasNoPointerTy(*it)) return false;
+      if (!hasNoPointerTy(*it))
+        return false;
   } else if (const SequentialType *seqty = dyn_cast<const SequentialType>(t))
     return hasNoPointerTy(seqty->getElementType());
 
@@ -1400,7 +1454,8 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   auto *srcTy = srcPtr->getType()->getPointerElementType();
 
   ConstantInt *rawLength = dyn_cast<ConstantInt>(MI.getLength());
-  if (!rawLength) return false;
+  if (!rawLength)
+    return false;
 
   const uint64_t length = rawLength->getZExtValue();
   LOG("dsa", errs() << "MemTransfer length:\t" << length << "\n");
@@ -1423,7 +1478,8 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
     return knownNoPointersInStructs[{srcTy, length}];
 
   for (auto &subTy : seadsa::AggregateIterator::range(srcTy, &DL)) {
-    if (subTy.Offset >= length) break;
+    if (subTy.Offset >= length)
+      break;
 
     if (subTy.Ty->isPointerTy()) {
       LOG("dsa", errs() << "Found ptr member "; subTy.Ty->print(errs());
@@ -1441,10 +1497,12 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
 
 void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   // -- skip copy NULL
-  if (isNullConstant(*I.getSource())) return;
+  if (isNullConstant(*I.getSource()))
+    return;
 
   // -- skip copy to an unallocated address
-  if (isNullConstant(*I.getDest())) return;
+  if (isNullConstant(*I.getDest()))
+    return;
 
   if (!m_graph.hasCell(*I.getSource())) {
     errs() << "WARNING: source of memcopy/memmove has no cell: "
@@ -1493,18 +1551,22 @@ bool shouldBeTrackedIntToPtr(const Value &def) {
   //      getUser() to get the actual user.
   // if (def.hasOneUse () && isa<CmpInst> (*(def.use_begin ()))) return false;
 
-  if (def.hasNUses(0)) return false;
+  if (def.hasNUses(0))
+    return false;
 
   if (def.hasOneUse()) {
     const Value *v = dyn_cast<Value>(def.use_begin()->getUser());
-    if (isa<CmpInst>(v)) return false;
+    if (isa<CmpInst>(v))
+      return false;
 
     DenseSet<const Value *> seen;
     while (v && v->hasOneUse() && seen.insert(v).second) {
-      if (isa<LoadInst>(v) || isa<StoreInst>(v) || isa<CallInst>(v)) break;
+      if (isa<LoadInst>(v) || isa<StoreInst>(v) || isa<CallInst>(v))
+        break;
       v = dyn_cast<const Value>(v->use_begin()->getUser());
     }
-    if (isa<CmpInst>(v)) return false;
+    if (isa<CmpInst>(v))
+      return false;
   }
   return true;
 }
@@ -1602,7 +1664,8 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
       llvm::errs() << "WARNING: ";
       bool printAddress = true;
       LOG("dsa", llvm::errs() << dest; printAddress = false);
-      if (printAddress) llvm::errs() << "inttoptr @ addr " << &dest;
+      if (printAddress)
+        llvm::errs() << "inttoptr @ addr " << &dest;
       llvm::errs()
           << " is (unsoundly) assumed to point to a fresh memory region.\n";
     }
@@ -1617,10 +1680,13 @@ void IntraBlockBuilder::visitReturnInst(ReturnInst &RI) {
   Value *v = RI.getReturnValue();
 
   // We don't skip the return value if its type contains a pointer.
-  if (!v || (isSkip(*v) && !containsPointer(*v))) { return; }
+  if (!v || (isSkip(*v) && !containsPointer(*v))) {
+    return;
+  }
 
   seadsa::Cell c = valueCell(*v);
-  if (c.isNull()) return;
+  if (c.isNull())
+    return;
 
   m_graph.mkRetCell(m_func, c);
 }
@@ -1641,13 +1707,17 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
   while (!workList.empty()) {
     const Value *v = workList.back();
     workList.pop_back();
-    if (!seen.insert(v).second) continue;
+    if (!seen.insert(v).second)
+      continue;
 
     for (auto *user : v->users()) {
-      if (seen.count(user)) continue;
-      if (isa<BranchInst>(user) || isa<CmpInst>(user)) continue;
+      if (seen.count(user))
+        continue;
+      if (isa<BranchInst>(user) || isa<CmpInst>(user))
+        continue;
       if (auto *si = dyn_cast<SelectInst>(user)) {
-        if (si->getCondition() == v) continue;
+        if (si->getCondition() == v)
+          continue;
       }
       if (auto *bi = dyn_cast<BinaryOperator>(user)) {
         if (bi->getOpcode() == Instruction::Sub &&
@@ -1682,7 +1752,8 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
 }
 
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
-  if (!isEscapingPtrToInt(I)) return;
+  if (!isEscapingPtrToInt(I))
+    return;
 
   assert(m_graph.hasCell(*I.getOperand(0)));
   seadsa::Cell c = valueCell(*I.getOperand(0));
@@ -1721,7 +1792,8 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
       Node &n = g.mkNode();
-      if (TrustArgumentTypes) g.mkCell(a, Cell(n, 0));
+      if (TrustArgumentTypes)
+        g.mkCell(a, Cell(n, 0));
       else
         g.mkCell(a, Cell(n, 0));
       // -- XXX: hook to record allocation site if F is main
@@ -1806,7 +1878,8 @@ bool Local::runOnModule(Module &M) {
 }
 
 bool Local::runOnFunction(Function &F) {
-  if (F.isDeclaration() || F.empty()) return false;
+  if (F.isDeclaration() || F.empty())
+    return false;
 
   LOG("progress", errs() << "DSA: " << F.getName() << "\n";);
 
