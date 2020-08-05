@@ -143,6 +143,8 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
 class PointerPromoter : public InstVisitor<PointerPromoter, Value *> {
   Type *m_ty;
   SmallPtrSetImpl<Instruction *> &m_toRemove;
+  // -- to break cycles in PHINodes
+  SmallPtrSet<Instruction*, 16> m_visited;
 
 public:
   PointerPromoter(SmallPtrSetImpl<Instruction *> &toRemove)
@@ -151,7 +153,7 @@ public:
   Value *visitInstruction(Instruction &I) { return nullptr; }
 
   Value *visitPtrToIntInst(Instruction &I) {
-
+    // errs() << "Visiting: " << I << "\n";
     m_toRemove.insert(&I);
 
     auto *op = I.getOperand(0);
@@ -161,7 +163,12 @@ public:
   }
 
   Value *visitPHINode(PHINode &I) {
+    // -- cycle, can only happen over phi-nodes
+    // XXX This might prevent more than cycles ...
+    if (m_visited.count(&I)) return nullptr;
+
     // errs() << "Visiting: " << I << "\n";
+    m_visited.insert(&I);
     std::vector<Value *> vals(I.getNumIncomingValues());
 
     for (unsigned i = 0, e = I.getNumIncomingValues(); i < e; ++i) {
