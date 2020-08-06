@@ -52,7 +52,7 @@ if (CMAKE_C_COMPILER_ID MATCHES Clang)
   if(SEAHORN_BUILD_32_BIT_SPEC) 
 
     add_executable(LibcSpec-32 OBJECT libc.spec.c)
-    target_compile_options(LibcSpec-32 BEFORE PRIVATE -emit-llvm)
+    target_compile_options(LibcSpec-32 BEFORE PRIVATE -m32 -emit-llvm)
     install(FILES $<TARGET_OBJECTS:LibcSpec-32> 
       DESTINATION lib 
       RENAME libc-32.spec.bc
