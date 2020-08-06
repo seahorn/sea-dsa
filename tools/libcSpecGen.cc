@@ -484,7 +484,11 @@ int main() {
     out_file << "#include <sys/stat.h>\n";
     out_file << "#include <sys/resource.h>\n";
     out_file << "#include <sys/times.h>\n";
-    out_file << "#include <sys/timeb.h>\n\n";
+    out_file << "#include <sys/timeb.h>\n";
+    out_file << "#include <sys/select.h>\n\n";
+    out_file << "#undef sprintf\n";
+    out_file << "#undef snprintf\n";
+    out_file << "#undef vsnprintf\n";
   } else {
     throw std::invalid_argument("Couldn't open file");
   }
