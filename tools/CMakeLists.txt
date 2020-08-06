@@ -33,41 +33,31 @@ endif()
 
 message(${CMAKE_CURRENT_SOURCE_DIR})
 
-# either Clang or AppleClang are ok use MATCHES instead of STREQUAL to work with
-# AppleClang. However, compilation switches for AppleClang are different. Need to
-# find proper CMake way to compile in a system independent way.
-if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-  add_custom_target(GenerateSpecs ALL
+if (CMAKE_C_COMPILER_ID MATCHES Clang)
+  add_custom_command(
+    OUTPUT libc.spec.c
     COMMAND libcSpecGen
     COMMAND ${CLANG-FORMAT} -i libc.spec.c
     DEPENDS libcSpecGen
     )
 
-  add_custom_target(LibcSpec-64 ALL
-    COMMAND ${CMAKE_C_COMPILER}
-    -I${CMAKE_CURRENT_SOURCE_DIR}/../include
-    -emit-llvm -c ${CXX_COMPILER_FLAGS}
-    -march=native -O3
-    -o libc-64.spec.bc
-    libc.spec.c
-    DEPENDS GenerateSpecs)
-
-  install (FILES ${CMAKE_CURRENT_BINARY_DIR}/libc-64.spec.bc
-    DESTINATION lib)
+  add_library(LibcSpec-64 OBJECT libc.spec.c)
+  target_compile_options(LibcSpec-64 BEFORE PRIVATE -emit-llvm)
+  install(FILES $<TARGET_OBJECTS:LibcSpec-64> 
+    DESTINATION lib 
+    RENAME libc-64.spec.bc
+    )  
 
   option(SEAHORN_BUILD_32_BIT_SPEC "Build 32bit library specs" OFF)
   if(SEAHORN_BUILD_32_BIT_SPEC) 
-    add_custom_target(LibcSpec-32 ALL
-      COMMAND ${CMAKE_C_COMPILER}
-      -I${CMAKE_CURRENT_SOURCE_DIR}/../include
-      -emit-llvm -c ${CXX_COMPILER_FLAGS}
-      -march=native -O3
-      -o libc-32.spec.bc
-      libc.spec.c
-      DEPENDS GenerateSpecs)
 
-    install (FILES ${CMAKE_CURRENT_BINARY_DIR}/libc-32.spec.bc
-      DESTINATION lib)
+    add_executable(LibcSpec-32 OBJECT libc.spec.c)
+    target_compile_options(LibcSpec-32 BEFORE PRIVATE -emit-llvm)
+    install(FILES $<TARGET_OBJECTS:LibcSpec-32> 
+      DESTINATION lib 
+      RENAME libc-32.spec.bc
+      )
+
   endif()
 else()
   message(WARNING "Unable to build sea-dsa spec files using current compiler!\n\
