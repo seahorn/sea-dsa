@@ -56,6 +56,21 @@ void color_nodes_graph(Graph &g, const Function &F, SimulationMapper &sm,
       color_nodes_aux(*n, *n_caller, f_proc, sm, c_callee, c_caller);
     }
   }
+  for (auto &kv : g.globals()) {
+    Cell &c = *kv.second;
+    const Node *n = c.getNode();
+    const Cell &cell_caller = sm.get(c);
+    const Node *n_caller = cell_caller.getNode();
+    color_nodes_aux(*n, *n_caller, f_proc, sm, c_callee, c_caller);
+  }
+
+  if (g.hasRetCell(F)) {
+    Cell &c = g.getRetCell(F);
+    const Node *n = c.getNode();
+    const Cell &cell_caller = sm.get(c);
+    const Node *n_caller = cell_caller.getNode();
+    color_nodes_aux(*n, *n_caller, f_proc, sm, c_callee, c_caller);
+  }
 }
 
 void colorGraph(const DsaCallSite &cs, const Graph &calleeG,
