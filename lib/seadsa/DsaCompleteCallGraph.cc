@@ -72,6 +72,15 @@ static Value *stripBitCast(Value *V) {
   }
 }
 
+static const Function *castThroughAliasees(const Value *V) {
+  if (const GlobalAlias *GA = dyn_cast<GlobalAlias>(V)) {
+    if (const Function *F = dyn_cast<Function>(GA->getAliasee())) {
+      return F;
+    }
+  }
+  return dyn_cast<const Function>(V);
+}
+  
 // XXX: similar to Graph::import but with two modifications:
 // - the callee graph is modified during the cloning of call sites.
 // - call sites are copied.
@@ -508,7 +517,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           // resolved callee. However, the call site is not marked as
           // fully resolve if the dsa node is marked as external.
           for (const Value *v : alloc_sites) {
-            if (const Function *fn = dyn_cast<const Function>(v)) {
+	    if (const Function *fn = castThroughAliasees(v)) {	    
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
               if (!hasEdge(CGNCaller, CGNCallee, CGNCS)) {
