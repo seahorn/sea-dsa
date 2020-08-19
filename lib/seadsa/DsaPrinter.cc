@@ -30,9 +30,15 @@ static llvm::cl::opt<std::string, true>
                   llvm::cl::value_desc("DIR"));
 
 static llvm::cl::opt<bool> DsaColorCallSiteSimDot(
-    "sea-dsa-color-sim-dot",
+    "sea-dsa-color-callsite-sim-dot",
     llvm::cl::desc("Output colored graphs according to how nodes of callees "
                    "are simulated in the caller"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> DsaColorFunctionSimDot(
+    "sea-dsa-color-func-sim-dot",
+    llvm::cl::desc("Output colored graphs according to how nodes of a summary "
+                   "graph are simulated in the final graph"),
     llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
@@ -309,17 +315,17 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
     std::string empty;
     raw_string_ostream OS(empty);
 
-    if( cm != nullptr){
+    if (cm != nullptr) {
       auto it = cm->find(N);
       if (it != cm->end()) {
         std::ostringstream stringStream;
         Color c = it->getSecond();
-        stringStream << "\"#" << std::hex << c << "\""; // this can be done because we know c > 0xA0A0A0
+        stringStream << "\"#" << std::hex << c
+                     << "\""; // this can be done because we know c > 0x808080
         OS << "fillcolor=" << stringStream.str() << ", style=filled";
       } else
         OS << "fillcolor=gray, style=filled";
-    }
-    else{
+    } else {
       if (N->isOffsetCollapsed() && N->isTypeCollapsed()) {
         OS << "fillcolor=brown1, style=filled";
       } else if (N->isOffsetCollapsed()) {
@@ -703,8 +709,8 @@ public :
                 m_dsa->getDsaAnalysis().getSummaryGraph(*f_callee);
 
               ColorMap color_callee, color_caller;
-              colorGraph(cs, calleeG, callerG, color_callee,
-                         color_caller);
+              colorGraphsCallSite(cs, calleeG, callerG, color_callee,
+                                  color_caller);
               std::string FilenameBase =
                 f_caller->getParent()->getModuleIdentifier() + "." +
                 f_caller->getName().str() + "." + f_callee->getName().str() +
@@ -726,13 +732,25 @@ public :
   }
 
   bool runOnFunction(Function &F) {
-    if (m_dsa->getDsaAnalysis().hasGraph(F)) {
-      Graph *G = &m_dsa->getDsaAnalysis().getGraph(F);
+    GlobalAnalysis &ga = m_dsa->getDsaAnalysis();
+    if (ga.hasGraph(F)) {
+      Graph *G = &ga.getGraph(F);
       if (G->begin() != G->end()) {
         std::string Filename = F.getName().str() + ".mem.dot";
         writeGraph(G, Filename);
+        if (DsaColorFunctionSimDot) { // simulate bu and sas graph and color
+          if (ga.hasSummaryGraph(F)) {
+            Graph *buG = &ga.getSummaryGraph(F);
+            ColorMap colorBuG, colorG;
+            colorGraphsFunction(F, *buG, *G, colorBuG, colorG);
+
+            writeGraph(buG, F.getName().str() + ".BU.mem.dot", &colorBuG);
+            writeGraph(G, F.getName().str() + ".TD.mem.dot", &colorG);
+          }
+        }
       }
     }
+
     return false;
   }
 
