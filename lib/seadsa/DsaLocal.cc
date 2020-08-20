@@ -240,8 +240,17 @@ protected:
 
     // TODO: check whether v can simplify to a NullValue
 
-    // XXX: some linux device drivers contain instructions gep null, ....
-    if (const GetElementPtrInst *Gep = dyn_cast<const GetElementPtrInst>(V)) {
+    if (auto *cast = dyn_cast<BitCastInst>(&v)) {
+      assert(cast->getOperand(0));
+      // recursion is bounded by levels of bitcasts
+      return isNullConstant(*cast->getOperand(0));
+    }
+    else if (auto *cast = dyn_cast<PtrToIntInst>(&v)) {
+      assert(cast->getOperand(0));
+      return isNullConstant(*cast->getOperand(0));
+    }
+    // Some LDV examples in SV-COMP benchmarks might contain gep null, ....
+    else if (const GetElementPtrInst *Gep = dyn_cast<const GetElementPtrInst>(V)) {
       const Value &base = *Gep->getPointerOperand();
       if (const Constant *c = dyn_cast<Constant>(base.stripPointerCasts()))
         return c->isNullValue();
@@ -1684,6 +1693,15 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
   if (!isEscapingPtrToInt(I)) return;
 
+  if (BlockBuilderBase::isNullConstant(*I.getOperand(0)))
+    return;
+
+  // -- conversion of a pointer that has no memory representation
+  // -- something is wrong, do a warning and return
+  if (!m_graph.hasCell(*I.getOperand(0))) {
+    LOG("dsa", llvm::errs() << "Warning: ptrtoint applied to pointer without a cell\n";);
+    return;
+  }
   assert(m_graph.hasCell(*I.getOperand(0)));
   seadsa::Cell c = valueCell(*I.getOperand(0));
   if (!c.isNull()) {
