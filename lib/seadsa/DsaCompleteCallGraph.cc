@@ -72,15 +72,6 @@ static Value *stripBitCast(Value *V) {
   }
 }
 
-static const Function *castThroughAliasees(const Value *V) {
-  if (const GlobalAlias *GA = dyn_cast<GlobalAlias>(V)) {
-    if (const Function *F = dyn_cast<Function>(GA->getAliasee())) {
-      return F;
-    }
-  }
-  return dyn_cast<const Function>(V);
-}
-  
 // XXX: similar to Graph::import but with two modifications:
 // - the callee graph is modified during the cloning of call sites.
 // - call sites are copied.
@@ -118,7 +109,7 @@ void CompleteCallGraphAnalysis::mergeGraphs(Graph &fromG, Graph &toG) {
 // Copy callsites from callee to caller graph using the cloner.
 void CompleteCallGraphAnalysis::cloneCallSites(Cloner &C, Graph &calleeG,
                                                Graph &callerG) {
-  for (DsaCallSite &calleeCS : calleeG.callsites()) {
+  for (DsaCallSite &calleeCS : calleeG.callsites()) {    
     const Instruction &I = *(calleeCS.getInstruction());
     if (calleeCS.hasCell()) { // should always have a cell
       const Cell &c = calleeCS.getCell();
@@ -475,7 +466,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
                     record.first == CS.getInstruction());
           });
     };
-
+    
     change = false;
     for (auto &kv : graphs) {
       for (DsaCallSite &cs : kv.second->callsites()) {
@@ -515,9 +506,11 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           // At this point, we can try to resolve the indirect call
           // Update the callgraph by adding a new edge to each
           // resolved callee. However, the call site is not marked as
-          // fully resolve if the dsa node is marked as external.
+          // fully resolved if the dsa node is marked as external.
+	  bool foundAtLeastOneCallee = false;
           for (const Value *v : alloc_sites) {
-	    if (const Function *fn = castThroughAliasees(v)) {	    
+	    if (const Function *fn = dyn_cast<Function>(v->stripPointerCastsAndAliases())) {
+	      foundAtLeastOneCallee = true;
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
               if (!hasEdge(CGNCaller, CGNCallee, CGNCS)) {
@@ -529,7 +522,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
             }
           }
 
-          if (!csNode->isExternal()) {
+          if (foundAtLeastOneCallee && !csNode->isExternal()) {
             // At this point we know about the indirect call that :
             // 1) it can be resolved. This happens either because:
             //    - we have already reached main during the bottom-up process or
