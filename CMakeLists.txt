@@ -178,3 +178,15 @@ install(DIRECTORY include/seadsa DESTINATION include
 if (TOP_LEVEL)
   install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION .)
 endif()
+
+if(CMAKE_C_COMPILER_ID STREQUAL Clang)
+
+add_library(SpecLang OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/lib/seadsa/SpecLang.cc)
+target_compile_options(SpecLang BEFORE PRIVATE -S -emit-llvm)
+install(FILES $<TARGET_OBJECTS:SpecLang> 
+    DESTINATION lib 
+    RENAME sea_dsa.ll)  
+
+else()
+  message (WARNING "Unable to build spec language \n\t Set C compiler to clang with -DCMAKE_C_COMPILER")
+endif()

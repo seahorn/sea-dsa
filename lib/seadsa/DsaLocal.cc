@@ -424,9 +424,14 @@ enum class SeadsaFn {
   READ,
   HEAP,
   PTR_TO_INT,
+  INT_TO_PTR,
+  EXTERN,
   ALIAS,
   COLLAPSE,
   MAKE_SEQ,
+  LINK,
+  MAKE,
+  ACCESS,
   UNKNOWN
 };
 
@@ -476,15 +481,30 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   SeadsaFn getSeaDsaFn(const Function *fn) {
     if (!fn) return SeadsaFn::UNKNOWN;
 
-    return StringSwitch<SeadsaFn>(fn->getName())
-        .Case("sea_dsa_set_modified", SeadsaFn::MODIFY)
-        .Case("sea_dsa_set_read", SeadsaFn::READ)
-        .Case("sea_dsa_set_heap", SeadsaFn::HEAP)
-        .Case("sea_dsa_set_ptrtoint", SeadsaFn::PTR_TO_INT)
-        .Case("sea_dsa_alias", SeadsaFn::ALIAS)
-        .Case("sea_dsa_collapse", SeadsaFn::COLLAPSE)
-        .Case("sea_dsa_mk_seq", SeadsaFn::MAKE_SEQ)
-        .Default(SeadsaFn::UNKNOWN);
+    SeadsaFn fnType = StringSwitch<SeadsaFn>(fn->getName())
+                          .Case("sea_dsa_set_modified", SeadsaFn::MODIFY)
+                          .Case("sea_dsa_set_read", SeadsaFn::READ)
+                          .Case("sea_dsa_set_heap", SeadsaFn::HEAP)
+                          .Case("sea_dsa_set_ptrtoint", SeadsaFn::PTR_TO_INT)
+                          .Case("sea_dsa_set_inttoptr", SeadsaFn::INT_TO_PTR)
+                          .Case("sea_dsa_set_extern", SeadsaFn::EXTERN)
+                          .Case("sea_dsa_alias", SeadsaFn::ALIAS)
+                          .Case("sea_dsa_collapse", SeadsaFn::COLLAPSE)
+                          .Case("sea_dsa_mk_seq", SeadsaFn::MAKE_SEQ)
+                          .Case("sea_dsa_mk", SeadsaFn::MAKE)
+                          .Default(SeadsaFn::UNKNOWN);
+
+    if (fnType != SeadsaFn::UNKNOWN) return fnType;
+
+    // the spec generator requires sea_dsa_link to have type information, so we
+    // may need to define multiple sea_dsa_link types. For example:
+    // sea_dsa_link_to_charptr(const void *p, unsigned offset, const char*
+    // p2);
+    if (fn->getName().startswith("sea_dsa_link")) fnType = SeadsaFn::LINK;
+    else if (fn->getName().startswith("sea_dsa_access"))
+      fnType = SeadsaFn::ACCESS;
+
+    return fnType;
   }
 
   /// Returns true if \p F is a \p seadsa_ family of functions
@@ -507,6 +527,10 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
       return &seadsa::Node::setHeap;
     case SeadsaFn::PTR_TO_INT:
       return &seadsa::Node::setPtrToInt;
+    case SeadsaFn::INT_TO_PTR:
+      return &seadsa::Node::setIntToPtr;
+    case SeadsaFn::EXTERN:
+      return &seadsa::Node::setExternal;
     default:
       return nullptr;
     }
@@ -1192,6 +1216,8 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   case SeadsaFn::MODIFY:
   case SeadsaFn::READ:
   case SeadsaFn::HEAP:
+  case SeadsaFn::EXTERN:
+  case SeadsaFn::INT_TO_PTR:
   case SeadsaFn::PTR_TO_INT: {
     // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
     Value *arg = nullptr;
@@ -1298,6 +1324,54 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
                         << " because it expects a pointer"
                         << " that points to a non-sequence node.\n";);
     }
+    return;
+  }
+
+  case SeadsaFn::LINK: {
+    // seadsa_load(p, off) -- return pointer at offset
+    Value *arg0 = nullptr;
+    ConstantInt *arg1 = nullptr;
+    Value *arg2 = nullptr;
+
+    if (!(match(CS.getArgument(0), m_Value(arg0)) &&
+          arg0->getType()->isPointerTy()))
+      return;
+    if (!match(CS.getArgument(1), m_ConstantInt(arg1))) return;
+    if (!(match(CS.getArgument(2), m_Value(arg2)) &&
+          arg2->getType()->isPointerTy()))
+      return;
+
+    if (isSkip(*arg0) || isSkip(*arg2)) return;
+    if (!m_graph.hasCell(*arg0) || !m_graph.hasCell(*arg2)) return;
+
+    seadsa::Node *n = m_graph.getCell(*arg0).getNode();
+    seadsa::Cell c2 = m_graph.getCell(*arg2);
+    n->addLink(Field(arg1->getZExtValue(), FieldType(arg2->getType())), c2);
+
+    return;
+  }
+
+  case SeadsaFn::MAKE: {
+    // seadsa_set_type(str_type) -- set the node type to the given type
+    Node &n = m_graph.mkNode();
+    m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
+    return;
+  }
+
+  case SeadsaFn::ACCESS: {
+    // seadsa_access_<type>(<type> *p, unsigned o) -- node accesses <type> at o
+    Value *arg0 = nullptr;
+    ConstantInt *arg1 = nullptr;
+
+    if (!(match(CS.getArgument(0), m_Value(arg0)) &&
+          arg0->getType()->isPointerTy()))
+      return;
+    if (!match(CS.getArgument(1), m_ConstantInt(arg1))) return;
+    if (isSkip(*arg0)) return;
+    if (!m_graph.hasCell(*arg0)) return;
+
+    seadsa::Node *n = m_graph.getCell(*arg0).getNode();
+    n->addAccessedType(arg1->getZExtValue(), arg0->getType());
     return;
   }
 

@@ -103,12 +103,13 @@ void BottomUpAnalysis::cloneAndResolveArguments(
     nc.unify(c);
   }
 
-  auto range = llvm::make_filter_range(callee.args(), [](auto &arg) { return arg.getType()->isPointerTy(); });
+  auto range = llvm::make_filter_range(
+      callee.args(), [](auto &arg) { return arg.getType()->isPointerTy(); });
 
   DsaCallSite::const_actual_iterator AI = CS.actual_begin(),
                                      AE = CS.actual_end();
-  for (auto FI = range.begin(), FE = range.end();
-       FI != FE && AI != AE; ++FI, ++AI) {
+  for (auto FI = range.begin(), FE = range.end(); FI != FE && AI != AE;
+       ++FI, ++AI) {
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
     if (calleeG.hasCell(*fml)) {
@@ -201,6 +202,13 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
     }
 
     if (fGraph) fGraph->compress();
+  }
+
+  if (m_dsaLibFuncInfo.genSpecs()) {
+    for (auto &KVP : graphs) {
+      m_dsaLibFuncInfo.generateSpec(*KVP.first, KVP.second);
+    }
+    m_dsaLibFuncInfo.writeSpecModule();
   }
 
   LOG(

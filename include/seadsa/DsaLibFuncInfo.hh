@@ -30,11 +30,20 @@ class AllocWrapInfo;
 
 class DsaLibFuncInfo : public llvm::ImmutablePass {
   using ModuleRef = std::unique_ptr<llvm::Module>;
+  using GraphRef = std::shared_ptr<Graph>;
+
+private:
+  void initSpecModule() const;
 
 protected:
   mutable bool m_isInitialized = false;
+  mutable bool m_genSpecOpt = false;
   mutable llvm::StringMap<llvm::Function *> m_funcs;
   mutable std::vector<ModuleRef> m_modules;
+  // m_specModule uses defs from m_specLang so it must be deallocated after
+  // m_specModule
+  mutable ModuleRef m_specLang;
+  mutable ModuleRef m_specModule;
 
 public:
   static char ID;
@@ -44,8 +53,12 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
   llvm::StringRef getPassName() const override { return "SeaDsa Spec Pass"; }
 
+  bool genSpecs() const { return m_genSpecOpt; }
+
   bool hasSpecFunc(const llvm::Function &F) const;
   llvm::Function *getSpecFunc(const llvm::Function &F) const;
+  void generateSpec(const llvm::Function &F, const GraphRef G) const;
+  void writeSpecModule() const;
 };
 
 llvm::Pass *createDsaLibFuncInfoPass();
