@@ -47,7 +47,7 @@ static Module *getModuleFromQuery(Value *ValA, Value *ValB) {
   Module *M = nullptr;
   if (MaybeFnA) { M = MaybeFnA->getParent(); }
   if (MaybeFnB) {
-    if (M != MaybeFnA->getParent()) {
+    if (M != MaybeFnB->getParent()) {
       DOG(llvm::errs()
           << "SeaDsaAA: cannot handle functions in different modules.\n");
       return nullptr;
