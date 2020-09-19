@@ -915,11 +915,9 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
       mkMarkIn(B, c, inits[n][c.getRawOffset()], idx, llvm::None);
     }
 
-    if (isModified(n, F)) {
-      assert(!inits[n].empty());
-      /// final value
-      mkMarkOut(B, c, idx, llvm::None);
-    }
+    assert(!inits[n].empty());
+    /// final value
+    mkMarkOut(B, c, idx, llvm::None);
   };
 
   unsigned idx = 0;
@@ -1090,7 +1088,7 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
       // Unclear how to get the associated concrete pointer here.
     }
     // -- read/write or new node
-    else if (isModified(CN, CF)) {
+    else {
       // -- n is new node iff it is reachable only from the return node
       Constant *argFn = isReturned(CN) ? m_argNewFn : m_argModFn;
       mkArgNewMod(*m_B, argFn, callerC, idx, llvm::None);
