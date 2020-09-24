@@ -923,7 +923,9 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
 
   unsigned idx = 0;
   for (const dsa::Node *n : reach) {
-    // TODO: extend to work with all slices
+    // skip nodes that are not read/written 
+    if (!isRead(n, F) && !isModified(n, F)) continue;
+
     if (!SplitFields || n->isOffsetCollapsed()) {
       // -- treat cell to offset 0 as the whole node
       dsa::Cell c(const_cast<dsa::Node *>(n), 0);
