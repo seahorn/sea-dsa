@@ -1662,6 +1662,7 @@ void StripShadowMemPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool StripShadowMemPass::runOnModule(Module &M) {
   std::vector<std::string> voidFnNames = {"shadow.mem.load",
+					  "shadow.mem.trsfr.load",
                                           "shadow.mem.arg.ref", "shadow.mem.in",
                                           "shadow.mem.out"};
 
@@ -1675,11 +1676,13 @@ bool StripShadowMemPass::runOnModule(Module &M) {
       ci->eraseFromParent();
       ::recursivelyDeleteTriviallyDeadInstructions(last);
     }
+    
+    fn->eraseFromParent();
   }
 
   std::vector<std::string> intFnNames = {
       "shadow.mem.store", "shadow.mem.init", "shadow.mem.arg.init",
-      "shadow.mem.global.init", "shadow.mem.arg.mod"};
+      "shadow.mem.global.init", "shadow.mem.arg.mod", "shadow.mem.arg.new"};
   Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
 
   for (auto &name : intFnNames) {
@@ -1693,6 +1696,8 @@ bool StripShadowMemPass::runOnModule(Module &M) {
       ci->eraseFromParent();
       ::recursivelyDeleteTriviallyDeadInstructions(last);
     }
+
+    fn->eraseFromParent();
   }
 
   return true;
