@@ -915,7 +915,6 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
       mkMarkIn(B, c, inits[n][c.getRawOffset()], idx, llvm::None);
     }
 
-    assert(!inits[n].empty());
     /// final value
     mkMarkOut(B, c, idx, llvm::None);
   };
