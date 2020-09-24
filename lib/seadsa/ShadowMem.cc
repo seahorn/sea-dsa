@@ -1561,6 +1561,8 @@ ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi,
     : m_impl(new ShadowMemImpl(dsa, asi, tli, cg, pass, splitDsaNodes,
                                computeReadMod, memOptimizer, useTBAA)) {}
 
+ShadowMem::~ShadowMem() {}
+  
 bool ShadowMem::runOnModule(Module &M) {
   bool Change = m_impl->runOnModule(M);
 

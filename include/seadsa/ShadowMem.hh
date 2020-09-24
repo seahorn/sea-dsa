@@ -55,6 +55,8 @@ public:
             bool splitDsaNodes = false, bool computeReadMod = false,
             bool memOptimizer = true, bool useTBAA = true);
 
+  ~ShadowMem();
+  
   bool runOnModule(llvm::Module &M);
 
   // Return a reference to the global sea-dsa analysis.
