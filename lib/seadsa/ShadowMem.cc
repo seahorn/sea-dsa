@@ -666,6 +666,7 @@ public:
   void visitMemTransferInst(MemTransferInst &I);
   void visitAllocationFn(CallSite &CS);
   void visitCalloc(CallSite &CS);
+  void visitMemhavoc(CallSite &CS);
   void visitDsaCallSite(dsa::DsaCallSite &CS);
 
   /// \brief Returns a reference to the global sea-dsa analysis.
@@ -1042,6 +1043,11 @@ void ShadowMemImpl::visitCallSite(CallSite CS) {
     return;
   }
 
+  if (callee->getName().equals("memhavoc")) {
+    visitMemhavoc(CS);
+    return;
+  }
+
   if (dsa::AllocSiteInfo::isAllocSite(*callInst) &&
       /* we don't want to treat specially allocation wrappers */
       (callee->isDeclaration() || callee->empty())) {
@@ -1145,6 +1151,30 @@ void ShadowMemImpl::visitCalloc(CallSite &CS) {
     errs() << "WARNING: skipping calloc instrumentation because cell "
            << "offset is not zero\n";
   }
+}
+
+void ShadowMemImpl::visitMemhavoc(CallSite &CS) {
+  LOG("dsa.memhavoc", errs() << "Visiting memhavoc \n");
+  auto &callInst = *CS.getInstruction();
+  /* memhavoc definition:
+     void @memhavoc(i8*, i32)
+     operand 0 is the pointer to be marked
+  */
+  auto &ptr = *CS.getArgOperand(0);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.memhavoc", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.memhavoc", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memUse =
+      mkShadowLoad(*m_B, cell, dsa::getTypeSizeInBytes(*ptr.getType(), *m_dl));
+  associateConcretePtr(memUse, ptr, &callInst);
 }
 
 void ShadowMemImpl::visitAllocationFn(CallSite &CS) {
