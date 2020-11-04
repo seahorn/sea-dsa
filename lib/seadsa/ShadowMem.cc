@@ -667,6 +667,8 @@ public:
   void visitAllocationFn(CallSite &CS);
   void visitCalloc(CallSite &CS);
   void visitMemhavoc(CallSite &CS);
+  void visitIsModified(CallSite &CS);
+  void visitResetModified(CallSite &CS);
   void visitDsaCallSite(dsa::DsaCallSite &CS);
 
   /// \brief Returns a reference to the global sea-dsa analysis.
@@ -1048,6 +1050,16 @@ void ShadowMemImpl::visitCallSite(CallSite CS) {
     return;
   }
 
+  if (callee->getName().equals("sea.is_modified")) {
+    visitIsModified(CS);
+    return;
+  }
+
+  if (callee->getName().equals("sea.reset_modified")) {
+    visitResetModified(CS);
+    return;
+  }
+
   if (dsa::AllocSiteInfo::isAllocSite(*callInst) &&
       /* we don't want to treat specially allocation wrappers */
       (callee->isDeclaration() || callee->empty())) {
@@ -1175,6 +1187,53 @@ void ShadowMemImpl::visitMemhavoc(CallSite &CS) {
   CallInst &memUse =
       mkShadowLoad(*m_B, cell, dsa::getTypeSizeInBytes(*ptr.getType(), *m_dl));
   associateConcretePtr(memUse, ptr, &callInst);
+}
+
+void ShadowMemImpl::visitIsModified(CallSite &CS) {
+  LOG("dsa.ismodified", errs() << "Visiting isModified \n");
+  auto &callInst = *CS.getInstruction();
+  /* isModified definition:
+     bool @sea_is_modified(i8*)
+     operand 0 is the pointer to be marked
+  */
+  auto &ptr = *CS.getArgOperand(0);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.ismodified", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.ismodified", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memUse =
+      mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memUse, ptr, &callInst);
+}
+
+void ShadowMemImpl::visitResetModified(CallSite &CS) {
+  LOG("dsa.resetmodified", errs() << "Visiting resetModified \n");
+  auto &callInst = *CS.getInstruction();
+  /* resetModified definition:
+     bool @sea.reset_modified(i8*)
+     operand 0 is the pointer to be marked
+  */
+  auto &ptr = *CS.getArgOperand(0);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.resetmodified", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.resetmodified", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memDef =
+      mkShadowStore(*m_B, cell, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
+  associateConcretePtr(memDef, callInst, &callInst);
 }
 
 void ShadowMemImpl::visitAllocationFn(CallSite &CS) {
