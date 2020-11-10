@@ -112,7 +112,7 @@ if (TOP_LEVEL)
       "\tLLMV_BUILD_TYPE=${LLVM_BUILD_TYPE}\n"
       "\tCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}\n"
       "Runtime errors might occur.")
-    if (LLVM_BUILD_TYPE MATCHES "Release|RelWithDebInfo" AND 
+    if (LLVM_BUILD_TYPE MATCHES "Release|RelWithDebInfo" AND
         CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo")
       message(STATUS "Assuming that mixing Release and RelWithDebInfo is allowed.")
     else()
@@ -179,14 +179,12 @@ if (TOP_LEVEL)
   install (FILES ${CMAKE_CURRENT_SOURCE_DIR}/README.md DESTINATION .)
 endif()
 
-if(CMAKE_C_COMPILER_ID STREQUAL Clang)
-
-add_library(SpecLang OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/lib/seadsa/SpecLang.cc)
-target_compile_options(SpecLang BEFORE PRIVATE -S -emit-llvm)
-install(FILES $<TARGET_OBJECTS:SpecLang> 
-    DESTINATION lib 
-    RENAME sea_dsa.ll)  
-
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  add_library(SpecLang OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/lib/seadsa/SpecLang.cc)
+  target_compile_options(SpecLang BEFORE PRIVATE -S -emit-llvm)
+  install(FILES $<TARGET_OBJECTS:SpecLang>
+    DESTINATION lib
+    RENAME sea_dsa.ll)
 else()
-  message (WARNING "Unable to build spec language \n\t Set C compiler to clang with -DCMAKE_C_COMPILER")
+  message (WARNING "Unable to build spec language \n\t Set C compiler to clang with -DCMAKE_C_COMPILER=clang")
 endif()
