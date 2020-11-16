@@ -1231,9 +1231,8 @@ void ShadowMemImpl::visitResetModified(CallSite &CS) {
     return;
   }
   m_B->SetInsertPoint(&callInst);
-  CallInst &memDef =
-      mkShadowStore(*m_B, cell, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
-  associateConcretePtr(memDef, callInst, &callInst);
+  CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memDef, ptr, &callInst);
 }
 
 void ShadowMemImpl::visitAllocationFn(CallSite &CS) {
