@@ -211,7 +211,10 @@ void CompleteCallGraphAnalysis::cloneAndResolveArgumentsAndCallSites(
   // clone callsites
   cloneCallSites(C, calleeG, callerG);
 
-  callerG.compress();
+  // XX: It is very expensive to compress the caller graph after each
+  // callsite is processed. Instead, we compress the caller graph only
+  // once after all callsites have been inlined.
+  // callerG.compress();
 }
 
 void CompleteCallGraphAnalysis::printStats(Module &M, raw_ostream &o) {
