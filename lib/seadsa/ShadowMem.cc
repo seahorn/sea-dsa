@@ -919,14 +919,12 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
     }
 
     /// final value
-    if (isRead(n, F) || isModified(n, F)) {    
-      mkMarkOut(B, c, idx, llvm::None);
-    }
+    if (isRead(n, F) || isModified(n, F)) { mkMarkOut(B, c, idx, llvm::None); }
   };
 
   unsigned idx = 0;
   for (const dsa::Node *n : reach) {
-    // skip nodes that are not read/written 
+    // skip nodes that are not read/written
     if (!isRead(n, F) && !isModified(n, F)) continue;
 
     if (!SplitFields || n->isOffsetCollapsed()) {
@@ -1109,7 +1107,7 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
       // Unclear how to get the associated concrete pointer here.
     }
     // -- read/write or new node
-    else if (isRead(CN, CF) || isModified(CN,CF)) {
+    else if (isRead(CN, CF) || isModified(CN, CF)) {
       // -- n is new node iff it is reachable only from the return node
       Constant *argFn = isReturned(CN) ? m_argNewFn : m_argModFn;
       mkArgNewMod(*m_B, argFn, callerC, idx, llvm::None);
@@ -1208,8 +1206,7 @@ void ShadowMemImpl::visitIsModified(CallSite &CS) {
   }
 
   m_B->SetInsertPoint(&callInst);
-  CallInst &memUse =
-      mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
+  CallInst &memUse = mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
   associateConcretePtr(memUse, ptr, &callInst);
 }
 
@@ -1521,8 +1518,8 @@ ShadowMemImpl::getAllAllocSites(Value &ptr, AllocSitesCache &cache) {
 
 bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
                                AllocSitesCache &cache) {
-  LOG("shadow_optimizer", llvm::errs() << "\n~~~~\nmayClobber(" << memDef
-                                       << ", " << memUse << ")?\n");
+  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber(" << memDef << ",\n"
+                                       << "\t           " << memUse << ")?\n");
 
   if (isMemInit(memDef)) return true;
 
@@ -1535,7 +1532,7 @@ bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
   Value *usePtr = getAssociatedConcretePtr(memUse);
   if (!usePtr) return true;
 
-  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[2 ]\n");
+  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[2]\n");
 
   Value *defPtr = getAssociatedConcretePtr(memDef);
   if (!defPtr) return true;
@@ -1545,8 +1542,12 @@ bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
   assert(m_graph->hasCell(*usePtr));
   assert(m_graph->hasCell(*defPtr));
 
-  LOG("shadow_optimizer",
-      llvm::errs() << "alias(" << *usePtr << ", " << *defPtr << ")?\n");
+  LOG("shadow_optimizer", llvm::errs()
+                              << "\tIsAlias(use: " << *usePtr << ",\n"
+                              << "\t        def: " << *defPtr << ")?\n");
+
+  // XXX Cannot do that because pointers can be the same but differ due to TBAA
+  // if (defPtr == usePtr) return true;
 
   const Optional<unsigned> usedBytes =
       maybeGetMetaConstant(memUse, m_memUseTag);
@@ -1564,8 +1565,8 @@ bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
     const unsigned useStartOffset = useCell.getOffset();
     const unsigned defStartOffset = defCell.getOffset();
     LOG("shadow_optimizer",
-        llvm::errs() << "\tmayClobber[3]\n\tuseStart: " << useStartOffset
-                     << "\n\tdefStart: " << defStartOffset << "\n");
+        llvm::errs() << "\tmayClobber[3]\n\t\tuseStart: " << useStartOffset
+                     << ", defStart: " << defStartOffset << "\n");
 
     if (defdBytes.hasValue())
       if (useStartOffset >= defStartOffset + *defdBytes) return false;
@@ -1579,8 +1580,12 @@ bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
     Value *concreteInstUse = getAssociatedConcreteInst(memUse);
     Value *concreteInstDef = getAssociatedConcreteInst(memDef);
     if (m_localAAResults.isNoAlias(*usePtr, concreteInstUse, usedBytes, *defPtr,
-                                   concreteInstDef, defdBytes))
+                                   concreteInstDef, defdBytes)) {
+      LOG("shadow_optimizer",
+          llvm::errs() << "\tisNoAlias(use: " << *concreteInstUse << "\n"
+                       << "\t          def: " << *concreteInstDef << ")\n";);
       return false;
+    }
   }
 
   LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[6]\n");
@@ -1654,7 +1659,7 @@ ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi,
                                computeReadMod, memOptimizer, useTBAA)) {}
 
 ShadowMem::~ShadowMem() {}
-  
+
 bool ShadowMem::runOnModule(Module &M) {
   bool Change = m_impl->runOnModule(M);
 
@@ -1749,10 +1754,9 @@ void StripShadowMemPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool StripShadowMemPass::runOnModule(Module &M) {
-  std::vector<std::string> voidFnNames = {"shadow.mem.load",
-					  "shadow.mem.trsfr.load",
-                                          "shadow.mem.arg.ref", "shadow.mem.in",
-                                          "shadow.mem.out"};
+  std::vector<std::string> voidFnNames = {
+      "shadow.mem.load", "shadow.mem.trsfr.load", "shadow.mem.arg.ref",
+      "shadow.mem.in", "shadow.mem.out"};
 
   for (auto &name : voidFnNames) {
     Function *fn = M.getFunction(name);
@@ -1764,12 +1768,12 @@ bool StripShadowMemPass::runOnModule(Module &M) {
       ci->eraseFromParent();
       ::recursivelyDeleteTriviallyDeadInstructions(last);
     }
-    
+
     fn->eraseFromParent();
   }
 
   std::vector<std::string> intFnNames = {
-      "shadow.mem.store", "shadow.mem.init", "shadow.mem.arg.init",
+      "shadow.mem.store",       "shadow.mem.init",    "shadow.mem.arg.init",
       "shadow.mem.global.init", "shadow.mem.arg.mod", "shadow.mem.arg.new"};
   Value *zero = ConstantInt::get(Type::getInt32Ty(M.getContext()), 0);
 
