@@ -23,11 +23,11 @@ class FieldType {
 
   FieldType() = default;
 
-public:
-  std::tuple<llvm::Type *, bool> asTuple() const {
+  constexpr std::tuple<llvm::Type *, bool> asTuple() const {
     return std::make_tuple(m_ty, m_NOT_IMPLEMENTED);
   };
 
+public:
   static FieldType mkUnknown() { return FieldType(); }
 
   static FieldType NotImplemented(const char *Loc) {

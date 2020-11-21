@@ -298,6 +298,10 @@ class Field {
   unsigned m_offset = -1;
   FieldType m_type = FIELD_TYPE_NOT_IMPLEMENTED;
 
+  constexpr std::tuple<unsigned, FieldType> asTuple() const {
+    return {m_offset, m_type};
+  };
+
 public:
   Field() = default;
   Field(unsigned offset, FieldType type) : m_offset(offset), m_type(type) {}
@@ -337,7 +341,7 @@ class Cell {
   /// field offset
   mutable unsigned m_offset = 0;
 
-  std::tuple<Node *, unsigned> asTuple() const {
+  constexpr std::tuple<Node *, unsigned> asTuple() const {
     return std::make_tuple(m_node, m_offset);
   };
 
