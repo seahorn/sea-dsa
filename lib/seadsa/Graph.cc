@@ -26,13 +26,12 @@
 using namespace llvm;
 
 namespace seadsa {
-bool IsTypeAware;
+bool g_IsTypeAware;
 }
 
-static llvm::cl::opt<bool, true>
-    XTypeAware("sea-dsa-type-aware",
-               llvm::cl::desc("Enable SeaDsa type awareness"),
-               llvm::cl::location(seadsa::IsTypeAware), llvm::cl::init(false));
+static llvm::cl::opt<bool, true> XTypeAware(
+    "sea-dsa-type-aware", llvm::cl::desc("Enable SeaDsa type awareness"),
+    llvm::cl::location(seadsa::g_IsTypeAware), llvm::cl::init(false));
 
 namespace seadsa {
 
@@ -49,9 +48,7 @@ public:
   DsaAllocator(const DsaAllocator &o) = delete;
   void *alloc(size_t n) {
     if (m_use_pool) {
-      if (n <= m_pool.get_requested_size()) {
-        return m_pool.malloc();
-      }
+      if (n <= m_pool.get_requested_size()) { return m_pool.malloc(); }
     }
 
     return static_cast<void *>(new char[n]);
@@ -90,8 +87,7 @@ Graph::~Graph() = default;
 Node::Node(Graph &g)
     : m_graph(&g), m_unique_scalar(nullptr), m_has_once_unique_scalar(false),
       m_size(0), m_id(++m_id_factory) {
-  if (!IsTypeAware)
-    setTypeCollapsed(true);
+  setTypeCollapsed(!g_IsTypeAware);
 }
 
 Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
@@ -108,8 +104,7 @@ Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
   joinAccessedTypes(0, n);
 
   // -- copy allocation sites
-  if (cpAllocSites)
-    joinAllocSites(n.m_alloca_sites);
+  if (cpAllocSites) joinAllocSites(n.m_alloca_sites);
 
   // -- copy links
   if (cpLinks) {
@@ -118,8 +113,7 @@ Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
       m_links[kv.first].reset(new Cell(*kv.second));
   }
 
-  if (!IsTypeAware)
-    setTypeCollapsed(true);
+  setTypeCollapsed(!g_IsTypeAware);
 }
 /// adjust offset based on type of the node Collapsed nodes
 /// always have offset 0; for array nodes the offset is modulo
@@ -131,10 +125,8 @@ unsigned Node::Offset::getNumericOffset() const {
   const unsigned offset = m_offset;
 
   assert(!n->isForwarding());
-  if (n->isOffsetCollapsed())
-    return 0;
-  if (n->isArray())
-    return offset % n->size();
+  if (n->isOffsetCollapsed()) return 0;
+  if (n->isArray()) return offset % n->size();
   return offset;
 }
 
@@ -151,12 +143,9 @@ void Node::growSize(unsigned v) {
 }
 
 void Node::growSize(const Offset &offset, const llvm::Type *t) {
-  if (!t)
-    return;
-  if (t->isVoidTy())
-    return;
-  if (isOffsetCollapsed())
-    return;
+  if (!t) return;
+  if (t->isVoidTy()) return;
+  if (isOffsetCollapsed()) return;
 
   assert(m_graph);
   // XXX for some reason getTypeAllocSize() is not marked as preserving const
@@ -172,8 +161,7 @@ bool Node::isEmtpyAccessedType() const {
 }
 
 bool Node::hasAccessedType(unsigned o) const {
-  if (isOffsetCollapsed())
-    return false;
+  if (isOffsetCollapsed()) return false;
   Offset offset(*this, o);
 
   auto it = m_accessedTypes.find(offset.getNumericOffset());
@@ -191,16 +179,14 @@ void Node::addAccessedType(unsigned off, llvm::Type *type) {
     std::pair<unsigned, llvm::Type *> offsetType = workList.back();
     workList.pop_back();
 
-    if (isOffsetCollapsed())
-      return;
+    if (isOffsetCollapsed()) return;
 
     unsigned o = offsetType.first;
     llvm::Type *t = offsetType.second;
 
     Offset offset(*this, o);
     growSize(offset, t);
-    if (isOffsetCollapsed())
-      return;
+    if (isOffsetCollapsed()) return;
 
     // -- recursively expand structures
     if (const StructType *sty = dyn_cast<const StructType>(t)) {
@@ -260,15 +246,13 @@ void Node::addAccessedType(unsigned off, llvm::Type *type) {
 }
 
 void Node::addAccessedType(const Offset &offset, Set types) {
-  if (isOffsetCollapsed())
-    return;
+  if (isOffsetCollapsed()) return;
   for (const llvm::Type *t : types)
     addAccessedType(offset.getNumericOffset(), const_cast<llvm::Type *>(t));
 }
 
 void Node::joinAccessedTypes(unsigned offset, const Node &n) {
-  if (isOffsetCollapsed() || n.isOffsetCollapsed())
-    return;
+  if (isOffsetCollapsed() || n.isOffsetCollapsed()) return;
   for (auto &kv : n.m_accessedTypes) {
     const Offset noff(*this, kv.first + offset);
     addAccessedType(noff, kv.second);
@@ -277,8 +261,7 @@ void Node::joinAccessedTypes(unsigned offset, const Node &n) {
 
 /// collapse the current node. Looses all offset-based field sensitivity
 void Node::collapseOffsets(int tag) {
-  if (isOffsetCollapsed())
-    return;
+  if (isOffsetCollapsed()) return;
 
   LOG("unique_scalar",
       if (m_unique_scalar) errs()
@@ -286,7 +269,8 @@ void Node::collapseOffsets(int tag) {
 
   static int cnt = 0;
   ++cnt;
-  LOG("dsa-collapse", errs() << "Offset-Collapse #" << cnt << " tag " << tag << "\n");
+  LOG("dsa-collapse",
+      errs() << "Offset-Collapse #" << cnt << " tag " << tag << "\n");
   // if (cnt == 53) {
   //   errs() << "\n~~~~NOW~~~~\n";
   // }
@@ -315,8 +299,7 @@ void Node::collapseOffsets(int tag) {
 
 /// collapse the current node. Looses all type-based field sensitivity
 void Node::collapseTypes(int tag) {
-  if (isTypeCollapsed())
-    return;
+  if (isTypeCollapsed()) return;
 
   LOG("unique_scalar", if (m_unique_scalar) errs()
                            << "KILL due to type-collapse: " << *m_unique_scalar
@@ -343,8 +326,7 @@ void Node::pointTo(Node &node, const Offset &offset) {
   assert(!isForwarding());
 
   // -- reset unique scalar at the destination
-  if (offset.getNumericOffset() != 0)
-    node.setUniqueScalar(nullptr);
+  if (offset.getNumericOffset() != 0) node.setUniqueScalar(nullptr);
   if (m_unique_scalar != node.getUniqueScalar()) {
     LOG("unique_scalar", if (m_unique_scalar && node.getUniqueScalar()) errs()
                              << "KILL due to point-to " << *m_unique_scalar
@@ -381,8 +363,7 @@ void Node::pointTo(Node &node, const Offset &offset) {
 
   // -- move all the links
   for (auto &kv : m_links) {
-    if (kv.second->isNull())
-      continue;
+    if (kv.second->isNull()) continue;
 
     m_forward.addLink(kv.first, *kv.second);
   }
@@ -396,19 +377,18 @@ void Node::pointTo(Node &node, const Offset &offset) {
   m_nodeType.reset();
 }
 
-void Node::addLink(Field f, Cell &c) {
-  Offset offset(*this, f.getOffset());
-  const Field adjustedField = offset.getAdjustedField(f);
+void Node::addLink(Field _f, Cell &c) {
+  assert(g_IsTypeAware || _f.getType().isUnknown());
 
-  if (!IsTypeAware)
-    assert(f.getType().isUnknown());
+  const Field f = Offset(*this, _f.getOffset()).getAdjustedField(_f);
 
-  if (!hasLink(adjustedField))
-    setLink(adjustedField, c);
-  else {
-    Cell &link = getLink(adjustedField);
-    link.unify(c);
+  if (!hasLink(f)) {
+    setLink(f, c);
+    return;
   }
+
+  Cell &link = getLink(f);
+  link.unify(c);
 }
 
 /// Unify a given node into the current node at a specified offset.
@@ -482,8 +462,7 @@ void Node::unifyAt(Node &n, unsigned o) {
 
   if (&n == this) {
     // -- merging the node into itself at a different offset
-    if (offset.getNumericOffset() > 0)
-      collapseOffsets(__LINE__);
+    if (offset.getNumericOffset() > 0) collapseOffsets(__LINE__);
     return;
   }
 
@@ -504,8 +483,7 @@ unsigned Node::mergeUniqueScalar(Node &n, Cache &seen) {
   unsigned res = 0x0;
 
   auto it = seen.find(&n);
-  if (it != seen.end())
-    return res;
+  if (it != seen.end()) return res;
   seen.insert(&n);
 
   if (getUniqueScalar() && n.getUniqueScalar()) {
@@ -565,8 +543,7 @@ template <typename Cache> unsigned Node::mergeAllocSites(Node &n, Cache &seen) {
   unsigned res = 0x0;
 
   auto it = seen.find(&n);
-  if (it != seen.end())
-    return res;
+  if (it != seen.end()) return res;
   seen.insert(&n);
 
   auto const &s1 = getAllocSites();
@@ -609,15 +586,13 @@ void Node::writeAccessedTypes(raw_ostream &o) const {
     o << "types={";
     if (ts.begin() != ts.end()) {
       for (auto ii = ts.begin(), ee = ts.end(); ii != ee; ++ii) {
-        if (!firstType)
-          o << ",";
+        if (!firstType) o << ",";
         firstType = false;
         o << ii->first << ":"; // offset
         if (ii->second.begin() != ii->second.end()) {
           bool first = true;
           for (const Type *t : ii->second) {
-            if (!first)
-              o << "|";
+            if (!first) o << "|";
             t->print(o);
             first = false;
           }
@@ -662,11 +637,11 @@ void Node::write(raw_ostream &o) const {
         o << ",";
       else
         first = false;
-      
+
       if (const Function *F = dyn_cast<const Function>(a)) {
-	o << F->getName() << ":" << *(F->getType());
+        o << F->getName() << ":" << *(F->getType());
       } else {
-	o << *a;
+        o << *a;
       }
     }
     o << "]";
@@ -709,8 +684,7 @@ void Cell::unify(Cell &c) {
 }
 
 Node *Cell::getNode() const {
-  if (isNull())
-    return nullptr;
+  if (isNull()) return nullptr;
 
   Node *n = m_node->getNode();
   assert((n == m_node && !m_node->isForwarding()) || m_node->isForwarding());
@@ -752,15 +726,13 @@ void Cell::pointTo(Node &n, unsigned offset) {
     m_offset = offset % n.size();
   } else {
     /// grow size as needed. allow offset to go one byte past size
-    if (offset < n.size())
-      n.growSize(offset);
+    if (offset < n.size()) n.growSize(offset);
     m_offset = offset;
   }
 }
 
 unsigned Node::getRawOffset() const {
-  if (!isForwarding())
-    return 0;
+  if (!isForwarding()) return 0;
   m_forward.getNode();
   return m_forward.getRawOffset();
 }
@@ -850,9 +822,9 @@ void Graph::compress() {
     kv.second->getNode();
   for (auto &kv : m_returns)
     kv.second->getNode();
-  for (auto &cs: m_callSites)
+  for (auto &cs : m_callSites)
     cs->getCell().getNode();
-  
+
   // at this point, all cells and all nodes have their links
   // resolved. Every link points directly to the representative of the
   // equivalence class. All forwarding nodes can now be deleted since
@@ -876,8 +848,7 @@ void Graph::remove_dead() {
   // --- collect all nodes referenced by scalars
   for (auto &kv : m_values) {
     const Cell *C = kv.second.get();
-    if (C->isNull())
-      continue;
+    if (C->isNull()) continue;
     if (reachable.insert(C->getNode()).second) {
       LOG("dsa-dead", errs() << "\treachable node " << C->getNode() << "\n";);
     }
@@ -886,8 +857,7 @@ void Graph::remove_dead() {
   // --- collect all nodes referenced by formal parameters
   for (auto &kv : m_formals) {
     const Cell *C = kv.second.get();
-    if (C->isNull())
-      continue;
+    if (C->isNull()) continue;
     if (reachable.insert(C->getNode()).second) {
       LOG("dsa-dead", errs() << "\treachable node " << C->getNode() << "\n";);
     }
@@ -896,8 +866,7 @@ void Graph::remove_dead() {
   // --- collect all nodes referenced by return parameters
   for (auto &kv : m_returns) {
     const Cell *C = kv.second.get();
-    if (C->isNull())
-      continue;
+    if (C->isNull()) continue;
     if (reachable.insert(C->getNode()).second) {
       LOG("dsa-dead", errs() << "\treachable node " << C->getNode() << "\n";);
     }
@@ -909,8 +878,7 @@ void Graph::remove_dead() {
     auto n = worklist.back();
     worklist.pop_back();
     for (auto &kv : n->links()) {
-      if (kv.second->isNull())
-        continue;
+      if (kv.second->isNull()) continue;
       auto s = kv.second->getNode();
       if (reachable.insert(s).second) {
         worklist.push_back(s);
@@ -1008,8 +976,7 @@ void Graph::removeLinks(Node *n, std::function<bool(const Node *)> p) {
 
 // Remove all nodes that satisfy p and links to nodes that satisfy p.
 void Graph::removeNodes(std::function<bool(const Node *)> p) {
-  if (m_nodes.empty())
-    return;
+  if (m_nodes.empty()) return;
 
   // remove entry if it references to a node that satisfies p
   for (auto it = m_values.begin(), et = m_values.end(); it != et;) {
@@ -1052,9 +1019,7 @@ void Graph::removeNodes(std::function<bool(const Node *)> p) {
 
   // -- remove references to nodes that satisfy p
   for (auto &n : m_nodes) {
-    if (!n->isForwarding()) {
-      removeLinks(&*n, p);
-    }
+    if (!n->isForwarding()) { removeLinks(&*n, p); }
   }
 
   // -- remove nodes that satisfy p
@@ -1081,8 +1046,7 @@ void Graph::removeNodes(std::function<bool(const Node *)> p) {
 
 Cell &Graph::mkRetCell(const llvm::Function &fn, const Cell &c) {
   auto &res = m_returns[&fn];
-  if (!res)
-    res.reset(new Cell(c));
+  if (!res) res.reset(new Cell(c));
   return *res;
 }
 
@@ -1133,8 +1097,7 @@ bool Graph::hasCell(const llvm::Value &u) const {
 
 DsaAllocSite *seadsa::Graph::mkAllocSite(const llvm::Value &v) {
   auto res = getAllocSite(v);
-  if (res.hasValue())
-    return res.getValue();
+  if (res.hasValue()) return res.getValue();
 
   m_allocSites.emplace_back(new DsaAllocSite(*this, v));
   DsaAllocSite *as = m_allocSites.back().get();
@@ -1144,9 +1107,7 @@ DsaAllocSite *seadsa::Graph::mkAllocSite(const llvm::Value &v) {
 
 DsaCallSite *Graph::mkCallSite(const llvm::Instruction &I, Cell c) {
   auto it = m_instructionToCallSite.find(&I);
-  if (it != m_instructionToCallSite.end()) {
-    return it->second;
-  }
+  if (it != m_instructionToCallSite.end()) { return it->second; }
 
   m_callSites.emplace_back(new DsaCallSite(I, c));
   DsaCallSite *cs = m_callSites.back().get();
@@ -1158,7 +1119,8 @@ llvm::iterator_range<typename Graph::callsite_iterator> Graph::callsites() {
   return llvm::make_range(m_callSites.begin(), m_callSites.end());
 }
 
-llvm::iterator_range<typename Graph::callsite_const_iterator> Graph::callsites() const {
+llvm::iterator_range<typename Graph::callsite_const_iterator>
+Graph::callsites() const {
   return llvm::make_range(m_callSites.begin(), m_callSites.end());
 }
 
@@ -1255,46 +1217,40 @@ bool Graph::computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
   return true;
 }
 
-bool Graph::computeSimulationMapping(Graph &fromG, Graph &toG,  
-				     SimulationMapper &simMap,
-				     bool onlyModified) {
+bool Graph::computeSimulationMapping(Graph &fromG, Graph &toG,
+                                     SimulationMapper &simMap,
+                                     bool onlyModified) {
   // Find a simulation relation for all globals
   for (auto &kv : fromG.globals()) {
     Cell &c = *kv.second;
-    if (!onlyModified || c.isModified()) {    
+    if (!onlyModified || c.isModified()) {
       Cell &nc = toG.mkCell(*kv.first, Cell());
-      if (!simMap.insert(c, nc)) {
-	return false;
-      }
+      if (!simMap.insert(c, nc)) { return false; }
     }
   }
 
   // Find a simulation relation for all function formal parameters
   for (auto &kv : fromG.formals()) {
     Cell &c = *kv.second;
-    if (!onlyModified || c.isModified()) {        
+    if (!onlyModified || c.isModified()) {
       Cell &nc = toG.mkCell(*kv.first, Cell());
-      if (!simMap.insert(c, nc)) {
-	return false;
-      }
+      if (!simMap.insert(c, nc)) { return false; }
     }
   }
 
   // Find a simulation relation for all function return parameters
   for (auto &kv : fromG.returns()) {
     Cell &c = *kv.second;
-    if (!onlyModified || c.isModified()) {        
+    if (!onlyModified || c.isModified()) {
       if (toG.hasRetCell(*kv.first)) {
-	Cell &nc = toG.getRetCell(*kv.first);
-	if (!simMap.insert(c, nc)) {
-	  return false;
-	}
+        Cell &nc = toG.getRetCell(*kv.first);
+        if (!simMap.insert(c, nc)) { return false; }
       }
     }
   }
   return true;
 }
-  
+
 void Graph::import(const Graph &g, bool withFormals) {
   Cloner C(*this, CloningContext::mkNoContext(), Cloner::Options::Basic);
   for (auto &kv : g.m_values) {
@@ -1398,11 +1354,11 @@ void Graph::write(raw_ostream &o) const {
     if (kv.second.begin() != kv.second.end()) {
       o << "cell=(" << C->getNode() << "," << C->getRawOffset() << ")\n";
       for (const Value *V : kv.second) {
-	if (const Function* F = dyn_cast<const Function>(V)) {
-	  o << "\t" << F->getName() << ":" << *(F->getType()) << "\n";
-	} else {
-	  o << "\t" << *V << "\n";
-	}
+        if (const Function *F = dyn_cast<const Function>(V)) {
+          o << "\t" << F->getName() << ":" << *(F->getType()) << "\n";
+        } else {
+          o << "\t" << *V << "\n";
+        }
       }
     }
   }
@@ -1432,7 +1388,6 @@ void Graph::write(raw_ostream &o) const {
   //     o << "\n";
   //   }
   // }
-  
 }
 
 size_t Graph::numCollapsed() const {

@@ -35,7 +35,7 @@ using CellRef = std::unique_ptr<Cell>;
 
 class DsaCallSite;
 class DsaAllocator;
-extern bool IsTypeAware;
+extern bool g_IsTypeAware;
 
 // Data structure graph traversal iterator
 template <typename T> class NodeIterator;
@@ -312,7 +312,6 @@ public:
 
   Field subOffset(unsigned offset) const { return {m_offset - offset, m_type}; }
 
-  std::pair<unsigned, FieldType> asTuple() const { return {m_offset, m_type}; };
 
   unsigned getOffset() const { return m_offset; }
   FieldType getType() const { return m_type; }
@@ -350,9 +349,7 @@ public:
   Cell(const Cell &) = default;
 
   Cell(Node *node, unsigned offset) : m_node(node), m_offset(offset) {}
-
   Cell(Node &node, unsigned offset) : m_node(&node), m_offset(offset) {}
-
   Cell(const Cell &o, unsigned offset)
       : m_node(o.m_node), m_offset(o.m_offset + offset) {}
 
@@ -761,16 +758,14 @@ public:
   void growSize(unsigned v);
 
   bool hasLink(Field f) const {
-    if (!IsTypeAware)
-      assert(f.getType().isUnknown());
-    return m_links.count(Offset::getAdjustedField(*this, f)) > 0;
+    assert(g_IsTypeAware || f.getType().isUnknown());
+    return m_links.count(Offset::getAdjustedField(*this, f));
   }
 
   bool getNumLinks() const { return m_links.size(); }
 
   const Cell &getLink(Field f) const {
-    if (!IsTypeAware)
-      assert(f.getType().isUnknown());
+    assert(g_IsTypeAware || f.getType().isUnknown());
     return *m_links.at(Offset::getAdjustedField(*this, f));
   }
 

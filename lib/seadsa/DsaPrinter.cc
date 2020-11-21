@@ -330,7 +330,7 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
         OS << "fillcolor=brown1, style=filled";
       } else if (N->isOffsetCollapsed()) {
         OS << "fillcolor=chocolate1, style=filled";
-      } else if (N->isTypeCollapsed() && seadsa::IsTypeAware) {
+      } else if (N->isTypeCollapsed() && seadsa::g_IsTypeAware) {
         OS << "fillcolor=darkorchid2, style=filled";
       } else {
         OS << "fillcolor=gray, style=filled";
@@ -362,10 +362,10 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
       OS << "FORWARDING";
     } else {
       if (N->isOffsetCollapsed() || (N->isTypeCollapsed() &&
-                                     seadsa::IsTypeAware)) {
+                                     seadsa::g_IsTypeAware)) {
         if (N->isOffsetCollapsed())
           OS << "OFFSET-";
-        if (N->isTypeCollapsed() && seadsa::IsTypeAware)
+        if (N->isTypeCollapsed() && seadsa::g_IsTypeAware)
           OS << "TYPE-";
         OS << "COLLAPSED";
       } else {

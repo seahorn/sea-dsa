@@ -15,7 +15,7 @@ static llvm::cl::opt<bool>
                    llvm::cl::init(false));
 
 namespace seadsa {
-  bool IsTypeAware;
+  bool g_IsTypeAware;
 }
 
 namespace {
@@ -81,12 +81,12 @@ FieldType::FieldType(llvm::Type *Ty) {
   assert(Ty);
 
   static bool s_WarnTypeAware = true;
-  if (s_WarnTypeAware && IsTypeAware) {
+  if (s_WarnTypeAware && g_IsTypeAware) {
     llvm::errs() << "Sea-Dsa type aware!\n";
     s_WarnTypeAware = false;
   }
 
-  if (!IsTypeAware) {
+  if (!g_IsTypeAware) {
     m_ty = nullptr;
     return;
   }
@@ -102,6 +102,6 @@ FieldType::FieldType(llvm::Type *Ty) {
   }
 }
 
-bool FieldType::IsNotTypeAware() { return !IsTypeAware; }
+bool FieldType::IsNotTypeAware() { return !g_IsTypeAware; }
 
 } // namespace seadsa

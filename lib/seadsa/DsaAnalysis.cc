@@ -17,7 +17,7 @@
 #include "seadsa/support/RemovePtrToInt.hh"
 
 namespace seadsa {
-extern bool IsTypeAware;
+extern bool g_IsTypeAware;
 }
 
 using namespace seadsa;
