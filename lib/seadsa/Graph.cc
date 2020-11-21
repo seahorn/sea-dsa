@@ -377,18 +377,82 @@ void Node::pointTo(Node &node, const Offset &offset) {
   m_nodeType.reset();
 }
 
-void Node::addLink(Field _f, Cell &c) {
+Cell &Node::getLink(const Field &_f) {
+  Field f = Offset::getAdjustedField(*this, _f);
+  auto &res = m_links[f];
+  if (!res) res.reset(new Cell());
+  return *res;
+}
+
+const Cell &Node::getLink(Field _f) const {
   assert(g_IsTypeAware || _f.getType().isUnknown());
+  Field f = Offset::getAdjustedField(*this, _f);
+
+  if (m_links.count(f)) return *m_links.at(f);
+
+  // -- only reason to be here is because of omni type
+  assert(!FieldType::IsNotTypeAware());
+  assert(!f.hasOmniType());
+  Field omni = f.mkOmniField();
+  if (m_links.count(omni)) return *m_links.at(omni);
+
+  assert(false); // unreachable
+}
+
+void Node::setLink(const Field _f, const Cell &c) {
+  Field f = Offset::getAdjustedField(*this, _f);
+  getLink(f) = c;
+}
+void Node::addLink(Field _f, const Cell &c) {
+  assert(!FieldType::IsNotTypeAware() || _f.getType().isUnknown());
+  assert(!c.isNull());
 
   const Field f = Offset(*this, _f.getOffset()).getAdjustedField(_f);
 
-  if (!hasLink(f)) {
+  if (hasLink(f)) {
+    Cell &link = getLink(f);
+    Cell cc(c);
+    link.unify(cc);
+    return;
+  }
+
+  if (!FieldType::IsNotTypeAware()) {
+    const Field omniField = f.mkOmniField();
+    if (hasLink(omniField)) {
+      assert(!f.hasOmniType());
+      Cell &link = getLink(omniField);
+      Cell cc(c);
+      link.unify(cc);
+      return;
+    }
+  }
+
+  if (!f.hasOmniType()) {
     setLink(f, c);
     return;
   }
 
-  Cell &link = getLink(f);
-  link.unify(c);
+  assert(!FieldType::IsNotTypeAware());
+
+  // -- field F is omnitype, must collapse all related offsets to it
+  // -- re-create links by collapsing everything that has offset of f with its
+  // -- cell
+  Node::links_type new_links;
+  Cell cc(c);
+  for (auto &kv : m_links) {
+    const Field &key = kv.first;
+    if (key.getOffset() == f.getOffset()) {
+      cc.unify(*kv.second);
+    } else {
+      new_links[kv.first] = std::move(kv.second);
+    }
+  }
+
+  assert(!cc.isNull());
+  // -- insert the new unified cell
+  new_links[f].reset(new Cell(cc));
+
+  m_links = std::move(new_links);
 }
 
 /// Unify a given node into the current node at a specified offset.

@@ -244,13 +244,13 @@ protected:
       assert(cast->getOperand(0));
       // recursion is bounded by levels of bitcasts
       return isNullConstant(*cast->getOperand(0));
-    }
-    else if (auto *cast = dyn_cast<PtrToIntInst>(&v)) {
+    } else if (auto *cast = dyn_cast<PtrToIntInst>(&v)) {
       assert(cast->getOperand(0));
       return isNullConstant(*cast->getOperand(0));
     }
     // Some LDV examples in SV-COMP benchmarks might contain gep null, ....
-    else if (const GetElementPtrInst *Gep = dyn_cast<const GetElementPtrInst>(V)) {
+    else if (const GetElementPtrInst *Gep =
+                 dyn_cast<const GetElementPtrInst>(V)) {
       const Value &base = *Gep->getPointerOperand();
       if (const Constant *c = dyn_cast<Constant>(base.stripPointerCasts()))
         return c->isNullValue();
@@ -500,7 +500,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     // may need to define multiple sea_dsa_link types. For example:
     // sea_dsa_link_to_charptr(const void *p, unsigned offset, const char*
     // p2);
-    if (fn->getName().startswith("sea_dsa_link")) fnType = SeadsaFn::LINK;
+    if (fn->getName().startswith("sea_dsa_link"))
+      fnType = SeadsaFn::LINK;
     else if (fn->getName().startswith("sea_dsa_access"))
       fnType = SeadsaFn::ACCESS;
 
@@ -703,10 +704,11 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 
     if (!base.hasLink(LoadedField)) {
       Node &n = m_graph.mkNode();
-      base.setLink(LoadedField, Cell(&n, 0));
+      base.addLink(LoadedField, Cell(&n, 0));
     }
 
-    m_graph.mkCell(LI, base.getLink(LoadedField));
+    auto &c = m_graph.mkCell(LI, base.getLink(LoadedField));
+    assert(!c.isNull());
   }
 
   // handle first-class structs by pretending pointers to them are loaded
@@ -747,7 +749,7 @@ void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
     Field LoadedField(0, FieldType(ResTy));
     if (!PtrC.hasLink(LoadedField)) {
       Node &n = m_graph.mkNode();
-      PtrC.setLink(LoadedField, Cell(n, 0));
+      PtrC.addLink(LoadedField, Cell(n, 0));
     }
     Cell Res = m_graph.mkCell(I, PtrC.getLink(LoadedField));
 
@@ -1115,7 +1117,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
     // -- create a new node if there is no link at this offset yet
     if (!in.hasLink(InstType)) {
       Node &n = m_graph.mkNode();
-      in.setLink(InstType, Cell(&n, 0));
+      in.addLink(InstType, Cell(&n, 0));
       // -- record allocation site
       seadsa::DsaAllocSite *site = m_graph.mkAllocSite(I);
       assert(site);
@@ -1620,7 +1622,7 @@ bool BlockBuilderBase::isFixedOffset(const IntToPtrInst &inst, Value *&base,
       if (!ptrCell.hasLink(LoadedField)) {
         seadsa::Node &n = m_graph.mkNode();
         // XXX: This node will have no allocation site
-        ptrCell.setLink(LoadedField, seadsa::Cell(&n, 0));
+        ptrCell.addLink(LoadedField, seadsa::Cell(&n, 0));
         LOG("dsa.inttoptr",
             errs() << "Created node for LI from external memory without an "
                       "allocation site:\n\tLI: "
@@ -1767,13 +1769,13 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
   if (!isEscapingPtrToInt(I)) return;
 
-  if (BlockBuilderBase::isNullConstant(*I.getOperand(0)))
-    return;
+  if (BlockBuilderBase::isNullConstant(*I.getOperand(0))) return;
 
   // -- conversion of a pointer that has no memory representation
   // -- something is wrong, do a warning and return
   if (!m_graph.hasCell(*I.getOperand(0))) {
-    LOG("dsa", llvm::errs() << "Warning: ptrtoint applied to pointer without a cell\n";);
+    LOG("dsa", llvm::errs()
+                   << "Warning: ptrtoint applied to pointer without a cell\n";);
     return;
   }
   assert(m_graph.hasCell(*I.getOperand(0)));

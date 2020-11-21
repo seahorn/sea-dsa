@@ -10,13 +10,15 @@
 namespace seadsa {
 
 static llvm::cl::opt<bool>
-    OmnipotentChar("sea-dsa-omnipotent-char",
-                   llvm::cl::desc("Enable SeaDsa omnipotent char"),
-                   llvm::cl::init(false));
+    EnableOmnipotentChar("sea-dsa-omnipotent-char",
+                         llvm::cl::desc("Enable SeaDsa omnipotent char"),
+                         llvm::cl::init(true));
 
 namespace seadsa {
-  bool g_IsTypeAware;
+bool g_IsTypeAware;
 }
+
+static llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
 
 namespace {
 using SeenTypes = llvm::SmallDenseSet<llvm::Type *, 8>;
@@ -36,21 +38,19 @@ llvm::Type *GetInnermostTypeImpl(llvm::Type *const Ty, SeenTypes &seen) {
 
     if (currentTy->isPointerTy()) {
       auto *ElemTy = currentTy->getPointerElementType();
-      currentTy = GetInnermostTypeImpl(ElemTy, seen)->getPointerTo(
-          currentTy->getPointerAddressSpace());
+      currentTy = GetInnermostTypeImpl(ElemTy, seen)
+                      ->getPointerTo(currentTy->getPointerAddressSpace());
       break;
     }
 
     auto It = AggregateIterator::mkBegin(currentTy, /* DL = */ nullptr);
     auto *FirstTy = It->Ty;
-    if (!FirstTy)
-      break;
+    if (!FirstTy) break;
 
     if (FirstTy->isPointerTy() && FirstTy->getPointerElementType() == currentTy)
       break;
 
-    if (FirstTy == currentTy)
-      break;
+    if (FirstTy == currentTy) break;
 
     currentTy = FirstTy;
   }
@@ -62,43 +62,46 @@ llvm::Type *GetInnermostTypeImpl(llvm::Type *const Ty, SeenTypes &seen) {
 
 /// This is intended to be used within a single llvm::Context. When there's more
 /// than one context, the caching might misbehave.
-llvm::Type *GetFirstPrimitiveTy(llvm::Type *const Ty) {
+static llvm::Type *GetFirstPrimitiveTy(llvm::Type *const Ty) {
   assert(Ty);
 
   SeenTypes seen;
   return GetInnermostTypeImpl(Ty, seen);
 }
 
-static bool IsOmnipotentChar(llvm::Type *Ty) {
+static bool IsOmnipotentChar(llvm::Type *const Ty) {
   assert(Ty);
-  if (auto *ITy = llvm::dyn_cast<llvm::IntegerType>(Ty))
-    if (ITy->getBitWidth() == 8) return true;
+  if (auto *ITy = llvm::dyn_cast<const llvm::IntegerType>(Ty))
+    return ITy->getBitWidth() == 8;
 
   return false;
+}
+
+static bool IsOmnipotentPtr(llvm::Type *const Ty) {
+  auto res = Ty->isPointerTy() && IsOmnipotentChar(Ty->getPointerElementType());
+  return res;
 }
 
 FieldType::FieldType(llvm::Type *Ty) {
   assert(Ty);
 
+  // -- debug logging
   static bool s_WarnTypeAware = true;
   if (s_WarnTypeAware && g_IsTypeAware) {
     llvm::errs() << "Sea-Dsa type aware!\n";
     s_WarnTypeAware = false;
   }
 
-  if (!g_IsTypeAware) {
-    m_ty = nullptr;
-    return;
-  }
+  m_ty = IsNotTypeAware() ? nullptr : GetFirstPrimitiveTy(Ty);
+  if (m_ty && EnableOmnipotentChar) m_is_omni = IsOmnipotentPtr(m_ty);
 
-  m_ty = GetFirstPrimitiveTy(Ty);
-  if (OmnipotentChar && IsOmnipotentChar(m_ty)) {
+  // -- debug logging
+  if (m_is_omni) {
     static bool s_shown = false;
     if (!s_shown) {
       llvm::errs() << "Omnipotent char: " << *this << "\n";
       s_shown = true;
     }
-    m_ty = nullptr;
   }
 }
 

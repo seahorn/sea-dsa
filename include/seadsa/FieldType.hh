@@ -1,5 +1,4 @@
-#ifndef SEADSA_FIELD_TYPE
-#define SEADSA_FIELD_TYPE
+#pragma once
 
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
@@ -10,16 +9,15 @@
 
 namespace seadsa {
 
-llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
-
 #define FIELD_TYPE_STRINGIFY(X) #X
 #define FIELD_TYPE_NOT_IMPLEMENTED                                             \
   seadsa::FieldType::NotImplemented(FIELD_TYPE_STRINGIFY(__LINE__))
 
 class FieldType {
-  llvm::Type *m_ty = nullptr;
-  bool m_NOT_IMPLEMENTED = false;
-  const char *m_whereNotImpl = "";
+  llvm::Type *m_ty{nullptr};
+  bool m_is_omni{false};
+  bool m_NOT_IMPLEMENTED{false};
+  const char *m_whereNotImpl{""};
 
   FieldType() = default;
 
@@ -37,6 +35,12 @@ public:
     return ft;
   }
 
+  static FieldType mkOmniType() {
+    FieldType ft;
+    ft.m_is_omni = true;
+    return ft;
+  };
+
   explicit FieldType(llvm::Type *Ty);
 
   FieldType(const FieldType &ft) = default;
@@ -45,33 +49,44 @@ public:
   FieldType(FieldType &&) = default;
   FieldType &operator=(FieldType &&) = default;
 
-  bool isData() const { return !m_ty->isPointerTy(); }
-  bool isPointer() const { return m_ty->isPointerTy(); }
-  bool isUnknown() const { return !m_ty; }
-
+  bool isData() const { return m_ty && !m_ty->isPointerTy(); }
+  bool isPointer() const { return m_ty && m_ty->isPointerTy(); }
+  bool isUnknown() const { return !isOmniType() && !m_ty; }
+  bool isOmniType() const { return m_is_omni; }
 
   llvm::Type *getLLVMType() const { return m_ty; }
 
   bool operator==(const FieldType &RHS) const {
-    if (isUnknown() || RHS.isUnknown() || IsNotTypeAware()) return true;
+    if (IsNotTypeAware()) return true;
+    if (this == &RHS) return true;
+    if (isUnknown() || RHS.isUnknown()) return isUnknown() == RHS.isUnknown();
+    if (isOmniType() || RHS.isOmniType())
+      return isOmniType() == RHS.isOmniType();
 
     return asTuple() == RHS.asTuple();
   }
 
   // opaque is top.
   bool operator<(const FieldType &RHS) const {
-    // assert(isUnknown());
-    // assert(RHS.isUnknown());
+    if (IsNotTypeAware()) return false; // only one field type
+    if (this == &RHS) return false;
 
-    if (isUnknown() || RHS.isUnknown() || IsNotTypeAware()) return false;
+    if (isUnknown() || RHS.isUnknown()) {
+      return isUnknown() < RHS.isUnknown();
+    }
 
+    if (isOmniType() || RHS.isOmniType()) {
+      return isOmniType() < RHS.isOmniType();
+    }
+
+    // not identical, not unknown, not omni
     return asTuple() < RHS.asTuple();
   }
 
   FieldType ptrOf() const {
     assert(!isUnknown());
     auto *PtrTy = llvm::PointerType::get(m_ty, 0);
-    return FieldType{PtrTy};
+    return FieldType(PtrTy);
   }
 
   FieldType elemOf() const {
@@ -79,7 +94,7 @@ public:
     assert(isPointer());
 
     auto *NewTy = m_ty->getPointerElementType();
-    return FieldType{NewTy};
+    return FieldType(NewTy);
   }
 
   void dump(llvm::raw_ostream &OS = llvm::errs()) const {
@@ -91,6 +106,11 @@ public:
     if (isUnknown()) {
       OS << "unknown";
       return;
+    }
+
+    if (isOmniType()) {
+      OS << "omni_";
+      if (!m_ty) return;
     }
 
     if (m_ty->isStructTy())
@@ -105,10 +125,7 @@ public:
     return OS;
   }
 
-private:
   static bool IsNotTypeAware();
 };
 
 } // namespace seadsa
-
-#endif // SEADSA_FIELD_TYPE

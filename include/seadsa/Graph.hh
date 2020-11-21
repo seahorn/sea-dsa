@@ -202,8 +202,7 @@ public:
 
   llvm::Optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
     auto it = m_valueToAllocSite.find(&v);
-    if (it != m_valueToAllocSite.end())
-      return it->second;
+    if (it != m_valueToAllocSite.end()) return it->second;
 
     return llvm::None;
   }
@@ -211,7 +210,7 @@ public:
   DsaAllocSite *mkAllocSite(const llvm::Value &v);
 
   void clearCallSites();
-  
+
   llvm::iterator_range<alloc_site_iterator> alloc_sites() {
     alloc_site_iterator begin = m_allocSites.begin();
     alloc_site_iterator end = m_allocSites.end();
@@ -223,13 +222,13 @@ public:
     alloc_site_const_iterator end = m_allocSites.end();
     return llvm::make_range(begin, end);
   }
- 
+
   bool hasAllocSiteForValue(const llvm::Value &v) const {
     return m_valueToAllocSite.count(&v) > 0;
   }
 
   // return null if no callsite found
-  DsaCallSite* getCallSite(const llvm::Instruction &cs) {
+  DsaCallSite *getCallSite(const llvm::Instruction &cs) {
     auto it = m_instructionToCallSite.find(&cs);
     if (it != m_instructionToCallSite.end()) {
       return &*it->second;
@@ -238,12 +237,12 @@ public:
     }
   }
 
-  DsaCallSite* mkCallSite(const llvm::Instruction &cs, Cell c);
-  
+  DsaCallSite *mkCallSite(const llvm::Instruction &cs, Cell c);
+
   llvm::iterator_range<callsite_iterator> callsites();
 
   llvm::iterator_range<callsite_const_iterator> callsites() const;
-  
+
   /// Compute a simulation relation map from callee nodes to caller
   /// nodes.
   static bool
@@ -255,9 +254,9 @@ public:
   /// graphs.  Return true if the graph fromG is simulated by the
   /// graph toG.
   static bool computeSimulationMapping(Graph &fromG, Graph &toG,
-				       SimulationMapper &simMap,
-				       bool onlyModified = false);
-  
+                                       SimulationMapper &simMap,
+                                       bool onlyModified = false);
+
   /// import the given graph into the current one
   /// copies all nodes from g and unifies all common scalars
   virtual void import(const Graph &g, bool withFormals = false);
@@ -312,9 +311,11 @@ public:
 
   Field subOffset(unsigned offset) const { return {m_offset - offset, m_type}; }
 
-
   unsigned getOffset() const { return m_offset; }
   FieldType getType() const { return m_type; }
+  bool hasOmniType() const { return m_type.isOmniType(); }
+
+  Field mkOmniField() const { return Field(m_offset, FieldType::mkOmniType()); }
 
   bool operator<(const Field &o) const { return asTuple() < o.asTuple(); }
   bool operator==(const Field &o) const { return asTuple() == o.asTuple(); }
@@ -383,7 +384,7 @@ public:
   inline bool hasLink(Field offset) const;
   inline const Cell &getLink(Field offset) const;
   inline void setLink(Field offset, const Cell &c);
-  inline void addLink(Field offset, Cell &c);
+  inline void addLink(Field offset, const Cell &c);
   inline void addAccessedType(unsigned offset, llvm::Type *t);
   inline void growSize(unsigned offset, llvm::Type *t);
 
@@ -461,50 +462,31 @@ public:
       null |= n.null;
 
       // XXX: cannot be offset-collapsed and array at the same time
-      if (offset_collapsed && array)
-        array = 0;
+      if (offset_collapsed && array) array = 0;
     }
     void reset() { memset(this, 0, sizeof(*this)); }
 
     std::string toStr() const {
       std::string flags;
 
-      if (offset_collapsed)
-        flags += "oC";
-      if (type_collapsed)
-        flags += "tC";
-      if (alloca)
-        flags += "S";
-      if (heap)
-        flags += "H";
-      if (global)
-        flags += "G";
-      if (array)
-        flags += "A";
-      if (unknown)
-        flags += "U";
-      if (incomplete)
-        flags += "I";
-      if (modified)
-        flags += "M";
-      if (read)
-        flags += "R";
-      if (external)
-        flags += "E";
-      if (externFunc)
-        flags += "X";
-      if (externGlobal)
-        flags += "Y";
-      if (inttoptr)
-        flags += "P";
-      if (ptrtoint)
-        flags += "2";
-      if (vastart)
-        flags += "V";
-      if (dead)
-        flags += "D";
-      if (null)
-        flags += "N";
+      if (offset_collapsed) flags += "oC";
+      if (type_collapsed) flags += "tC";
+      if (alloca) flags += "S";
+      if (heap) flags += "H";
+      if (global) flags += "G";
+      if (array) flags += "A";
+      if (unknown) flags += "U";
+      if (incomplete) flags += "I";
+      if (modified) flags += "M";
+      if (read) flags += "R";
+      if (external) flags += "E";
+      if (externFunc) flags += "X";
+      if (externGlobal) flags += "Y";
+      if (inttoptr) flags += "P";
+      if (ptrtoint) flags += "2";
+      if (vastart) flags += "V";
+      if (dead) flags += "D";
+      if (null) flags += "N";
       return flags;
     }
   };
@@ -609,12 +591,7 @@ private:
   /// should use unifyAt() that has less stringent preconditions.
   void pointTo(Node &node, const Offset &offset);
 
-  Cell &getLink(const Field &f) {
-    auto &res = m_links[Offset::getAdjustedField(*this, f)];
-    if (!res)
-      res.reset(new Cell());
-    return *res;
-  }
+  Cell &getLink(const Field &_f);
 
   /// Adds a set of types for a field at a given offset
   void addAccessedType(const Offset &offset, Set types);
@@ -764,16 +741,11 @@ public:
 
   bool getNumLinks() const { return m_links.size(); }
 
-  const Cell &getLink(Field f) const {
-    assert(g_IsTypeAware || f.getType().isUnknown());
-    return *m_links.at(Offset::getAdjustedField(*this, f));
-  }
+  const Cell &getLink(Field f) const;
 
-  void setLink(Field f, const Cell &c) {
-    getLink(Offset::getAdjustedField(*this, f)) = c;
-  }
+  void setLink(const Field _f, const Cell &c);
 
-  void addLink(Field field, Cell &c);
+  void addLink(Field field, const Cell &c);
 
   bool hasAccessedType(unsigned offset) const;
 
@@ -850,14 +822,16 @@ bool Cell::hasLink(Field offset) const {
 
 const Cell &Cell::getLink(Field offset) const {
   assert(m_node);
-  return getNode()->getLink(offset.addOffset(m_offset));
+  // -- call Node::getLink() const
+  return static_cast<const Node *>(getNode())->getLink(
+      offset.addOffset(m_offset));
 }
 
 void Cell::setLink(Field offset, const Cell &c) {
   getNode()->setLink(offset.addOffset(m_offset), c);
 }
 
-void Cell::addLink(Field offset, Cell &c) {
+void Cell::addLink(Field offset, const Cell &c) {
   getNode()->addLink(offset.addOffset(m_offset), c);
 }
 
