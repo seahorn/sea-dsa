@@ -13,8 +13,8 @@ namespace seadsa {
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
 
 #define FIELD_TYPE_STRINGIFY(X) #X
-#define FIELD_TYPE_NOT_IMPLEMENTED seadsa::FieldType::NotImplemented( \
-                                                FIELD_TYPE_STRINGIFY(__LINE__ ))
+#define FIELD_TYPE_NOT_IMPLEMENTED                                             \
+  seadsa::FieldType::NotImplemented(FIELD_TYPE_STRINGIFY(__LINE__))
 
 class FieldType {
   llvm::Type *m_ty = nullptr;
@@ -49,24 +49,21 @@ public:
   bool isPointer() const { return m_ty->isPointerTy(); }
   bool isUnknown() const { return !m_ty; }
 
-  static bool IsOmnipotentChar(llvm::Type *Ty);
 
   llvm::Type *getLLVMType() const { return m_ty; }
 
   bool operator==(const FieldType &RHS) const {
-    if (isUnknown() || RHS.isUnknown() || IsNotTypeAware())
-      return true;
+    if (isUnknown() || RHS.isUnknown() || IsNotTypeAware()) return true;
 
     return asTuple() == RHS.asTuple();
   }
 
   // opaque is top.
   bool operator<(const FieldType &RHS) const {
-    //assert(isUnknown());
-    //assert(RHS.isUnknown());
+    // assert(isUnknown());
+    // assert(RHS.isUnknown());
 
-    if (isUnknown() || RHS.isUnknown() || IsNotTypeAware())
-      return false;
+    if (isUnknown() || RHS.isUnknown() || IsNotTypeAware()) return false;
 
     return asTuple() < RHS.asTuple();
   }

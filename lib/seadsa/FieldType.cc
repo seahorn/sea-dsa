@@ -24,12 +24,14 @@ using SeenTypes = llvm::SmallDenseSet<llvm::Type *, 8>;
 llvm::Type *GetInnermostTypeImpl(llvm::Type *const Ty, SeenTypes &seen) {
   assert(Ty);
 
-  static llvm::DenseMap<llvm::Type *, llvm::Type *> cachedInnermostTypes;
-  if (cachedInnermostTypes.count(Ty) > 0)
-    return cachedInnermostTypes[Ty];
+  static llvm::DenseMap<llvm::Type *, llvm::Type *> s_cachedInnermostTypes;
+  {
+    auto it = s_cachedInnermostTypes.find(Ty);
+    if (it != s_cachedInnermostTypes.end()) return it->getSecond();
+  }
 
   llvm::Type *currentTy = Ty;
-  while (seen.count(currentTy) == 0) {
+  while (!seen.count(currentTy)) {
     seen.insert(currentTy);
 
     if (currentTy->isPointerTy()) {
@@ -53,7 +55,7 @@ llvm::Type *GetInnermostTypeImpl(llvm::Type *const Ty, SeenTypes &seen) {
     currentTy = FirstTy;
   }
 
-  cachedInnermostTypes[Ty] = currentTy;
+  s_cachedInnermostTypes.insert({Ty, currentTy});
   return currentTy;
 }
 } // namespace
@@ -67,13 +69,21 @@ llvm::Type *GetFirstPrimitiveTy(llvm::Type *const Ty) {
   return GetInnermostTypeImpl(Ty, seen);
 }
 
+static bool IsOmnipotentChar(llvm::Type *Ty) {
+  assert(Ty);
+  if (auto *ITy = llvm::dyn_cast<llvm::IntegerType>(Ty))
+    if (ITy->getBitWidth() == 8) return true;
+
+  return false;
+}
+
 FieldType::FieldType(llvm::Type *Ty) {
   assert(Ty);
 
-  static bool WarnTypeAware = true;
-  if (WarnTypeAware && IsTypeAware) {
+  static bool s_WarnTypeAware = true;
+  if (s_WarnTypeAware && IsTypeAware) {
     llvm::errs() << "Sea-Dsa type aware!\n";
-    WarnTypeAware = false;
+    s_WarnTypeAware = false;
   }
 
   if (!IsTypeAware) {
@@ -83,22 +93,13 @@ FieldType::FieldType(llvm::Type *Ty) {
 
   m_ty = GetFirstPrimitiveTy(Ty);
   if (OmnipotentChar && IsOmnipotentChar(m_ty)) {
-    static bool shown = false;
-    if (!shown) {
+    static bool s_shown = false;
+    if (!s_shown) {
       llvm::errs() << "Omnipotent char: " << *this << "\n";
-      shown = true;
+      s_shown = true;
     }
     m_ty = nullptr;
   }
-}
-
-bool FieldType::IsOmnipotentChar(llvm::Type *Ty) {
-  assert(Ty);
-  if (auto *ITy = llvm::dyn_cast<llvm::IntegerType>(Ty))
-      if (ITy->getBitWidth() == 8)
-        return true;
-
-  return false;
 }
 
 bool FieldType::IsNotTypeAware() { return !IsTypeAware; }
