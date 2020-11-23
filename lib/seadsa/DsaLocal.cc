@@ -784,6 +784,10 @@ void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
   }
 }
 
+static bool isBytePtrTy(const Type *ty) {
+  return ty->isPointerTy() && ty->getPointerElementType()->isIntegerTy(8);
+}
+
 void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
   using namespace seadsa;
 
@@ -821,7 +825,18 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
       // val.getType() can be an opaque type, so we cannot use it to get
       // a ptr type.
       Cell dest(val.getNode(), val.getRawOffset());
-      base.addLink(Field(0, FieldType(ValOp->getType())), dest);
+
+      // -- guess best type for the store. Use the type of the value being
+      // -- stored, unless it is i8*, in which case check if the store location
+      // -- has a better type
+
+      Type *ty = ValOp->getType();
+      if (isBytePtrTy(ty)) {
+        Type *opTy = SI.getPointerOperand()->stripPointerCasts()->getType();
+        if (opTy->isPointerTy() && opTy->getPointerElementType()->isPointerTy())
+          ty = opTy->getPointerElementType();
+      }
+      base.addLink(Field(0, FieldType(ty)), dest);
     }
   }
 }
