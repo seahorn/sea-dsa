@@ -11,7 +11,11 @@ namespace seadsa {
 
 static llvm::cl::opt<bool>
     EnableOmnipotentChar("sea-dsa-omnipotent-char",
-                         llvm::cl::desc("Enable SeaDsa omnipotent char"),
+                         llvm::cl::desc("Enable SeaDsa omnipotent char (default is true)"),
+                         // NOTE: Setting this to false results in unsound results
+                         // because LLVM insists on storing pointers as i8*
+                         // even when they have different types in the source
+                         // language
                          llvm::cl::init(true));
 
 namespace seadsa {
