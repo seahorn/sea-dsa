@@ -377,7 +377,8 @@ void Node::pointTo(Node &node, const Offset &offset) {
   m_nodeType.reset();
 }
 
-Cell &Node::getLink(const Field &_f) {
+Cell &Node::getLink_(const Field &_f) {
+  assert(!isForwarding());
   Field f = Offset::getAdjustedField(*this, _f);
   auto &res = m_links[f];
   if (!res) res.reset(new Cell());
@@ -385,6 +386,7 @@ Cell &Node::getLink(const Field &_f) {
 }
 
 const Cell &Node::getLink(Field _f) const {
+  assert(!isForwarding());
   assert(g_IsTypeAware || _f.getType().isUnknown());
   Field f = Offset::getAdjustedField(*this, _f);
 
@@ -400,17 +402,19 @@ const Cell &Node::getLink(Field _f) const {
 }
 
 void Node::setLink(const Field _f, const Cell &c) {
+  assert(!isForwarding());
   Field f = Offset::getAdjustedField(*this, _f);
-  getLink(f) = c;
+  getLink_(f) = c;
 }
 void Node::addLink(Field _f, const Cell &c) {
+  assert(!isForwarding());
   assert(!FieldType::IsNotTypeAware() || _f.getType().isUnknown());
   assert(!c.isNull());
 
   const Field f = Offset(*this, _f.getOffset()).getAdjustedField(_f);
 
   if (hasLink(f)) {
-    Cell &link = getLink(f);
+    Cell &link = getLink_(f);
     Cell cc(c);
     link.unify(cc);
     return;
@@ -420,7 +424,7 @@ void Node::addLink(Field _f, const Cell &c) {
     const Field omniField = f.mkOmniField();
     if (hasLink(omniField)) {
       assert(!f.hasOmniType());
-      Cell &link = getLink(omniField);
+      Cell &link = getLink_(omniField);
       Cell cc(c);
       link.unify(cc);
       return;

@@ -591,7 +591,7 @@ private:
   /// should use unifyAt() that has less stringent preconditions.
   void pointTo(Node &node, const Offset &offset);
 
-  Cell &getLink(const Field &_f);
+  Cell &getLink_(const Field &_f);
 
   /// Adds a set of types for a field at a given offset
   void addAccessedType(const Offset &offset, Set types);
