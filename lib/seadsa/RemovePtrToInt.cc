@@ -223,6 +223,8 @@ public:
     res->setOrdering(I.getOrdering());
     res->setSyncScopeID(I.getSyncScopeID());
     res->copyMetadata(I);
+    // -- clear range metadata since it is no longer valid
+    res->setMetadata(LLVMContext::MD_range, nullptr);
 
     for (auto *u : I.users()) {
       if (auto *SI = dyn_cast<StoreInst>(u)) {
