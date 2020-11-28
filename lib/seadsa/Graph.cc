@@ -439,24 +439,33 @@ void Node::addLink(Field _f, const Cell &c) {
   assert(!FieldType::IsNotTypeAware());
 
   // -- field F is omnitype, must collapse all related offsets to it
-  // -- re-create links by collapsing everything that has offset of f with its
-  // -- cell
+
+  // -- move all links that are not related to the omni-link
   Node::links_type new_links;
-  Cell cc(c);
+  // -- save all links that are related to the omni-link
+  SmallVector<std::pair<Field, CellRef>, 16> saved_links;
+
+  // -- copy as much as possible. Do not unify during this loop since
+  // -- unification might change the current node and invalidate m_links
   for (auto &kv : m_links) {
     const Field &key = kv.first;
     if (key.getOffset() == f.getOffset()) {
-      cc.unify(*kv.second);
+      saved_links.push_back({kv.first, std::move(kv.second)});
     } else {
       new_links[kv.first] = std::move(kv.second);
     }
   }
 
-  assert(!cc.isNull());
-  // -- insert the new unified cell
-  new_links[f].reset(new Cell(cc));
-
+  // -- insert the new omni cell
+  new_links[f].reset(new Cell(c));
   m_links = std::move(new_links);
+
+  // -- recreate links that have been removed by adding them through a cell
+  // -- pointing to the current node. The cell takes care of resolving forwarding
+  Cell cc(*this, 0);
+  for (auto &kv : saved_links) {
+    cc.addLink(kv.first, *kv.second);
+  }
 }
 
 /// Unify a given node into the current node at a specified offset.
