@@ -321,6 +321,8 @@ void Node::collapseTypes(int tag) {
 }
 
 void Node::pointTo(Node &node, const Offset &offset) {
+  // -- possible under flat dsa graph
+  if (&node == this) return;
   assert(&node == &offset.node());
   assert(&node != this);
   assert(!isForwarding());
