@@ -966,6 +966,7 @@ void ShadowMemImpl::visitMainFunction(Function &fn) {
 
   std::set<GlobalVariable *, GlobalVariableOrdering> globals;
   for (auto &gv : fn.getParent()->globals()) {
+    if (!gv.hasName()) gv.setName("gv");
     globals.insert(&gv);
   }
 
@@ -1719,6 +1720,7 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
                                   LocalReadMod, ShadowMemOptimize,
                                   ShadowMemUseTBAA));
 
+  assert(!llvm::verifyModule(M, &errs()));
   bool res = m_shadowMem->runOnModule(M);
   LOG("shadow_verbose", errs() << "Module after shadow insertion:\n"
                                << M << "\n";);
