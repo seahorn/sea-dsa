@@ -12,6 +12,7 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 #define DEBUG_TYPE "sea-remove-ptrtoint"
@@ -270,6 +271,7 @@ public:
       } else  {
         // -- if there is an interesting user, schedule it to be replaced
         if (!p2i) {
+          IRB.SetInsertPoint(&I);
           p2i = IRB.CreatePtrToInt(res, I.getType());
         }
         m_toReplace.insert({&I, p2i});
@@ -447,6 +449,10 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
 
   DOG(llvm::errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
       llvm::errs().flush());
+
+  if (Changed) {
+    assert(!llvm::verifyFunction(F, &llvm::errs()));
+  }
 
   // llvm::errs() << F << "\n";
   return Changed;
