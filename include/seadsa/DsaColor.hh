@@ -10,7 +10,7 @@ using namespace llvm;
 
 namespace seadsa {
 
-using Color = unsigned;
+using Color = unsigned long long; // at least 64 bit, needed 48
 
 class Graph;
 class Node;
