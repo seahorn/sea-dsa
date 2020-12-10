@@ -687,7 +687,6 @@ public :
               colorGraphsCallSite(cs, calleeG, callerG, color_callee,
                                   color_caller);
               std::string FilenameBase =
-                f_caller->getParent()->getModuleIdentifier() + "." +
                 f_caller->getName().str() + "." + f_callee->getName().str() +
                   "." + std::to_string(++cs_count);
 
