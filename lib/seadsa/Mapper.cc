@@ -128,7 +128,8 @@ bool SimulationMapper::insert(const Node &n1, Node &n2, Field o)
     const FieldType ty = kv.first.getType();
     const Field adjusted(j, ty);
 
-    if (!n2.hasLink(adjusted))
+    const Field omniField = adjusted.mkOmniField();
+    if (!n2.hasLink(adjusted) && !n2.hasLink(omniField))
     { m_sim.clear (); return false; }
     
     Node *n3 = kv.second->getNode ();
