@@ -72,6 +72,35 @@ static Value *stripBitCast(Value *V) {
   }
 }
 
+static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
+  // Resolve trivial indirect calls through bitcasts:
+  //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
+  // 
+  // This is important because our top-down/bottom-up analyses
+  // traverse the call graph in a particular order (topological or
+  // reverse topological). If these edges are missing then the
+  // propagation can be done "too early" without analyzing the caller
+  // or callee yet.
+  for (auto &I : llvm::make_range(inst_begin(&F), inst_end(&F))) {
+    if (!(isa<CallInst>(I) || isa<InvokeInst>(I))) continue;
+    CallSite CS(&I);
+    Value *calleeV = CS.getCalledValue();
+    if (calleeV != stripBitCast(calleeV)) {
+      if (Function *calleeF = dyn_cast<Function>(stripBitCast(calleeV))) {
+	CallGraphNode *callerCGN = seaCg[&F];	    
+	CallGraphNode *calleeCGN = seaCg[calleeF];
+	CallBase *cb = dyn_cast<CallBase>(CS.getInstruction());
+	callerCGN->removeCallEdgeFor(*cb);
+	callerCGN->addCalledFunction(cb, calleeCGN);
+	LOG("dsa-callgraph-trivial",
+	    llvm::errs() << "Added edge from " << F.getName() << " to "
+	    << calleeF->getName()
+	    << " with callsite=" << *CS.getInstruction() << "\n";);
+      }
+    }
+  }
+}
+  
 // XXX: similar to Graph::import but with two modifications:
 // - the callee graph is modified during the cloning of call sites.
 // - call sites are copied.
@@ -317,7 +346,7 @@ CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
     : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
       m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg),
       m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
-
+  
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
   typedef std::unordered_set<const Instruction *> InstSet;
@@ -327,11 +356,13 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
   GraphMap graphs;
 
-  // initialize empty graphs
   for (auto &F : M) {
     if (F.isDeclaration() || F.empty()) continue;
+    // initialize empty graphs
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
     graphs[&F] = fGraph;
+    // resolve trivial indirect calls
+    resolveIndirectCallsThroughBitCast(F, *m_complete_cg);
   }
 
   const bool track_callsites = true;
@@ -410,11 +441,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
         static int cnt = 0;
         // Inline direct and indirect calls
         for (auto &callRecord : *cgn) {
-          // Deal with things like this:
-          // call void (...) bitcast (void ()* @parse_dir_colors to void
-          // (...)*)()
-          Value *calledV = stripBitCast(callRecord.first);
-          CallSite CS(calledV);
+          CallSite CS(callRecord.first);
           if (CS.isIndirectCall()) {
             // indirect call:
             //
