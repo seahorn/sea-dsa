@@ -53,9 +53,11 @@ bool AllocSiteInfo::runOnModule(Module &M) {
 
   // Handle alloc sites inside functions.
   for (auto &fn : M) {
-    if (fn.isDeclaration())
+    if (fn.isDeclaration()) {
+      ASI_LOG(llvm::errs() << "Ignoring function declaration " << fn.getName()
+                           << "\n");
       continue;
-
+    }
     m_tli = &tliWrapper.getTLI(fn);
 
     ASI_LOG(llvm::errs() << "Running AllocSiteInfo pass on function "

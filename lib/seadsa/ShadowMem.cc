@@ -668,7 +668,11 @@ public:
   void visitCalloc(CallSite &CS);
   void visitMemhavoc(CallSite &CS);
   void visitIsModified(CallSite &CS);
+  void visitIsRead(CallSite &CS);
+  void visitIsAlloc(CallSite &CS);
   void visitResetModified(CallSite &CS);
+  void visitResetRead(CallSite &CS);
+  void visitFree(CallSite &CS);
   void visitDsaCallSite(dsa::DsaCallSite &CS);
 
   /// \brief Returns a reference to the global sea-dsa analysis.
@@ -1059,6 +1063,26 @@ void ShadowMemImpl::visitCallSite(CallSite CS) {
     return;
   }
 
+  if (callee->getName().equals("sea.is_read")) {
+    visitIsRead(CS);
+    return;
+  }
+
+  if (callee->getName().equals("sea.reset_read")) {
+    visitResetRead(CS);
+    return;
+  }
+
+  if (callee->getName().equals("sea.is_alloc")) {
+    visitIsAlloc(CS);
+    return;
+  }
+
+  if (callee->getName().equals("sea.free")) {
+    visitFree(CS);
+    return;
+  }
+
   if (dsa::AllocSiteInfo::isAllocSite(*callInst) &&
       /* we don't want to treat specially allocation wrappers */
       (callee->isDeclaration() || callee->empty())) {
@@ -1211,6 +1235,52 @@ void ShadowMemImpl::visitIsModified(CallSite &CS) {
   associateConcretePtr(memUse, ptr, &callInst);
 }
 
+void ShadowMemImpl::visitIsRead(CallSite &CS) {
+  LOG("dsa.isread", errs() << "Visiting isRead \n");
+  auto &callInst = *CS.getInstruction();
+  /* isMetadataSet definition:
+     bool @sea_is_read(i8*)
+     operand 0 is the pointer to be marked
+  */
+  auto &ptr = *CS.getArgOperand(0);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.isread", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.isread", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memUse = mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memUse, ptr, &callInst);
+}
+
+void ShadowMemImpl::visitIsAlloc(CallSite &CS) {
+  LOG("dsa.isread", errs() << "Visiting isAlloc \n");
+  auto &callInst = *CS.getInstruction();
+  /* isMetadataSet definition:
+     bool @sea_is_alloc(i8*)
+     operand 0 is the pointer to be marked
+  */
+  auto &ptr = *CS.getArgOperand(0);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.isread", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.isread", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memUse = mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memUse, ptr, &callInst);
+}
+
 void ShadowMemImpl::visitResetModified(CallSite &CS) {
   LOG("dsa.resetmodified", errs() << "Visiting resetModified \n");
   auto &callInst = *CS.getInstruction();
@@ -1226,6 +1296,50 @@ void ShadowMemImpl::visitResetModified(CallSite &CS) {
   const dsa::Cell &cell = m_graph->getCell(ptr);
   if (cell.isNull()) {
     LOG("dsa.resetmodified", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memDef, ptr, &callInst);
+}
+
+void ShadowMemImpl::visitResetRead(CallSite &CS) {
+  LOG("dsa.resetRead", errs() << "Visiting resetRead \n");
+  auto &callInst = *CS.getInstruction();
+  /* resetRead definition:
+     bool @sea.reset_read(i8*)
+     operand 0 is the pointer to be marked
+  */
+  auto &ptr = *CS.getArgOperand(0);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.resetread", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.resetread", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memDef, ptr, &callInst);
+}
+
+void ShadowMemImpl::visitFree(CallSite &CS) {
+  LOG("dsa.free", errs() << "Visiting free \n");
+  auto &callInst = *CS.getInstruction();
+  /* free definition:
+     bool @sea.free(i8*)
+     operand 0 is the pointer to be marked
+  */
+  auto &ptr = *CS.getArgOperand(0);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.free", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.free", errs() << "cell is null for: " << ptr << "\n");
     return;
   }
   m_B->SetInsertPoint(&callInst);
