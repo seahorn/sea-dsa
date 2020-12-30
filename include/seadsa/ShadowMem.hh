@@ -91,7 +91,7 @@ public:
   ShadowMemPass();
   bool runOnModule(llvm::Module &M) override;
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-  llvm::StringRef getPassName() const override { return "ShadowMemSeaDsa"; }
+  virtual llvm::StringRef getPassName() const override { return "ShadowMemSeaDsa"; }
   const ShadowMem &getShadowMem() const;
   ShadowMem &getShadowMem();
 };
