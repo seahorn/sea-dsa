@@ -123,7 +123,7 @@ public:
     return getGraph(F);
   }
 
-  Graph &getSummaryGraph(const llvm::Function &F) { return getGraph(F); }
+  Graph &getSummaryGraph(const llvm::Function &F) override { return getGraph(F); }
 
   bool hasSummaryGraph(const llvm::Function &F) const override {
     return hasGraph(F);
@@ -203,7 +203,7 @@ public:
 
   const Graph &getSummaryGraph(const llvm::Function &F) const override;
 
-  Graph &getSummaryGraph(const llvm::Function &F);
+  Graph &getSummaryGraph(const llvm::Function &F) override;
 
   bool hasSummaryGraph(const llvm::Function &F) const override;
 };
@@ -252,7 +252,7 @@ public:
 
   const Graph &getSummaryGraph(const llvm::Function &F) const override;
 
-  Graph &getSummaryGraph(const llvm::Function &F);
+  Graph &getSummaryGraph(const llvm::Function &F) override;
 
   bool hasSummaryGraph(const llvm::Function &F) const override;
 };
@@ -295,7 +295,7 @@ public:
     return getGraph(F);
   }
 
-  Graph &getSummaryGraph(const llvm::Function &F) { return getGraph(F); }
+  Graph &getSummaryGraph(const llvm::Function &F) override { return getGraph(F); }
 
   bool hasSummaryGraph(const llvm::Function &F) const override {
     return hasGraph(F);
