@@ -52,6 +52,15 @@ llvm::cl::opt<bool>
                      llvm::cl::desc("Use TypeBasedAA in the MemSSA optimizer"),
                      llvm::cl::init(true));
 
+// TODO: This flag should be removed i.e. it should always be True
+// if no errors are reported over time.
+// This is added because in OpSem we store meta information about memory on
+// allocation.
+llvm::cl::opt<bool> ShadowMemAllocIsDef(
+    "horn-shadow-mem-alloc-is-def",
+    llvm::cl::desc("Treat alloc as MemDef instead of MemUse"),
+    llvm::cl::init(false));
+
 using namespace llvm;
 namespace dsa = seadsa;
 namespace {
@@ -997,9 +1006,15 @@ void ShadowMemImpl::visitAllocaInst(AllocaInst &I) {
   assert(dsa::AllocSiteInfo::isAllocSite(I));
 
   m_B->SetInsertPoint(&I);
-  CallInst &memUse =
-      mkShadowLoad(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(I));
-  associateConcretePtr(memUse, I, &I);
+  if (ShadowMemAllocIsDef) {
+    CallInst &memDef =
+        mkShadowStore(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(I));
+    associateConcretePtr(memDef, I, &I);
+  } else {
+    CallInst &memUse =
+        mkShadowLoad(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(I));
+    associateConcretePtr(memUse, I, &I);
+  }
 }
 
 void ShadowMemImpl::visitLoadInst(LoadInst &I) {
@@ -1355,10 +1370,17 @@ void ShadowMemImpl::visitAllocationFn(CallSite &CS) {
   auto &callInst = *CS.getInstruction();
   m_B->SetInsertPoint(&callInst);
 
-  CallInst &memUse =
-      mkShadowLoad(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
-  assert(dsa::AllocSiteInfo::isAllocSite(callInst));
-  associateConcretePtr(memUse, callInst, &callInst);
+  if (ShadowMemAllocIsDef) {
+    CallInst &memDef =
+        mkShadowStore(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
+    assert(dsa::AllocSiteInfo::isAllocSite(callInst));
+    associateConcretePtr(memDef, callInst, &callInst);
+  } else {
+    CallInst &memUse =
+        mkShadowLoad(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
+    assert(dsa::AllocSiteInfo::isAllocSite(callInst));
+    associateConcretePtr(memUse, callInst, &callInst);
+  }
 }
 
 void ShadowMemImpl::visitMemSetInst(MemSetInst &I) {
