@@ -65,6 +65,9 @@ bool AllocSiteInfo::runOnModule(Module &M) {
     changed |= markAllocs(fn);
   }
 
+  // -- no functions
+  if (!m_tli) return false;
+
   // Assume there was at least one function, and we will re-use its TLI for
   // globals
   assert(m_tli);
