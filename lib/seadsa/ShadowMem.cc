@@ -997,9 +997,9 @@ void ShadowMemImpl::visitAllocaInst(AllocaInst &I) {
   assert(dsa::AllocSiteInfo::isAllocSite(I));
 
   m_B->SetInsertPoint(&I);
-  CallInst &memUse =
-      mkShadowLoad(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(I));
-  associateConcretePtr(memUse, I, &I);
+  CallInst &memDef =
+      mkShadowStore(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(I));
+  associateConcretePtr(memDef, I, &I);
 }
 
 void ShadowMemImpl::visitLoadInst(LoadInst &I) {
@@ -1355,10 +1355,10 @@ void ShadowMemImpl::visitAllocationFn(CallSite &CS) {
   auto &callInst = *CS.getInstruction();
   m_B->SetInsertPoint(&callInst);
 
-  CallInst &memUse =
-      mkShadowLoad(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
+  CallInst &memDef =
+      mkShadowStore(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
   assert(dsa::AllocSiteInfo::isAllocSite(callInst));
-  associateConcretePtr(memUse, callInst, &callInst);
+  associateConcretePtr(memDef, callInst, &callInst);
 }
 
 void ShadowMemImpl::visitMemSetInst(MemSetInst &I) {
