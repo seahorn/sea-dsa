@@ -1697,12 +1697,11 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   // -- mark node as an alloca node
   n.setAlloca();
   m_graph.mkCell(dest, seadsa::Cell(n, 0));
-  LOG(
-      "dsa", if (shouldBeTrackedIntToPtr(dest) && !m_graph.isFlat()) {
+  if (shouldBeTrackedIntToPtr(dest) && !m_graph.isFlat())
+    LOG("dsa-warn",
         llvm::errs()
             << "WARNING: " << dest << " @ addr " << &dest
-            << " is (unsoundly) assumed to point to a fresh memory region.\n";
-      });
+            << " is (unsoundly) assumed to point to a fresh memory region.\n";);
 }
 
 void IntraBlockBuilder::visitIntToPtrInst(IntToPtrInst &I) {
