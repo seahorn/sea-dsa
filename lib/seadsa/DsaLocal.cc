@@ -618,7 +618,8 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
   assert(vType.isPointerTy() || vType.isAggregateType() || vType.isVectorTy());
   (void)vType;
 
-  errs() << "Unexpected expression at valueCell: " << v << "\n";
+  LOG("dsa-warn",
+      errs() << "Unexpected expression at valueCell: " << v << "\n");
   assert(false && "Expression not handled");
   return Cell();
 }
@@ -1056,8 +1057,8 @@ void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
 
   if (isa<ShuffleVectorInst>(ptr)) {
     // XXX: TODO: handle properly.
-    errs() << "WARNING: Gep inst with a shuffle vector operand "
-           << "is allocating a new cell: " << I << "\n";
+    LOG("dsa-warn", errs() << "WARNING: Gep inst with a shuffle vector operand "
+                           << "is allocating a new cell: " << I << "\n");
     m_graph.mkCell(I, seadsa::Cell(m_graph.mkNode(), 0));
     return;
   }
@@ -1467,8 +1468,9 @@ void IntraBlockBuilder::visitShuffleVectorInst(ShuffleVectorInst &I) {
   using namespace seadsa;
 
   // XXX: TODO: handle properly.
-  errs() << "WARNING: shuffle vector inst is allocating a new cell: " << &I
-         << "\n";
+  LOG("dsa-warn",
+      errs() << "WARNING: shuffle vector inst is allocating a new cell: " << &I
+             << "\n");
   m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
 }
 
@@ -1508,11 +1510,11 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
   // This can occur when someone tries to transfer int the middle of a struct.
   if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
-    errs() << "WARNING: MemTransfer past object size!\n"
-           << "\tTransfer:  ";
+    LOG("dsa-warn", errs() << "WARNING: MemTransfer past object size!\n"
+                           << "\tTransfer:  ");
     LOG("dsa", MI.print(errs()));
-    errs() << "\n\tLength:  " << length
-           << "\n\tType size:  " << (DL.getTypeSizeInBits(srcTy) / 8) << "\n";
+    LOG("dsa-warn", errs() << "\n\tLength:  " << length << "\n\tType size:  "
+                           << (DL.getTypeSizeInBits(srcTy) / 8) << "\n");
     return false;
   }
 
@@ -1547,14 +1549,15 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   if (isNullConstant(*I.getDest())) return;
 
   if (!m_graph.hasCell(*I.getSource())) {
-    errs() << "WARNING: source of memcopy/memmove has no cell: "
-           << *I.getSource() << "\n";
+    LOG("dsa-warn", errs() << "WARNING: source of memcopy/memmove has no cell: "
+                           << *I.getSource() << "\n");
     return;
   }
 
   if (!m_graph.hasCell(*I.getDest())) {
-    errs() << "WARNING: destination of memcopy/memmove has no cell: "
-           << *I.getDest() << "\n";
+    LOG("dsa-warn",
+        errs() << "WARNING: destination of memcopy/memmove has no cell: "
+               << *I.getDest() << "\n");
     return;
   }
 
@@ -1799,9 +1802,10 @@ void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
     LOG("dsa", llvm::errs()
                    << "WARNING: " << I
                    << " might be escaping as is not tracked further\n");
-    llvm::errs() << "WARNING: detected ptrtoint instruction that might be "
-                    "escaping the analysis. "
-                 << "(@" << intptr_t(&I) << ")\n";
+    LOG("dsa-warn",
+        llvm::errs() << "WARNING: detected ptrtoint instruction that might be "
+                        "escaping the analysis. "
+                     << "(@" << intptr_t(&I) << ")\n");
   }
 }
 
