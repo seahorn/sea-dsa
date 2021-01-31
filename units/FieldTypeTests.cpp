@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include "seadsa/FieldType.hh"
+#include "seadsa/TypeUtils.hh"
 
 #include "llvm/IR/LLVMContext.h"
 //#include "llvm/IR/TypeBuilder.h"

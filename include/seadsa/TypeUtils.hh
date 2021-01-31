@@ -11,6 +11,8 @@ class Type;
 
 namespace seadsa {
 
+llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
+  
 unsigned getTypeSizeInBytes(const llvm::Type &ty, const llvm::DataLayout &dl);
 
 struct SubTypeDesc {

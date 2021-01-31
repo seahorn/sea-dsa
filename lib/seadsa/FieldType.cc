@@ -22,8 +22,6 @@ namespace seadsa {
 bool g_IsTypeAware;
 }
 
-static llvm::Type *GetFirstPrimitiveTy(llvm::Type *Ty);
-
 namespace {
 using SeenTypes = llvm::SmallDenseSet<llvm::Type *, 8>;
 
@@ -66,7 +64,7 @@ llvm::Type *GetInnermostTypeImpl(llvm::Type *const Ty, SeenTypes &seen) {
 
 /// This is intended to be used within a single llvm::Context. When there's more
 /// than one context, the caching might misbehave.
-static llvm::Type *GetFirstPrimitiveTy(llvm::Type *const Ty) {
+llvm::Type *GetFirstPrimitiveTy(llvm::Type *const Ty) {
   assert(Ty);
 
   SeenTypes seen;
