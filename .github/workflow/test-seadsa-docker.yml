@@ -1,16 +1,14 @@
-# workflow to build and test clam
+# workflow to build and test sea-dsa
 
 name: CI
 
 # Controls when the action will run. 
 on:
-  # Triggers the workflow on push or pull request events but only for the master branch
+  # Triggers the workflow on push or pull request events but only for the dev10 branch
   push:
     branches: dev10
   pull_request:
     branches: dev10
-  schedule:
-    - cron: 0 0 * * *  # run every day at UTC 00:00
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -25,6 +23,6 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v2
         with:
-          ref: dev10 # only checkout master
+          ref: dev10 # only checkout dev10
       - name: Build seadsa and run tests
         run: docker build -t seahorn/sea-dsa-builder:bionic-llvm10 -f docker/sea-dsa-builder.Dockerfile .
