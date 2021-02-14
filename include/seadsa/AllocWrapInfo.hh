@@ -35,7 +35,8 @@ protected:
   
 public:
   static char ID;
-  AllocWrapInfo(): ImmutablePass(ID), m_tliWrapper(nullptr) {}
+  AllocWrapInfo(llvm::TargetLibraryInfoWrapperPass *tliWrapper = nullptr)
+    : ImmutablePass(ID), m_tliWrapper(tliWrapper) {}
 
   // P is used to call LoopInfoWrapperPass.
   // It can be null if the client of AllocWrapInfo is an immutable

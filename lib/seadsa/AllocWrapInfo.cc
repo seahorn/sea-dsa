@@ -32,13 +32,16 @@ void AllocWrapInfo::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 void AllocWrapInfo::initialize(Module &M, Pass *P) const {
-  // Initialize only once 
-  if (m_tliWrapper) {
+  if (!m_tliWrapper) {
+    m_tliWrapper = getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
+  }
+  
+  if (!m_tliWrapper) {
+    llvm::errs() << "ERROR: AllocWrapInfo::initialize needs TargetLibraryInfo\n";
+    assert(false);
     return;
   }
-
-  m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
-
+  
   for (auto &name : ExtraAllocs) {
     m_allocs.insert(name);
   }
