@@ -36,8 +36,6 @@ static llvm::cl::opt<std::string>
 namespace seadsa {
 
 void DsaLibFuncInfo::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<seadsa::AllocWrapInfo>();
-  AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();
   AU.setPreservesAll();
 }
 
