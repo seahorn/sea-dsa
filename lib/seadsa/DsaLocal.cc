@@ -815,31 +815,37 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
   base.growSize(0, ValOp->getType());
   base.addAccessedType(0, ValOp->getType());
 
-  if (!isSkip(*ValOp)) {
-    Cell val = valueCell(*ValOp);
+  if (isSkip(*ValOp)) return;
 
-    if (BlockBuilderBase::isNullConstant(*ValOp)) {
-      // TODO: mark link as possibly pointing to null
-    } else {
-      assert(!val.isNull());
 
-      // val.getType() can be an opaque type, so we cannot use it to get
-      // a ptr type.
-      Cell dest(val.getNode(), val.getRawOffset());
-
-      // -- guess best type for the store. Use the type of the value being
-      // -- stored, unless it is i8*, in which case check if the store location
-      // -- has a better type
-
-      Type *ty = ValOp->getType();
-      if (isBytePtrTy(ty)) {
-        Type *opTy = SI.getPointerOperand()->stripPointerCasts()->getType();
-        if (opTy->isPointerTy() && opTy->getPointerElementType()->isPointerTy())
-          ty = opTy->getPointerElementType();
-      }
-      base.addLink(Field(0, FieldType(ty)), dest);
-    }
+  if (BlockBuilderBase::isNullConstant(*ValOp)) {
+    // TODO: mark link as possibly pointing to null
+    return;
   }
+  if (isa<UndefValue>(ValOp)) {
+    LOG("dsa-warn",
+        errs() << "WARNING: Storing undef value into a pointer field: " << SI
+               << "\n";);
+    return;
+  }
+
+  Cell val = valueCell(*ValOp);
+  assert(!val.isNull());
+
+  // val.getType() can be an opaque type, so we cannot use it to get
+  // a ptr type.
+  Cell dest(val.getNode(), val.getRawOffset());
+
+  // -- guess best type for the store. Use the type of the value being
+  // -- stored, unless it is i8*, in which case check if the store location
+  // -- has a better type
+  Type *ty = ValOp->getType();
+  if (isBytePtrTy(ty)) {
+    Type *opTy = SI.getPointerOperand()->stripPointerCasts()->getType();
+    if (opTy->isPointerTy() && opTy->getPointerElementType()->isPointerTy())
+      ty = opTy->getPointerElementType();
+  }
+  base.addLink(Field(0, FieldType(ty)), dest);
 }
 
 void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
