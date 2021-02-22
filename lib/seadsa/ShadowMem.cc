@@ -1165,19 +1165,15 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
     // skip nodes that are not read/written by the callee
     if (!isRead(CN, CF) && !isModified(CN, CF)) continue;
 
-    assert(CN);
-    dsa::Cell callerC = simMap.get(dsa::Cell(const_cast<dsa::Node *>(CN), 0));
-    assert(!callerC.isNull() && "Not found node in the simulation map");
-
-    Node *n = callerC.getNode();
-    if (!SplitFields || n->isOffsetCollapsed()) {
-      dsa::Cell fc(n, 0);
-      markModRef(CN, fc, idx++);
+    if (!SplitFields || CN->isOffsetCollapsed()) {
+      Cell callerC = simMap.get(dsa::Cell(const_cast<dsa::Node *>(CN), 0));
+      assert(!callerC.isNull() && "Not found node in the simulation map");
+      markModRef(CN, callerC, idx++);
     } else {
-      for (auto &ty : n->types()) {
-        if (ty.first < callerC.getOffset()) continue;
-        dsa::Cell fc(n, ty.first);
-        markModRef(CN, fc, idx++);
+      for (auto &ty : CN->types()) {
+        Cell callerC = simMap.get(dsa::Cell(const_cast<dsa::Node *>(CN), ty.first));
+	assert(!callerC.isNull() && "Not found node in the simulation map");	
+        markModRef(CN, callerC, idx++);
       }
     }
   }
