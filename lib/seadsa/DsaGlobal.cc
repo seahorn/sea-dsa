@@ -382,7 +382,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
         bool res = Graph::computeCalleeCallerMapping(
             dsaCS.getValue(), calleeG, callerG, *sm, do_sanity_checks);
         if (!res) { llvm_unreachable("Simulation mapping check failed"); }
-        callee_caller_map.insert(std::make_pair(dsaCS.getValue(), sm));
+        callee_caller_map.emplace(dsaCS.getValue(), sm);
 
         if (do_sanity_checks) {
           // Check the simulation map is a function

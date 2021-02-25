@@ -5,7 +5,6 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/IR/CallSite.h"
 
 namespace seadsa {
 namespace call_graph_utils {
@@ -22,13 +21,13 @@ getDsaCallSite(CallRecord &callRecord, const DsaLibFuncInfo *dlfi = nullptr) {
 
   if (dlfi && dlfi->hasSpecFunc(*callee)) callee = dlfi->getSpecFunc(*callee);
 
-  llvm::CallSite CS(callRecord.first);
-  if (CS.isIndirectCall()) {
-    DsaCallSite dsaCS(*CS.getInstruction(), *callee);
+  auto &cs = *dyn_cast<llvm::CallBase>(callRecord.first);
+  if (cs.isIndirectCall()) {
+    DsaCallSite dsaCS(cs, *callee);
     return (dsaCS.getCallee() ? llvm::Optional<DsaCallSite>(dsaCS)
                               : llvm::None);
   } else {
-    DsaCallSite dsaCS(*CS.getInstruction());
+    DsaCallSite dsaCS(cs);
     return (dsaCS.getCallee() ? llvm::Optional<DsaCallSite>(dsaCS)
                               : llvm::None);
   }
@@ -60,8 +59,7 @@ SortedCallSites(llvm::CallGraphNode *cgn,
   res.reserve(cgn->size());
 
   for (auto &callRecord : *cgn) {
-    llvm::ImmutableCallSite CS(callRecord.first);
-    DsaCallSite dsaCS(CS);
+    DsaCallSite dsaCS(*dyn_cast<llvm::CallBase>(callRecord.first));
 
     const llvm::Function *callee_func = dsaCS.getCallee();
     if (!callee_func) continue;
@@ -77,13 +75,11 @@ SortedCallSites(llvm::CallGraphNode *cgn,
 
   std::stable_sort(res.begin(), res.end(),
                    [](const llvm::Value *first, const llvm::Value *snd) {
-                     llvm::ImmutableCallSite CS1(first);
-                     DsaCallSite dsaCS1(CS1);
+                     DsaCallSite dsaCS1(*dyn_cast<llvm::CallBase>(first));
                      llvm::StringRef callerN1 = dsaCS1.getCaller()->getName();
                      llvm::StringRef calleeN1 = dsaCS1.getCallee()->getName();
 
-                     llvm::ImmutableCallSite CS2(snd);
-                     DsaCallSite dsaCS2(CS2);
+                     DsaCallSite dsaCS2(*dyn_cast<llvm::CallBase>(snd));
                      llvm::StringRef callerN2 = dsaCS2.getCaller()->getName();
                      llvm::StringRef calleeN2 = dsaCS2.getCallee()->getName();
 
