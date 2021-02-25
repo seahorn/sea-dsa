@@ -1748,8 +1748,7 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
           continue;
       }
       if (auto *CI = dyn_cast<const CallInst>(user)) {
-        ImmutableCallSite CS(CI);
-        const Function *callee = CS.getCalledFunction();
+        const Function *callee = CI->getCalledFunction();
         if (callee) {
           // callee might not access memory but it can return ptrtoint passed to
           // it if (callee->doesNotAccessMemory())
