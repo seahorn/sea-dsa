@@ -5,6 +5,7 @@
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/User.h"
 #include "llvm/Pass.h"
 
 // XXX: included for Cell.
@@ -28,7 +29,7 @@ class DsaCallSite {
   };
 
   // -- the call site
-  llvm::ImmutableCallSite m_cs;
+  const llvm::CallBase *m_cb;
   // -- the cell to which the indirect callee function points to.
   //    it has no value if the callsite is direct.
   llvm::Optional<Cell> m_cell;
@@ -44,7 +45,7 @@ public:
                              typename llvm::Function::const_arg_iterator>;
   using const_actual_iterator =
       boost::filter_iterator<isPointerTy,
-                             typename llvm::ImmutableCallSite::arg_iterator>;
+                             typename llvm::User::const_op_iterator>;
 
   DsaCallSite(const llvm::CallBase &cb);
   DsaCallSite(const llvm::Instruction &cs);
@@ -85,9 +86,7 @@ public:
 
   const llvm::Instruction *getInstruction() const;
 
-  const llvm::CallBase &getCallBase() const {
-    return *dyn_cast<llvm::CallBase>(m_cs.getInstruction());
-  }
+  const llvm::CallBase &getCallBase() const { return *m_cb; }
 
   const_formal_iterator formal_begin() const;
   const_formal_iterator formal_end() const;
