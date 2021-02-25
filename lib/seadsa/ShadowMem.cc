@@ -670,18 +670,18 @@ public:
   void visitAllocaInst(AllocaInst &I);
   void visitLoadInst(LoadInst &I);
   void visitStoreInst(StoreInst &I);
-  void visitCallSite(CallSite CS);
+  void visitCallBase(CallBase &I);
   void visitMemSetInst(MemSetInst &I);
   void visitMemTransferInst(MemTransferInst &I);
-  void visitAllocationFn(CallSite &CS);
-  void visitCalloc(CallSite &CS);
-  void visitMemhavoc(CallSite &CS);
-  void visitIsModified(CallSite &CS);
-  void visitIsRead(CallSite &CS);
-  void visitIsAlloc(CallSite &CS);
-  void visitResetModified(CallSite &CS);
-  void visitResetRead(CallSite &CS);
-  void visitFree(CallSite &CS);
+  void visitAllocationFn(CallBase &I);
+  void visitCalloc(CallBase &I);
+  void visitMemhavoc(CallBase &I);
+  void visitIsModified(CallBase &I);
+  void visitIsRead(CallBase &I);
+  void visitIsAlloc(CallBase &I);
+  void visitResetModified(CallBase &I);
+  void visitResetRead(CallBase &I);
+  void visitFree(CallBase &I);
   void visitDsaCallSite(dsa::DsaCallSite &CS);
 
   /// \brief Returns a reference to the global sea-dsa analysis.
@@ -729,8 +729,7 @@ public:
   ShadowMemInstOp getShadowMemOp(const CallInst &ci) const {
     if (!isShadowMemInst(ci)) return ShadowMemInstOp::UNKNOWN;
 
-    ImmutableCallSite CS(&ci);
-    const Function *callee = CS.getCalledFunction();
+    const Function *callee = ci.getCalledFunction();
     if (!callee) return ShadowMemInstOp::UNKNOWN;
 
     if (callee->getName().equals(m_memLoadTag)) {
@@ -764,7 +763,6 @@ public:
     Value *def = nullptr;
     Value *use = nullptr;
 
-    CallSite CS(&ci);
     switch (getShadowMemOp(ci)) {
     default:
       break;
@@ -773,13 +771,13 @@ public:
     case ShadowMemInstOp::LOAD:
     case ShadowMemInstOp::TRSFR_LOAD:
     case ShadowMemInstOp::ARG_REF:
-      use = CS.getArgument(1);
+      use = ci.getArgOperand(1);
       break;
     case ShadowMemInstOp::STORE:
     case ShadowMemInstOp::ARG_MOD:
     case ShadowMemInstOp::ARG_NEW:
     case ShadowMemInstOp::GLOBAL_INIT:
-      use = CS.getArgument(1);
+      use = ci.getArgOperand(1);
       def = &ci;
       break;
     case ShadowMemInstOp::INIT:
@@ -1042,10 +1040,10 @@ void ShadowMemImpl::visitStoreInst(StoreInst &I) {
   associateConcretePtr(memDef, *storeDst, &I);
 }
 
-void ShadowMemImpl::visitCallSite(CallSite CS) {
-  if (CS.isIndirectCall()) return;
+void ShadowMemImpl::visitCallBase(CallBase &I) {
+  if (I.isIndirectCall()) return;
 
-  auto *callee = CS.getCalledFunction();
+  auto *callee = I.getCalledFunction();
   if (!callee) return;
 
   if ((callee->getName().startswith("seahorn.") ||
@@ -1054,60 +1052,58 @@ void ShadowMemImpl::visitCallSite(CallSite CS) {
       !(callee->getName().startswith("seahorn.bounce")))
     return;
 
-  auto *callInst = CS.getInstruction();
 
-  LOG("shadow_cs", errs() << "Call: " << *callInst << "\n";);
+  LOG("shadow_cs", errs() << "Call: " << I << "\n";);
 
   if (callee->getName().equals("calloc")) {
-    visitCalloc(CS);
+    visitCalloc(I);
     return;
   }
 
   if (callee->getName().equals("memhavoc")) {
-    visitMemhavoc(CS);
+    visitMemhavoc(I);
     return;
   }
 
   if (callee->getName().equals("sea.is_modified")) {
-    visitIsModified(CS);
+    visitIsModified(I);
     return;
   }
 
   if (callee->getName().equals("sea.reset_modified")) {
-    visitResetModified(CS);
+    visitResetModified(I);
     return;
   }
 
   if (callee->getName().equals("sea.is_read")) {
-    visitIsRead(CS);
+    visitIsRead(I);
     return;
   }
 
   if (callee->getName().equals("sea.reset_read")) {
-    visitResetRead(CS);
+    visitResetRead(I);
     return;
   }
 
   if (callee->getName().equals("sea.is_alloc")) {
-    visitIsAlloc(CS);
+    visitIsAlloc(I);
     return;
   }
 
   if (callee->getName().equals("sea.free")) {
-    visitFree(CS);
+    visitFree(I);
     return;
   }
 
-  if (dsa::AllocSiteInfo::isAllocSite(*callInst) &&
+  if (dsa::AllocSiteInfo::isAllocSite(I) &&
       /* we don't want to treat specially allocation wrappers */
       (callee->isDeclaration() || callee->empty())) {
-    visitAllocationFn(CS);
+    visitAllocationFn(I);
     return;
   }
 
   if (m_dsa.hasGraph(*callee)) {
-    ImmutableCallSite ics(callInst);
-    dsa::DsaCallSite dcs(ics);
+    dsa::DsaCallSite dcs(I);
     visitDsaCallSite(dcs);
     return;
   }
@@ -1179,19 +1175,18 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
   }
 }
 
-void ShadowMemImpl::visitCalloc(CallSite &CS) {
-  if (!m_graph->hasCell(*CS.getInstruction())) return;
-  const dsa::Cell &c = m_graph->getCell(*CS.getInstruction());
+void ShadowMemImpl::visitCalloc(CallBase &I) {
+  if (!m_graph->hasCell(I)) return;
+  const dsa::Cell &c = m_graph->getCell(I);
   if (c.isNull()) return;
 
-  auto &callInst = *CS.getInstruction();
-  assert(dsa::AllocSiteInfo::isAllocSite(callInst));
+  assert(dsa::AllocSiteInfo::isAllocSite(I));
 
   if (c.getOffset() == 0) {
-    m_B->SetInsertPoint(&callInst);
+    m_B->SetInsertPoint(&I);
     CallInst &memDef =
-        mkShadowStore(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
-    associateConcretePtr(memDef, callInst, &callInst);
+        mkShadowStore(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(I));
+    associateConcretePtr(memDef, I, &I);
   } else {
     // TODO: handle multiple nodes
     errs() << "WARNING: skipping calloc instrumentation because cell "
@@ -1199,14 +1194,13 @@ void ShadowMemImpl::visitCalloc(CallSite &CS) {
   }
 }
 
-void ShadowMemImpl::visitMemhavoc(CallSite &CS) {
+void ShadowMemImpl::visitMemhavoc(CallBase &I) {
   LOG("dsa.memhavoc", errs() << "Visiting memhavoc \n");
-  auto &callInst = *CS.getInstruction();
   /* memhavoc definition:
      void @memhavoc(i8*, i32)
      operand 0 is the pointer to be marked
   */
-  auto &ptr = *CS.getArgOperand(0);
+  auto &ptr = *I.getArgOperand(0);
   if (!m_graph->hasCell(ptr)) {
     LOG("dsa.memhavoc", errs() << "no cell for: " << ptr << "\n");
     return;
@@ -1217,20 +1211,19 @@ void ShadowMemImpl::visitMemhavoc(CallSite &CS) {
     return;
   }
 
-  m_B->SetInsertPoint(&callInst);
+  m_B->SetInsertPoint(&I);
   CallInst &memUse =
       mkShadowLoad(*m_B, cell, dsa::getTypeSizeInBytes(*ptr.getType(), *m_dl));
-  associateConcretePtr(memUse, ptr, &callInst);
+  associateConcretePtr(memUse, ptr, &I);
 }
 
-void ShadowMemImpl::visitIsModified(CallSite &CS) {
+void ShadowMemImpl::visitIsModified(CallBase &I) {
   LOG("dsa.ismodified", errs() << "Visiting isModified \n");
-  auto &callInst = *CS.getInstruction();
   /* isModified definition:
      bool @sea_is_modified(i8*)
      operand 0 is the pointer to be marked
   */
-  auto &ptr = *CS.getArgOperand(0);
+  auto &ptr = *I.getArgOperand(0);
   if (!m_graph->hasCell(ptr)) {
     LOG("dsa.ismodified", errs() << "no cell for: " << ptr << "\n");
     return;
@@ -1241,19 +1234,18 @@ void ShadowMemImpl::visitIsModified(CallSite &CS) {
     return;
   }
 
-  m_B->SetInsertPoint(&callInst);
+  m_B->SetInsertPoint(&I);
   CallInst &memUse = mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
-  associateConcretePtr(memUse, ptr, &callInst);
+  associateConcretePtr(memUse, ptr, &I);
 }
 
-void ShadowMemImpl::visitIsRead(CallSite &CS) {
+void ShadowMemImpl::visitIsRead(CallBase &I) {
   LOG("dsa.isread", errs() << "Visiting isRead \n");
-  auto &callInst = *CS.getInstruction();
   /* isMetadataSet definition:
      bool @sea_is_read(i8*)
      operand 0 is the pointer to be marked
   */
-  auto &ptr = *CS.getArgOperand(0);
+  auto &ptr = *I.getArgOperand(0);
   if (!m_graph->hasCell(ptr)) {
     LOG("dsa.isread", errs() << "no cell for: " << ptr << "\n");
     return;
@@ -1264,19 +1256,18 @@ void ShadowMemImpl::visitIsRead(CallSite &CS) {
     return;
   }
 
-  m_B->SetInsertPoint(&callInst);
+  m_B->SetInsertPoint(&I);
   CallInst &memUse = mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
-  associateConcretePtr(memUse, ptr, &callInst);
+  associateConcretePtr(memUse, ptr, &I);
 }
 
-void ShadowMemImpl::visitIsAlloc(CallSite &CS) {
+void ShadowMemImpl::visitIsAlloc(CallBase &I) {
   LOG("dsa.isread", errs() << "Visiting isAlloc \n");
-  auto &callInst = *CS.getInstruction();
   /* isMetadataSet definition:
      bool @sea_is_alloc(i8*)
      operand 0 is the pointer to be marked
   */
-  auto &ptr = *CS.getArgOperand(0);
+  auto &ptr = *I.getArgOperand(0);
   if (!m_graph->hasCell(ptr)) {
     LOG("dsa.isread", errs() << "no cell for: " << ptr << "\n");
     return;
@@ -1287,19 +1278,18 @@ void ShadowMemImpl::visitIsAlloc(CallSite &CS) {
     return;
   }
 
-  m_B->SetInsertPoint(&callInst);
+  m_B->SetInsertPoint(&I);
   CallInst &memUse = mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
-  associateConcretePtr(memUse, ptr, &callInst);
+  associateConcretePtr(memUse, ptr, &I);
 }
 
-void ShadowMemImpl::visitResetModified(CallSite &CS) {
+void ShadowMemImpl::visitResetModified(CallBase &I) {
   LOG("dsa.resetmodified", errs() << "Visiting resetModified \n");
-  auto &callInst = *CS.getInstruction();
   /* resetModified definition:
      bool @sea.reset_modified(i8*)
      operand 0 is the pointer to be marked
   */
-  auto &ptr = *CS.getArgOperand(0);
+  auto &ptr = *I.getArgOperand(0);
   if (!m_graph->hasCell(ptr)) {
     LOG("dsa.resetmodified", errs() << "no cell for: " << ptr << "\n");
     return;
@@ -1309,19 +1299,18 @@ void ShadowMemImpl::visitResetModified(CallSite &CS) {
     LOG("dsa.resetmodified", errs() << "cell is null for: " << ptr << "\n");
     return;
   }
-  m_B->SetInsertPoint(&callInst);
+  m_B->SetInsertPoint(&I);
   CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
-  associateConcretePtr(memDef, ptr, &callInst);
+  associateConcretePtr(memDef, ptr, &I);
 }
 
-void ShadowMemImpl::visitResetRead(CallSite &CS) {
+void ShadowMemImpl::visitResetRead(CallBase &I) {
   LOG("dsa.resetRead", errs() << "Visiting resetRead \n");
-  auto &callInst = *CS.getInstruction();
   /* resetRead definition:
      bool @sea.reset_read(i8*)
      operand 0 is the pointer to be marked
   */
-  auto &ptr = *CS.getArgOperand(0);
+  auto &ptr = *I.getArgOperand(0);
   if (!m_graph->hasCell(ptr)) {
     LOG("dsa.resetread", errs() << "no cell for: " << ptr << "\n");
     return;
@@ -1331,19 +1320,18 @@ void ShadowMemImpl::visitResetRead(CallSite &CS) {
     LOG("dsa.resetread", errs() << "cell is null for: " << ptr << "\n");
     return;
   }
-  m_B->SetInsertPoint(&callInst);
+  m_B->SetInsertPoint(&I);
   CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
-  associateConcretePtr(memDef, ptr, &callInst);
+  associateConcretePtr(memDef, ptr, &I);
 }
 
-void ShadowMemImpl::visitFree(CallSite &CS) {
+void ShadowMemImpl::visitFree(CallBase &I) {
   LOG("dsa.free", errs() << "Visiting free \n");
-  auto &callInst = *CS.getInstruction();
   /* free definition:
      bool @sea.free(i8*)
      operand 0 is the pointer to be marked
   */
-  auto &ptr = *CS.getArgOperand(0);
+  auto &ptr = *I.getArgOperand(0);
   if (!m_graph->hasCell(ptr)) {
     LOG("dsa.free", errs() << "no cell for: " << ptr << "\n");
     return;
@@ -1353,29 +1341,28 @@ void ShadowMemImpl::visitFree(CallSite &CS) {
     LOG("dsa.free", errs() << "cell is null for: " << ptr << "\n");
     return;
   }
-  m_B->SetInsertPoint(&callInst);
+  m_B->SetInsertPoint(&I);
   CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
-  associateConcretePtr(memDef, ptr, &callInst);
+  associateConcretePtr(memDef, ptr, &I);
 }
 
-void ShadowMemImpl::visitAllocationFn(CallSite &CS) {
-  if (!m_graph->hasCell(*CS.getInstruction())) return;
-  const dsa::Cell &c = m_graph->getCell(*CS.getInstruction());
+void ShadowMemImpl::visitAllocationFn(CallBase &I) {
+  if (!m_graph->hasCell(I)) return;
+  const dsa::Cell &c = m_graph->getCell(I);
   if (c.isNull()) return;
 
-  auto &callInst = *CS.getInstruction();
-  m_B->SetInsertPoint(&callInst);
+  m_B->SetInsertPoint(&I);
 
   if (ShadowMemAllocIsDef) {
     CallInst &memDef =
-        mkShadowStore(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
-    assert(dsa::AllocSiteInfo::isAllocSite(callInst));
-    associateConcretePtr(memDef, callInst, &callInst);
+        mkShadowStore(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(I));
+    assert(dsa::AllocSiteInfo::isAllocSite(I));
+    associateConcretePtr(memDef, I, &I);
   } else {
     CallInst &memUse =
-        mkShadowLoad(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(callInst));
-    assert(dsa::AllocSiteInfo::isAllocSite(callInst));
-    associateConcretePtr(memUse, callInst, &callInst);
+        mkShadowLoad(*m_B, c, dsa::AllocSiteInfo::getAllocSiteSize(I));
+    assert(dsa::AllocSiteInfo::isAllocSite(I));
+    associateConcretePtr(memUse, I, &I);
   }
 }
 
@@ -1530,8 +1517,7 @@ void ShadowMemImpl::updateReadMod(Function &F, NodeSet &readSet,
         if (!c.isNull()) modSet.insert(c.getNode());
       }
     } else if (auto *ci = dyn_cast<CallInst>(&inst)) {
-      CallSite CS(ci);
-      Function *cf = CS.getCalledFunction();
+      Function *cf = ci->getCalledFunction();
 
       if (!cf) continue;
       if (cf->getName().equals("calloc")) {

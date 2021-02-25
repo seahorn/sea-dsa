@@ -17,8 +17,8 @@ bool DsaCallSite::isPointerTy::operator()(const Argument &a) {
 }
 
 static const Function *
-getCalledFunctionThroughAliasesAndCasts(ImmutableCallSite &CS) {
-  const Value *CalledV = CS.getCalledValue();
+getCalledFunctionThroughAliasesAndCasts(const CallBase &cb) {
+  const Value *CalledV = cb.getCalledValue();
   CalledV = CalledV->stripPointerCasts();
 
   if (const Function *F = dyn_cast<const Function>(CalledV)) { return F; }
@@ -33,19 +33,24 @@ getCalledFunctionThroughAliasesAndCasts(ImmutableCallSite &CS) {
   return nullptr;
 }
 
-DsaCallSite::DsaCallSite(const ImmutableCallSite &cs)
-    : m_cs(cs), m_cell(None), m_cloned(false),
-      m_callee(getCalledFunctionThroughAliasesAndCasts(m_cs)) {}
+static const Function*
+getCalledFunctionThroughAliasesAndCasts(const ImmutableCallSite &cs) {
+  return getCalledFunctionThroughAliasesAndCasts(*dyn_cast<CallBase>(cs.getInstruction()));
+}
+
+DsaCallSite::DsaCallSite(const CallBase &cb)
+    : m_cs(&cb), m_cell(None), m_cloned(false),
+      m_callee(getCalledFunctionThroughAliasesAndCasts(cb)) {}
 DsaCallSite::DsaCallSite(const Instruction &cs)
-    : m_cs(&cs), m_cell(None), m_cloned(false),
+    : m_cs(dyn_cast<const CallBase>(&cs)), m_cell(None), m_cloned(false),
       m_callee(getCalledFunctionThroughAliasesAndCasts(m_cs)) {}
 DsaCallSite::DsaCallSite(const Instruction &cs, Cell c)
-    : m_cs(&cs), m_cell(c), m_cloned(false),
+    : m_cs(dyn_cast<const CallBase>(&cs)), m_cell(c), m_cloned(false),
       m_callee(getCalledFunctionThroughAliasesAndCasts(m_cs)) {
   m_cell.getValue().getNode();
 }
 DsaCallSite::DsaCallSite(const Instruction &cs, const Function &callee)
-    : m_cs(&cs), m_cell(None), m_cloned(false), m_callee(&callee) {
+  : m_cs(dyn_cast<const CallBase>(&cs)), m_cell(None), m_cloned(false), m_callee(&callee) {
   assert(isIndirectCall() ||
          getCalledFunctionThroughAliasesAndCasts(m_cs) == &callee);
 }

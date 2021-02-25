@@ -46,7 +46,7 @@ public:
       boost::filter_iterator<isPointerTy,
                              typename llvm::ImmutableCallSite::arg_iterator>;
 
-  DsaCallSite(const llvm::ImmutableCallSite &cs);
+  DsaCallSite(const llvm::CallBase &cb);
   DsaCallSite(const llvm::Instruction &cs);
   DsaCallSite(const llvm::Instruction &cs, Cell c);
   DsaCallSite(const llvm::Instruction &cs, const llvm::Function &callee);
@@ -85,7 +85,9 @@ public:
 
   const llvm::Instruction *getInstruction() const;
 
-  const llvm::ImmutableCallSite &getCallSite() const { return m_cs; }
+  const llvm::CallBase &getCallBase() const {
+    return *dyn_cast<llvm::CallBase>(m_cs.getInstruction());
+  }
 
   const_formal_iterator formal_begin() const;
   const_formal_iterator formal_end() const;
