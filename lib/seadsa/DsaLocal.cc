@@ -126,13 +126,13 @@ void revTopoSort(const llvm::Function &F, Container &out) {
   std::copy(po_ext_begin(f, ble), po_ext_end(f, ble), std::back_inserter(out));
 }
 
-/// Work-arround for a bug in llvm::CallSite::getCalledFunction
+/// Work-arround for a bug in llvm::CallBasde::getCalledFunction
 /// properly handle bitcast
-Function *getCalledFunction(CallSite &CS) {
-  Function *fn = CS.getCalledFunction();
+Function *getCalledFunction(CallBase &CB) {
+  Function *fn = CB.getCalledFunction();
   if (fn) return fn;
 
-  Value *v = CS.getCalledValue();
+  Value *v = CB.getCalledValue();
   if (v) v = v->stripPointerCasts();
   fn = dyn_cast<Function>(v);
 
@@ -469,14 +469,14 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitMemSetInst(MemSetInst &I);
   void visitMemTransferInst(MemTransferInst &I);
 
-  void visitCallSite(CallSite CS);
-  void visitInlineAsmCall(CallSite &CS);
-  void visitExternalCall(CallSite &CS);
-  void visitIndirectCall(CallSite &CS);
-  void visitSeaDsaFnCall(CallSite &CS);
+  void visitCallBase(CallBase &I);
+  void visitInlineAsmCall(CallBase &I);
+  void visitExternalCall(CallBase &I);
+  void visitIndirectCall(CallBase &I);
+  void visitSeaDsaFnCall(CallBase &I);
 
-  void visitAllocWrapperCall(CallSite &CS);
-  void visitAllocationFnCall(CallSite &CS);
+  void visitAllocWrapperCall(CallBase &I);
+  void visitAllocationFnCall(CallBase &I);
 
   SeadsaFn getSeaDsaFn(const Function *fn) {
     if (!fn) return SeadsaFn::UNKNOWN;
@@ -817,7 +817,6 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
 
   if (isSkip(*ValOp)) return;
 
-
   if (BlockBuilderBase::isNullConstant(*ValOp)) {
     // TODO: mark link as possibly pointing to null
     return;
@@ -1153,31 +1152,29 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   }
 }
 
-void IntraBlockBuilder::visitInlineAsmCall(CallSite &CS) {
+void IntraBlockBuilder::visitInlineAsmCall(CallBase &I) {
   using namespace seadsa;
-  assert(CS.isInlineAsm());
+  assert(I.isInlineAsm());
 
-  auto &inst = *CS.getInstruction();
-  if (isSkip(inst)) return;
-  Cell &c = m_graph.mkCell(inst, Cell(m_graph.mkNode(), 0));
+  if (isSkip(I)) return;
+  Cell &c = m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
   c.getNode()->setExternal();
 
   // treat as allocation site
-  seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
+  seadsa::DsaAllocSite *site = m_graph.mkAllocSite(I);
   assert(site);
   c.getNode()->addAllocSite(*site);
 }
 
-void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
+void IntraBlockBuilder::visitExternalCall(CallBase &I) {
   using namespace seadsa;
-  auto &inst = *CS.getInstruction();
-  if (isSkip(inst)) return;
+  if (isSkip(I)) return;
 
-  auto *callee = getCalledFunction(CS);
+  auto *callee = getCalledFunction(I);
   assert(callee);
   assert(callee->isDeclaration());
 
-  Cell &c = m_graph.mkCell(inst, Cell(m_graph.mkNode(), 0));
+  Cell &c = m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
   c.getNode()->setExternal();
 
   if (callee->getName().startswith("verifier.nondet.abstract.memory")) return;
@@ -1187,10 +1184,10 @@ void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
 
   LOG("dsa", errs() << "Visiting call to an external function:\n"
                     << "func: " << *callee << "\n"
-                    << "inst: " << *CS.getInstruction() << "\n";);
+                    << "inst: " << I << "\n";);
 
-  if (auto *V = llvm::getArgumentAliasingToReturnedPointer(
-          cast<CallBase>(&inst), false)) {
+  if (auto *V = llvm::getArgumentAliasingToReturnedPointer(cast<CallBase>(&I),
+                                                           false)) {
     // arg V is returned by the call, unify it with return
     assert(m_graph.hasCell(*V));
     Cell &argC = m_graph.mkCell(*V, Cell());
@@ -1198,41 +1195,39 @@ void IntraBlockBuilder::visitExternalCall(CallSite &CS) {
   } else if (callee->returnDoesNotAlias()) {
     // if return does not alias, it is an allocation site hidden inside the
     // function
-    seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
+    seadsa::DsaAllocSite *site = m_graph.mkAllocSite(I);
     assert(site);
     c.getNode()->addAllocSite(*site);
   } else if (AssumeExternalFunctonsAllocators) {
     // -- assume that every external function returns a freshly allocated
     // pointer
-    seadsa::DsaAllocSite *site = m_graph.mkAllocSite(inst);
+    seadsa::DsaAllocSite *site = m_graph.mkAllocSite(I);
     assert(site);
     c.getNode()->addAllocSite(*site);
   }
 }
 
-void IntraBlockBuilder::visitIndirectCall(CallSite &CS) {
+void IntraBlockBuilder::visitIndirectCall(CallBase &I) {
   using namespace seadsa;
-  auto *inst = CS.getInstruction();
-  assert(inst);
-  if (!isSkip(*inst)) m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
+  if (!isSkip(I)) m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
 
   if (!m_track_callsites) return;
 
-  assert(CS.getCalledValue());
-  const Value &calledV = *(CS.getCalledValue());
+  assert(I.getCalledValue());
+  const Value &calledV = *(I.getCalledValue());
   if (m_graph.hasCell(calledV)) {
     Cell calledC = m_graph.getCell(calledV);
-    m_graph.mkCallSite(*inst, calledC);
+    m_graph.mkCallSite(I, calledC);
   } else {
     LOG("dsa",
         errs() << "WARNING: no cell found for callee in indirect call.\n";);
   }
 }
 
-void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
+void IntraBlockBuilder::visitSeaDsaFnCall(CallBase &I) {
   using namespace llvm::PatternMatch;
   using namespace seadsa;
-  auto *callee = getCalledFunction(CS);
+  auto *callee = getCalledFunction(I);
   SeadsaFn fn = getSeaDsaFn(callee);
 
   switch (fn) {
@@ -1245,7 +1240,7 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   case SeadsaFn::PTR_TO_INT: {
     // sea_dsa_read(const void *p) -- mark the node pointed to by p as read
     Value *arg = nullptr;
-    if (!(match(CS.getArgument(0), m_Value(arg)) &&
+    if (!(match(I.getArgOperand(0), m_Value(arg)) &&
           arg->getType()->isPointerTy()))
       return;
     if (isSkip(*(arg))) return;
@@ -1262,10 +1257,10 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   case SeadsaFn::ALIAS: {
     llvm::SmallVector<seadsa::Cell, 8> toMerge;
     LOG("sea-dsa-alias", llvm::errs() << "In alias\n";);
-    unsigned nargs = CS.arg_size();
+    unsigned nargs = I.arg_size();
     for (unsigned i = 0; i < nargs; ++i) {
       Value *arg = nullptr;
-      if (!(match(CS.getArgument(i), m_Value(arg)) &&
+      if (!(match(I.getArgOperand(i), m_Value(arg)) &&
             arg->getType()->isPointerTy()))
         continue;
       if (isSkip(*arg)) {
@@ -1304,7 +1299,7 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   case SeadsaFn::COLLAPSE: {
     // seadsa_collapse(p) -- collapse the node to which p points to
     Value *arg = nullptr;
-    if (!(match(CS.getArgument(0), m_Value(arg)) &&
+    if (!(match(I.getArgOperand(0), m_Value(arg)) &&
           arg->getType()->isPointerTy()))
       return;
     if (isSkip(*(arg))) return;
@@ -1320,10 +1315,10 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     Value *arg0 = nullptr;
     ConstantInt *arg1 = nullptr;
 
-    if (!(match(CS.getArgument(0), m_Value(arg0)) &&
+    if (!(match(I.getArgOperand(0), m_Value(arg0)) &&
           arg0->getType()->isPointerTy()))
       return;
-    if (!match(CS.getArgument(1), m_ConstantInt(arg1))) return;
+    if (!match(I.getArgOperand(1), m_ConstantInt(arg1))) return;
     if (isSkip(*arg0)) return;
     if (!m_graph.hasCell(*arg0)) return;
 
@@ -1338,13 +1333,12 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
         n->setArraySize(arg1->getZExtValue());
       } else {
         LOG("dsa",
-            errs() << "WARNING: skipped " << *CS.getInstruction()
-                   << " because new size cannot be"
+            errs() << "WARNING: skipped " << I << " because new size cannot be"
                    << " smaller than the size of the node pointed by the "
                       "pointer.\n";);
       }
     } else {
-      LOG("dsa", errs() << "WARNING: skipped " << *CS.getInstruction()
+      LOG("dsa", errs() << "WARNING: skipped " << I
                         << " because it expects a pointer"
                         << " that points to a non-sequence node.\n";);
     }
@@ -1357,11 +1351,11 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     ConstantInt *arg1 = nullptr;
     Value *arg2 = nullptr;
 
-    if (!(match(CS.getArgument(0), m_Value(arg0)) &&
+    if (!(match(I.getArgOperand(0), m_Value(arg0)) &&
           arg0->getType()->isPointerTy()))
       return;
-    if (!match(CS.getArgument(1), m_ConstantInt(arg1))) return;
-    if (!(match(CS.getArgument(2), m_Value(arg2)) &&
+    if (!match(I.getArgOperand(1), m_ConstantInt(arg1))) return;
+    if (!(match(I.getArgOperand(2), m_Value(arg2)) &&
           arg2->getType()->isPointerTy()))
       return;
 
@@ -1378,7 +1372,7 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   case SeadsaFn::MAKE: {
     // seadsa_set_type(str_type) -- set the node type to the given type
     Node &n = m_graph.mkNode();
-    m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
+    m_graph.mkCell(I, Cell(n, 0));
     return;
   }
 
@@ -1387,10 +1381,10 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
     Value *arg0 = nullptr;
     ConstantInt *arg1 = nullptr;
 
-    if (!(match(CS.getArgument(0), m_Value(arg0)) &&
+    if (!(match(I.getArgOperand(0), m_Value(arg0)) &&
           arg0->getType()->isPointerTy()))
       return;
-    if (!match(CS.getArgument(1), m_ConstantInt(arg1))) return;
+    if (!match(I.getArgOperand(1), m_ConstantInt(arg1))) return;
     if (isSkip(*arg0)) return;
     if (!m_graph.hasCell(*arg0)) return;
 
@@ -1400,72 +1394,66 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallSite &CS) {
   }
 
   default: {
-    visitExternalCall(CS);
+    visitExternalCall(I);
     return;
   }
   }
 }
 
-void IntraBlockBuilder::visitAllocWrapperCall(CallSite &CS) {
-  visitAllocationFnCall(CS);
+void IntraBlockBuilder::visitAllocWrapperCall(CallBase &I) {
+  visitAllocationFnCall(I);
 }
 
-void IntraBlockBuilder::visitAllocationFnCall(CallSite &CS) {
+void IntraBlockBuilder::visitAllocationFnCall(CallBase &I) {
   using namespace seadsa;
-  assert(CS.getInstruction());
   Node &n = m_graph.mkNode();
   // -- record allocation site
-  seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*(CS.getInstruction()));
+  seadsa::DsaAllocSite *site = m_graph.mkAllocSite(I);
   assert(site);
   n.addAllocSite(*site);
   // -- mark node as a heap node
   n.setHeap();
 
-  m_graph.mkCell(*CS.getInstruction(), Cell(n, 0));
+  m_graph.mkCell(I, Cell(n, 0));
 }
 
-void IntraBlockBuilder::visitCallSite(CallSite CS) {
+void IntraBlockBuilder::visitCallBase(CallBase &I) {
   using namespace seadsa;
 
-  if (CS.isInlineAsm()) {
-    visitInlineAsmCall(CS);
+  if (I.isInlineAsm()) {
+    visitInlineAsmCall(I);
     return;
   }
 
-  if (CS.isIndirectCall()) {
-    visitIndirectCall(CS);
+  if (I.isIndirectCall()) {
+    visitIndirectCall(I);
     return;
   }
 
-  if (llvm::isAllocationFn(CS.getInstruction(), &m_tli, true)) {
-    visitAllocationFnCall(CS);
+  if (llvm::isAllocationFn(&I, &m_tli, true)) {
+    visitAllocationFnCall(I);
     return;
   }
 
   // direct function call
-  if (auto *callee = getCalledFunction(CS)) {
+  if (auto *callee = getCalledFunction(I)) {
     if (m_allocInfo.isAllocWrapper(*callee)) {
-      visitAllocWrapperCall(CS);
+      visitAllocWrapperCall(I);
       return;
     } else if (isSeaDsaFn(callee)) {
-      visitSeaDsaFnCall(CS);
+      visitSeaDsaFnCall(I);
       return;
     } else if (callee->isDeclaration()) {
-      visitExternalCall(CS);
+      visitExternalCall(I);
       return;
     }
   }
 
   // not handled direct call
-  if (auto *inst = CS.getInstruction()) {
-    if (!isSkip(*inst))
-      Cell &c = m_graph.mkCell(*inst, Cell(m_graph.mkNode(), 0));
+  if (!isSkip(I)) {
+    m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
     return;
   }
-
-  // nothing is expected here
-  assert(false && "Unexpected CallSite");
-  llvm_unreachable("Unexpected");
 
   // TODO: handle variable argument functions
 }
