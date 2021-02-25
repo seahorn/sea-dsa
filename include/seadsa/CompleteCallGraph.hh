@@ -87,13 +87,13 @@ public:
 
   void printStats(llvm::Module &m, llvm::raw_ostream &o);
 
-  // The indirect call CS can be fully resolved.
-  bool isComplete(llvm::CallSite &CS) const;
+  // The indirect call CB is fully resolved.
+  bool isComplete(llvm::CallBase &CB) const;
 
   // Iterate over all possible callees of an indirect call CS.
-  callee_iterator begin(llvm::CallSite &CS);
+  callee_iterator begin(llvm::CallBase &CB);
 
-  callee_iterator end(llvm::CallSite &CS);
+  callee_iterator end(llvm::CallBase &CB);
 };
 
 class CompleteCallGraph : public llvm::ModulePass {
@@ -125,11 +125,11 @@ public:
 
   const llvm::CallGraph &getCompleteCallGraph() const;
 
-  bool isComplete(llvm::CallSite &CS) const;
+  bool isComplete(llvm::CallBase &CB) const;
 
-  callee_iterator begin(llvm::CallSite &CS);
+  callee_iterator begin(llvm::CallBase &CB);
 
-  callee_iterator end(llvm::CallSite &CS);
+  callee_iterator end(llvm::CallBase &CB);
 };
 
 } // namespace seadsa
