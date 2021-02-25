@@ -18,7 +18,6 @@ class TargetLibraryInfoWrapperPass;
 class DataLayout;
 class CallGraph;
 class CallInst;
-class ImmutableCallSite;
 } // namespace llvm
 
 namespace seadsa {

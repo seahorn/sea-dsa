@@ -3,7 +3,6 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -164,12 +163,12 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         const Function *callee = callRecord.second->getFunction();
         if (!callee || callee->isDeclaration() || callee->empty()) continue;
 
-        CallSite CS(callRecord.first);
+        CallBase &CB = *dyn_cast<CallBase>(callRecord.first);
         std::unique_ptr<DsaCallSite> dsaCS = nullptr;
-        if (CS.isIndirectCall()) {
-          dsaCS.reset(new DsaCallSite(*CS.getInstruction(), *callee));
+        if (CB.isIndirectCall()) {
+          dsaCS.reset(new DsaCallSite(CB, *callee));
         } else {
-          dsaCS.reset(new DsaCallSite(*CS.getInstruction()));
+          dsaCS.reset(new DsaCallSite(CB));
         }
 
         // This should not happen ...

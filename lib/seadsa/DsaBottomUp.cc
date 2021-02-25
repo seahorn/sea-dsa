@@ -175,8 +175,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       auto callRecords =
           call_graph_utils::SortedCallSites(cgn, m_dsaLibFuncInfo);
       for (auto *callRecord : callRecords) {
-        ImmutableCallSite CS(callRecord);
-        DsaCallSite dsaCS(CS);
+        DsaCallSite dsaCS(*dyn_cast<llvm::CallBase>(callRecord));
         const Function *callee = dsaCS.getCallee();
         if (!callee) continue;
         if (callee->isDeclaration() && !m_dsaLibFuncInfo.hasSpecFunc(*callee))

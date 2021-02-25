@@ -17,8 +17,8 @@ bool DsaCallSite::isPointerTy::operator()(const Argument &a) {
 }
 
 static const Function *
-getCalledFunctionThroughAliasesAndCasts(ImmutableCallSite &CS) {
-  const Value *CalledV = CS.getCalledValue();
+getCalledFunctionThroughAliasesAndCasts(const CallBase &cb) {
+  const Value *CalledV = cb.getCalledValue();
   CalledV = CalledV->stripPointerCasts();
 
   if (const Function *F = dyn_cast<const Function>(CalledV)) { return F; }
@@ -33,21 +33,26 @@ getCalledFunctionThroughAliasesAndCasts(ImmutableCallSite &CS) {
   return nullptr;
 }
 
-DsaCallSite::DsaCallSite(const ImmutableCallSite &cs)
-    : m_cs(cs), m_cell(None), m_cloned(false),
-      m_callee(getCalledFunctionThroughAliasesAndCasts(m_cs)) {}
+DsaCallSite::DsaCallSite(const CallBase &cb)
+    : m_cb(&cb), m_cell(None), m_cloned(false),
+      m_callee(getCalledFunctionThroughAliasesAndCasts(cb)) {}
 DsaCallSite::DsaCallSite(const Instruction &cs)
-    : m_cs(&cs), m_cell(None), m_cloned(false),
-      m_callee(getCalledFunctionThroughAliasesAndCasts(m_cs)) {}
+    : m_cb(dyn_cast<const CallBase>(&cs)), m_cell(None), m_cloned(false),
+      m_callee(getCalledFunctionThroughAliasesAndCasts(*m_cb)) {
+  assert(m_cb);
+}
 DsaCallSite::DsaCallSite(const Instruction &cs, Cell c)
-    : m_cs(&cs), m_cell(c), m_cloned(false),
-      m_callee(getCalledFunctionThroughAliasesAndCasts(m_cs)) {
+    : m_cb(dyn_cast<const CallBase>(&cs)), m_cell(c), m_cloned(false),
+      m_callee(getCalledFunctionThroughAliasesAndCasts(*m_cb)) {
+  assert(m_cb);
   m_cell.getValue().getNode();
 }
 DsaCallSite::DsaCallSite(const Instruction &cs, const Function &callee)
-    : m_cs(&cs), m_cell(None), m_cloned(false), m_callee(&callee) {
+    : m_cb(dyn_cast<const CallBase>(&cs)), m_cell(None), m_cloned(false),
+      m_callee(&callee) {
+  assert(m_cb);
   assert(isIndirectCall() ||
-         getCalledFunctionThroughAliasesAndCasts(m_cs) == &callee);
+         getCalledFunctionThroughAliasesAndCasts(*m_cb) == &callee);
 }
 
 bool DsaCallSite::hasCell() const { return m_cell.hasValue(); }
@@ -63,14 +68,14 @@ Cell &DsaCallSite::getCell() {
 }
 
 const llvm::Value &DsaCallSite::getCalledValue() const {
-  return *(m_cs.getCalledValue());
+  return *(m_cb->getCalledValue());
 }
 
 bool DsaCallSite::isIndirectCall() const {
   // XXX: this does not compile
   // return m_cs.isIndirectCall();
 
-  const Value *V = m_cs.getCalledValue();
+  const Value *V = m_cb->getCalledValue();
   if (!V) return false;
   if (isa<const Function>(V) || isa<const Constant>(V)) return false;
   if (const CallInst *CI = dyn_cast<const CallInst>(getInstruction())) {
@@ -79,7 +84,7 @@ bool DsaCallSite::isIndirectCall() const {
   return true;
 }
 
-bool DsaCallSite::isInlineAsm() const { return m_cs.isInlineAsm(); }
+bool DsaCallSite::isInlineAsm() const { return m_cb->isInlineAsm(); }
 bool DsaCallSite::isCloned() const { return m_cloned; }
 
 void DsaCallSite::markCloned(bool v) { m_cloned = v; }
@@ -94,10 +99,10 @@ const Value *DsaCallSite::getRetVal() const {
 
 const Function *DsaCallSite::getCallee() const { return m_callee; }
 
-const Function *DsaCallSite::getCaller() const { return m_cs.getCaller(); }
+const Function *DsaCallSite::getCaller() const { return m_cb->getCaller(); }
 
 const Instruction *DsaCallSite::getInstruction() const {
-  return m_cs.getInstruction();
+  return m_cb;
 }
 
 DsaCallSite::const_formal_iterator DsaCallSite::formal_begin() const {
@@ -116,16 +121,16 @@ DsaCallSite::const_formal_iterator DsaCallSite::formal_end() const {
 
 DsaCallSite::const_actual_iterator DsaCallSite::actual_begin() const {
   isPointerTy p;
-  return boost::make_filter_iterator(p, m_cs.arg_begin(), m_cs.arg_end());
+  return boost::make_filter_iterator(p, m_cb->arg_begin(), m_cb->arg_end());
 }
 
 DsaCallSite::const_actual_iterator DsaCallSite::actual_end() const {
   isPointerTy p;
-  return boost::make_filter_iterator(p, m_cs.arg_end(), m_cs.arg_end());
+  return boost::make_filter_iterator(p, m_cb->arg_end(), m_cb->arg_end());
 }
 
 void DsaCallSite::write(raw_ostream &o) const {
-  o << *m_cs.getInstruction();
+  o << *m_cb;
   if (isIndirectCall() && hasCell()) {
     o << "\nCallee cell " << m_cell.getValue();
   }
