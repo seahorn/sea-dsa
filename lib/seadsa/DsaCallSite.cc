@@ -18,7 +18,7 @@ bool DsaCallSite::isPointerTy::operator()(const Argument &a) {
 
 static const Function *
 getCalledFunctionThroughAliasesAndCasts(const CallBase &cb) {
-  const Value *CalledV = cb.getCalledValue();
+  const Value *CalledV = cb.getCalledOperand();
   CalledV = CalledV->stripPointerCasts();
 
   if (const Function *F = dyn_cast<const Function>(CalledV)) { return F; }
@@ -68,14 +68,14 @@ Cell &DsaCallSite::getCell() {
 }
 
 const llvm::Value &DsaCallSite::getCalledValue() const {
-  return *(m_cb->getCalledValue());
+  return *(m_cb->getCalledOperand());
 }
 
 bool DsaCallSite::isIndirectCall() const {
   // XXX: this does not compile
   // return m_cs.isIndirectCall();
 
-  const Value *V = m_cb->getCalledValue();
+  const Value *V = m_cb->getCalledOperand();
   if (!V) return false;
   if (isa<const Function>(V) || isa<const Constant>(V)) return false;
   if (const CallInst *CI = dyn_cast<const CallInst>(getInstruction())) {

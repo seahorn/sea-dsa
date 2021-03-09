@@ -376,7 +376,9 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     if (it != offsetMap.end()) return it->second;
 
     // -- not found, allocate new shadow variable
-    AllocaInst *inst = new AllocaInst(m_Int32Ty, 0 /* Address Space */);
+    AllocaInst *inst =
+        new AllocaInst(m_Int32Ty, 0U /* Address Space */, nullptr,
+                       m_dl->getPrefTypeAlign(m_Int32Ty));
     // -- inst is eventually added to the Module and it will take ownership
     offsetMap[offset] = inst;
     return inst;
@@ -455,7 +457,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
   CallInst *mkShadowCall(IRBuilder<> &B, const dsa::Cell &c, Constant *fn,
                          ArrayRef<Value *> args, const Twine &name = "") {
-    CallInst *ci = B.CreateCall(fn, args, name);
+    CallInst *ci = B.CreateCall(FunctionCallee(cast<Function>(fn)), args, name);
     m_shadowMemInstToCell.insert({ci, dsa::Cell(c.getNode(), c.getOffset())});
     return ci;
   }

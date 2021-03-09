@@ -347,7 +347,7 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
     for (const llvm::Value *AS : Node.getAllocSites()) {
       assert(AS);
       ++i;
-      O << " " << DOT::EscapeString(AS->hasName() ? AS->getName() : "unnamed");
+      O << " " << DOT::EscapeString(AS->hasName() ? AS->getName().str() : "unnamed");
       if (i != numAllocSites)
         O << ",";
     }

@@ -46,7 +46,9 @@ void AggregateIterator::doStep() {
   while (!Worklist.empty()) {
     auto *const Ty = Worklist.pop_back_val();
 
-    if (Ty->isPointerTy() || !isa<CompositeType>(Ty)) {
+    // Shaobo: `CompositeType` is removed in LLVM 11.
+    // Previously, it mounts to the union of ArrayTy, StructTy, and VectorTy.
+    if (Ty->isPointerTy() || !(Ty->isAggregateType() || Ty->isVectorTy())) {
       const auto NewOffset = Current.Offset + Current.Bytes;
       Current = SubTypeDesc{Ty, sizeInBytes(Ty), NewOffset};
       break;
@@ -59,8 +61,13 @@ void AggregateIterator::doStep() {
     }
 
     if (Ty->isVectorTy()) {
-      for (size_t i = 0, e = Ty->getVectorNumElements(); i != e; ++i)
-        Worklist.push_back(Ty->getVectorElementType());
+      // Shaobo: LLVM 11 introduced `ScalableVectorType` whose number of
+      // elements may not be fixed. So I used `FixedVectorType` here.
+      assert(llvm::isa<FixedVectorType>(Ty) &&
+             "ScalableVectorType is not supported!");
+      auto fvt = llvm::cast<FixedVectorType>(Ty);
+      for (size_t i = 0, e = fvt->getNumElements(); i != e; ++i)
+        Worklist.push_back(fvt->getElementType());
       continue;
     }
 

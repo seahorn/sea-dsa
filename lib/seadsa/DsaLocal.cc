@@ -132,7 +132,7 @@ Function *getCalledFunction(CallBase &CB) {
   Function *fn = CB.getCalledFunction();
   if (fn) return fn;
 
-  Value *v = CB.getCalledValue();
+  Value *v = CB.getCalledOperand();
   if (v) v = v->stripPointerCasts();
   fn = dyn_cast<Function>(v);
 
@@ -221,9 +221,10 @@ protected:
         for (unsigned i = 0, sz = ST->getNumElements(); i < sz; ++i) {
           workList.push_back(ST->getElementType(i));
         }
-      } else if (const SequentialType *ST = dyn_cast<SequentialType>(Ty)) {
-        // ArrayType and VectorType are subclasses of SequentialType
-        workList.push_back(ST->getElementType());
+      } else if (Ty->isArrayTy()) {
+        workList.push_back(Ty->getArrayElementType());
+      } else if (auto vt = dyn_cast<VectorType>(Ty)) {
+        workList.push_back(vt->getElementType());
       }
     }
     return false;
@@ -901,8 +902,10 @@ std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
     } else {
       if (PointerType *ptrTy = dyn_cast<PointerType>(Ty))
         Ty = ptrTy->getElementType();
-      else if (SequentialType *seqTy = dyn_cast<SequentialType>(Ty))
-        Ty = seqTy->getElementType();
+      else if (Ty->isArrayTy())
+        Ty = Ty->getArrayElementType();
+      else if (auto vt = dyn_cast<VectorType>(Ty))
+        Ty = vt->getElementType();
       assert(Ty && "Type is neither PointerType nor SequentialType");
 
       uint64_t sz = dl.getTypeStoreSize(Ty);
@@ -938,8 +941,10 @@ uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
     } else {
       if (PointerType *ptrTy = dyn_cast<PointerType>(ty))
         ty = ptrTy->getElementType();
-      else if (SequentialType *seqTy = dyn_cast<SequentialType>(ty))
-        ty = seqTy->getElementType();
+      else if (ty->isArrayTy())
+        ty = ty->getArrayElementType();
+      else if (auto vt = dyn_cast<VectorType>(ty))
+        ty = vt->getElementType();
       assert(ty && "Type is neither PointerType nor SequentialType");
       offset += idx * dl.getTypeAllocSize(ty);
     }
@@ -1213,8 +1218,8 @@ void IntraBlockBuilder::visitIndirectCall(CallBase &I) {
 
   if (!m_track_callsites) return;
 
-  assert(I.getCalledValue());
-  const Value &calledV = *(I.getCalledValue());
+  assert(I.getCalledOperand());
+  const Value &calledV = *(I.getCalledOperand());
   if (m_graph.hasCell(calledV)) {
     Cell calledC = m_graph.getCell(calledV);
     m_graph.mkCallSite(I, calledC);
@@ -1485,8 +1490,10 @@ bool hasNoPointerTy(const llvm::Type *t) {
     for (auto it = sty->element_begin(), end = sty->element_end(); it != end;
          ++it)
       if (!hasNoPointerTy(*it)) return false;
-  } else if (const SequentialType *seqty = dyn_cast<const SequentialType>(t))
-    return hasNoPointerTy(seqty->getElementType());
+  } else if (t->isArrayTy())
+    return hasNoPointerTy(t->getArrayElementType());
+  else if (auto vt = dyn_cast<const VectorType>(t))
+    return hasNoPointerTy(vt->getElementType());
 
   return true;
 }

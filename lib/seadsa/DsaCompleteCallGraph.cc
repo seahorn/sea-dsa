@@ -83,7 +83,7 @@ static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   for (auto &I : llvm::make_range(inst_begin(&F), inst_end(&F))) {
     if (!(isa<CallInst>(I) || isa<InvokeInst>(I))) continue;
     CallBase &CB = *dyn_cast<CallBase>(&I);
-    Value *calleeV = CB.getCalledValue();
+    Value *calleeV = CB.getCalledOperand();
     if (calleeV != stripBitCast(calleeV)) {
       if (Function *calleeF = dyn_cast<Function>(stripBitCast(calleeV))) {
         CallGraphNode *callerCGN = seaCg[&F];
@@ -316,7 +316,7 @@ void CompleteCallGraphAnalysis::printStats(Module &M, raw_ostream &o) {
       } else {
         ++num_unexpected_calls;
         errs() << CB << "\n";
-        errs() << CB.getCalledValue() << "\n";
+        errs() << CB.getCalledOperand() << "\n";
       }
     }
   }
@@ -439,7 +439,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
         static int cnt = 0;
         // Inline direct and indirect calls
         for (auto &callRecord : *cgn) {
-          CallBase &CB = *dyn_cast<CallBase>(callRecord.first);
+          CallBase &CB = *dyn_cast<CallBase>(*callRecord.first);
           if (CB.isIndirectCall()) {
             // indirect call:
             //
@@ -491,7 +491,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           src->begin(), src->end(),
           [&dst, &CB](const typename CallGraphNode::CallRecord &record) {
             return (record.second == dst &&
-                    record.first == &CB);
+                    *record.first == &CB);
           });
     };
 
@@ -596,7 +596,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
     std::vector<CallBase*> toRemove;
     for (auto &kv : llvm::make_range(CGNF->begin(), CGNF->end())) {
       if (!kv.first) continue;
-      CallBase &CB = *dyn_cast<CallBase>(kv.first);
+      CallBase &CB = *dyn_cast<CallBase>(*kv.first);
       if (CB.isIndirectCall() &&
           !kv.second->getFunction() /* has no callee */) {
         if (m_resolved.count(&CB) > 0) toRemove.push_back(&CB);
