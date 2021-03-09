@@ -53,10 +53,11 @@ public:
             llvm::TargetLibraryInfoWrapperPass &tli, llvm::CallGraph *cg,
             llvm::Pass &pass /* for dominatorTree and assumptionCache*/,
             bool splitDsaNodes = false, bool computeReadMod = false,
-            bool memOptimizer = true, bool useTBAA = true);
+            bool memOptimizer = true, bool useTBAA = true,
+            bool useSNAAA = true);
 
   ~ShadowMem();
-  
+
   bool runOnModule(llvm::Module &M);
 
   // Return a reference to the global sea-dsa analysis.
@@ -91,7 +92,9 @@ public:
   ShadowMemPass();
   bool runOnModule(llvm::Module &M) override;
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-  virtual llvm::StringRef getPassName() const override { return "ShadowMemSeaDsa"; }
+  virtual llvm::StringRef getPassName() const override {
+    return "ShadowMemSeaDsa";
+  }
   const ShadowMem &getShadowMem() const;
   ShadowMem &getShadowMem();
 };
@@ -102,7 +105,9 @@ public:
   StripShadowMemPass() : llvm::ModulePass(ID) {}
   virtual bool runOnModule(llvm::Module &M) override;
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-  virtual llvm::StringRef getPassName() const override { return "StripShadowMem"; }
+  virtual llvm::StringRef getPassName() const override {
+    return "StripShadowMem";
+  }
 };
 
 llvm::Pass *createStripShadowMemPass();

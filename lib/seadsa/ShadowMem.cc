@@ -17,6 +17,7 @@
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
+#include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/IR/DataLayout.h"
@@ -51,6 +52,11 @@ llvm::cl::opt<bool>
     ShadowMemUseTBAA("horn-shadow-mem-use-tbaa",
                      llvm::cl::desc("Use TypeBasedAA in the MemSSA optimizer"),
                      llvm::cl::init(true));
+
+llvm::cl::opt<bool> ShadowMemUseSNAAA(
+    "horn-shadow-mem-use-snaaa",
+    llvm::cl::desc("Use ScopedNoAliasAA in the MemSSA optimizer"),
+    llvm::cl::init(true));
 
 // TODO: This flag should be removed i.e. it should always be True
 // if no errors are reported over time.
@@ -171,6 +177,7 @@ void argReachableNodes(const Function &fn, dsa::Graph &g, Set1 &inReach,
 class LocalAAResultsWrapper {
   llvm::BasicAAResult *m_baa = nullptr;
   llvm::TypeBasedAAResult *m_tbaa = nullptr;
+  llvm::ScopedNoAliasAAResult *m_snaaa = nullptr;
 
   MemoryLocation getMemLoc(Value &ptr, Value *inst, Optional<unsigned> size) {
     MemoryLocation loc(&ptr);
@@ -187,20 +194,24 @@ class LocalAAResultsWrapper {
 
 public:
   LocalAAResultsWrapper() = default;
-  LocalAAResultsWrapper(BasicAAResult *baa, TypeBasedAAResult *tbaa)
-      : m_baa(baa), m_tbaa(tbaa) {}
+  LocalAAResultsWrapper(BasicAAResult *baa, TypeBasedAAResult *tbaa,
+                        ScopedNoAliasAAResult *snaaa)
+      : m_baa(baa), m_tbaa(tbaa), m_snaaa(snaaa) {}
   LocalAAResultsWrapper(const LocalAAResultsWrapper &) = default;
   LocalAAResultsWrapper &operator=(const LocalAAResultsWrapper &) = default;
 
   bool isNoAlias(Value &ptrA, Value *instA, Optional<unsigned> sizeA,
                  Value &ptrB, Value *instB, Optional<unsigned> sizeB) {
-    if (!m_baa && !m_tbaa) return false;
+    if (!m_baa && !m_tbaa && !m_snaaa) return false;
 
     MemoryLocation A = getMemLoc(ptrA, instA, sizeA);
     MemoryLocation B = getMemLoc(ptrB, instB, sizeB);
 
     AAQueryInfo AAQI;
     if (m_tbaa && m_tbaa->alias(A, B, AAQI) == AliasResult::NoAlias)
+      return true;
+
+    if (m_snaaa && m_snaaa->alias(A, B, AAQI) == AliasResult::NoAlias)
       return true;
 
     return m_baa && m_baa->alias(A, B, AAQI) == AliasResult::NoAlias;
@@ -229,6 +240,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   bool m_computeReadMod;
   bool m_memOptimizer;
   bool m_useTBAA;
+  bool m_useSNAAA;
 
   llvm::Constant *m_memLoadFn = nullptr;
   llvm::Constant *m_memStoreFn = nullptr;
@@ -638,11 +650,11 @@ public:
   ShadowMemImpl(dsa::GlobalAnalysis &dsa, dsa::AllocSiteInfo &asi,
                 TargetLibraryInfoWrapperPass &tliWrapper, CallGraph *cg,
                 Pass &pass, bool splitDsaNodes, bool computeReadMod,
-                bool memOptimizer, bool useTBAA)
+                bool memOptimizer, bool useTBAA, bool useSNAAA)
       : m_dsa(dsa), m_asi(asi), m_tliWrapper(tliWrapper), m_dl(nullptr),
         m_callGraph(cg), m_pass(pass), m_splitDsaNodes(splitDsaNodes),
         m_computeReadMod(computeReadMod), m_memOptimizer(memOptimizer),
-        m_useTBAA(useTBAA) {}
+        m_useTBAA(useTBAA), m_useSNAAA(useSNAAA) {}
 
   bool runOnModule(Module &M) {
     m_dl = &M.getDataLayout();
@@ -844,7 +856,13 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
     results.addAAResult(*tbaa);
   }
 
-  m_localAAResults = LocalAAResultsWrapper(&baa, tbaa.get());
+  std::unique_ptr<ScopedNoAliasAAResult> snaaa = nullptr;
+  if (m_useSNAAA) {
+    snaaa = std::make_unique<ScopedNoAliasAAResult>();
+    results.addAAResult(*snaaa);
+  }
+
+  m_localAAResults = LocalAAResultsWrapper(&baa, tbaa.get(), snaaa.get());
 
   // -- instrument function F with pseudo-instructions
   m_llvmCtx = &F.getContext();
@@ -1171,8 +1189,9 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
       markModRef(CN, callerC, idx++);
     } else {
       for (auto &ty : CN->types()) {
-        Cell callerC = simMap.get(dsa::Cell(const_cast<dsa::Node *>(CN), ty.first));
-	assert(!callerC.isNull() && "Not found node in the simulation map");	
+        Cell callerC =
+            simMap.get(dsa::Cell(const_cast<dsa::Node *>(CN), ty.first));
+        assert(!callerC.isNull() && "Not found node in the simulation map");
         markModRef(CN, callerC, idx++);
       }
     }
@@ -1787,9 +1806,11 @@ void ShadowMemImpl::solveUses(Function &F) {
 ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi,
                      llvm::TargetLibraryInfoWrapperPass &tli,
                      llvm::CallGraph *cg, llvm::Pass &pass, bool splitDsaNodes,
-                     bool computeReadMod, bool memOptimizer, bool useTBAA)
+                     bool computeReadMod, bool memOptimizer, bool useTBAA,
+                     bool useSNAAA)
     : m_impl(new ShadowMemImpl(dsa, asi, tli, cg, pass, splitDsaNodes,
-                               computeReadMod, memOptimizer, useTBAA)) {}
+                               computeReadMod, memOptimizer, useTBAA,
+                               useSNAAA)) {}
 
 ShadowMem::~ShadowMem() {}
 
@@ -1850,7 +1871,7 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
 
   m_shadowMem.reset(new ShadowMem(dsa, asi, tliWrapper, cg, *this, SplitFields,
                                   LocalReadMod, ShadowMemOptimize,
-                                  ShadowMemUseTBAA));
+                                  ShadowMemUseTBAA, ShadowMemUseSNAAA));
 
   assert(!llvm::verifyModule(M, &errs()));
   bool res = m_shadowMem->runOnModule(M);
