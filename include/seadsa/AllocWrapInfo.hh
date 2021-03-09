@@ -23,13 +23,14 @@ class Value;
 namespace seadsa {
 class AllocWrapInfo : public llvm::ImmutablePass {
 protected:
-  mutable std::set<std::string> m_allocs;
-  mutable std::set<std::string> m_deallocs;
+  mutable std::set<llvm::StringRef> m_allocs;
+  mutable std::set<llvm::StringRef> m_deallocs;
 
   mutable llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
 
   void findAllocs(llvm::Module &M) const;
-  bool findWrappers(llvm::Module &M, Pass *P, std::set<std::string> &fn_names) const; 
+  bool findWrappers(llvm::Module &M, Pass *P,
+                    std::set<llvm::StringRef> &fn_names) const;
   bool flowsFrom(llvm::Value *, llvm::Value *, llvm::LoopInfo *) const;
 
   
@@ -50,7 +51,7 @@ public:
 
   bool isAllocWrapper(llvm::Function &) const;
   bool isDeallocWrapper(llvm::Function &) const;
-  const std::set<std::string> &getAllocWrapperNames(llvm::Module &) const;
+  const std::set<llvm::StringRef> &getAllocWrapperNames(llvm::Module &) const;
 
 
   llvm::TargetLibraryInfoWrapperPass &getTLIWrapper() const {

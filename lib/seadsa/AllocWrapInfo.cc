@@ -121,7 +121,7 @@ bool AllocWrapInfo::isDeallocWrapper(llvm::Function &fn) const {
   return m_deallocs.count(fn.getName()) != 0;
 }
 
-const std::set<std::string> &AllocWrapInfo::getAllocWrapperNames(llvm::Module &M) const {
+const std::set<llvm::StringRef> &AllocWrapInfo::getAllocWrapperNames(llvm::Module &M) const {
   if (!m_tliWrapper) {
     llvm::errs() << "ERROR: AllocWrapInfo::initialize must be called\n";
     assert(false);
@@ -130,9 +130,9 @@ const std::set<std::string> &AllocWrapInfo::getAllocWrapperNames(llvm::Module &M
 }
 
 bool AllocWrapInfo::findWrappers(Module &M, Pass *P,
-				 std::set<std::string> &fn_names) const {
+				 std::set<llvm::StringRef> &fn_names) const {
   // -- copy fn_names since it will change
-  std::vector<std::string> fns(fn_names.begin(), fn_names.end());
+  std::vector<llvm::StringRef> fns(fn_names.begin(), fn_names.end());
 
   bool changed = false;
   for (auto &n : fns) {
