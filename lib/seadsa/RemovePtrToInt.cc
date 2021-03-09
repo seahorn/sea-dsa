@@ -510,7 +510,19 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       llvm::make_filter_range(MaybeUnusedInsts, [](Instruction *I) {
         return isInstructionTriviallyDead(I);
       }));
-  RecursivelyDeleteTriviallyDeadInstructions(TriviallyDeadInstructions);
+  
+  // TODO: RecursivelyDeleteTriviallyDeadInstructions takes a vector of
+  // WeakTrackingVH since LLVM 11, which implies that `MaybeUnusedInsts` should
+  // be a vector of WeakTrackingVH as well. See comment:
+  // https://github.com/seahorn/sea-dsa/pull/118#discussion_r587061761.
+  // However, the instructions currently stored in `MaybeUnusedInsts` are not
+  // removed before this call. So it should be safe to keep its original type
+  // and map it to WeakTrackingVH as the following code does.
+  SmallVector<WeakTrackingVH, 16> TriviallyDeadHandles;
+  for (auto i : TriviallyDeadInstructions)  
+      TriviallyDeadHandles.emplace_back(WeakTrackingVH(i));
+  
+  RecursivelyDeleteTriviallyDeadInstructions(TriviallyDeadHandles);
 
   for (auto kv : RenameMap) {
     kv.first->replaceAllUsesWith(kv.second);

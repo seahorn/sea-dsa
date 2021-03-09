@@ -34,11 +34,13 @@ static bool isConstantNoPtr(const llvm::Value *v) {
   if (type->isIntegerTy() || type->isFloatingPointTy())
     return true;
 
-  auto *compositeTy = llvm::dyn_cast<llvm::CompositeType>(type);
-  if (!compositeTy)
+  // auto *compositeTy = llvm::dyn_cast<llvm::CompositeType>(type);
+  // Shaobo: LLVM 11 removes `CompositeType`, which was a union of ArrayType,
+  // StructType, and VectorType.
+  if (!type->isAggregateType() && !type->isVectorTy())
     return false;
 
-  return std::all_of(compositeTy->subtype_begin(), compositeTy->subtype_end(),
+  return std::all_of(type->subtype_begin(), type->subtype_end(),
                      [](const llvm::Type *ty) {
                        return ty->isIntegerTy() || ty->isFloatingPointTy();
                      });

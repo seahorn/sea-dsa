@@ -163,7 +163,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         const Function *callee = callRecord.second->getFunction();
         if (!callee || callee->isDeclaration() || callee->empty()) continue;
 
-        CallBase &CB = *dyn_cast<CallBase>(callRecord.first);
+        CallBase &CB = *dyn_cast<CallBase>(*callRecord.first);
         std::unique_ptr<DsaCallSite> dsaCS = nullptr;
         if (CB.isIndirectCall()) {
           dsaCS.reset(new DsaCallSite(CB, *callee));

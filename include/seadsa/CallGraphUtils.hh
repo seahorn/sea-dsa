@@ -21,7 +21,7 @@ getDsaCallSite(CallRecord &callRecord, const DsaLibFuncInfo *dlfi = nullptr) {
 
   if (dlfi && dlfi->hasSpecFunc(*callee)) callee = dlfi->getSpecFunc(*callee);
 
-  auto &cs = *dyn_cast<llvm::CallBase>(callRecord.first);
+  auto &cs = *llvm::dyn_cast<llvm::CallBase>(*callRecord.first);
   if (cs.isIndirectCall()) {
     DsaCallSite dsaCS(cs, *callee);
     return (dsaCS.getCallee() ? llvm::Optional<DsaCallSite>(dsaCS)
@@ -59,7 +59,7 @@ SortedCallSites(llvm::CallGraphNode *cgn,
   res.reserve(cgn->size());
 
   for (auto &callRecord : *cgn) {
-    DsaCallSite dsaCS(*dyn_cast<llvm::CallBase>(callRecord.first));
+    DsaCallSite dsaCS(*llvm::dyn_cast<llvm::CallBase>(*callRecord.first));
 
     const llvm::Function *callee_func = dsaCS.getCallee();
     if (!callee_func) continue;
@@ -70,16 +70,16 @@ SortedCallSites(llvm::CallGraphNode *cgn,
             : *callee_func;
 
     if (callee.isDeclaration() || callee.empty()) continue;
-    res.push_back(callRecord.first);
+    res.push_back(*callRecord.first);
   }
 
   std::stable_sort(res.begin(), res.end(),
                    [](const llvm::Value *first, const llvm::Value *snd) {
-                     DsaCallSite dsaCS1(*dyn_cast<llvm::CallBase>(first));
+                     DsaCallSite dsaCS1(*llvm::dyn_cast<llvm::CallBase>(first));
                      llvm::StringRef callerN1 = dsaCS1.getCaller()->getName();
                      llvm::StringRef calleeN1 = dsaCS1.getCallee()->getName();
 
-                     DsaCallSite dsaCS2(*dyn_cast<llvm::CallBase>(snd));
+                     DsaCallSite dsaCS2(*llvm::dyn_cast<llvm::CallBase>(snd));
                      llvm::StringRef callerN2 = dsaCS2.getCaller()->getName();
                      llvm::StringRef calleeN2 = dsaCS2.getCallee()->getName();
 

@@ -117,7 +117,7 @@ static bool isCalleeTypeCompatible(const CallBase &CB, const Function &calleeF) 
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
   //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
-  // 
+  //
   // This is important because our top-down/bottom-up analyses
   // traverse the call graph in a particular order (topological or
   // reverse topological). If these edges are missing then the
@@ -126,11 +126,11 @@ static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   for (auto &I : llvm::make_range(inst_begin(&F), inst_end(&F))) {
     if (!(isa<CallInst>(I) || isa<InvokeInst>(I))) continue;
     CallBase &CB = *dyn_cast<CallBase>(&I);
-    Value *calleeV = CB.getCalledValue();
+    Value *calleeV = CB.getCalledOperand();
     if (calleeV != stripBitCast(calleeV)) {
       if (Function *calleeF = dyn_cast<Function>(stripBitCast(calleeV))) {
-	CallGraphNode *callerCGN = seaCg[&F];	    
-	CallGraphNode *calleeCGN = seaCg[calleeF];
+        CallGraphNode *callerCGN = seaCg[&F];
+        CallGraphNode *calleeCGN = seaCg[calleeF];
         callerCGN->removeCallEdgeFor(CB);
         callerCGN->addCalledFunction(&CB, calleeCGN);
         LOG("dsa-callgraph-trivial", llvm::errs()
@@ -141,7 +141,7 @@ static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
     }
   }
 }
-  
+
 // XXX: similar to Graph::import but with two modifications:
 // - the callee graph is modified during the cloning of call sites.
 // - call sites are copied.
@@ -179,7 +179,7 @@ void CompleteCallGraphAnalysis::mergeGraphs(Graph &fromG, Graph &toG) {
 // Copy callsites from callee to caller graph using the cloner.
 void CompleteCallGraphAnalysis::cloneCallSites(Cloner &C, Graph &calleeG,
                                                Graph &callerG) {
-  for (DsaCallSite &calleeCS : calleeG.callsites()) {    
+  for (DsaCallSite &calleeCS : calleeG.callsites()) {
     const Instruction &I = *(calleeCS.getInstruction());
     if (calleeCS.hasCell()) { // should always have a cell
       const Cell &c = calleeCS.getCell();
@@ -366,7 +366,7 @@ void CompleteCallGraphAnalysis::printStats(Module &M, raw_ostream &o) {
       } else {
         ++num_unexpected_calls;
         errs() << CB << "\n";
-        errs() << CB.getCalledValue() << "\n";
+        errs() << CB.getCalledOperand() << "\n";
       }
     }
   }
@@ -394,7 +394,7 @@ CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
     : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
       m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg),
       m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
-  
+
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
   typedef std::unordered_set<const Instruction *> InstSet;
@@ -489,7 +489,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
         static int cnt = 0;
         // Inline direct and indirect calls
         for (auto &callRecord : *cgn) {
-          CallBase &CB = *dyn_cast<CallBase>(callRecord.first);
+          CallBase &CB = *dyn_cast<CallBase>(*callRecord.first);
           if (CB.isIndirectCall()) {
             // indirect call:
             //
@@ -541,10 +541,10 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           src->begin(), src->end(),
           [&dst, &CB](const typename CallGraphNode::CallRecord &record) {
             return (record.second == dst &&
-                    record.first == &CB);
+                    *record.first == &CB);
           });
     };
-    
+
     change = false;
     for (auto &kv : graphs) {
       for (DsaCallSite &cs : kv.second->callsites()) {
@@ -582,7 +582,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           // Update the callgraph by adding a new edge to each
           // resolved callee. However, the call site is not marked as
           // fully resolved if the dsa node is marked as external.
-	  bool foundAtLeastOneCallee = false;
+          bool foundAtLeastOneCallee = false;
           for (const Value *v : alloc_sites) {
             if (const Function *fn =
                     dyn_cast<Function>(v->stripPointerCastsAndAliases())) {
@@ -595,7 +595,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 	      if (!isCalleeTypeCompatible(*cb, *fn)) {
 		continue;
 	      }
-	      foundAtLeastOneCallee = true;
+              foundAtLeastOneCallee = true;
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
               if (!hasEdge(CGNCaller, CGNCallee, CGNCB)) {
@@ -658,14 +658,15 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
     std::vector<CallBase*> toRemove;
     for (auto &kv : llvm::make_range(CGNF->begin(), CGNF->end())) {
       if (!kv.first) continue;
-      auto& CB = *dyn_cast<CallBase>(&*kv.first);
-      /* if the call is indirect and call graph does not have a function */
-      if (CB.isIndirectCall() && !kv.second->getFunction() ) {
+      CallBase &CB = *dyn_cast<CallBase>(*kv.first);
+      if (CB.isIndirectCall() &&
+          !kv.second->getFunction() /* has no callee */) {
         if (m_resolved.count(&CB) > 0) toRemove.push_back(&CB);
       }
     }
-    for (auto *cb : toRemove) {
-      CGNF->removeCallEdgeFor(*cb);
+    for (CallBase *CB : toRemove) {
+      assert(CB);
+      CGNF->removeCallEdgeFor(*CB);
     }
   }
 
@@ -712,12 +713,6 @@ bool CompleteCallGraphAnalysis::isComplete(CallBase &CB) const {
   return m_resolved.count(&CB) > 0;
 }
 
-bool CompleteCallGraphAnalysis::isComplete(Instruction *I) const {
-  return I ? isComplete(*I) : false;
-}
-bool CompleteCallGraphAnalysis::isComplete(Instruction &I) const {
-  return m_resolved.count(&I) > 0;
-}
 
 
 CompleteCallGraphAnalysis::callee_iterator
@@ -749,7 +744,7 @@ bool CompleteCallGraph::runOnModule(Module &M) {
   auto allocInfo = &getAnalysis<AllocWrapInfo>();
   auto dsaLibFuncInfo = &getAnalysis<DsaLibFuncInfo>();
   allocInfo->initialize(M, this);
-  dsaLibFuncInfo->initialize(M);  
+  dsaLibFuncInfo->initialize(M);
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   m_CCGA.reset(new CompleteCallGraphAnalysis(dl, tli, *allocInfo,
                                              *dsaLibFuncInfo, cg, true));
@@ -768,15 +763,6 @@ const CallGraph &CompleteCallGraph::getCompleteCallGraph() const {
 
 bool CompleteCallGraph::isComplete(CallBase &CB) const {
   return m_CCGA->isComplete(CB);
-}
-
-CompleteCallGraph::callee_iterator
-CompleteCallGraph::begin(llvm::CallSite &CS) {
-  return m_CCGA->begin(CS);
-}
-
-CompleteCallGraph::callee_iterator CompleteCallGraph::end(llvm::CallSite &CS) {
-  return m_CCGA->end(CS);
 }
 
 CompleteCallGraph::callee_iterator
