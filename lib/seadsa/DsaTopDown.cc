@@ -40,7 +40,7 @@ namespace seadsa {
 // BottomUp. They should be merged at some point.
 void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
                                                Graph &callerG, Graph &calleeG,
-					       bool flowSensitiveOpt,
+                                               bool flowSensitiveOpt,
                                                bool noescape) {
   CloningContext context(*cs.getInstruction(), CloningContext::TopDown);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
@@ -60,7 +60,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 
     // Copy only the allocation site that matches the global.
     Node &n = C.clone(*kv.second->getNode(), false,
-		      (!flowSensitiveOpt ? nullptr: kv.first));
+                      (!flowSensitiveOpt ? nullptr : kv.first));
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
     nc.unify(c);
@@ -195,11 +195,11 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << "\tCallee collapsed: " << calleeG.numCollapsed()
                           << ", caller collapsed:\t" << callerG.numCollapsed()
                           << "\n");
-	
+
         // propagate from the caller to the callee
         cloneAndResolveArguments(*dsaCS, callerG, calleeG,
-				 m_flowSensitiveOpt & !NoTDFlowSensitiveOpt,
-				 m_noescape);
+                                 m_flowSensitiveOpt & !NoTDFlowSensitiveOpt,
+                                 m_noescape);
 
         // remove foreign nodes
         if (!NoTDCopyingOpt)
