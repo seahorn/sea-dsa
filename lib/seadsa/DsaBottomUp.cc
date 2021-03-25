@@ -80,7 +80,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(
     Node &n = C.clone(calleeN, false, (!flowSensitiveOpt ? nullptr : kv.first));
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = callerG.mkCell(*kv.first, Cell());
-    nc.unify(c);    
+    nc.unify(c);
   }
 
   // clone and unify return
@@ -94,7 +94,8 @@ void BottomUpAnalysis::cloneAndResolveArguments(
     // propagate to the caller that global, regardless of the
     // unifications in the callee graph.
     const Value *onlyAllocSite = findUniqueReturnValue(callee);
-    if (!flowSensitiveOpt || (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
+    if (!flowSensitiveOpt ||
+        (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
       onlyAllocSite = nullptr;
     }
 
@@ -109,7 +110,6 @@ void BottomUpAnalysis::cloneAndResolveArguments(
       Cell &nc = callerG.mkCell(*onlyAllocSite, Cell());
       nc.unify(c);
     }
-    
   }
 
   auto range = llvm::make_filter_range(
