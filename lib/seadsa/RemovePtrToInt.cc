@@ -285,17 +285,17 @@ public:
 
       auto *op0 = dyn_cast<Instruction>(I.getOperand(0));
       if (!op0) return nullptr;
-
+      
       auto *ptr = this->visit(op0);
       if (!ptr) return nullptr;
-
+      
       m_toRemove.insert(&I);
 
       if (CI->isZero()) { return ptr; }
-
+      
       IRBuilder<> IRB(&I);
       ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
-      const APInt &opV = CI->getValue();
+      const APInt &opV = CI->getValue(); 
       auto *gep =
           IRB.CreateGEP(ptr, {ConstantInt::get(CI->getType(), opV * -1)});
       return IRB.CreateBitCast(gep, m_ty);
@@ -523,7 +523,6 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       TriviallyDeadHandles.emplace_back(WeakTrackingVH(i));
   
   RecursivelyDeleteTriviallyDeadInstructions(TriviallyDeadHandles);
-
   for (auto kv : RenameMap) {
     kv.first->replaceAllUsesWith(kv.second);
   }
