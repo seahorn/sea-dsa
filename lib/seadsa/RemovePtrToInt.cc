@@ -223,6 +223,7 @@ public:
     if (!ptr) return nullptr;
 
     m_toRemove.insert(&I);
+
     IRBuilder<> IRB(&I);
 
     ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
@@ -232,8 +233,29 @@ public:
 
   Value *visitSub(BinaryOperator &I) {
     // errs() << "visitSub: " << I << "\n";
-    // XXX TODO
-    return nullptr;
+    if (ConstantInt *CI = dyn_cast<ConstantInt>(I.getOperand(1))) {
+
+      auto *op0 = dyn_cast<Instruction>(I.getOperand(0));
+      if (!op0) return nullptr;
+      
+      auto *ptr = this->visit(op0);
+      if (!ptr) return nullptr;
+      
+      m_toRemove.insert(&I);
+
+      if (CI->isZero()) {
+	return ptr;
+      }
+      
+      IRBuilder<> IRB(&I);
+      ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
+      const APInt &opV = CI->getValue(); 
+      auto *gep = IRB.CreateGEP(ptr, {ConstantInt::get(CI->getType(), opV * -1)});
+      return IRB.CreateBitCast(gep, m_ty);
+    } else {
+      // TODO: a non-constant operand
+      return nullptr;
+    }
   }
 
   Value *visitLoad(LoadInst &I) {
