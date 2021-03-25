@@ -75,7 +75,7 @@ static Value *stripBitCast(Value *V) {
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
   //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
-  // 
+  //
   // This is important because our top-down/bottom-up analyses
   // traverse the call graph in a particular order (topological or
   // reverse topological). If these edges are missing then the
@@ -87,20 +87,20 @@ static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
     Value *calleeV = CS.getCalledValue();
     if (calleeV != stripBitCast(calleeV)) {
       if (Function *calleeF = dyn_cast<Function>(stripBitCast(calleeV))) {
-	CallGraphNode *callerCGN = seaCg[&F];	    
-	CallGraphNode *calleeCGN = seaCg[calleeF];
-	CallBase *cb = dyn_cast<CallBase>(CS.getInstruction());
-	callerCGN->removeCallEdgeFor(*cb);
-	callerCGN->addCalledFunction(cb, calleeCGN);
-	LOG("dsa-callgraph-trivial",
-	    llvm::errs() << "Added edge from " << F.getName() << " to "
-	    << calleeF->getName()
-	    << " with callsite=" << *CS.getInstruction() << "\n";);
+        CallGraphNode *callerCGN = seaCg[&F];
+        CallGraphNode *calleeCGN = seaCg[calleeF];
+        CallBase *cb = dyn_cast<CallBase>(CS.getInstruction());
+        callerCGN->removeCallEdgeFor(*cb);
+        callerCGN->addCalledFunction(cb, calleeCGN);
+        LOG("dsa-callgraph-trivial",
+            llvm::errs() << "Added edge from " << F.getName() << " to "
+                         << calleeF->getName()
+                         << " with callsite=" << *CS.getInstruction() << "\n";);
       }
     }
   }
 }
-  
+
 // XXX: similar to Graph::import but with two modifications:
 // - the callee graph is modified during the cloning of call sites.
 // - call sites are copied.
@@ -138,7 +138,7 @@ void CompleteCallGraphAnalysis::mergeGraphs(Graph &fromG, Graph &toG) {
 // Copy callsites from callee to caller graph using the cloner.
 void CompleteCallGraphAnalysis::cloneCallSites(Cloner &C, Graph &calleeG,
                                                Graph &callerG) {
-  for (DsaCallSite &calleeCS : calleeG.callsites()) {    
+  for (DsaCallSite &calleeCS : calleeG.callsites()) {
     const Instruction &I = *(calleeCS.getInstruction());
     if (calleeCS.hasCell()) { // should always have a cell
       const Cell &c = calleeCS.getCell();
@@ -210,7 +210,8 @@ void CompleteCallGraphAnalysis::cloneAndResolveArgumentsAndCallSites(
     // Clone the return value directly, if we know that it corresponds to a
     // single allocation site from a global
     const Value *onlyAllocSite = findUniqueReturnValue(callee);
-    if (NoBUFlowSensitiveOpt || (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
+    if (NoBUFlowSensitiveOpt ||
+        (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
       onlyAllocSite = nullptr;
     }
 
@@ -352,7 +353,7 @@ CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
     : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
       m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg),
       m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
-  
+
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
   typedef std::unordered_set<const Instruction *> InstSet;
@@ -502,7 +503,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
                     record.first == CS.getInstruction());
           });
     };
-    
+
     change = false;
     for (auto &kv : graphs) {
       for (DsaCallSite &cs : kv.second->callsites()) {
@@ -543,10 +544,11 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           // Update the callgraph by adding a new edge to each
           // resolved callee. However, the call site is not marked as
           // fully resolved if the dsa node is marked as external.
-	  bool foundAtLeastOneCallee = false;
+          bool foundAtLeastOneCallee = false;
           for (const Value *v : alloc_sites) {
-	    if (const Function *fn = dyn_cast<Function>(v->stripPointerCastsAndAliases())) {
-	      foundAtLeastOneCallee = true;
+            if (const Function *fn =
+                    dyn_cast<Function>(v->stripPointerCastsAndAliases())) {
+              foundAtLeastOneCallee = true;
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
               if (!hasEdge(CGNCaller, CGNCallee, CGNCS)) {
@@ -691,7 +693,7 @@ bool CompleteCallGraph::runOnModule(Module &M) {
   auto allocInfo = &getAnalysis<AllocWrapInfo>();
   auto dsaLibFuncInfo = &getAnalysis<DsaLibFuncInfo>();
   allocInfo->initialize(M, this);
-  dsaLibFuncInfo->initialize(M);  
+  dsaLibFuncInfo->initialize(M);
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   m_CCGA.reset(new CompleteCallGraphAnalysis(dl, tli, *allocInfo,
                                              *dsaLibFuncInfo, cg, true));
