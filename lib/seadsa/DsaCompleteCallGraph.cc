@@ -208,16 +208,22 @@ void CompleteCallGraphAnalysis::cloneAndResolveArgumentsAndCallSites(
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
 
     // Clone the return value directly, if we know that it corresponds to a
-    // single allocation site (e.g., return value of a malloc, a global, etv.).
+    // single allocation site from a global
     const Value *onlyAllocSite = findUniqueReturnValue(callee);
-    if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
+    if (NoBUFlowSensitiveOpt || (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
       onlyAllocSite = nullptr;
-    if (NoBUFlowSensitiveOpt) onlyAllocSite = nullptr;
+    }
 
     const Cell &ret = calleeG.getRetCell(callee);
     Node &n = C.clone(*ret.getNode(), false, onlyAllocSite);
     Cell c(n, ret.getRawOffset());
     nc.unify(c);
+
+    if (onlyAllocSite) {
+      assert(isa<llvm::GlobalValue>(onlyAllocSite));
+      Cell &nc = callerG.mkCell(*onlyAllocSite, Cell());
+      nc.unify(c);
+    }
   }
 
   // clone and unify actuals and formals
