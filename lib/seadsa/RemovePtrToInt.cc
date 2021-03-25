@@ -167,13 +167,14 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
 class PointerPromoter : public InstVisitor<PointerPromoter, Value *> {
   Type *m_ty;
   SmallPtrSetImpl<Instruction *> &m_toRemove;
-  DenseMap<Value*, Value*> &m_toReplace;
+  DenseMap<Value *, Value *> &m_toReplace;
   // -- to break cycles in PHINodes
   SmallPtrSet<Instruction *, 16> m_visited;
 
 public:
-  PointerPromoter(SmallPtrSetImpl<Instruction *> &toRemove, DenseMap<Value*, Value*> &toReplace)
-    : m_ty(nullptr), m_toRemove(toRemove), m_toReplace(toReplace) {}
+  PointerPromoter(SmallPtrSetImpl<Instruction *> &toRemove,
+                  DenseMap<Value *, Value *> &toReplace)
+      : m_ty(nullptr), m_toRemove(toRemove), m_toReplace(toReplace) {}
 
   Value *visitInstruction(Instruction &I) { return nullptr; }
 
@@ -237,20 +238,19 @@ public:
 
       auto *op0 = dyn_cast<Instruction>(I.getOperand(0));
       if (!op0) return nullptr;
-      
+
       auto *ptr = this->visit(op0);
       if (!ptr) return nullptr;
-      
+
       m_toRemove.insert(&I);
 
-      if (CI->isZero()) {
-	return ptr;
-      }
-      
+      if (CI->isZero()) { return ptr; }
+
       IRBuilder<> IRB(&I);
       ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
-      const APInt &opV = CI->getValue(); 
-      auto *gep = IRB.CreateGEP(ptr, {ConstantInt::get(CI->getType(), opV * -1)});
+      const APInt &opV = CI->getValue();
+      auto *gep =
+          IRB.CreateGEP(ptr, {ConstantInt::get(CI->getType(), opV * -1)});
       return IRB.CreateBitCast(gep, m_ty);
     } else {
       // TODO: a non-constant operand
@@ -290,7 +290,7 @@ public:
         m_toRemove.insert(SI);
       } else if (isa<IntToPtrInst>(u)) {
         /* skip  */;
-      } else  {
+      } else {
         // -- if there is an interesting user, schedule it to be replaced
         if (!p2i) {
           IRB.SetInsertPoint(&I);
@@ -323,12 +323,11 @@ public:
   }
 };
 
-static bool
-visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
-                  DominatorTree &DT,
-                  SmallDenseMap<PHINode *, PHINode *> &NewPhis,
-                  SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts,
-                  DenseMap<Value*, Value*> &RenameMap) {
+static bool visitIntToPtrInst(IntToPtrInst *I2P, Function &F,
+                              const DataLayout &DL, DominatorTree &DT,
+                              SmallDenseMap<PHINode *, PHINode *> &NewPhis,
+                              SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts,
+                              DenseMap<Value *, Value *> &RenameMap) {
   assert(I2P);
 
   auto *IntVal = I2P->getOperand(0);
@@ -433,7 +432,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   SmallPtrSet<StoreInst *, 8> StoresToErase;
   SmallPtrSet<Instruction *, 16> MaybeUnusedInsts;
-  DenseMap<Value*, Value*> RenameMap;
+  DenseMap<Value *, Value *> RenameMap;
   SmallDenseMap<PHINode *, PHINode *> NewPhis;
 
   for (auto &BB : F) {
@@ -449,7 +448,8 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       }
 
       if (auto *I2P = dyn_cast<IntToPtrInst>(&I)) {
-        Changed |= visitIntToPtrInst(I2P, F, DL, DT, NewPhis, MaybeUnusedInsts, RenameMap);
+        Changed |= visitIntToPtrInst(I2P, F, DL, DT, NewPhis, MaybeUnusedInsts,
+                                     RenameMap);
         continue;
       }
     }
@@ -464,7 +464,6 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       }));
   RecursivelyDeleteTriviallyDeadInstructions(TriviallyDeadInstructions);
 
-
   for (auto kv : RenameMap) {
     kv.first->replaceAllUsesWith(kv.second);
   }
@@ -472,9 +471,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   DOG(llvm::errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
       llvm::errs().flush());
 
-  if (Changed) {
-    assert(!llvm::verifyFunction(F, &llvm::errs()));
-  }
+  if (Changed) { assert(!llvm::verifyFunction(F, &llvm::errs())); }
 
   // llvm::errs() << F << "\n";
   return Changed;
