@@ -214,14 +214,14 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
 class PointerPromoter : public InstVisitor<PointerPromoter, Value *> {
   Type *m_ty;
   SmallPtrSetImpl<Instruction *> &m_toRemove;
-  DenseMap<Value *, Value *> &m_toReplace;
+  DenseMap<Value*, Value*> &m_toReplace;
   // -- to break cycles in PHINodes
   SmallPtrSet<Instruction *, 16> m_visited;
 
 public:
   PointerPromoter(SmallPtrSetImpl<Instruction *> &toRemove,
                   DenseMap<Value *, Value *> &toReplace)
-      : m_ty(nullptr), m_toRemove(toRemove), m_toReplace(toReplace) {}
+    : m_ty(nullptr), m_toRemove(toRemove), m_toReplace(toReplace) {}
 
   Value *visitInstruction(Instruction &I) { return nullptr; }
 
@@ -337,7 +337,7 @@ public:
         m_toRemove.insert(SI);
       } else if (isa<IntToPtrInst>(u)) {
         /* skip  */;
-      } else {
+      } else  {
         // -- if there is an interesting user, schedule it to be replaced
         if (!p2i) {
           IRB.SetInsertPoint(&I);
@@ -372,9 +372,9 @@ public:
 
 static bool visitIntToPtrInst(IntToPtrInst *I2P, Function &F,
                               const DataLayout &DL, DominatorTree &DT,
-                              SmallDenseMap<PHINode *, PHINode *> &NewPhis,
-                              SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts,
-                              DenseMap<Value *, Value *> &RenameMap) {
+                  SmallDenseMap<PHINode *, PHINode *> &NewPhis,
+                  SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts,
+                  DenseMap<Value*, Value*> &RenameMap) {
   assert(I2P);
 
   auto *IntVal = I2P->getOperand(0);
@@ -479,7 +479,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   SmallPtrSet<StoreInst *, 8> StoresToErase;
   SmallPtrSet<Instruction *, 16> MaybeUnusedInsts;
-  DenseMap<Value *, Value *> RenameMap;
+  DenseMap<Value*, Value*> RenameMap;
   SmallDenseMap<PHINode *, PHINode *> NewPhis;
 
   for (auto &BB : F) {
@@ -510,7 +510,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       llvm::make_filter_range(MaybeUnusedInsts, [](Instruction *I) {
         return isInstructionTriviallyDead(I);
       }));
-  
+
   // TODO: RecursivelyDeleteTriviallyDeadInstructions takes a vector of
   // WeakTrackingVH since LLVM 11, which implies that `MaybeUnusedInsts` should
   // be a vector of WeakTrackingVH as well. See comment:
