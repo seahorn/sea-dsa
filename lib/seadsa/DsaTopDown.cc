@@ -91,24 +91,26 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     if (!callerG.hasCell(*arg) || !calleeG.hasCell(*fml))
       continue;
 
-    // Actuals that directly correspond to allocation sites only should only
-    // bring a single allocation site, regardless of the unifications in the
-    // caller graph.
-    const Value *onlyAllocSite = nullptr;
-    const Value *argStripped = arg->stripPointerCasts();
-
-    if (callerG.hasAllocSiteForValue(*argStripped)) {
-      onlyAllocSite = argStripped;
-    }
-
-    if (!flowSensitiveOpt)
+    // Actuals that directly correspond to globals should only
+    // propagate a single allocation site, regardless of the
+    // unifications in the caller graph.
+    const Value *onlyAllocSite = arg->stripPointerCasts();
+    if (!flowSensitiveOpt || (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
       onlyAllocSite = nullptr;
-
+    }
+  
     const Cell &callerCell = callerG.getCell(*arg);
     Node &n = C.clone(*callerCell.getNode(), noescape, onlyAllocSite);
     Cell c(n, callerCell.getRawOffset());
     Cell &nc = calleeG.mkCell(*fml, Cell());
     nc.unify(c);
+
+    // Unify the cloned global with the global in the callee graph.
+    if (onlyAllocSite) {
+      assert(isa<GlobalValue>(onlyAllocSite));
+      Cell &nc = calleeG.mkCell(*onlyAllocSite, Cell());
+      nc.unify(c);
+    }
   }
 
   // Don't compress here -- caller should take care of it.
