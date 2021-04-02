@@ -118,7 +118,7 @@ static bool isCalleeTypeCompatible(const CallBase &CB, const Function &calleeF) 
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
   //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
-  // 
+  //
   // This is important because our top-down/bottom-up analyses
   // traverse the call graph in a particular order (topological or
   // reverse topological). If these edges are missing then the
@@ -130,8 +130,8 @@ static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
     Value *calleeV = CB.getCalledOperand();
     if (calleeV != stripBitCast(calleeV)) {
       if (Function *calleeF = dyn_cast<Function>(stripBitCast(calleeV))) {
-	CallGraphNode *callerCGN = seaCg[&F];	    
-	CallGraphNode *calleeCGN = seaCg[calleeF];
+        CallGraphNode *callerCGN = seaCg[&F];
+        CallGraphNode *calleeCGN = seaCg[calleeF];
         callerCGN->removeCallEdgeFor(CB);
         callerCGN->addCalledFunction(&CB, calleeCGN);
         LOG("dsa-callgraph-trivial", llvm::errs()
@@ -142,7 +142,7 @@ static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
     }
   }
 }
-  
+
 // XXX: similar to Graph::import but with two modifications:
 // - the callee graph is modified during the cloning of call sites.
 // - call sites are copied.
@@ -180,7 +180,7 @@ void CompleteCallGraphAnalysis::mergeGraphs(Graph &fromG, Graph &toG) {
 // Copy callsites from callee to caller graph using the cloner.
 void CompleteCallGraphAnalysis::cloneCallSites(Cloner &C, Graph &calleeG,
                                                Graph &callerG) {
-  for (DsaCallSite &calleeCS : calleeG.callsites()) {    
+  for (DsaCallSite &calleeCS : calleeG.callsites()) {
     const Instruction &I = *(calleeCS.getInstruction());
     if (calleeCS.hasCell()) { // should always have a cell
       const Cell &c = calleeCS.getCell();
@@ -394,7 +394,7 @@ CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
     llvm::CallGraph &cg, bool noescape)
     : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
       m_cg(cg), m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
-  
+
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
   LOG("dsa-callgraph",
@@ -542,7 +542,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
                     *record.first == &CB);
           });
     };
-    
+
     change = false;
     for (auto &kv : graphs) {
       for (DsaCallSite &cs : kv.second->callsites()) {
@@ -580,7 +580,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           // Update the callgraph by adding a new edge to each
           // resolved callee. However, the call site is not marked as
           // fully resolved if the dsa node is marked as external.
-	  bool foundAtLeastOneCallee = false;
+          bool foundAtLeastOneCallee = false;
           for (const Value *v : alloc_sites) {
             if (const Function *fn =
                     dyn_cast<Function>(v->stripPointerCastsAndAliases())) {
@@ -593,7 +593,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 	      if (!isCalleeTypeCompatible(*cb, *fn)) {
 		continue;
 	      }
-	      foundAtLeastOneCallee = true;
+              foundAtLeastOneCallee = true;
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
               if (!hasEdge(CGNCaller, CGNCallee, CGNCB)) {
@@ -713,6 +713,7 @@ bool CompleteCallGraphAnalysis::isComplete(CallBase &CB) const {
 
 
 
+
 CompleteCallGraphAnalysis::callee_iterator
 CompleteCallGraphAnalysis::begin(llvm::CallBase &CB) {
   return m_callees[&CB].begin();
@@ -742,7 +743,7 @@ bool CompleteCallGraph::runOnModule(Module &M) {
   auto allocInfo = &getAnalysis<AllocWrapInfo>();
   auto dsaLibFuncInfo = &getAnalysis<DsaLibFuncInfo>();
   allocInfo->initialize(M, this);
-  dsaLibFuncInfo->initialize(M);  
+  dsaLibFuncInfo->initialize(M);
   CallGraph &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   m_CCGA.reset(new CompleteCallGraphAnalysis(dl, tli, *allocInfo,
                                              *dsaLibFuncInfo, cg, true));
