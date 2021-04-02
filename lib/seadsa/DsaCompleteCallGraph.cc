@@ -599,24 +599,22 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   }
 
   /// Remove edges in the callgraph: remove original indirect call
-  /// from call graph if we now for sure we fully resolved it.
+  /// from call graph if we know for sure we fully resolved it.
   for (auto &F : M) {
     CallGraphNode *CGNF = (*m_complete_cg)[&F];
     if (!CGNF) continue;
 
     // collect first callsites to avoid invalidating iterators
-    std::vector<CallSite> toRemove;
+    std::vector<CallBase*> toRemove;
     for (auto &kv : llvm::make_range(CGNF->begin(), CGNF->end())) {
       if (!kv.first) continue;
-      CallSite CS(kv.first);
-      if (CS.isIndirectCall() &&
-          !kv.second->getFunction() /* has no callee */) {
-        if (m_resolved.count(CS.getInstruction()) > 0) toRemove.push_back(CS);
+      auto& CB = *dyn_cast<CallBase>(&*kv.first);
+      /* if the call is indirect and call graph does not have a function */
+      if (CB.isIndirectCall() && !kv.second->getFunction() ) {
+        if (m_resolved.count(&CB) > 0) toRemove.push_back(&CB);
       }
     }
-    for (CallSite CS : toRemove) {
-      CallBase *cb = dyn_cast<CallBase>(CS.getInstruction());
-      assert(cb);
+    for (auto *cb : toRemove) {
       CGNF->removeCallEdgeFor(*cb);
     }
   }
@@ -661,7 +659,14 @@ std::unique_ptr<CallGraph> CompleteCallGraphAnalysis::getCompleteCallGraph() {
 }
 
 bool CompleteCallGraphAnalysis::isComplete(CallSite &CS) const {
-  return m_resolved.count(CS.getInstruction()) > 0;
+  return isComplete(*CS.getInstruction());
+}
+
+bool CompleteCallGraphAnalysis::isComplete(Instruction *I) const {
+  return I ? isComplete(*I) : false;
+}
+bool CompleteCallGraphAnalysis::isComplete(Instruction &I) const {
+  return m_resolved.count(&I) > 0;
 }
 
 CompleteCallGraphAnalysis::callee_iterator
@@ -672,6 +677,16 @@ CompleteCallGraphAnalysis::begin(llvm::CallSite &CS) {
 CompleteCallGraphAnalysis::callee_iterator
 CompleteCallGraphAnalysis::end(llvm::CallSite &CS) {
   return m_callees[CS.getInstruction()].end();
+}
+
+CompleteCallGraphAnalysis::callee_iterator
+CompleteCallGraphAnalysis::begin(llvm::CallBase &CB) {
+  return m_callees[&CB].begin();
+}
+
+CompleteCallGraphAnalysis::callee_iterator
+CompleteCallGraphAnalysis::end(llvm::CallBase &CB) {
+  return m_callees[&CB].end();
 }
 
 CompleteCallGraph::CompleteCallGraph(bool printStats)
@@ -721,6 +736,15 @@ CompleteCallGraph::begin(llvm::CallSite &CS) {
 
 CompleteCallGraph::callee_iterator CompleteCallGraph::end(llvm::CallSite &CS) {
   return m_CCGA->end(CS);
+}
+
+CompleteCallGraph::callee_iterator
+CompleteCallGraph::begin(llvm::CallBase &CB) {
+  return m_CCGA->begin(CB);
+}
+
+CompleteCallGraph::callee_iterator CompleteCallGraph::end(llvm::CallBase &CB) {
+  return m_CCGA->end(CB);
 }
 
 char CompleteCallGraph::ID = 0;

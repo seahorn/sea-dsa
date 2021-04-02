@@ -89,11 +89,15 @@ public:
 
   // The indirect call CS can be fully resolved.
   bool isComplete(llvm::CallSite &CS) const;
+  bool isComplete(llvm::Instruction &CB) const;
+  bool isComplete(llvm::Instruction *CB) const;
 
   // Iterate over all possible callees of an indirect call CS.
   callee_iterator begin(llvm::CallSite &CS);
-
   callee_iterator end(llvm::CallSite &CS);
+
+  callee_iterator begin(llvm::CallBase &CB);
+  callee_iterator end(llvm::CallBase &CS);
 };
 
 class CompleteCallGraph : public llvm::ModulePass {
@@ -128,8 +132,10 @@ public:
   bool isComplete(llvm::CallSite &CS) const;
 
   callee_iterator begin(llvm::CallSite &CS);
-
   callee_iterator end(llvm::CallSite &CS);
+
+  callee_iterator begin(llvm::CallBase &CB);
+  callee_iterator end(llvm::CallBase &CB);
 };
 
 } // namespace seadsa
