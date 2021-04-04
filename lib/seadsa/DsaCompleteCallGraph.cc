@@ -72,6 +72,32 @@ static Value *stripBitCast(Value *V) {
   }
 }
 
+static bool typeCompatible(const Type *t1, const Type *t2) {
+  if (t1->isPointerTy() && t2->isPointerTy()) {
+    return true;
+  }
+  return (t1 == t2);
+}
+  
+static bool isCalleeTypeCompatible(const FunctionType *csType,
+				   const FunctionType *calleeType) {
+  if (!typeCompatible(csType->getReturnType(),
+		      calleeType->getReturnType())) {
+    return false;
+  }
+  if (csType->getNumParams() != calleeType->getNumParams()) {
+    return false;
+  }
+  for (unsigned i=0, num_params=csType->getNumParams(); i<num_params;++i) {
+    if (!typeCompatible(csType->getParamType(i),
+			calleeType->getParamType(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+  
+  
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
   //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
@@ -548,6 +574,17 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           for (const Value *v : alloc_sites) {
             if (const Function *fn =
                     dyn_cast<Function>(v->stripPointerCastsAndAliases())) {
+
+	      // If the callee is not type-compatible with the
+	      // callsite then we ignore it. This ensures that the
+	      // bottom-up phase only inlines a callee's graph if the
+	      // callee's signature is type-compatible with the
+	      // callsite.
+	      if (!isCalleeTypeCompatible(cb->getFunctionType(),
+					  fn->getFunctionType())) {
+		continue;
+	      }
+	      
               foundAtLeastOneCallee = true;
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
