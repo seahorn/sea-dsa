@@ -115,6 +115,32 @@ static bool isCalleeTypeCompatible(const CallBase &CB, const Function &calleeF) 
 }
 
 
+static bool typeCompatible(const Type *t1, const Type *t2) {
+  if (t1->isPointerTy() && t2->isPointerTy()) {
+    return true;
+  }
+  return (t1 == t2);
+}
+  
+static bool isCalleeTypeCompatible(const FunctionType *csType,
+				   const FunctionType *calleeType) {
+  if (!typeCompatible(csType->getReturnType(),
+		      calleeType->getReturnType())) {
+    return false;
+  }
+  if (csType->getNumParams() != calleeType->getNumParams()) {
+    return false;
+  }
+  for (unsigned i=0, num_params=csType->getNumParams(); i<num_params;++i) {
+    if (!typeCompatible(csType->getParamType(i),
+			calleeType->getParamType(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+  
+  
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
   //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
