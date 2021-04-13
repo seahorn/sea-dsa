@@ -21,8 +21,7 @@ using namespace llvm;
 
 namespace seadsa {
 
-/*
- *
+/**
  clang-format off
 
  Rewrites
@@ -40,6 +39,7 @@ namespace seadsa {
 
   clang-format on
  */
+
 static bool
 visitIntStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
                   SmallPtrSetImpl<StoreInst *> &StoresToErase,
@@ -84,6 +84,53 @@ visitIntStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
   MaybeUnusedInsts.insert(LI);
   MaybeUnusedInsts.insert(loadAddrCast);
   MaybeUnusedInsts.insert(storeAddrCast);
+  return true;
+}
+
+/**
+   clang-format off
+
+   ;from
+   %8 = ptrtoint i8* %6 to i64, !dbg !763
+   store volatile i64 %8, i64* %.sroa.13, align 8, !dbg !763, !tbaa !764
+
+   ;to
+   %addr = bitcast %i64* %.sroa.13 to i8**
+   store volatile i8* %6, i8** %addr, align 8, !dbg !763, !tbaa !764
+
+   clang-format on
+ */
+static bool
+visitIntStoreInst2(StoreInst *SI, Function &F, const DataLayout &DL,
+                   SmallPtrSetImpl<StoreInst *> &StoresToErase,
+                   SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts) {
+
+  auto *P2I = dyn_cast<PtrToIntInst>(SI->getValueOperand());
+  if (!P2I) return false;
+
+  IRBuilder<> IRB(SI);
+
+  auto *Int8PtrTy = Type::getInt8PtrTy(SI->getContext());
+  auto *Int8PtrPtrTy = Int8PtrTy->getPointerTo();
+
+  auto *val = P2I->getPointerOperand();
+  if (val->getType() != Int8PtrTy) val = IRB.CreateBitCast(val, Int8PtrTy);
+
+  auto *addr = SI->getPointerOperand();
+  if (addr->getType() != Int8PtrPtrTy)
+    addr = IRB.CreateBitCast(addr, Int8PtrPtrTy);
+
+  auto newSI = IRB.CreateStore(val, addr);
+  newSI->setAlignment(SI->getAlign());
+  newSI->setOrdering(SI->getOrdering());
+  newSI->setSyncScopeID(SI->getSyncScopeID());
+  newSI->setVolatile(SI->isVolatile());
+  newSI->copyMetadata(*SI);
+
+  DOG(llvm::errs() << "Replaced\n" << *SI << "\nby\n" << *newSI << "\n";);
+
+  StoresToErase.insert(SI);
+  MaybeUnusedInsts.insert(P2I);
   return true;
 }
 
@@ -438,11 +485,10 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   for (auto &BB : F) {
     for (auto &I : BB) {
       if (auto *SI = dyn_cast<StoreInst>(&I)) {
-        bool flag;
-        flag = visitStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
-        // XXX assuming that the call only happens if flag is still false
-        flag = flag ||
-               visitIntStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
+        bool flag = false;
+        flag |= visitIntStoreInst2(SI, F, DL, StoresToErase, MaybeUnusedInsts);
+        flag |= visitStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
+        flag |= visitIntStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
         Changed |= flag;
         continue;
       }
