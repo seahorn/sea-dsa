@@ -180,7 +180,7 @@ class LocalAAResultsWrapper {
   llvm::ScopedNoAliasAAResult *m_snaaa = nullptr;
 
   MemoryLocation getMemLoc(Value &ptr, Value *inst, Optional<unsigned> size) {
-    MemoryLocation loc(&ptr);
+    MemoryLocation loc(&ptr, LocationSize::beforeOrAfterPointer());
     if (auto *i = dyn_cast_or_null<Instruction>(inst)) {
       AAMDNodes aaTags;
       i->getAAMetadata(aaTags);
@@ -936,7 +936,8 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
   if (exit->size() > 1) {
     exit = llvm::SplitBlock(exit, ret,
                             // these two passes will not be preserved if null
-                            nullptr /*DominatorTree*/, nullptr /*LoopInfo*/);
+                            (DominatorTree*)nullptr /*DominatorTree*/,
+                            nullptr /*LoopInfo*/);
     ret = exit->getTerminator();
   }
 
