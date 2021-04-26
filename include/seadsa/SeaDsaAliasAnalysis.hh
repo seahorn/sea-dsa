@@ -3,6 +3,7 @@
 #pragma once
 
 #include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 

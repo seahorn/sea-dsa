@@ -3,6 +3,7 @@
 
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/FormattedStream.h"
 
 using namespace seadsa;
