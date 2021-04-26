@@ -80,7 +80,7 @@ if (TOP_LEVEL)
   # There seems to be a bug in LLVM 11's Debian packages.
   # See: https://github.com/banach-space/llvm-tutor/commit/72cb20d058b9b3f51717c7a17607f7a4c7398642.
   # So 11.1 is used here instead of 11.
-  find_package (LLVM 11.1 CONFIG)
+  find_package (LLVM 12.0 CONFIG)
   if (NOT LLVM_FOUND)
     ExternalProject_Get_Property (llvm INSTALL_DIR)
     set (LLVM_ROOT ${INSTALL_DIR})
