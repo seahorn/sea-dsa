@@ -79,28 +79,37 @@ static bool typeCompatible(const Type *t1, const Type *t2) {
   return (t1 == t2);
 }
   
-static bool isCalleeTypeCompatible(const FunctionType *csType,
-				   const FunctionType *calleeType) {
+static bool isCalleeTypeCompatible(const CallBase &CB, const Function &calleeF) {
+  unsigned csNArgs = CB.arg_size();
+  unsigned calleeNArgs = calleeF.arg_size();
+  FunctionType *calleeFTy = calleeF.getFunctionType();
 
-  if (csType->isVarArg() != calleeType->isVarArg()) {
-    return false;
-  }
-  if (csType->getNumParams() != calleeType->getNumParams()) {
-    return false;
-  }
-  if (!typeCompatible(csType->getReturnType(),
-		      calleeType->getReturnType())) {
-    return false;
-  }
-  for (unsigned i=0, num_params=csType->getNumParams(); i<num_params;++i) {
-    if (!typeCompatible(csType->getParamType(i),
-			calleeType->getParamType(i))) {
+  if (calleeFTy->isVarArg()) {
+    // assert(csNArgs >= calleeNArgs)
+    if (csNArgs < calleeNArgs) {
+      return false;
+    }
+  } else {
+    // assert(csNArgs == calleeNArgs)
+    if (csNArgs != calleeNArgs) {
       return false;
     }
   }
+
+  if (!typeCompatible(CB.getType(), calleeFTy->getReturnType())) {
+    return false;
+  }
+
+  // assert(csNArgs >= calleeNArgs)  
+  for (unsigned i=0; i<calleeNArgs;++i) {
+    if (!typeCompatible(CB.getArgOperand(i)->getType(), calleeFTy->getParamType(i))) {
+      return false;
+    }
+  }
+  
   return true;
 }
-  
+
   
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
@@ -584,8 +593,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 	      // bottom-up phase only inlines a callee's graph if the
 	      // callee's signature is type-compatible with the
 	      // callsite.
-	      if (!isCalleeTypeCompatible(cb->getFunctionType(),
-					  fn->getFunctionType())) {
+	      if (!isCalleeTypeCompatible(*cb, *fn)) {
 		continue;
 	      }
 	      
