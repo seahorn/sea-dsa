@@ -81,11 +81,15 @@ static bool typeCompatible(const Type *t1, const Type *t2) {
   
 static bool isCalleeTypeCompatible(const FunctionType *csType,
 				   const FunctionType *calleeType) {
-  if (!typeCompatible(csType->getReturnType(),
-		      calleeType->getReturnType())) {
+
+  if (csType->isVarArg() != calleeType->isVarArg()) {
     return false;
   }
   if (csType->getNumParams() != calleeType->getNumParams()) {
+    return false;
+  }
+  if (!typeCompatible(csType->getReturnType(),
+		      calleeType->getReturnType())) {
     return false;
   }
   for (unsigned i=0, num_params=csType->getNumParams(); i<num_params;++i) {
