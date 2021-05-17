@@ -54,6 +54,13 @@ static llvm::cl::opt<bool> AssumeExternalFunctonsAllocators(
         "Treat all external functions as potential memory allocators"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> MarkDeallocAsDef(
+    "sea-dsa-dealloc-as-mem-def",
+    llvm::cl::desc(
+      "Mark deallocated memory as a memory definition"),
+    llvm::cl::Hidden,
+    llvm::cl::init(true));
+
 /*****************************************************************************/
 /* HELPERS                                                                   */
 /*****************************************************************************/
@@ -126,7 +133,7 @@ void revTopoSort(const llvm::Function &F, Container &out) {
   std::copy(po_ext_begin(f, ble), po_ext_end(f, ble), std::back_inserter(out));
 }
 
-/// Work-arround for a bug in llvm::CallBasde::getCalledFunction
+/// Work-arround for a bug in llvm::CallBase::getCalledFunction
 /// properly handle bitcast
 Function *getCalledFunction(CallBase &CB) {
   Function *fn = CB.getCalledFunction();
@@ -478,6 +485,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   void visitAllocWrapperCall(CallBase &I);
   void visitAllocationFnCall(CallBase &I);
+  void visitDeallocationFnCall(CallBase &I);  
 
   SeadsaFn getSeaDsaFn(const Function *fn) {
     if (!fn) return SeadsaFn::UNKNOWN;
@@ -1421,6 +1429,16 @@ void IntraBlockBuilder::visitAllocationFnCall(CallBase &I) {
   m_graph.mkCell(I, Cell(n, 0));
 }
 
+void IntraBlockBuilder::visitDeallocationFnCall(CallBase &I) {
+  using namespace seadsa;
+
+  if (MarkDeallocAsDef) {
+    Cell base = valueCell(*(I.getArgOperand(0)->stripPointerCasts()));
+    assert(!base.isNull());
+    base.setModified();
+  }
+}
+  
 void IntraBlockBuilder::visitCallBase(CallBase &I) {
   using namespace seadsa;
 
@@ -1438,6 +1456,12 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
     visitAllocationFnCall(I);
     return;
   }
+
+  if (llvm::isFreeCall(&I, &m_tli)) {
+    visitDeallocationFnCall(CS);
+    return;
+  }
+
 
   // direct function call
   if (auto *callee = getCalledFunction(I)) {
@@ -1459,6 +1483,9 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
     return;
   }
 
+  // nothing is expected here
+  assert(false && "Unexpected CallSite");
+  llvm_unreachable("Unexpected");
   // TODO: handle variable argument functions
 }
 
