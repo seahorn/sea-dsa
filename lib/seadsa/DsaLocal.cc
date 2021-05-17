@@ -54,13 +54,6 @@ static llvm::cl::opt<bool> AssumeExternalFunctonsAllocators(
         "Treat all external functions as potential memory allocators"),
     llvm::cl::init(false));
 
-static llvm::cl::opt<bool> MarkDeallocAsDef(
-    "sea-dsa-dealloc-as-mem-def",
-    llvm::cl::desc(
-      "Mark deallocated memory as a memory definition"),
-    llvm::cl::Hidden,
-    llvm::cl::init(true));
-
 /*****************************************************************************/
 /* HELPERS                                                                   */
 /*****************************************************************************/
@@ -485,7 +478,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   void visitAllocWrapperCall(CallBase &I);
   void visitAllocationFnCall(CallBase &I);
-  void visitDeallocationFnCall(CallBase &I);  
+
 
   SeadsaFn getSeaDsaFn(const Function *fn) {
     if (!fn) return SeadsaFn::UNKNOWN;
@@ -1429,16 +1422,6 @@ void IntraBlockBuilder::visitAllocationFnCall(CallBase &I) {
   m_graph.mkCell(I, Cell(n, 0));
 }
 
-void IntraBlockBuilder::visitDeallocationFnCall(CallBase &I) {
-  using namespace seadsa;
-
-  if (MarkDeallocAsDef) {
-    Cell base = valueCell(*(I.getArgOperand(0)->stripPointerCasts()));
-    assert(!base.isNull());
-    base.setModified();
-  }
-}
-  
 void IntraBlockBuilder::visitCallBase(CallBase &I) {
   using namespace seadsa;
 
@@ -1456,13 +1439,7 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
     visitAllocationFnCall(I);
     return;
   }
-
-  if (llvm::isFreeCall(&I, &m_tli)) {
-    visitDeallocationFnCall(CS);
-    return;
-  }
-
-
+   
   // direct function call
   if (auto *callee = getCalledFunction(I)) {
     if (m_allocInfo.isAllocWrapper(*callee)) {
