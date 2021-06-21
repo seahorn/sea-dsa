@@ -65,11 +65,15 @@ static const Value *findUniqueReturnValue(const Function &F) {
 }
 
 static Value *stripBitCast(Value *V) {
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(V)) {
+    if (CE->isCast()) {
+      return CE->getOperand(0);
+    }
+  }
   if (BitCastInst *BC = dyn_cast<BitCastInst>(V)) {
     return BC->getOperand(0);
-  } else {
-    return V;
   }
+  return V;
 }
 
 static bool typeCompatible(const Type *t1, const Type *t2) {
