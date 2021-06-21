@@ -74,7 +74,6 @@ static Value *stripBitCast(Value *V) {
     return BC->getOperand(0);
   }
     return V;
-  }
 
 static bool typeCompatible(const Type *t1, const Type *t2) {
   if (t1->isPointerTy() && t2->isPointerTy()) {
