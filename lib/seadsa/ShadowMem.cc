@@ -1005,6 +1005,9 @@ void ShadowMemImpl::visitMainFunction(Function &fn) {
   for (auto gv : globals) {
     // skip globals that are used internally by llvm
     if (gv->getSection().equals("llvm.metadata")) continue;
+    if (gv->getName().equals("llvm.global_ctors") ||
+        gv->getName().equals("llvm.global_dtors"))
+      continue;
     // skip globals that do not appear in alias analysis
     if (!m_graph->hasCell(*gv)) continue;
     // insert call to mkShadowGlobalVarInit()

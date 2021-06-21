@@ -1,0 +1,19 @@
+digraph "Call graph" {
+	label="Call graph";
+
+	Node0x7fc43cd05a50 [shape=record,label="{external node}"];
+	Node0x7fc43cd05a50 -> Node0x7fc43cd05ae0;
+	Node0x7fc43cd05a50 -> Node0x7fc43cd05b60;
+	Node0x7fc43cd05a50 -> Node0x7fc43cd057f0;
+	Node0x7fc43cd05a50 -> Node0x7fc43cd05c20;
+	Node0x7fc43cd05ae0 [shape=record,label="{foo}"];
+	Node0x7fc43cd05b60 [shape=record,label="{return_handler_struct}"];
+	Node0x7fc43cd05b60 -> Node0x7fc43cd057f0;
+	Node0x7fc43cd057f0 [shape=record,label="{malloc}"];
+	Node0x7fc43cd057f0 -> Node0x7fc43cd05a80;
+	Node0x7fc43cd05c20 [shape=record,label="{main}"];
+	Node0x7fc43cd05c20 -> Node0x7fc43cd05b60;
+	Node0x7fc43cd05c20 -> Node0x7fc43cd05ca0;
+	Node0x7fc43cd05c20 -> Node0x7fc43cd05ae0;
+	Node0x7fc43cd05ca0 [shape=record,label="{to_test_handler}"];
+}
