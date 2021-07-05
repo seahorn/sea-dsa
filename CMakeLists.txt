@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(sea-dsa)
 
+# This is commonly needed so define it before we include anything else.
+string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
+
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR )
   message (FATAL_ERROR
     "In-source builds are not allowed. Please clean your source tree and try again.")
@@ -14,7 +17,36 @@ else()
   set (TOP_LEVEL FALSE)
 endif()
 
+if(uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
+    option(SEA_ENABLE_ASSERTIONS "Enable assertions" ON)
+else()
+    option(SEA_ENABLE_ASSERTIONS "Enable assertions" OFF)
+endif()
 
+# taken from https://stackoverflow.com/a/65954915/7054110
+if(SEA_ENABLE_ASSERTIONS)
+    if(NOT MSVC)
+        add_definitions(-D_DEBUG)
+    endif()
+    # On non-Debug builds cmake automatically defines NDEBUG, so we explicitly undefine it:
+    if(NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+        # NOTE: use `add_compile_options` rather than `add_definitions` since
+        # `add_definitions` does not support generator expressions.
+        add_compile_options($<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:-UNDEBUG>)
+
+        # Also remove /D NDEBUG to avoid MSVC warnings about conflicting defines.
+        foreach (flags_var_to_scrub
+                CMAKE_CXX_FLAGS_RELEASE
+                CMAKE_CXX_FLAGS_RELWITHDEBINFO
+                CMAKE_CXX_FLAGS_MINSIZEREL
+                CMAKE_C_FLAGS_RELEASE
+                CMAKE_C_FLAGS_RELWITHDEBINFO
+                CMAKE_C_FLAGS_MINSIZEREL)
+            string (REGEX REPLACE "(^| )[/-]D *NDEBUG($| )" " "
+                    "${flags_var_to_scrub}" "${${flags_var_to_scrub}}")
+        endforeach()
+    endif()
+endif()
 
 if(TOP_LEVEL)
   if(CMAKE_VERSION VERSION_GREATER "3.13.0")
