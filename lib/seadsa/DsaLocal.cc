@@ -1516,12 +1516,12 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
 
   // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
   // This can occur when someone tries to transfer int the middle of a struct.
-  if (!srcTy->isSized() || length * 8 > DL.getTypeSizeInBits(srcTy)) {
+  if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
     LOG("dsa-warn", errs() << "WARNING: MemTransfer past object size!\n"
                            << "\tTransfer:  ");
     LOG("dsa", MI.print(errs()));
     LOG("dsa-warn", errs() << "\n\tLength:  " << length << "\n\tType size:  "
-                           << (srcTy->isSized()? (DL.getTypeSizeInBits(srcTy) / 8) : 0) << "\n");
+                           << (DL.getTypeSizeInBits(srcTy) / 8) << "\n");
     return false;
   }
 
