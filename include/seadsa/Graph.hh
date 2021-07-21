@@ -739,7 +739,7 @@ public:
     return m_links.count(Offset::getAdjustedField(*this, f));
   }
 
-  bool getNumLinks() const { return m_links.size(); }
+  unsigned getNumLinks() const { return m_links.size(); }
 
   const Cell &getLink(Field f) const;
 
