@@ -37,7 +37,7 @@ class NodeInfo {
   const Node *m_node;
   // This id can be either m_node->getId() or some other unique
   // identifier chosen in a different way.
-  unsigned m_id; 
+  unsigned m_id;
   unsigned m_accesses;
   // Name of one of the node's referrers.
   // The node is chosen deterministically
@@ -45,7 +45,7 @@ class NodeInfo {
 
 public:
   NodeInfo(const Node *node, unsigned id, std::string name)
-    : m_node(node), m_id(id), m_accesses(0), m_rep_name(name) {}
+      : m_node(node), m_id(id), m_accesses(0), m_rep_name(name) {}
 
   bool operator==(const NodeInfo &o) const {
     // XXX: we do not want to use pointer addresses here
@@ -58,7 +58,7 @@ public:
   }
 
   const Node *getNode() const { return m_node; }
-  unsigned getId() const { return m_id;}
+  unsigned getId() const { return m_id; }
   NodeInfo &operator++() { // prefix ++
     m_accesses++;
     return *this;
@@ -80,7 +80,7 @@ class DsaInfo {
   const llvm::DataLayout &m_dl;
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   GlobalAnalysis &m_dsa;
-  NodeInfoMap m_nodes_map;         // map Node to NodeInfo
+  NodeInfoMap m_nodes_map;            // map Node to NodeInfo
   AllocSiteBiMap m_alloc_sites_bimap; // bimap allocation sites to id
   IdSet m_alloc_sites_set;
   NamingMap m_names; // map Value to string name
@@ -88,9 +88,7 @@ class DsaInfo {
 
   typedef typename NodeInfoMap::value_type binding_t;
   struct get_second : public std::unary_function<binding_t, NodeInfo> {
-    const NodeInfo &operator()(const binding_t &kv) const {
-      return kv.second;
-    }
+    const NodeInfo &operator()(const binding_t &kv) const { return kv.second; }
   };
 
   typedef boost::transform_iterator<get_second,
@@ -111,7 +109,7 @@ class DsaInfo {
   }
 
   struct is_alive_node {
-    bool operator()(const NodeInfo&);
+    bool operator()(const NodeInfo &);
   };
   typedef boost::filter_iterator<is_alive_node, nodes_const_iterator>
       live_nodes_const_iterator;
@@ -145,8 +143,8 @@ private:
 
 public:
   DsaInfo(const llvm::DataLayout &dl,
-          llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-          GlobalAnalysis &dsa, bool verbose = true)
+          llvm::TargetLibraryInfoWrapperPass &tliWrapper, GlobalAnalysis &dsa,
+          bool verbose = true)
       : m_dl(dl), m_tliWrapper(tliWrapper), m_dsa(dsa) {}
 
   bool runOnModule(llvm::Module &M);

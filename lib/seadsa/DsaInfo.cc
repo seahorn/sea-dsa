@@ -10,9 +10,9 @@
 #include "seadsa/DsaAnalysis.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/Info.hh"
+#include "seadsa/InitializePasses.hh"
 #include "seadsa/config.h"
 #include "seadsa/support/Debug.h"
-#include "seadsa/InitializePasses.hh"
 
 static llvm::cl::opt<std::string> DsaToCsv(
     "sea-dsa-to-csv",
@@ -241,7 +241,7 @@ void DsaInfo::assignAllocSiteId() {
       file << "Dsa Node Ids {";
       bool first = true;
       for (typename NodeInfoSet::iterator it = kv.second.second.begin(),
-                                             et = kv.second.second.end();
+                                          et = kv.second.second.end();
            it != et;) {
         if (!first)
           file << ",";
