@@ -241,7 +241,7 @@ void DsaInfo::assignAllocSiteId() {
       file << "Dsa Node Ids {";
       bool first = true;
       for (typename NodeInfoSet::iterator it = kv.second.second.begin(),
-                                             et = kv.second.second.end();
+                                          et = kv.second.second.end();
            it != et;) {
         if (!first)
           file << ",";
