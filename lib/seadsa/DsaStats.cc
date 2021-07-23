@@ -161,7 +161,9 @@ static void printAllocInfo(nodes_range nodes,
   o << "\t" << num_orphan_checks
     << " number of memory accesses without allocation site\n";
   o << "\tType disparity in allocation sites:\n";
-  for (unsigned i = 0; i < TypeDisparitySummarySize; ++i) {
+  unsigned sz =  (TypeDisparitySummarySize < typeDisparity.size() ?
+		  TypeDisparitySummarySize : typeDisparity.size());
+  for (unsigned i = 0; i < sz; ++i) {
     const NodeInfo *nodei = typeDisparity[i].first;
     o << "\t\t [Node Id " << nodei->getId()
       << "] IsCollapsed=" << nodei->getNode()->isOffsetCollapsed() << " has "
