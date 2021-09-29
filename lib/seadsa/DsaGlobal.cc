@@ -63,8 +63,6 @@ void ContextInsensitiveGlobalAnalysis::resolveArguments(
   auto calleeSpec =
       dlfi.hasSpecFunc(*callee) ? dlfi.getSpecFunc(*callee) : callee;
 
-  auto name = calleeSpec->getName();
-
   if (g.hasRetCell(*calleeSpec)) {
     Cell &nc = g.mkCell(*cs.getInstruction(), Cell());
     const Cell &r = g.getRetCell(*calleeSpec);

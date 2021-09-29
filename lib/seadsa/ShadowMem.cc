@@ -461,7 +461,6 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
   void markUseCall(CallInst *ci, llvm::Optional<unsigned> accessedBytes) {
     assert(m_llvmCtx);
-    Module *m = ci->getModule();
     MDNode *meta = MDNode::get(*m_llvmCtx, None);
     ci->setMetadata(m_metadataTag, meta);
     ci->setMetadata(m_memUseTag, mkMetaConstant(accessedBytes));
@@ -871,7 +870,6 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
   this->visit(F);
 
   auto &B = *m_B;
-  auto &ctx = *m_llvmCtx;
   auto &G = *m_graph;
   // -- compute pseudo-functions for inputs and outputs
 

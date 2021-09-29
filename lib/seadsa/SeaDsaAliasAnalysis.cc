@@ -138,7 +138,6 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
 
   if (ValA == ValB) { return MustAlias; }
 
-  const DataLayout *dl = nullptr;
   // Run seadsa if we have not done it yet
   if (!m_dsa) {
     if (Module *M = getModuleFromQuery(ValA, ValB)) {
