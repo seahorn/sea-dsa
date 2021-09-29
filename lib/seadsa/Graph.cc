@@ -219,7 +219,7 @@ void Node::addAccessedType(unsigned off, llvm::Type *type) {
         tmp.push_back({o + i * sz, elementTy});
 
       workList.insert(workList.end(), tmp.rbegin(), tmp.rend());
-    } else if (const VectorType *vty = dyn_cast<const VectorType>(t)) {
+    } else if (const FixedVectorType *vty = dyn_cast<const FixedVectorType>(t)) {
       uint64_t sz = vty->getElementType()->getPrimitiveSizeInBits() / 8;
       WorkList tmp;
       const size_t numElements(vty->getNumElements());

@@ -347,8 +347,6 @@ CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
 
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
-  typedef std::unordered_set<const Instruction *> InstSet;
-
   LOG("dsa-callgraph",
       errs() << "Started construction of complete call graph ... \n");
 
