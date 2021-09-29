@@ -10,10 +10,10 @@ namespace seadsa {
 struct NameValues : public llvm::ModulePass {
   static char ID;
   NameValues() : llvm::ModulePass(ID) {}
-  bool runOnModule(llvm::Module &M);
+  bool runOnModule(llvm::Module &M) override;
   bool runOnFunction(llvm::Function &F);
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const { AU.setPreservesAll(); }
-  virtual llvm::StringRef getPassName() const {
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override { AU.setPreservesAll(); }
+  virtual llvm::StringRef getPassName() const override {
     return "sea-dsa: names all unnamed values";
   }
 };
