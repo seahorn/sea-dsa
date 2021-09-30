@@ -296,8 +296,8 @@ ContextSensitiveGlobalAnalysis::ContextSensitiveGlobalAnalysis(
     const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
     llvm::CallGraph &cg, SetFactory &setFactory, bool storeSummaryGraphs)
     : GlobalAnalysis(GlobalAnalysisKind::CONTEXT_SENSITIVE), m_dl(dl),
-      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
-      m_dsaLibFuncInfo(dsaLibFuncInfo), m_setFactory(setFactory),
+      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+      m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg), m_setFactory(setFactory),
       m_store_bu_graphs(storeSummaryGraphs) {}
 
 bool ContextSensitiveGlobalAnalysis::checkAllNodesAreMapped(
