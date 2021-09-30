@@ -30,6 +30,8 @@ namespace seadsa {
     
     bool operator!=(const this_type& x) const { return !operator==(x); }
     
+    NodeIterator(const NodeIterator&) = default;
+
     const this_type &operator=(const this_type &o) {
       _links_it = o._links_it;
       return *this;
