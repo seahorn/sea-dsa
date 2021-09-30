@@ -710,6 +710,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
     }
 
     auto &c = m_graph.mkCell(LI, base.getLink(LoadedField));
+    (void)c;
     assert(!c.isNull());
   }
 
