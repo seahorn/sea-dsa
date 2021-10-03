@@ -67,7 +67,7 @@ public:
 
   void emitInstructionAnnot(const Instruction *I,
                             llvm::formatted_raw_ostream &OS) override {
-    const BasicBlock *BB = I->getParent();
+    // const BasicBlock *BB = I->getParent();
     if (auto *RI = dyn_cast<ReturnInst>(I)) {
       for (auto &MA : SMSSA->liveOnExit())
         OS << "; " << MA << "\n";

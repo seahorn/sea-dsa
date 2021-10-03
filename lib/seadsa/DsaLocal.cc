@@ -710,6 +710,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
     }
 
     auto &c = m_graph.mkCell(LI, base.getLink(LoadedField));
+    (void)c;
     assert(!c.isNull());
   }
 
@@ -731,7 +732,6 @@ void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
 
   if (!m_graph.hasCell(*I.getPointerOperand()->stripPointerCasts())) { return; }
   Value *Ptr = I.getPointerOperand();
-  Value *Cmp = I.getCompareOperand();
   Value *New = I.getNewValOperand();
 
   Cell PtrC = valueCell(*Ptr);
@@ -769,7 +769,6 @@ void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
 /// return OldVal
 void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
   Value *Ptr = I.getPointerOperand();
-  Value *Val = I.getValOperand();
 
   seadsa::Cell PtrC = valueCell(*Ptr);
   assert(!PtrC.isNull());

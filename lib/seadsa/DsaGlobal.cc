@@ -63,8 +63,6 @@ void ContextInsensitiveGlobalAnalysis::resolveArguments(
   auto calleeSpec =
       dlfi.hasSpecFunc(*callee) ? dlfi.getSpecFunc(*callee) : callee;
 
-  auto name = calleeSpec->getName();
-
   if (g.hasRetCell(*calleeSpec)) {
     Cell &nc = g.mkCell(*cs.getInstruction(), Cell());
     const Cell &r = g.getRetCell(*calleeSpec);
@@ -285,7 +283,7 @@ std::unique_ptr<Graph> cloneGraph(const llvm::DataLayout &dl,
                                   Graph::SetFactory &sf, const Graph &g) {
   std::unique_ptr<Graph> new_g(new Graph(dl, sf, g.isFlat()));
   new_g->import(g, true /*copy all parameters*/);
-  return std::move(new_g);
+  return new_g;
 }
 
 //////
@@ -298,8 +296,8 @@ ContextSensitiveGlobalAnalysis::ContextSensitiveGlobalAnalysis(
     const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
     llvm::CallGraph &cg, SetFactory &setFactory, bool storeSummaryGraphs)
     : GlobalAnalysis(GlobalAnalysisKind::CONTEXT_SENSITIVE), m_dl(dl),
-      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo), m_cg(cg),
-      m_dsaLibFuncInfo(dsaLibFuncInfo), m_setFactory(setFactory),
+      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+      m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg), m_setFactory(setFactory),
       m_store_bu_graphs(storeSummaryGraphs) {}
 
 bool ContextSensitiveGlobalAnalysis::checkAllNodesAreMapped(

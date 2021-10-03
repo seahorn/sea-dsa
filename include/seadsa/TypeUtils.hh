@@ -33,7 +33,7 @@ class AggregateIterator {
   SubTypeDesc Current;
 
   AggregateIterator(const llvm::DataLayout *DL_, llvm::Type *Ty_) : DL(DL_) {
-    Worklist.push_back({Ty_});
+    Worklist.push_back(Ty_);
   }
 
 public:
