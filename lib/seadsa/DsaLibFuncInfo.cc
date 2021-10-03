@@ -196,8 +196,6 @@ void DsaLibFuncInfo::generateSpec(const llvm::Function &F,
   auto specFnExtern = m_specModule->getFunction("sea_dsa_set_external");
   auto specFnAlias = m_specModule->getFunction("sea_dsa_alias");
   auto specFnMk = m_specModule->getFunction("sea_dsa_mk");
-  auto specFnLink = m_specModule->getFunction("sea_dsa_link");
-  auto specFnAccess = m_specModule->getFunction("sea_dsa_access");
 
   if (F.getName() == "main") return;
   if (F.isDeclaration() || F.empty()) return;
@@ -270,9 +268,6 @@ void DsaLibFuncInfo::generateSpec(const llvm::Function &F,
     if (gNode->isIntToPtr()) { builder.CreateCall(specFnI2P, bitCastVal); }
     if (gNode->isExternal()) { builder.CreateCall(specFnExtern, bitCastVal); }
   };
-
-  auto FI = G->formal_begin();
-  auto FE = G->formal_end();
 
   std::stack<std::pair<Node *, Value *>> visitStack;
   llvm::DenseMap<Node *, Value *> aliasMap;

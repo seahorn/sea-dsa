@@ -33,7 +33,6 @@ void color_nodes_aux(const Node &n_callee, const Node &n_caller,
   c_callee.insert({&n_callee, col});
 
   for (auto &links : n_callee.getLinks()) {
-    const Field &f = links.first;
     const Cell &next_c_callee = *links.second;
     const Node *next_n_callee = next_c_callee.getNode();
     const Cell &next_c_caller = sm.get(next_c_callee);
