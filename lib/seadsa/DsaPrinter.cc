@@ -626,8 +626,8 @@ class DsaPrinterImpl {
   CompleteCallGraph *m_ccg;
   // -- print summary graphs
   bool m_print_sum_graphs;
-  //
-
+  // 
+  
   bool runOnFunction(Function &F) {
     if (m_dsa.hasGraph(F)) {
       Graph *G = &m_dsa.getGraph(F);
@@ -641,22 +641,22 @@ class DsaPrinterImpl {
             ColorMap colorBuG, colorG;
             colorGraphsFunction(F, *buG, *G, colorBuG, colorG);
             writeGraph(buG, F.getName().str() + ".BU.mem.dot", &colorBuG);
-            if (DsaColorFunctionSimDot) {
-              writeGraph(G, F.getName().str() + ".TD.mem.dot", &colorG);
-            }
+	    if (DsaColorFunctionSimDot) {
+	      writeGraph(G, F.getName().str() + ".TD.mem.dot", &colorG);
+	    }
           }
         }
       }
     }
     return false;
   }
-
+  
 public :
   DsaPrinterImpl(GlobalAnalysis &dsa, CompleteCallGraph *ccg,
                  bool printSumGraphs)
-      : m_dsa(dsa), m_ccg(ccg), m_print_sum_graphs(printSumGraphs) {}
+    : m_dsa(dsa), m_ccg(ccg), m_print_sum_graphs(printSumGraphs) {}
 
-  bool runOnModule(Module &M) {
+  bool runOnModule(Module &M)  {
     if (m_dsa.kind() == GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
       Function *main = M.getFunction("main");
       if (main && m_dsa.hasGraph(*main)) {
@@ -665,8 +665,8 @@ public :
         writeGraph(G, Filename);
       }
     } else {
-      if (DsaColorCallSiteSimDot && m_ccg) {
-        unsigned cs_count = 0;
+      if(DsaColorCallSiteSimDot && m_ccg){
+	unsigned cs_count = 0;
         llvm::CallGraph &cg = m_ccg->getCompleteCallGraph();
         for (auto it = scc_begin(&cg); !it.isAtEnd(); ++it) {
           auto &scc = *it;
@@ -676,7 +676,7 @@ public :
             // -- store the simulation maps from the SCC
             for (auto &callRecord : *cgn) {
               llvm::Optional<DsaCallSite> dsaCS =
-                  call_graph_utils::getDsaCallSite(callRecord);
+		call_graph_utils::getDsaCallSite(callRecord);
               if (!dsaCS.hasValue()) { continue; }
               DsaCallSite &cs = dsaCS.getValue();
               Function * f_caller = fn;
@@ -688,7 +688,7 @@ public :
                                   color_caller);
               std::string FilenameBase =
                 f_caller->getName().str() + "." + f_callee->getName().str() +
-                  "." + std::to_string(++cs_count);
+                "." + std::to_string(++cs_count);
 
               writeGraph(&calleeG, FilenameBase + ".callee.mem.dot",
                          &color_callee);
@@ -700,7 +700,7 @@ public :
       }
       for (auto &F : M) {
         runOnFunction(F);
-    }
+      }
     }
     return false;
   }
@@ -708,13 +708,13 @@ public :
 
 DsaPrinter::DsaPrinter(GlobalAnalysis &dsa, CompleteCallGraph *ccg,
                        bool printSumGraphs)
-    : m_impl(std::make_unique<DsaPrinterImpl>(dsa, ccg, printSumGraphs)) {}
+  : m_impl(std::make_unique<DsaPrinterImpl>(dsa, ccg, printSumGraphs)) {}
 
 DsaPrinter::~DsaPrinter() {}
 
 bool DsaPrinter::runOnModule(Module &M) { return m_impl->runOnModule(M); }
 
-DsaPrinterPass::DsaPrinterPass() : ModulePass(ID) {}
+DsaPrinterPass::DsaPrinterPass(): ModulePass(ID) {}
 
 bool DsaPrinterPass::runOnModule(Module &M) {
   auto &dsa = getAnalysis<seadsa::DsaAnalysis>();
@@ -722,15 +722,15 @@ bool DsaPrinterPass::runOnModule(Module &M) {
   if (DsaColorCallSiteSimDot) { ccg = &getAnalysis<CompleteCallGraph>(); }
   DsaPrinter printer(dsa.getDsaAnalysis(), ccg);
   return printer.runOnModule(M);
-  }
+}
 
-void DsaPrinterPass::getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
-    AU.addRequired<DsaAnalysis>();
+void DsaPrinterPass::getAnalysisUsage(AnalysisUsage &AU) const{
+  AU.setPreservesAll();
+  AU.addRequired<DsaAnalysis>();
   if (DsaColorCallSiteSimDot) { AU.addRequired<CompleteCallGraph>(); }
-  }
+}
 
-StringRef DsaPrinterPass::getPassName() const {
+StringRef DsaPrinterPass::getPassName() const{
   return "SeaHorn Dsa graph printer";
 }
 
