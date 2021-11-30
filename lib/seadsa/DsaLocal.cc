@@ -1508,6 +1508,9 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   const uint64_t length = rawLength->getZExtValue();
   LOG("dsa", errs() << "MemTransfer length:\t" << length << "\n");
 
+  // opaque structs may transfer pointers
+  if (!srcTy->isSized()) return false;
+
   // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
   // This can occur when someone tries to transfer int the middle of a struct.
   if (length * 8 > DL.getTypeSizeInBits(srcTy)) {

@@ -10,9 +10,9 @@
 #include "seadsa/DsaAnalysis.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/Info.hh"
+#include "seadsa/InitializePasses.hh"
 #include "seadsa/config.h"
 #include "seadsa/support/Debug.h"
-#include "seadsa/InitializePasses.hh"
 
 static llvm::cl::opt<std::string> DsaToCsv(
     "sea-dsa-to-csv",
@@ -100,7 +100,7 @@ Graph *DsaInfo::getDsaGraph(const Function &f) const {
   return g;
 }
 
-bool DsaInfo::is_alive_node::operator()(const NodeWrapper &n) {
+bool DsaInfo::is_alive_node::operator()(const NodeInfo &n) {
   return n.getNode()->isRead() || n.getNode()->isModified();
 }
 
@@ -179,14 +179,14 @@ void DsaInfo::assignAllocSiteId() {
 
   /// XXX: sort nodes by id's to achieve determinism across different
   /// executions.
-  std::vector<NodeWrapper> nodes_sorted;
+  std::vector<NodeInfo> nodes_sorted;
   for (auto n : nodes) {
     nodes_sorted.push_back(n);
   }
   std::sort(nodes_sorted.begin(), nodes_sorted.end());
 
   // map each allocation site to a set of nodes
-  DenseMap<const llvm::Value *, std::pair<unsigned, NodeWrapperSet>>
+  DenseMap<const llvm::Value *, std::pair<unsigned, NodeInfoSet>>
       alloc_to_nodes_map;
 
   // iterate over all sorted nodes
@@ -210,7 +210,7 @@ void DsaInfo::assignAllocSiteId() {
       if (it != alloc_to_nodes_map.end())
         it->second.second.insert(n);
       else {
-        NodeWrapperSet s;
+        NodeInfoSet s;
         s.insert(n);
         alloc_to_nodes_map.insert(
             std::make_pair(v, std::make_pair(site_id, s)));
@@ -240,8 +240,8 @@ void DsaInfo::assignAllocSiteId() {
       file << *(kv.first) << "\n";
       file << "Dsa Node Ids {";
       bool first = true;
-      for (typename NodeWrapperSet::iterator it = kv.second.second.begin(),
-                                             et = kv.second.second.end();
+      for (typename NodeInfoSet::iterator it = kv.second.second.begin(),
+                                          et = kv.second.second.end();
            it != et;) {
         if (!first)
           file << ",";
@@ -321,19 +321,19 @@ void DsaInfo::assignNodeId(const Function &fn, Graph *g) {
   for (auto &kv :
        boost::make_iterator_range(g->scalar_begin(), g->scalar_end())) {
     const Node *n = kv.second->getNode();
-    m_nodes_map.insert(std::make_pair(n, NodeWrapper(n, n->getId(), "")));
+    m_nodes_map.insert(std::make_pair(n, NodeInfo(n, n->getId(), "")));
   }
 
   for (auto &kv :
        boost::make_iterator_range(g->formal_begin(), g->formal_end())) {
     const Node *n = kv.second->getNode();
-    m_nodes_map.insert(std::make_pair(n, NodeWrapper(n, n->getId(), "")));
+    m_nodes_map.insert(std::make_pair(n, NodeInfo(n, n->getId(), "")));
   }
 
   for (auto &kv :
        boost::make_iterator_range(g->return_begin(), g->return_end())) {
     const Node *n = kv.second->getNode();
-    m_nodes_map.insert(std::make_pair(n, NodeWrapper(n, n->getId(), "")));
+    m_nodes_map.insert(std::make_pair(n, NodeInfo(n, n->getId(), "")));
   }
 
 #else
@@ -397,7 +397,7 @@ void DsaInfo::assignNodeId(const Function &fn, Graph *g) {
   //    The id 0 is reserved in case some query goes wrong.
   for (auto &kv : sorted_ref_vector)
     m_nodes_map.insert(std::make_pair(
-        kv.first, NodeWrapper(kv.first, m_nodes_map.size() + 1, kv.second)));
+        kv.first, NodeInfo(kv.first, m_nodes_map.size() + 1, kv.second)));
 #endif
 }
 

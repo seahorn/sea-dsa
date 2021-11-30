@@ -19,11 +19,15 @@ void color_nodes_aux(const Node &n_callee, const Node &n_caller,
 
   f_proc.insert(&n_callee); // mark processed
 
-  Color col = std::rand() | 0x808080; // to avoid darker colors
+  Color col;
   auto it = c_caller.find(&n_caller);
   if (it != c_caller.end()) {
     col = it->second;
   } else {
+    col = ((Color) std::rand()) << 32;
+    col = ((col | std::rand()) | 0x808080) & 0xFFFFFF;
+    // std::rand() is not guaranteed to be big enough (MAX_RAND is 0x7FFF)
+    // 0x808080 to avoid darker colors
     c_caller.insert({&n_caller, col});
   }
   c_callee.insert({&n_callee, col});
