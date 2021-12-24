@@ -1,6 +1,6 @@
 add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
-find_program(CLANG-FORMAT NAMES clang-format clang-format-mp-10 clang-format-10 REQUIRED)
+find_program(CLANG-FORMAT NAMES clang-format clang-format-mp-12 clang-format-12 REQUIRED)
 
 set(LLVM_LINK_COMPONENTS
   irreader
@@ -53,18 +53,18 @@ if (CMAKE_C_COMPILER_ID MATCHES Clang)
 
   add_library(LibcSpec-64 OBJECT libc.spec.c)
   target_compile_options(LibcSpec-64 BEFORE PRIVATE -emit-llvm)
-  install(FILES $<TARGET_OBJECTS:LibcSpec-64> 
-    DESTINATION lib 
+  install(FILES $<TARGET_OBJECTS:LibcSpec-64>
+    DESTINATION lib
     RENAME libc-64.spec.bc
-    )  
+    )
 
   option(SEAHORN_BUILD_32_BIT_SPEC "Build 32bit library specs" OFF)
-  if(SEAHORN_BUILD_32_BIT_SPEC) 
+  if(SEAHORN_BUILD_32_BIT_SPEC)
 
     add_executable(LibcSpec-32 OBJECT libc.spec.c)
     target_compile_options(LibcSpec-32 BEFORE PRIVATE -m32 -emit-llvm)
-    install(FILES $<TARGET_OBJECTS:LibcSpec-32> 
-      DESTINATION lib 
+    install(FILES $<TARGET_OBJECTS:LibcSpec-32>
+      DESTINATION lib
       RENAME libc-32.spec.bc
       )
 
