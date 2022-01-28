@@ -587,7 +587,10 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   /// Remove edges in the callgraph: remove original indirect call
   /// from call graph if we now for sure we fully resolved it.
   for (auto &F : M) {
+    if (F.empty()) continue;
+    
     CallGraphNode *CGNF = (*m_complete_cg)[&F];
+    assert(CGNF);
     if (!CGNF) continue;
 
     // collect first callsites to avoid invalidating iterators
