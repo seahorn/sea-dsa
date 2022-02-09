@@ -71,15 +71,18 @@ using namespace llvm;
 namespace dsa = seadsa;
 namespace {
 
-/// Returns true if \p F has a return instructions
+/// Returns true if \p F has a return or unreachable instructions
 ///
-/// Sets \p retInst to some return instruction in \p F
-bool HasReturn(Function &F, ReturnInst *&retInst) {
-  auto bbHasRet = [&](BasicBlock &bb) -> bool {
-    retInst = dyn_cast<ReturnInst>(bb.getTerminator());
-    return retInst;
+/// Sets \p inst to some instruction in \p F
+bool HasReturnOrUnreachable(Function &F, Instruction *&inst) {
+  auto bbHasRetOrUnreachable = [&](BasicBlock &bb) -> bool {
+    if (inst = dyn_cast<ReturnInst>(bb.getTerminator())) {
+      return inst;
+    } else if (inst = dyn_cast<UnreachableInst>(bb.getTerminator())) {
+      return inst;
+    }
   };
-  return llvm::any_of(F, bbHasRet);
+  return llvm::any_of(F, bbHasRetOrUnreachable);
 }
 
 /// work around bug in llvm::RecursivelyDeleteTriviallyDeadInstructions
@@ -910,30 +913,31 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
     }
   }
 
-  ReturnInst *_ret = nullptr;
-  ::HasReturn(F, _ret);
-  if (!_ret) {
+  Instruction *end = nullptr;
+  ::HasReturnOrUnreachable(F, end);
+  if (!end) {
     // TODO: Need to think how to handle functions that do not return in
     // interprocedural encoding. For now, we print a warning and ignore this
     // case.
-    errs() << "WARNING: Function " << F.getName() << " never returns."
+    errs() << "WARNING: Function " << F.getName()
+           << " has no return or unreachable instruction. "
            << "Inter-procedural analysis with such functions might not be "
            << "supported.";
     return true;
   }
-  Instruction *ret = cast<Instruction>(_ret);
-  BasicBlock *exit = ret->getParent();
+  BasicBlock *exit = end->getParent();
 
-  // split return basic block if it has more than just the return instruction
+  // split return basic block if it has more than just the return/unreachable
+  // instruction
   if (exit->size() > 1) {
-    exit = llvm::SplitBlock(exit, ret,
+    exit = llvm::SplitBlock(exit, end,
                             // these two passes will not be preserved if null
                             (DominatorTree*)nullptr /*DominatorTree*/,
                             nullptr /*LoopInfo*/);
-    ret = exit->getTerminator();
+    end = exit->getTerminator();
   }
 
-  B.SetInsertPoint(ret);
+  B.SetInsertPoint(end);
 
   // -- marks a cell with mem.in and mem.out markers
   // -- idx is a global index to assign to the mark function
@@ -949,7 +953,9 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
     }
 
     /// final value
-    if (isModified(n, F)) { mkMarkOut(B, c, idx, llvm::None); }
+    if (isModified(n, F) && isa<ReturnInst>(end)) {
+      mkMarkOut(B, c, idx, llvm::None);
+    }
   };
 
   unsigned idx = 0;
