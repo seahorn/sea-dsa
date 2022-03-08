@@ -133,10 +133,10 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
   auto *ValB = const_cast<Value *>(LocB.Ptr);
 
   if (!ValA->getType()->isPointerTy() || !ValB->getType()->isPointerTy()) {
-    return NoAlias;
+    return AliasResult(AliasResult::NoAlias);
   }
 
-  if (ValA == ValB) { return MustAlias; }
+  if (ValA == ValB) { return AliasResult(AliasResult::MustAlias); }
 
   // Run seadsa if we have not done it yet
   if (!m_dsa) {
@@ -174,7 +174,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
   if (gA.hasCell(*ValA) && gA.hasCell(*ValB)) {
     const Cell &c1 = gA.getCell(*ValA);
     const Cell &c2 = gA.getCell(*ValB);
-    if (!mayAlias(c1, c2, *m_dl)) { return NoAlias; }
+    if (!mayAlias(c1, c2, *m_dl)) { return AliasResult(AliasResult::NoAlias); }
   }
 
   // -- fall back to default implementation

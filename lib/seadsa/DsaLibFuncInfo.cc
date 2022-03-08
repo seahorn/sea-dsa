@@ -11,6 +11,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Registry.h"
+#include "llvm/Support/SourceMgr.h"
 
 #include "seadsa/DsaLibFuncInfo.hh"
 #include "seadsa/Graph.hh"
