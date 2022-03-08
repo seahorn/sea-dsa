@@ -59,7 +59,7 @@ bool DsaCallGraphPrinter::runOnModule(Module &M) {
   auto writeGraph = [](std::string Filename, CallGraph &CG) {
     std::error_code EC;
     errs() << "Writing '" << Filename << "'...";
-    raw_fd_ostream File(Filename, EC, sys::fs::F_Text);
+    raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
     std::string Title("Call graph");
     const bool IsSimple = false;    
     if (!EC)

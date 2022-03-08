@@ -222,7 +222,7 @@ void DsaInfo::assignAllocSiteId() {
   if (DsaToCsv != "") {
     std::string filename(DsaToCsv);
     std::error_code EC;
-    raw_fd_ostream file(filename, EC, sys::fs::F_Text);
+    raw_fd_ostream file(filename, EC, sys::fs::OF_Text);
     file << "alloc_site,ds_node\n";
     for (auto &kv : alloc_to_nodes_map)
       for (const auto &nodeInfo : kv.second.second)
@@ -234,7 +234,7 @@ void DsaInfo::assignAllocSiteId() {
   if (AllocasToFile != "") {
     std::string filename(AllocasToFile);
     std::error_code EC;
-    raw_fd_ostream file(filename, EC, sys::fs::F_Text);
+    raw_fd_ostream file(filename, EC, sys::fs::OF_Text);
     for (auto &kv : alloc_to_nodes_map) {
       file << "Alloc site Id " << kv.second.first << "\n";
       file << *(kv.first) << "\n";

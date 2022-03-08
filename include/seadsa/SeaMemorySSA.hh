@@ -153,7 +153,7 @@ protected:
                     DeleteValueTy DeleteValue, Instruction *MI, BasicBlock *BB,
                     unsigned NumOperands)
       : SeaMemoryAccess(C, Vty, DeleteValue, BB, NumOperands),
-        MemoryInstruction(MI), OptimizedAccessAlias(MayAlias) {
+        MemoryInstruction(MI), OptimizedAccessAlias(AliasResult(AliasResult::MayAlias)) {
     setDefiningAccess(DMA);
   }
 
@@ -165,7 +165,7 @@ protected:
   }
 
   void setDefiningAccess(SeaMemoryAccess *DMA, bool Optimized = false,
-                         Optional<AliasResult> AR = MayAlias) {
+                         Optional<AliasResult> AR = AliasResult(AliasResult::MayAlias)) {
     if (!Optimized) {
       setOperand(0, DMA);
       return;

@@ -610,7 +610,7 @@ static std::string appendOutDir(std::string FileName) {
 static bool writeGraph(Graph *G, std::string Filename, ColorMap * cm = nullptr) {
   std::string FullFilename = appendOutDir(Filename);
   std::error_code EC;
-  raw_fd_ostream File(FullFilename, EC, sys::fs::F_Text);
+  raw_fd_ostream File(FullFilename, EC, sys::fs::OF_Text);
   if (!EC) {
     internals::WriteGraph(File, G, cm);
     LOG("dsa-printer", G->write(errs()));
