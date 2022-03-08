@@ -1595,7 +1595,7 @@ ShadowMemImpl::getAllAllocSites(Value &ptr, AllocSitesCache &cache) {
   // sites or an instruction it cannot look thru (e.g., a load).
   assert(ptr.getType()->isPointerTy());
 
-  auto *strippedInit = ptr.stripPointerCastsAndInvariantGroups();
+  auto *strippedInit = ptr.stripPointerCastsForAliasAnalysis();
   {
     auto it = cache.find(strippedInit);
     if (it != cache.end()) return it->second;
@@ -1608,7 +1608,7 @@ ShadowMemImpl::getAllAllocSites(Value &ptr, AllocSitesCache &cache) {
   while (!worklist.empty()) {
     Value *current = worklist.pop_back_val();
     assert(current);
-    Value *stripped = current->stripPointerCastsAndInvariantGroups();
+    Value *stripped = current->stripPointerCastsForAliasAnalysis();
     if (visited.count(stripped) > 0) continue;
 
     visited.insert(stripped);
@@ -1676,8 +1676,8 @@ bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
   Value *defPtr = getAssociatedConcretePtr(memDef);
   if (!defPtr) return true;
 
-  usePtr = usePtr->stripPointerCastsAndInvariantGroups();
-  defPtr = defPtr->stripPointerCastsAndInvariantGroups();
+  usePtr = usePtr->stripPointerCastsForAliasAnalysis();
+  defPtr = defPtr->stripPointerCastsForAliasAnalysis();
   assert(m_graph->hasCell(*usePtr));
   assert(m_graph->hasCell(*defPtr));
 
