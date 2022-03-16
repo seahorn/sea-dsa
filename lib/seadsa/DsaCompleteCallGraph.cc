@@ -78,10 +78,10 @@ static Value *stripBitCast(Value *V) {
 static bool typeCompatible(const Type *t1, const Type *t2) {
   if (t1->isPointerTy() && t2->isPointerTy()) {
     return true;
-}
+  }
   return (t1 == t2);
 }
-  
+
 static bool isCalleeTypeCompatible(const CallBase &CB, const Function &calleeF) {
   unsigned csNArgs = CB.arg_size();
   unsigned calleeNArgs = calleeF.arg_size();
