@@ -63,7 +63,8 @@ visitIntStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
   IRBuilder<> IRB(LI);
 
   auto *Int8PtrPtrTy = Type::getInt8PtrTy(SI->getContext())->getPointerTo();
-  auto newLI = IRB.CreateLoad(IRB.CreateBitCast(loadAddr, Int8PtrPtrTy));
+  auto newLI = IRB.CreateLoad(Type::getInt8PtrTy(SI->getContext()),
+                              IRB.CreateBitCast(loadAddr, Int8PtrPtrTy));
   if (LI->hasName()) newLI->setName(LI->getName());
   newLI->setAlignment(LI->getAlign());
   newLI->setOrdering(LI->getOrdering());
@@ -226,7 +227,8 @@ public:
     IRBuilder<> IRB(&I);
 
     ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
-    auto *gep = IRB.CreateGEP(ptr, {I.getOperand(1)});
+    auto *gep = IRB.CreateGEP(ptr->getType()->getScalarType()->getPointerElementType(),
+                              ptr, {I.getOperand(1)});
     return IRB.CreateBitCast(gep, m_ty);
   }
 
@@ -242,7 +244,7 @@ public:
     auto *ptr = I.getPointerOperand();
     IRBuilder<> IRB(&I);
     ptr = IRB.CreateBitCast(ptr, m_ty->getPointerTo());
-    auto *res = IRB.CreateLoad(ptr);
+    auto *res = IRB.CreateLoad(ptr->getType()->getPointerElementType(), ptr);
     res->setVolatile(I.isVolatile());
     res->setAlignment(I.getAlign());
     res->setOrdering(I.getOrdering());
