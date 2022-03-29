@@ -1435,7 +1435,7 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
     return;
   }
 
-  if (llvm::isAllocationFn(&I, &m_tli, true)) {
+  if (llvm::isAllocationFn(&I, &m_tli)) {
     visitAllocationFnCall(I);
     return;
   }

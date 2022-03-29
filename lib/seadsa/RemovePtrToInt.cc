@@ -63,7 +63,8 @@ visitIntStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
   IRBuilder<> IRB(LI);
 
   auto *Int8PtrPtrTy = Type::getInt8PtrTy(SI->getContext())->getPointerTo();
-  auto newLI = IRB.CreateLoad(IRB.CreateBitCast(loadAddr, Int8PtrPtrTy));
+  auto newLI = IRB.CreateLoad(Type::getInt8PtrTy(SI->getContext()),
+                              IRB.CreateBitCast(loadAddr, Int8PtrPtrTy));
   if (LI->hasName()) newLI->setName(LI->getName());
   newLI->setAlignment(LI->getAlign());
   newLI->setOrdering(LI->getOrdering());
@@ -275,7 +276,8 @@ public:
     IRBuilder<> IRB(&I);
 
     ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
-    auto *gep = IRB.CreateGEP(ptr, I.getOperand(1));
+    auto *gep = IRB.CreateGEP(ptr->getType()->getScalarType()->getPointerElementType(),
+                              ptr, {I.getOperand(1)});
     return IRB.CreateBitCast(gep, m_ty);
   }
 
@@ -301,8 +303,8 @@ public:
       return IRB.CreateBitCast(gep, m_ty);
     } else {
       // TODO: a non-constant operand
-      return nullptr;
-    }
+    return nullptr;
+  }
   }
 
   Value *visitLoad(LoadInst &I) {
@@ -311,7 +313,7 @@ public:
     auto *ptr = I.getPointerOperand();
     IRBuilder<> IRB(&I);
     ptr = IRB.CreateBitCast(ptr, m_ty->getPointerTo());
-    auto *res = IRB.CreateLoad(ptr);
+    auto *res = IRB.CreateLoad(ptr->getType()->getPointerElementType(), ptr);
     res->setVolatile(I.isVolatile());
     res->setAlignment(I.getAlign());
     res->setOrdering(I.getOrdering());
@@ -510,7 +512,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       llvm::make_filter_range(MaybeUnusedInsts, [](Instruction *I) {
         return isInstructionTriviallyDead(I);
       }));
-
+  
   // TODO: RecursivelyDeleteTriviallyDeadInstructions takes a vector of
   // WeakTrackingVH since LLVM 11, which implies that `MaybeUnusedInsts` should
   // be a vector of WeakTrackingVH as well. See comment:

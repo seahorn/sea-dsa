@@ -183,7 +183,7 @@ class LocalAAResultsWrapper {
     MemoryLocation loc(&ptr, LocationSize::beforeOrAfterPointer());
     if (auto *i = dyn_cast_or_null<Instruction>(inst)) {
       AAMDNodes aaTags;
-      i->getAAMetadata(aaTags);
+      aaTags = i->getAAMetadata();
       loc = MemoryLocation(&ptr, MemoryLocation::UnknownSize, aaTags);
     }
 
@@ -207,7 +207,7 @@ public:
     MemoryLocation A = getMemLoc(ptrA, instA, sizeA);
     MemoryLocation B = getMemLoc(ptrB, instB, sizeB);
 
-    AAQueryInfo AAQI;
+    SimpleAAQueryInfo AAQI;
     if (m_tbaa && m_tbaa->alias(A, B, AAQI) == AliasResult::NoAlias)
       return true;
 
@@ -495,7 +495,8 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
                           llvm::Optional<unsigned> bytes) {
 
     auto *ci = mkShadowCall(B, c, m_memStoreFn,
-                            {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v),
+                            {m_B->getInt32(getFieldId(c)),
+                             m_B->CreateLoad(v->getType()->getPointerElementType(), v),
                              getUniqueScalar(*m_llvmCtx, B, c)},
                             "sm");
     markDefCall(ci, bytes);
@@ -515,7 +516,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     AllocaInst *v = getShadowForField(c);
     auto *ci = mkShadowCall(
         B, c, m_memGlobalVarInitFn,
-        {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(v), u}, "sm");
+        {m_B->getInt32(getFieldId(c)), m_B->CreateLoad(m_Int32Ty, v), u}, "sm");
     markDefCall(ci, bytes);
     B.CreateStore(ci, v);
     return ci;
@@ -525,7 +526,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
                          llvm::Optional<unsigned> bytes) {
     auto *ci = mkShadowCall(B, c, m_memLoadFn,
                             {B.getInt32(getFieldId(c)),
-                             B.CreateLoad(getShadowForField(c)),
+                             B.CreateLoad(m_Int32Ty, getShadowForField(c)),
                              getUniqueScalar(*m_llvmCtx, B, c)});
     markUseCall(ci, bytes);
     return *ci;
@@ -537,7 +538,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     // insert memtrfr.load for the read access
     auto *loadCI = mkShadowCall(B, src, m_memTrsfrLoadFn,
                                 {B.getInt32(getFieldId(src)),
-                                 B.CreateLoad(getShadowForField(src)),
+                                 B.CreateLoad(m_Int32Ty, getShadowForField(src)),
                                  getUniqueScalar(*m_llvmCtx, B, src)});
     markUseCall(loadCI, bytes);
 
@@ -552,7 +553,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     unsigned id = getFieldId(c);
     auto *ci =
         mkShadowCall(B, c, m_argRefFn,
-                     {B.getInt32(id), m_B->CreateLoad(v), m_B->getInt32(idx),
+                     {B.getInt32(id), m_B->CreateLoad(m_Int32Ty, v), m_B->getInt32(idx),
                       getUniqueScalar(*m_llvmCtx, B, c)});
     markUseCall(ci, bytes);
     return *ci;
@@ -564,7 +565,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     unsigned id = getFieldId(c);
 
     auto *ci = mkShadowCall(B, c, argFn,
-                            {B.getInt32(id), B.CreateLoad(v), B.getInt32(idx),
+                            {B.getInt32(id), B.CreateLoad(m_Int32Ty, v), B.getInt32(idx),
                              getUniqueScalar(*m_llvmCtx, B, c)},
                             "sh");
 
@@ -586,7 +587,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
                       llvm::Optional<unsigned> bytes) {
     auto *ci = mkShadowCall(
         B, c, m_markOut,
-        {B.getInt32(getFieldId(c)), B.CreateLoad(getShadowForField(c)),
+        {B.getInt32(getFieldId(c)), B.CreateLoad(m_Int32Ty, getShadowForField(c)),
          B.getInt32(idx), getUniqueScalar(*m_llvmCtx, B, c)});
     markUseCall(ci, bytes);
     return *ci;
@@ -1972,7 +1973,7 @@ bool StripShadowMemPass::runOnModule(Module &M) {
 
     while (!fn->use_empty()) {
       CallInst *ci = cast<CallInst>(fn->user_back());
-      Value *last = ci->getArgOperand(ci->getNumArgOperands() - 1);
+      Value *last = ci->getArgOperand(ci->arg_size() - 1);
       ci->eraseFromParent();
       ::recursivelyDeleteTriviallyDeadInstructions(last);
     }
@@ -1991,7 +1992,7 @@ bool StripShadowMemPass::runOnModule(Module &M) {
 
     while (!fn->use_empty()) {
       CallInst *ci = cast<CallInst>(fn->user_back());
-      Value *last = ci->getArgOperand(ci->getNumArgOperands() - 1);
+      Value *last = ci->getArgOperand(ci->arg_size() - 1);
       ci->replaceAllUsesWith(zero);
       ci->eraseFromParent();
       ::recursivelyDeleteTriviallyDeadInstructions(last);
