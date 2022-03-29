@@ -96,7 +96,7 @@ void AllocWrapInfo::findAllocs(Module &M) const {
       CallInst *CI = dyn_cast<CallInst>(U);
       if (!CI)
         continue;
-      if (llvm::isAllocationFn(CI, &tli, true))
+      if (llvm::isAllocationFn(CI, &tli))
         m_allocs.insert(F.getName());
       break;
     }
