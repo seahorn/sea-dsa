@@ -692,6 +692,10 @@ public:
   void visitIsRead(CallSite &CS);
   void visitIsAlloc(CallSite &CS);
   void visitResetModified(CallSite &CS);
+  void
+  visitSetShadowMem(CallSite &CS); // this shadow memory means OpSem shadowmem
+  void
+  visitGetShadowMem(CallSite &CS); // this shadow memory means OpSem shadowmem
   void visitResetRead(CallSite &CS);
   void visitFree(CallSite &CS);
   void visitDsaCallSite(dsa::DsaCallSite &CS);
@@ -1099,6 +1103,16 @@ void ShadowMemImpl::visitCallSite(CallSite CS) {
     return;
   }
 
+  if (callee->getName().equals("sea.set_shadowmem")) {
+    visitSetShadowMem(CS); // This shadow mem is the one used in opsem
+    return;
+  }
+
+  if (callee->getName().equals("sea.get_shadowmem")) {
+    visitGetShadowMem(CS); // This shadow mem is the one used in opsem
+    return;
+  }
+
   if (callee->getName().equals("sea.is_read")) {
     visitIsRead(CS);
     return;
@@ -1334,6 +1348,54 @@ void ShadowMemImpl::visitResetModified(CallSite &CS) {
   m_B->SetInsertPoint(&callInst);
   CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
   associateConcretePtr(memDef, ptr, &callInst);
+}
+
+void ShadowMemImpl::visitSetShadowMem(CallSite &CS) {
+  LOG("dsa.setshadowmem", errs() << "Visiting setshadowmem \n");
+  auto &callInst = *CS.getInstruction();
+  /* setshadowmem definition:
+     void @sea.set_shadowmem(i8, i8*, i8)
+     operand 0 is the slot to set
+     operand 1 is the pointer to be marked
+     operand 2 is the value to be marked
+  */
+  auto &ptr = *CS.getArgOperand(1);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.setshadowem", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.setshadowmem", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memDef, ptr, &callInst);
+}
+
+void ShadowMemImpl::visitGetShadowMem(CallSite &CS) {
+  LOG("dsa.getshadowmem", errs() << "Visiting getshadowmem \n");
+  auto &callInst = *CS.getInstruction();
+  /* getshadowmem definition:
+      void @sea.get_shadowmem(i8, i8*)
+      operand 0 is the slot to set
+      operand 1 is the pointer whose mark we want
+   */
+  auto &ptr = *CS.getArgOperand(1);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.getshadowmem", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.getshadowmem", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memUse = mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memUse, ptr, &callInst);
 }
 
 void ShadowMemImpl::visitResetRead(CallSite &CS) {
