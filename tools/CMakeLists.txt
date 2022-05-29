@@ -34,12 +34,24 @@ endif()
 message(${CMAKE_CURRENT_SOURCE_DIR})
 
 if (CMAKE_C_COMPILER_ID MATCHES Clang)
-  add_custom_command(
-    OUTPUT libc.spec.c
-    COMMAND libcSpecGen
-    COMMAND ${CLANG-FORMAT} -i libc.spec.c
-    DEPENDS libcSpecGen
-    )
+  # In llvm 10, clang-format is not installed when clang is installed
+  # via apt.
+  if (CLANG-FORMAT)
+    message(STATUS "Found clang-format: ${CLANG-FORMAT}")
+    add_custom_command(
+      OUTPUT libc.spec.c
+      COMMAND libcSpecGen
+      COMMAND ${CLANG-FORMAT} -i libc.spec.c
+      DEPENDS libcSpecGen
+      )
+  else()
+    message(WARNING "Cannot find clang-format")
+    add_custom_command(
+      OUTPUT libc.spec.c
+      COMMAND libcSpecGen
+      DEPENDS libcSpecGen
+      )
+  endif()    
 
   add_library(LibcSpec-64 OBJECT libc.spec.c)
   target_compile_options(LibcSpec-64 BEFORE PRIVATE -emit-llvm)
