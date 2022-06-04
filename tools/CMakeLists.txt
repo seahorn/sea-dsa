@@ -31,8 +31,6 @@ if (SEA_DSA_STATIC_EXE)
   set_target_properties (seadsa PROPERTIES LINK_SEARCH_END_STATIC ON)
 endif()
 
-message(${CMAKE_CURRENT_SOURCE_DIR})
-
 if (CMAKE_C_COMPILER_ID MATCHES Clang)
   # In llvm 10, clang-format is not installed when clang is installed
   # via apt.
