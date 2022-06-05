@@ -1,11 +1,4 @@
-if (BUILD_SEA_DSA_LIBS_SHARED)
-  set(SEA_DSA_LINK SHARED)
-else()
-  set(SEA_DSA_LINK STATIC)
-endif()  
-  
-add_llvm_library (SeaDsaAnalysis ${SEA_DSA_LINK}
-  #DISABLE_LLVM_LINK_LLVM_DYLIB
+add_llvm_library (SeaDsaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   Graph.cc
   FieldType.cc
   DsaLocal.cc
