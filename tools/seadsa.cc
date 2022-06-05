@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 
   if (!AsmOutputFilename.empty())
     asmOutput = std::make_unique<llvm::ToolOutputFile>(
-        AsmOutputFilename.c_str(), error_code, llvm::sys::fs::F_Text);
+	 appendOutDir(AsmOutputFilename.c_str()), error_code, llvm::sys::fs::F_Text);
   if (error_code) {
     if (llvm::errs().has_colors())
       llvm::errs().changeColor(llvm::raw_ostream::RED);
