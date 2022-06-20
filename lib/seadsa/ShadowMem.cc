@@ -228,7 +228,6 @@ bool isShadowMemInst(const llvm::Value &v) {
 
 class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   dsa::GlobalAnalysis &m_dsa;
-  dsa::AllocSiteInfo &m_asi;
   TargetLibraryInfoWrapperPass &m_tliWrapper;
   const DataLayout *m_dl;
   CallGraph *m_callGraph;
@@ -648,11 +647,11 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   bool mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache);
 
 public:
-  ShadowMemImpl(dsa::GlobalAnalysis &dsa, dsa::AllocSiteInfo &asi,
+  ShadowMemImpl(dsa::GlobalAnalysis &dsa, 
                 TargetLibraryInfoWrapperPass &tliWrapper, CallGraph *cg,
                 Pass &pass, bool splitDsaNodes, bool computeReadMod,
                 bool memOptimizer, bool useTBAA, bool useSNAAA)
-      : m_dsa(dsa), m_asi(asi), m_tliWrapper(tliWrapper), m_dl(nullptr),
+      : m_dsa(dsa), m_tliWrapper(tliWrapper), m_dl(nullptr),
         m_callGraph(cg), m_pass(pass), m_splitDsaNodes(splitDsaNodes),
         m_computeReadMod(computeReadMod), m_memOptimizer(memOptimizer),
         m_useTBAA(useTBAA), m_useSNAAA(useSNAAA) {}
@@ -1168,8 +1167,8 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
 
   auto markModRef = [&](const dsa::Node *CN, const dsa::Cell &callerC,
                         unsigned idx) {
-    AllocaInst *v = getShadowForField(callerC);
-    unsigned id = getFieldId(callerC);
+    getShadowForField(callerC);
+    getFieldId(callerC);
 
     auto isReturned = [&](const dsa::Node *N) -> bool {
       return retReach.count(N);
@@ -1857,12 +1856,12 @@ void ShadowMemImpl::solveUses(Function &F) {
 }
 
 /** ShadowMem class **/
-ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi,
+ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi/*unused*/,
                      llvm::TargetLibraryInfoWrapperPass &tli,
                      llvm::CallGraph *cg, llvm::Pass &pass, bool splitDsaNodes,
                      bool computeReadMod, bool memOptimizer, bool useTBAA,
                      bool useSNAAA)
-    : m_impl(new ShadowMemImpl(dsa, asi, tli, cg, pass, splitDsaNodes,
+    : m_impl(new ShadowMemImpl(dsa, tli, cg, pass, splitDsaNodes,
                                computeReadMod, memOptimizer, useTBAA,
                                useSNAAA)) {}
 

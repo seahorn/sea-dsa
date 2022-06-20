@@ -12,6 +12,6 @@ int main() {
   sea_dsa_alias(p);
   sea_dsa_link(p, 0, p);
   sea_dsa_access(p, 0);
-  void *a = sea_dsa_mk();
+  sea_dsa_mk();
   return 0;
 }

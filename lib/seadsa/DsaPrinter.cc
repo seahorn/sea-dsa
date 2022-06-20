@@ -808,5 +808,6 @@ Pass *createDsaViewerPass() { return new seadsa::DsaViewer(); }
 static llvm::RegisterPass<seadsa::DsaPrinterPass>
     X("seadsa-printer", "Print SeaDsa memory graphs");
 
-static llvm::RegisterPass<seadsa::DsaViewer> Y("seadsa-viewer",
-                                                "View SeaDsa memory graphs");
+static llvm::RegisterPass<seadsa::DsaViewer>
+Y("seadsa-viewer", "View SeaDsa memory graphs");
+  
