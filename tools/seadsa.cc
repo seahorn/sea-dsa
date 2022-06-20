@@ -85,17 +85,6 @@ static llvm::cl::opt<seadsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string>>
                 llvm::cl::location(seadsa::loc), llvm::cl::value_desc("string"),
                 llvm::cl::ValueRequired, llvm::cl::ZeroOrMore);
 
-static std::string appendOutDir(std::string path) {
-  if (!OutputDir.empty()) {
-    auto filename = llvm::sys::path::filename(path);
-    if (!llvm::sys::fs::create_directory(OutputDir)) {
-      std::string FullFileName = OutputDir + "/" + filename.str();
-      return FullFileName;
-    }
-  }
-  return path;
-}
-
 int main(int argc, char **argv) {
   llvm::llvm_shutdown_obj shutdown; // calls llvm_shutdown() on exit
   llvm::cl::ParseCommandLineOptions(argc, argv, "Heap Analysis");

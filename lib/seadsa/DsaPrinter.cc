@@ -9,11 +9,12 @@
 #include "seadsa/CompleteCallGraph.hh"
 #include "seadsa/CallGraphUtils.hh"
 #include "seadsa/DsaAnalysis.hh"
+#include "seadsa/DsaColor.hh"
 #include "seadsa/Global.hh"
 #include "seadsa/GraphTraits.hh"
 #include "seadsa/Info.hh"
+#include "seadsa/Printer.hh"
 #include "seadsa/support/Debug.h"
-#include "seadsa/DsaColor.hh"
 
 /*
    Convert each DSA graph to .dot file.
@@ -660,109 +661,122 @@ static bool writeGraph(Graph *G, std::string Filename, ColorMap * cm = nullptr) 
   return false;
 }
 
-struct DsaPrinter : public ModulePass {
-  static char ID;
-  DsaAnalysis *m_dsa;
+class DsaPrinterImpl {
+  // -- seadsa global analysis
+  GlobalAnalysis &m_dsa;
+  // -- seadsa callgraph: it can be null.
+  CompleteCallGraph *m_ccg;
+  // -- print summary graphs
+  bool m_print_sum_graphs;
+  //
 
-  DsaPrinter() : ModulePass(ID), m_dsa(nullptr) {}
+  bool runOnFunction(Function &F) {
+    if (m_dsa.hasGraph(F)) {
+      Graph *G = &m_dsa.getGraph(F);
+      if (G->begin() != G->end()) {
+        std::string Filename = F.getName().str() + ".mem.dot";
+        writeGraph(G, Filename);
+        if (DsaColorFunctionSimDot ||
+            m_print_sum_graphs) { // simulate bu and sas graph and color
+          if (m_dsa.hasSummaryGraph(F)) {
+            Graph *buG = &m_dsa.getSummaryGraph(F);
+            ColorMap colorBuG, colorG;
+            colorGraphsFunction(F, *buG, *G, colorBuG, colorG);
+            writeGraph(buG, F.getName().str() + ".BU.mem.dot", &colorBuG);
+            if (DsaColorFunctionSimDot) {
+              writeGraph(G, F.getName().str() + ".TD.mem.dot", &colorG);
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
 
-private:
-  int m_cs_count = 0; // to distinguish callsites
+public:
+  DsaPrinterImpl(GlobalAnalysis &dsa, CompleteCallGraph *ccg,
+                 bool printSumGraphs)
+      : m_dsa(dsa), m_ccg(ccg), m_print_sum_graphs(printSumGraphs) {}
 
-public :
-
-  bool runOnModule(Module &M) override {
-    m_dsa = &getAnalysis<seadsa::DsaAnalysis>();
-    assert(m_dsa);
-
-    if (m_dsa->getDsaAnalysis().kind() == GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
+  bool runOnModule(Module &M) {
+    if (m_dsa.kind() == GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
       Function *main = M.getFunction("main");
-      if (main && m_dsa->getDsaAnalysis().hasGraph(*main)) {
-        Graph *G = &m_dsa->getDsaAnalysis().getGraph(*main);
+      if (main && m_dsa.hasGraph(*main)) {
+        Graph *G = &m_dsa.getGraph(*main);
         std::string Filename = main->getName().str() + ".mem.dot";
         writeGraph(G, Filename);
       }
     } else {
-      if(DsaColorCallSiteSimDot){
-        CompleteCallGraph &ccg = getAnalysis<CompleteCallGraph>();
-        llvm::CallGraph &cg = ccg.getCompleteCallGraph();
+      if (DsaColorCallSiteSimDot && m_ccg) {
+        unsigned cs_count = 0;
+        llvm::CallGraph &cg = m_ccg->getCompleteCallGraph();
         for (auto it = scc_begin(&cg); !it.isAtEnd(); ++it) {
           auto &scc = *it;
           for (CallGraphNode *cgn : scc) {
             Function *fn = cgn->getFunction();
-            if (!fn || fn->isDeclaration() || fn->empty()) {
-              continue;
-            }
+            if (!fn || fn->isDeclaration() || fn->empty()) { continue; }
             // -- store the simulation maps from the SCC
             for (auto &callRecord : *cgn) {
-
-              llvm::Optional<DsaCallSite> dsaCS = call_graph_utils::getDsaCallSite(callRecord);
-              if (!dsaCS.hasValue()) {
-                continue;
-              }
+              llvm::Optional<DsaCallSite> dsaCS =
+                  call_graph_utils::getDsaCallSite(callRecord);
+              if (!dsaCS.hasValue()) { continue; }
               DsaCallSite &cs = dsaCS.getValue();
-              Function * f_caller = fn;
-              const Function * f_callee = cs.getCallee();
-              Graph &callerG =
-                m_dsa->getDsaAnalysis().getGraph(*f_caller);
-              Graph &calleeG =
-                m_dsa->getDsaAnalysis().getSummaryGraph(*f_callee);
-
+              Function *f_caller = fn;
+              const Function *f_callee = cs.getCallee();
+              Graph &callerG = m_dsa.getGraph(*f_caller);
+              Graph &calleeG = m_dsa.getSummaryGraph(*f_callee);
               ColorMap color_callee, color_caller;
               colorGraphsCallSite(cs, calleeG, callerG, color_callee,
                                   color_caller);
               std::string FilenameBase =
-                f_caller->getParent()->getModuleIdentifier() + "." +
-                f_caller->getName().str() + "." + f_callee->getName().str() +
-                "." + std::to_string(++m_cs_count);
+                  f_caller->getParent()->getModuleIdentifier() + "." +
+                  f_caller->getName().str() + "." + f_callee->getName().str() +
+                  "." + std::to_string(++cs_count);
 
               writeGraph(&calleeG, FilenameBase + ".callee.mem.dot",
                          &color_callee);
               writeGraph(&callerG, FilenameBase + ".caller.mem.dot",
                          &color_caller);
-
             }
           }
         }
       }
-      for (auto &F : M)
+      for (auto &F : M) {
         runOnFunction(F);
-    }
-    return false;
-  }
-
-  bool runOnFunction(Function &F) {
-    GlobalAnalysis &ga = m_dsa->getDsaAnalysis();
-    if (ga.hasGraph(F)) {
-      Graph *G = &ga.getGraph(F);
-      if (G->begin() != G->end()) {
-        std::string Filename = F.getName().str() + ".mem.dot";
-        writeGraph(G, Filename);
-        if (DsaColorFunctionSimDot) { // simulate bu and sas graph and color
-          if (ga.hasSummaryGraph(F)) {
-            Graph *buG = &ga.getSummaryGraph(F);
-            ColorMap colorBuG, colorG;
-            colorGraphsFunction(F, *buG, *G, colorBuG, colorG);
-
-            writeGraph(buG, F.getName().str() + ".BU.mem.dot", &colorBuG);
-            writeGraph(G, F.getName().str() + ".TD.mem.dot", &colorG);
-          }
-        }
       }
     }
-
     return false;
   }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesAll();
-    AU.addRequired<DsaAnalysis>();
-    if (DsaColorCallSiteSimDot)
-      AU.addRequired<CompleteCallGraph>();
-  }
-
-  StringRef getPassName() const override { return "SeaHorn Dsa graph printer"; }
 };
+
+DsaPrinter::DsaPrinter(GlobalAnalysis &dsa, CompleteCallGraph *ccg,
+                       bool printSumGraphs)
+    : m_impl(std::make_unique<DsaPrinterImpl>(dsa, ccg, printSumGraphs)) {}
+
+DsaPrinter::~DsaPrinter() {}
+
+bool DsaPrinter::runOnModule(Module &M) { return m_impl->runOnModule(M); }
+
+DsaPrinterPass::DsaPrinterPass() : ModulePass(ID) {}
+
+bool DsaPrinterPass::runOnModule(Module &M) {
+  auto &dsa = getAnalysis<seadsa::DsaAnalysis>();
+  CompleteCallGraph *ccg = nullptr;
+  if (DsaColorCallSiteSimDot) { ccg = &getAnalysis<CompleteCallGraph>(); }
+  DsaPrinter printer(dsa.getDsaAnalysis(), ccg);
+  return printer.runOnModule(M);
+}
+
+void DsaPrinterPass::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<DsaAnalysis>();
+  if (DsaColorCallSiteSimDot) { AU.addRequired<CompleteCallGraph>(); }
+}
+
+StringRef DsaPrinterPass::getPassName() const {
+  return "SeaHorn Dsa graph printer";
+}
+
 
 // Used by Graph::writeGraph().
 void WriteDsaGraph(Graph& G, const std::string &filename) {
@@ -826,17 +840,18 @@ struct DsaViewer : public ModulePass {
 
 };
 
-char DsaPrinter::ID = 0;
+char DsaPrinterPass::ID = 0;
 char DsaViewer::ID = 0;
 
-Pass *createDsaPrinterPass() { return new seadsa::DsaPrinter(); }
+Pass *createDsaPrinterPass() { return new seadsa::DsaPrinterPass(); }
 
 Pass *createDsaViewerPass() { return new seadsa::DsaViewer(); }
 
 } // end namespace seadsa
 
-static llvm::RegisterPass<seadsa::DsaPrinter> X("seadsa-printer",
-                                                 "Print SeaDsa memory graphs");
-
-static llvm::RegisterPass<seadsa::DsaViewer> Y("seadsa-viewer",
-                                                "View SeaDsa memory graphs");
+static llvm::RegisterPass<seadsa::DsaPrinterPass>
+X("seadsa-printer", "Print SeaDsa memory graphs");
+  
+static llvm::RegisterPass<seadsa::DsaViewer>
+Y("seadsa-viewer", "View SeaDsa memory graphs");
+  

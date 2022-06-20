@@ -43,7 +43,6 @@ private:
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
   Graph::SetFactory m_setFactory;
   const AllocWrapInfo &m_allocInfo;
-  const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
   std::unique_ptr<llvm::CallGraph> m_complete_cg;
   // true if assume that stack allocated memory does not escape

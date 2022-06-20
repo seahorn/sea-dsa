@@ -340,11 +340,10 @@ void CompleteCallGraphAnalysis::printStats(Module &M, raw_ostream &o) {
 
 CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
     const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-    const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
+    const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo/*unused*/,
     llvm::CallGraph &cg, bool noescape)
     : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
-      m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg),
-      m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
+      m_cg(cg), m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
 
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
