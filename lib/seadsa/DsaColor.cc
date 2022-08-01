@@ -78,7 +78,7 @@ void colorGraphsCallSite(const DsaCallSite &cs, const Graph &calleeG,
 
   SimulationMapper simMap;
 
-  bool res = Graph::computeCalleeCallerMapping(
+  Graph::computeCalleeCallerMapping(
       cs, *(const_cast<Graph *>(&calleeG)), *(const_cast<Graph *>(&callerG)),
       simMap);
 
@@ -91,8 +91,8 @@ void colorGraphsFunction(const Function &f, const Graph &fromG,
                          ColorMap &colorTo) {
   SimulationMapper sm;
 
-  bool res = Graph::computeSimulationMapping(*(const_cast<Graph *>(&fromG)),
-                                             *(const_cast<Graph *>(&toG)), sm);
+  Graph::computeSimulationMapping(*(const_cast<Graph *>(&fromG)),
+				  *(const_cast<Graph *>(&toG)), sm);
   color_nodes_graph(*(const_cast<Graph *>(&fromG)), f, sm, colorFrom, colorTo);
 }
 } // namespace seadsa
