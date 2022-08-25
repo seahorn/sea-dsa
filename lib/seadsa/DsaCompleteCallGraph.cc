@@ -7,6 +7,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
@@ -339,11 +340,10 @@ void CompleteCallGraphAnalysis::printStats(Module &M, raw_ostream &o) {
 
 CompleteCallGraphAnalysis::CompleteCallGraphAnalysis(
     const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
-    const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
+    const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo/*unused*/,
     llvm::CallGraph &cg, bool noescape)
     : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
-      m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg),
-      m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
+      m_cg(cg), m_complete_cg(new CallGraph(m_cg.getModule())), m_noescape(noescape) {}
 
 bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
 
@@ -587,7 +587,10 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   /// Remove edges in the callgraph: remove original indirect call
   /// from call graph if we now for sure we fully resolved it.
   for (auto &F : M) {
+    if (F.empty()) continue;
+    
     CallGraphNode *CGNF = (*m_complete_cg)[&F];
+    assert(CGNF);
     if (!CGNF) continue;
 
     // collect first callsites to avoid invalidating iterators

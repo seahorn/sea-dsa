@@ -33,7 +33,7 @@ std::string alias(const std::vector<std::string> &vect) {
   std::string callsite;
   callsite = "sea_dsa_alias(";
 
-  for (int i = 0; i < vect.size() - 1; i++) {
+  for (unsigned i = 0; i < vect.size() - 1; i++) {
     callsite.append(vect[i]);
     callsite.append(", ");
   }
@@ -493,14 +493,14 @@ int main() {
     throw std::invalid_argument("Couldn't open file");
   }
 
-  for (int x = 0; x < sizeof_array(recFuncs); x++) {
+  for (unsigned x = 0; x < sizeof_array(recFuncs); x++) {
 
     out_file << decls[x].retType;
     out_file << " ";
     out_file << decls[x].name;
     out_file << "(";
 
-    for (int i = 0; i < decls[x].params.size() - 1; i++) {
+    for (unsigned i = 0; i < decls[x].params.size() - 1; i++) {
       out_file << decls[x].params[i];
       out_file << ", ";
     }
