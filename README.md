@@ -18,6 +18,8 @@ used as a stand-alone tool or together with
 the [SeaHorn](https://github.com/seahorn/seahorn)
 verification framework and its analyses.
 
+**This `master` branch is obsolete and it will be replaced soon. Meanwhile, the development branch is `dev10` which is actively maintained. The `dev10` branch supports LLVM 10. Check out for other branches that support newer LLVM versions.**
+
 ## Requirements ## 
 
 `SeaDsa` is written in C++ and uses the Boost library. The main requirements
