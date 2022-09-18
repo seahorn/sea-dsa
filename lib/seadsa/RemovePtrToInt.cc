@@ -501,8 +501,10 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
     }
   }
 
-  for (auto *SI : StoresToErase)
+  for (auto *SI : StoresToErase) {
+    MaybeUnusedInsts.erase(SI);
     SI->eraseFromParent();
+  }
 
   SmallVector<Instruction *, 16> TriviallyDeadInstructions(
       llvm::make_filter_range(MaybeUnusedInsts, [](Instruction *I) {
