@@ -21,8 +21,7 @@ using namespace llvm;
 
 namespace seadsa {
 
-/*
- *
+/**
  clang-format off
 
  Rewrites
@@ -40,6 +39,7 @@ namespace seadsa {
 
   clang-format on
  */
+
 static bool
 visitIntStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
                   SmallPtrSetImpl<StoreInst *> &StoresToErase,
@@ -84,6 +84,53 @@ visitIntStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
   MaybeUnusedInsts.insert(LI);
   MaybeUnusedInsts.insert(loadAddrCast);
   MaybeUnusedInsts.insert(storeAddrCast);
+  return true;
+}
+
+/**
+   clang-format off
+
+   ;from
+   %8 = ptrtoint i8* %6 to i64, !dbg !763
+   store volatile i64 %8, i64* %.sroa.13, align 8, !dbg !763, !tbaa !764
+
+   ;to
+   %addr = bitcast %i64* %.sroa.13 to i8**
+   store volatile i8* %6, i8** %addr, align 8, !dbg !763, !tbaa !764
+
+   clang-format on
+ */
+static bool
+visitIntStoreInst2(StoreInst *SI, Function &F, const DataLayout &DL,
+                   SmallPtrSetImpl<StoreInst *> &StoresToErase,
+                   SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts) {
+
+  auto *P2I = dyn_cast<PtrToIntInst>(SI->getValueOperand());
+  if (!P2I) return false;
+
+  IRBuilder<> IRB(SI);
+
+  auto *Int8PtrTy = Type::getInt8PtrTy(SI->getContext());
+  auto *Int8PtrPtrTy = Int8PtrTy->getPointerTo();
+
+  auto *val = P2I->getPointerOperand();
+  if (val->getType() != Int8PtrTy) val = IRB.CreateBitCast(val, Int8PtrTy);
+
+  auto *addr = SI->getPointerOperand();
+  if (addr->getType() != Int8PtrPtrTy)
+    addr = IRB.CreateBitCast(addr, Int8PtrPtrTy);
+
+  auto newSI = IRB.CreateStore(val, addr);
+  newSI->setAlignment(SI->getAlign());
+  newSI->setOrdering(SI->getOrdering());
+  newSI->setSyncScopeID(SI->getSyncScopeID());
+  newSI->setVolatile(SI->isVolatile());
+  newSI->copyMetadata(*SI);
+
+  DOG(llvm::errs() << "Replaced\n" << *SI << "\nby\n" << *newSI << "\n";);
+
+  StoresToErase.insert(SI);
+  MaybeUnusedInsts.insert(P2I);
   return true;
 }
 
@@ -167,13 +214,14 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
 class PointerPromoter : public InstVisitor<PointerPromoter, Value *> {
   Type *m_ty;
   SmallPtrSetImpl<Instruction *> &m_toRemove;
-  DenseMap<Value*, Value*> &m_toReplace;
+  DenseMap<Value *, Value *> &m_toReplace;
   // -- to break cycles in PHINodes
   SmallPtrSet<Instruction *, 16> m_visited;
 
 public:
-  PointerPromoter(SmallPtrSetImpl<Instruction *> &toRemove, DenseMap<Value*, Value*> &toReplace)
-    : m_ty(nullptr), m_toRemove(toRemove), m_toReplace(toReplace) {}
+  PointerPromoter(SmallPtrSetImpl<Instruction *> &toRemove,
+                  DenseMap<Value *, Value *> &toReplace)
+      : m_ty(nullptr), m_toRemove(toRemove), m_toReplace(toReplace) {}
 
   Value *visitInstruction(Instruction &I) { return nullptr; }
 
@@ -223,6 +271,7 @@ public:
     if (!ptr) return nullptr;
 
     m_toRemove.insert(&I);
+
     IRBuilder<> IRB(&I);
 
     ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
@@ -232,8 +281,28 @@ public:
 
   Value *visitSub(BinaryOperator &I) {
     // errs() << "visitSub: " << I << "\n";
-    // XXX TODO
-    return nullptr;
+    if (ConstantInt *CI = dyn_cast<ConstantInt>(I.getOperand(1))) {
+
+      auto *op0 = dyn_cast<Instruction>(I.getOperand(0));
+      if (!op0) return nullptr;
+
+      auto *ptr = this->visit(op0);
+      if (!ptr) return nullptr;
+
+      m_toRemove.insert(&I);
+
+      if (CI->isZero()) { return ptr; }
+
+      IRBuilder<> IRB(&I);
+      ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
+      const APInt &opV = CI->getValue();
+      auto *gep =
+          IRB.CreateGEP(ptr, {ConstantInt::get(CI->getType(), opV * -1)});
+      return IRB.CreateBitCast(gep, m_ty);
+    } else {
+      // TODO: a non-constant operand
+      return nullptr;
+    }
   }
 
   Value *visitLoad(LoadInst &I) {
@@ -268,7 +337,7 @@ public:
         m_toRemove.insert(SI);
       } else if (isa<IntToPtrInst>(u)) {
         /* skip  */;
-      } else  {
+      } else {
         // -- if there is an interesting user, schedule it to be replaced
         if (!p2i) {
           IRB.SetInsertPoint(&I);
@@ -301,12 +370,11 @@ public:
   }
 };
 
-static bool
-visitIntToPtrInst(IntToPtrInst *I2P, Function &F, const DataLayout &DL,
-                  DominatorTree &DT,
-                  SmallDenseMap<PHINode *, PHINode *> &NewPhis,
-                  SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts,
-                  DenseMap<Value*, Value*> &RenameMap) {
+static bool visitIntToPtrInst(IntToPtrInst *I2P, Function &F,
+                              const DataLayout &DL, DominatorTree &DT,
+                              SmallDenseMap<PHINode *, PHINode *> &NewPhis,
+                              SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts,
+                              DenseMap<Value *, Value *> &RenameMap) {
   assert(I2P);
 
   auto *IntVal = I2P->getOperand(0);
@@ -411,30 +479,32 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   SmallPtrSet<StoreInst *, 8> StoresToErase;
   SmallPtrSet<Instruction *, 16> MaybeUnusedInsts;
-  DenseMap<Value*, Value*> RenameMap;
+  DenseMap<Value *, Value *> RenameMap;
   SmallDenseMap<PHINode *, PHINode *> NewPhis;
 
   for (auto &BB : F) {
     for (auto &I : BB) {
       if (auto *SI = dyn_cast<StoreInst>(&I)) {
-        bool flag;
-        flag = visitStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
-        // XXX assuming that the call only happens if flag is still false
-        flag = flag ||
-               visitIntStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
+        bool flag = false;
+        flag |= visitIntStoreInst2(SI, F, DL, StoresToErase, MaybeUnusedInsts);
+        flag |= visitStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
+        flag |= visitIntStoreInst(SI, F, DL, StoresToErase, MaybeUnusedInsts);
         Changed |= flag;
         continue;
       }
 
       if (auto *I2P = dyn_cast<IntToPtrInst>(&I)) {
-        Changed |= visitIntToPtrInst(I2P, F, DL, DT, NewPhis, MaybeUnusedInsts, RenameMap);
+        Changed |= visitIntToPtrInst(I2P, F, DL, DT, NewPhis, MaybeUnusedInsts,
+                                     RenameMap);
         continue;
       }
     }
   }
 
-  for (auto *SI : StoresToErase)
+  for (auto *SI : StoresToErase) {
+    MaybeUnusedInsts.erase(SI);
     SI->eraseFromParent();
+  }
 
   SmallVector<Instruction *, 16> TriviallyDeadInstructions(
       llvm::make_filter_range(MaybeUnusedInsts, [](Instruction *I) {
@@ -454,7 +524,6 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   
   RecursivelyDeleteTriviallyDeadInstructions(TriviallyDeadHandles);
 
-
   for (auto kv : RenameMap) {
     kv.first->replaceAllUsesWith(kv.second);
   }
@@ -462,9 +531,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   DOG(llvm::errs() << "\n~~~~~~~ End of RP2I on " << F.getName() << " ~~~~~ \n";
       llvm::errs().flush());
 
-  if (Changed) {
-    assert(!llvm::verifyFunction(F, &llvm::errs()));
-  }
+  if (Changed) { assert(!llvm::verifyFunction(F, &llvm::errs())); }
 
   // llvm::errs() << F << "\n";
   return Changed;

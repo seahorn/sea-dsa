@@ -272,8 +272,8 @@ template <typename T> void WorkList<T>::enqueue(const T &e) {
   auto p = m_pimpl->m_s.insert(e);
   if (p.second) { m_pimpl->m_w.push(e); }
 }
-template <typename T> const T &WorkList<T>::dequeue() {
-  const T &e = m_pimpl->m_w.front();
+template <typename T> T WorkList<T>::dequeue() {
+  T e = m_pimpl->m_w.front();
   m_pimpl->m_w.pop();
   m_pimpl->m_s.erase(e);
   return e;

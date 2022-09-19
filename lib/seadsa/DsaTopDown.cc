@@ -10,8 +10,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/CallSite.hh"
@@ -40,7 +40,7 @@ namespace seadsa {
 // BottomUp. They should be merged at some point.
 void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
                                                Graph &callerG, Graph &calleeG,
-					       bool flowSensitiveOpt,
+                                               bool flowSensitiveOpt,
                                                bool noescape) {
   CloningContext context(*cs.getInstruction(), CloningContext::TopDown);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
@@ -50,8 +50,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
   for (auto &kv : callerG.globals()) {
     // Don't propagate the global down if it's not used by the callee.
     if (!NoTDCopyingOpt)
-      if (!calleeG.hasScalarCell(*kv.first))
-        continue;
+      if (!calleeG.hasScalarCell(*kv.first)) continue;
 
 #if 0
     if (flowSensitiveOpt)
@@ -61,7 +60,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 
     // Copy only the allocation site that matches the global.
     Node &n = C.clone(*kv.second->getNode(), false,
-		      (!flowSensitiveOpt ? nullptr: kv.first));
+                      (!flowSensitiveOpt ? nullptr : kv.first));
     Cell c(n, kv.second->getRawOffset());
     Cell &nc = calleeG.mkCell(*kv.first, Cell());
     nc.unify(c);
@@ -87,27 +86,29 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
     const Value *arg = (*AI).get();
     const Value *fml = &*FI;
 
-    if (!callerG.hasCell(*arg) || !calleeG.hasCell(*fml))
-      continue;
+    if (!callerG.hasCell(*arg) || !calleeG.hasCell(*fml)) continue;
 
-    // Actuals that directly correspond to allocation sites only should only
-    // bring a single allocation site, regardless of the unifications in the
-    // caller graph.
-    const Value *onlyAllocSite = nullptr;
-    const Value *argStripped = arg->stripPointerCasts();
-
-    if (callerG.hasAllocSiteForValue(*argStripped)) {
-      onlyAllocSite = argStripped;
-    }
-
-    if (!flowSensitiveOpt)
+    // Actuals that directly correspond to globals should only
+    // propagate a single allocation site, regardless of the
+    // unifications in the caller graph.
+    const Value *onlyAllocSite = arg->stripPointerCasts();
+    if (!flowSensitiveOpt ||
+        (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
       onlyAllocSite = nullptr;
+    }
 
     const Cell &callerCell = callerG.getCell(*arg);
     Node &n = C.clone(*callerCell.getNode(), noescape, onlyAllocSite);
     Cell c(n, callerCell.getRawOffset());
     Cell &nc = calleeG.mkCell(*fml, Cell());
     nc.unify(c);
+
+    // Unify the cloned global with the global in the callee graph.
+    if (onlyAllocSite) {
+      assert(isa<GlobalValue>(onlyAllocSite));
+      Cell &nc = calleeG.mkCell(*onlyAllocSite, Cell());
+      nc.unify(c);
+    }
   }
 
   // Don't compress here -- caller should take care of it.
@@ -141,8 +142,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
     for (CallGraphNode *cgn : scc) {
       Function *const fn = cgn->getFunction();
-      if (!fn || fn->isDeclaration() || fn->empty())
-        continue;
+      if (!fn || fn->isDeclaration() || fn->empty()) continue;
 
       auto it = graphs.find(fn);
       if (it == graphs.end()) {
@@ -161,8 +161,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       // -- resolve all function calls in the SCC
       for (auto &callRecord : *cgn) {
         const Function *callee = callRecord.second->getFunction();
-        if (!callee || callee->isDeclaration() || callee->empty())
-          continue;
+        if (!callee || callee->isDeclaration() || callee->empty()) continue;
 
         CallBase &CB = *dyn_cast<CallBase>(*callRecord.first);
         std::unique_ptr<DsaCallSite> dsaCS = nullptr;
@@ -173,9 +172,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
         }
 
         // This should not happen ...
-        if (!dsaCS->getCallee()) {
-          continue;
-        }
+        if (!dsaCS->getCallee()) { continue; }
 
         auto it = graphs.find(dsaCS->getCallee());
         if (it == graphs.end()) {
@@ -198,11 +195,11 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                           << "\tCallee collapsed: " << calleeG.numCollapsed()
                           << ", caller collapsed:\t" << callerG.numCollapsed()
                           << "\n");
-	
+
         // propagate from the caller to the callee
         cloneAndResolveArguments(*dsaCS, callerG, calleeG,
-				 m_flowSensitiveOpt & !NoTDFlowSensitiveOpt,
-				 m_noescape);
+                                 m_flowSensitiveOpt & !NoTDFlowSensitiveOpt,
+                                 m_noescape);
 
         // remove foreign nodes
         if (!NoTDCopyingOpt)

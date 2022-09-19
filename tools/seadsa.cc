@@ -85,6 +85,17 @@ static llvm::cl::opt<seadsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string>>
                 llvm::cl::location(seadsa::loc), llvm::cl::value_desc("string"),
                 llvm::cl::ValueRequired, llvm::cl::ZeroOrMore);
 
+static std::string appendOutDir(std::string path) {
+  if (!OutputDir.empty()) {
+    auto filename = llvm::sys::path::filename(path);
+    if (!llvm::sys::fs::create_directory(OutputDir)) {
+      std::string FullFileName = OutputDir + "/" + filename.str();
+      return FullFileName;
+    }
+  }
+  return path;
+}
+
 int main(int argc, char **argv) {
   llvm::llvm_shutdown_obj shutdown; // calls llvm_shutdown() on exit
   llvm::cl::ParseCommandLineOptions(argc, argv, "Heap Analysis");
@@ -112,7 +123,7 @@ int main(int argc, char **argv) {
 
   if (!AsmOutputFilename.empty())
     asmOutput = std::make_unique<llvm::ToolOutputFile>(
-        AsmOutputFilename.c_str(), error_code, llvm::sys::fs::F_Text);
+	 appendOutDir(AsmOutputFilename.c_str()), error_code, llvm::sys::fs::F_Text);
   if (error_code) {
     if (llvm::errs().has_colors())
       llvm::errs().changeColor(llvm::raw_ostream::RED);

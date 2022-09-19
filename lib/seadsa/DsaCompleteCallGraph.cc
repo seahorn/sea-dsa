@@ -65,13 +65,56 @@ static const Value *findUniqueReturnValue(const Function &F) {
 }
 
 static Value *stripBitCast(Value *V) {
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(V)) {
+    if (CE->isCast()) {
+      return CE->getOperand(0);
+    }
+  }
   if (BitCastInst *BC = dyn_cast<BitCastInst>(V)) {
     return BC->getOperand(0);
-  } else {
-    return V;
   }
+  return V;
 }
 
+static bool typeCompatible(const Type *t1, const Type *t2) {
+  if (t1->isPointerTy() && t2->isPointerTy()) {
+    return true;
+  }
+  return (t1 == t2);
+}
+  
+static bool isCalleeTypeCompatible(const CallBase &CB, const Function &calleeF) {
+  unsigned csNArgs = CB.arg_size();
+  unsigned calleeNArgs = calleeF.arg_size();
+  FunctionType *calleeFTy = calleeF.getFunctionType();
+
+  if (calleeFTy->isVarArg()) {
+    // assert(csNArgs >= calleeNArgs)
+    if (csNArgs < calleeNArgs) {
+      return false;
+    }
+  } else {
+    // assert(csNArgs == calleeNArgs)
+    if (csNArgs != calleeNArgs) {
+      return false;
+    }
+  }
+
+  if (!typeCompatible(CB.getType(), calleeFTy->getReturnType())) {
+    return false;
+  }
+
+  // assert(csNArgs >= calleeNArgs)  
+  for (unsigned i=0; i<calleeNArgs;++i) {
+    if (!typeCompatible(CB.getArgOperand(i)->getType(), calleeFTy->getParamType(i))) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+  
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
   //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
@@ -207,16 +250,23 @@ void CompleteCallGraphAnalysis::cloneAndResolveArgumentsAndCallSites(
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
 
     // Clone the return value directly, if we know that it corresponds to a
-    // single allocation site (e.g., return value of a malloc, a global, etv.).
+    // single allocation site from a global
     const Value *onlyAllocSite = findUniqueReturnValue(callee);
-    if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
+    if (NoBUFlowSensitiveOpt ||
+        (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
       onlyAllocSite = nullptr;
-    if (NoBUFlowSensitiveOpt) onlyAllocSite = nullptr;
+    }
 
     const Cell &ret = calleeG.getRetCell(callee);
     Node &n = C.clone(*ret.getNode(), false, onlyAllocSite);
     Cell c(n, ret.getRawOffset());
     nc.unify(c);
+
+    if (onlyAllocSite) {
+      assert(isa<llvm::GlobalValue>(onlyAllocSite));
+      Cell &nc = callerG.mkCell(*onlyAllocSite, Cell());
+      nc.unify(c);
+    }
   }
 
   // clone and unify actuals and formals
@@ -534,6 +584,16 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           for (const Value *v : alloc_sites) {
             if (const Function *fn =
                     dyn_cast<Function>(v->stripPointerCastsAndAliases())) {
+
+	      // If the callee is not type-compatible with the
+	      // callsite then we ignore it. This ensures that the
+	      // bottom-up phase only inlines a callee's graph if the
+	      // callee's signature is type-compatible with the
+	      // callsite.
+	      if (!isCalleeTypeCompatible(*cb, *fn)) {
+		continue;
+	      }
+	      
               foundAtLeastOneCallee = true;
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
@@ -585,7 +645,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   }
 
   /// Remove edges in the callgraph: remove original indirect call
-  /// from call graph if we now for sure we fully resolved it.
+  /// from call graph if we know for sure we fully resolved it.
   for (auto &F : M) {
     if (F.empty()) continue;
     
@@ -598,13 +658,12 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
     for (auto &kv : llvm::make_range(CGNF->begin(), CGNF->end())) {
       if (!kv.first) continue;
       CallBase &CB = *dyn_cast<CallBase>(*kv.first);
-      if (CB.isIndirectCall() &&
-          !kv.second->getFunction() /* has no callee */) {
+      /* if the call is indirect and call graph does not have a function */
+      if (CB.isIndirectCall() && !kv.second->getFunction() ) {
         if (m_resolved.count(&CB) > 0) toRemove.push_back(&CB);
       }
     }
     for (CallBase *CB : toRemove) {
-      assert(CB);
       CGNF->removeCallEdgeFor(*CB);
     }
   }

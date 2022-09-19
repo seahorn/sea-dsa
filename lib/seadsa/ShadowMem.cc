@@ -692,6 +692,10 @@ public:
   void visitIsRead(CallBase &I);
   void visitIsAlloc(CallBase &I);
   void visitResetModified(CallBase &I);
+  void
+  visitSetShadowMem(CallBase &I); // this shadow memory means OpSem shadowmem
+  void
+  visitGetShadowMem(CallBase &I); // this shadow memory means OpSem shadowmem
   void visitResetRead(CallBase &I);
   void visitFree(CallBase &I);
   void visitDsaCallSite(dsa::DsaCallSite &CS);
@@ -1003,6 +1007,9 @@ void ShadowMemImpl::visitMainFunction(Function &fn) {
   for (auto gv : globals) {
     // skip globals that are used internally by llvm
     if (gv->getSection().equals("llvm.metadata")) continue;
+    if (gv->getName().equals("llvm.global_ctors") ||
+        gv->getName().equals("llvm.global_dtors"))
+      continue;
     // skip globals that do not appear in alias analysis
     if (!m_graph->hasCell(*gv)) continue;
     // insert call to mkShadowGlobalVarInit()
@@ -1090,6 +1097,16 @@ void ShadowMemImpl::visitCallBase(CallBase &I) {
 
   if (callee->getName().equals("sea.reset_modified")) {
     visitResetModified(I);
+    return;
+  }
+
+  if (callee->getName().equals("sea.set_shadowmem")) {
+    visitSetShadowMem(I); // This shadow mem is the one used in opsem
+    return;
+  }
+
+  if (callee->getName().equals("sea.get_shadowmem")) {
+    visitGetShadowMem(I); // This shadow mem is the one used in opsem
     return;
   }
 
@@ -1322,6 +1339,53 @@ void ShadowMemImpl::visitResetModified(CallBase &I) {
   CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
   associateConcretePtr(memDef, ptr, &I);
 }
+
+void ShadowMemImpl::visitSetShadowMem(CallBase &I) {
+  LOG("dsa.setshadowmem", errs() << "Visiting setshadowmem \n");
+  /* setshadowmem definition:
+     void @sea.set_shadowmem(i8, i8*, i8)
+     operand 0 is the slot to set
+     operand 1 is the pointer to be marked
+     operand 2 is the value to be marked
+  */
+  auto &ptr = *I.getArgOperand(1);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.setshadowem", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.setshadowmem", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+  m_B->SetInsertPoint(&I);
+  CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memDef, ptr, &I);
+}
+
+void ShadowMemImpl::visitGetShadowMem(CallBase &I) {
+  LOG("dsa.getshadowmem", errs() << "Visiting getshadowmem \n");
+  /* getshadowmem definition:
+      void @sea.get_shadowmem(i8, i8*)
+      operand 0 is the slot to set
+      operand 1 is the pointer whose mark we want
+   */
+  auto &ptr = *I.getArgOperand(1);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.getshadowmem", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.getshadowmem", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+
+  m_B->SetInsertPoint(&I);
+  CallInst &memUse = mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memUse, ptr, &I);
+}
+
 
 void ShadowMemImpl::visitResetRead(CallBase &I) {
   LOG("dsa.resetRead", errs() << "Visiting resetRead \n");

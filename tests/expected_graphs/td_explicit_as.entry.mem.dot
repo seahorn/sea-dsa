@@ -2,7 +2,9 @@ digraph unnamed {
 	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
 	node  [fontname=Helvetica, fontsize=11];
 
-	Node0x1a24b60 [shape=record,label="{\{void\}:S\nAS: str1\n}"];
-	Node0x1a0e090 [shape=plaintext,fontcolor=blue, label ="entry#0"];
-	Node0x1a0e090 -> Node0x1a24b60[tailclip=false,color=dodgerblue3,label="0",fontsize=8];
+	Node0x7fa188d0b120 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:S\nAS: str1\n}"];
+	Node0x7fa188d055b8 [shape=plaintext, label ="str1"];
+	Node0x7fa188d055b8 -> Node0x7fa188d0b120[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x7fa188d05f10 [shape=plaintext,fontcolor=blue, label ="entry#0"];
+	Node0x7fa188d05f10 -> Node0x7fa188d0b120[tailclip=false,color=dodgerblue3,label="0",fontsize=8];
 }

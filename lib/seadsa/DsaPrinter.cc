@@ -6,8 +6,8 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GraphWriter.h"
 
-#include "seadsa/CompleteCallGraph.hh"
 #include "seadsa/CallGraphUtils.hh"
+#include "seadsa/CompleteCallGraph.hh"
 #include "seadsa/DsaAnalysis.hh"
 #include "seadsa/DsaColor.hh"
 #include "seadsa/Global.hh"
@@ -65,7 +65,7 @@ namespace internals {
 template <typename GraphType> class GraphWriter {
   raw_ostream &O;
   const GraphType &G;
-  ColorMap * m_cm = nullptr;
+  ColorMap *m_cm = nullptr;
 
   typedef DOTGraphTraits<GraphType> DOTTraits;
   typedef GraphTraits<GraphType> GTraits;
@@ -84,26 +84,24 @@ template <typename GraphType> class GraphWriter {
     for (unsigned i = 0; EI != EE && i != 64; ++EI, ++i) {
       std::string label = DTraits.getEdgeSourceLabel(Node, EI);
 
-      if (label.empty())
-        continue;
+      if (label.empty()) continue;
 
       hasEdgeSourceLabels = true;
 
-      if (i)
-        O << "|";
+      if (i) O << "|";
 
       O << "<s" << i << ">" << DOT::EscapeString(label);
     }
 
-    if (EI != EE && hasEdgeSourceLabels)
-      O << "|<s64>truncated...";
-
+    if (EI != EE && hasEdgeSourceLabels) O << "|<s64>truncated...";
 
     return hasEdgeSourceLabels;
   }
 
 public:
-  GraphWriter(raw_ostream &o, const GraphType &g, bool SN, ColorMap *cm = nullptr ) : O(o), G(g), m_cm(cm) {
+  GraphWriter(raw_ostream &o, const GraphType &g, bool SN,
+              ColorMap *cm = nullptr)
+      : O(o), G(g), m_cm(cm) {
     DTraits = DOTTraits(SN);
   }
 
@@ -131,8 +129,7 @@ public:
     else
       O << "digraph unnamed {\n";
 
-    if (DTraits.renderGraphFromBottomUp())
-      O << "\trankdir=\"BT\";\n";
+    if (DTraits.renderGraphFromBottomUp()) O << "\trankdir=\"BT\";\n";
 
     if (!Title.empty())
       O << "\tlabel=\"" << DOT::EscapeString(Title) << "\";\n";
@@ -151,8 +148,7 @@ public:
     // Loop over the graph, printing it out...
     for (node_iterator I = GTraits::nodes_begin(G), E = GTraits::nodes_end(G);
          I != E; ++I)
-      if (!isNodeHidden(*I))
-        writeNode(*I);
+      if (!isNodeHidden(*I)) writeNode(*I);
   }
 
   bool isNodeHidden(NodeType &Node) { return isNodeHidden(&Node); }
@@ -169,8 +165,7 @@ public:
     std::string NodeAttributes = DTraits.getNodeAttributes(Node, G, m_cm);
 
     O << "\tNode" << static_cast<const void *>(Node) << " [shape=record,";
-    if (!NodeAttributes.empty())
-      O << NodeAttributes << ",";
+    if (!NodeAttributes.empty()) O << NodeAttributes << ",";
     O << "label=\"{";
 
     if (!DTraits.renderGraphFromBottomUp()) {
@@ -178,12 +173,10 @@ public:
 
       // If we should include the address of the node in the label, do so now.
       std::string Id = DTraits.getNodeIdentifierLabel(Node, G);
-      if (!Id.empty())
-        O << "|" << DOT::EscapeString(Id);
+      if (!Id.empty()) O << "|" << DOT::EscapeString(Id);
 
       std::string NodeDesc = DTraits.getNodeDescription(Node, G);
-      if (!NodeDesc.empty())
-        O << "|" << DOT::EscapeString(NodeDesc);
+      if (!NodeDesc.empty()) O << "|" << DOT::EscapeString(NodeDesc);
     }
 
     std::string edgeSourceLabels;
@@ -191,13 +184,11 @@ public:
     bool hasEdgeSourceLabels = getEdgeSourceLabels(EdgeSourceLabels, Node);
 
     if (hasEdgeSourceLabels) {
-      if (!DTraits.renderGraphFromBottomUp())
-        O << "|";
+      if (!DTraits.renderGraphFromBottomUp()) O << "|";
 
       O << "{" << EdgeSourceLabels.str() << "}";
 
-      if (DTraits.renderGraphFromBottomUp())
-        O << "|";
+      if (DTraits.renderGraphFromBottomUp()) O << "|";
     }
 
     if (DTraits.renderGraphFromBottomUp()) {
@@ -205,12 +196,10 @@ public:
 
       // If we should include the address of the node in the label, do so now.
       std::string Id = DTraits.getNodeIdentifierLabel(Node, G);
-      if (!Id.empty())
-        O << "|" << DOT::EscapeString(Id);
+      if (!Id.empty()) O << "|" << DOT::EscapeString(Id);
 
       std::string NodeDesc = DTraits.getNodeDescription(Node, G);
-      if (!NodeDesc.empty())
-        O << "|" << DOT::EscapeString(NodeDesc);
+      if (!NodeDesc.empty()) O << "|" << DOT::EscapeString(NodeDesc);
     }
 
     O << "}\"];\n"; // Finish printing the "node" line
@@ -222,21 +211,17 @@ public:
                  const std::string &Label, unsigned NumEdgeSources = 0,
                  const std::vector<std::string> *EdgeSourceLabels = nullptr) {
     O << "\tNode" << ID << " [";
-    if (!Attr.empty())
-      O << Attr << ",";
+    if (!Attr.empty()) O << Attr << ",";
     O << " label =\"";
-    if (NumEdgeSources)
-      O << "{";
+    if (NumEdgeSources) O << "{";
     O << DOT::EscapeString(Label);
     if (NumEdgeSources) {
       O << "|{";
 
       for (unsigned i = 0; i != NumEdgeSources; ++i) {
-        if (i)
-          O << "|";
+        if (i) O << "|";
         O << "<s" << i << ">";
-        if (EdgeSourceLabels)
-          O << DOT::EscapeString((*EdgeSourceLabels)[i]);
+        if (EdgeSourceLabels) O << DOT::EscapeString((*EdgeSourceLabels)[i]);
       }
       O << "}}";
     }
@@ -246,17 +231,15 @@ public:
   /// emitEdge - Output an edge from a simple node into the graph...
   void emitEdge(const void *SrcNodeID, int SrcNodePort, const void *DestNodeID,
                 int DestNodePort, llvm::Twine Attrs) {
-    if (SrcNodePort > 64)
-      return; // Eminating from truncated part?
-//    if (DestNodePort > 64)
-//      DestNodePort = 64; // Targeting the truncated part?
+    if (SrcNodePort > 64) return; // Eminating from truncated part?
+                                  //    if (DestNodePort > 64)
+    //      DestNodePort = 64; // Targeting the truncated part?
 
     // Ignore DestNodePort and point to the whole node instead.
     DestNodePort = -1;
 
     O << "\tNode" << SrcNodeID;
-    if (SrcNodePort >= 0)
-      O << ":s" << SrcNodePort;
+    if (SrcNodePort >= 0) O << ":s" << SrcNodePort;
     O << " -> Node" << DestNodeID;
 
     // Edges that go to cells with zero offset do not
@@ -265,8 +248,7 @@ public:
       O << ":s" << DestNodePort;
     }
 
-    if (!Attrs.isTriviallyEmpty())
-      O << "[" << Attrs << "]";
+    if (!Attrs.isTriviallyEmpty()) O << "[" << Attrs << "]";
 
     O << ";\n";
   }
@@ -277,11 +259,10 @@ public:
 };
 
 template <typename GraphType>
-raw_ostream &WriteGraph(raw_ostream &O, const GraphType &G,
-                        ColorMap *cm, bool ShortNames = false,
-                        const Twine &Title = "") {
+raw_ostream &WriteGraph(raw_ostream &O, const GraphType &G, ColorMap *cm,
+                        bool ShortNames = false, const Twine &Title = "") {
   // Start the graph emission process...
-  GraphWriter<GraphType> W(O, G, ShortNames,cm);
+  GraphWriter<GraphType> W(O, G, ShortNames, cm);
 
   // Emit the graph.
   W.writeGraph(Title.str());
@@ -362,12 +343,10 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
     if (N->isForwarding()) {
       OS << "FORWARDING";
     } else {
-      if (N->isOffsetCollapsed() || (N->isTypeCollapsed() &&
-                                     seadsa::g_IsTypeAware)) {
-        if (N->isOffsetCollapsed())
-          OS << "OFFSET-";
-        if (N->isTypeCollapsed() && seadsa::g_IsTypeAware)
-          OS << "TYPE-";
+      if (N->isOffsetCollapsed() ||
+          (N->isTypeCollapsed() && seadsa::g_IsTypeAware)) {
+        if (N->isOffsetCollapsed()) OS << "OFFSET-";
+        if (N->isTypeCollapsed() && seadsa::g_IsTypeAware) OS << "TYPE-";
         OS << "COLLAPSED";
       } else {
         // Go through all the types, and just print them.
@@ -376,15 +355,13 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
         OS << "{";
         if (ts.begin() != ts.end()) {
           for (auto ii = ts.begin(), ee = ts.end(); ii != ee; ++ii) {
-            if (!firstType)
-              OS << ",";
+            if (!firstType) OS << ",";
             firstType = false;
             OS << ii->first << ":"; // offset
             if (ii->second.begin() != ii->second.end()) {
               bool first = true;
               for (const Type *t : ii->second) {
-                if (!first)
-                  OS << "|";
+                if (!first) OS << "|";
                 t->print(OS);
                 first = false;
               }
@@ -398,40 +375,24 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
       }
       OS << ":";
       typename seadsa::Node::NodeType node_type = N->getNodeType();
-      if (node_type.array)
-        OS << " Sequence ";
-      if (node_type.alloca)
-        OS << "S";
-      if (node_type.heap)
-        OS << "H";
-      if (node_type.global)
-        OS << "G";
-      if (node_type.unknown)
-        OS << "U";
-      if (node_type.incomplete)
-        OS << "I";
-      if (node_type.modified)
-        OS << "M";
-      if (node_type.read)
-        OS << "R";
-      if (node_type.external)
-        OS << "E";
-      if (node_type.externFunc)
-        OS << "X";
-      if (node_type.externGlobal)
-        OS << "Y";
-      if (node_type.inttoptr)
-        OS << "P";
-      if (node_type.ptrtoint)
-        OS << "2";
-      if (node_type.vastart)
-        OS << "V";
-      if (node_type.dead)
-        OS << "D";
+      if (node_type.array) OS << " Sequence ";
+      if (node_type.alloca) OS << "S";
+      if (node_type.heap) OS << "H";
+      if (node_type.global) OS << "G";
+      if (node_type.unknown) OS << "U";
+      if (node_type.incomplete) OS << "I";
+      if (node_type.modified) OS << "M";
+      if (node_type.read) OS << "R";
+      if (node_type.external) OS << "E";
+      if (node_type.externFunc) OS << "X";
+      if (node_type.externGlobal) OS << "Y";
+      if (node_type.inttoptr) OS << "P";
+      if (node_type.ptrtoint) OS << "2";
+      if (node_type.vastart) OS << "V";
+      if (node_type.dead) OS << "D";
     }
 
-    if (PrintAllocSites)
-      writeAllocSites(*N, OS);
+    if (PrintAllocSites) writeAllocSites(*N, OS);
 
     return OS.str();
   }
@@ -451,8 +412,7 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
     Res.reserve(S.size() + 2);
 
     for (char C : S) {
-      if (C == '"')
-        Res.push_back('\\');
+      if (C == '"') Res.push_back('\\');
       Res.push_back(C);
     }
 
@@ -520,22 +480,21 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
     auto et = Node->links().end();
     unsigned idx = 0;
     for (; it != et; ++it, ++idx) {
-      if (it->first == Offset)
-        return idx;
+      if (it->first == Offset) return idx;
     }
     return -1;
   }
 
-  static void addCustomGraphFeatures(
-      seadsa::Graph *g,
-      seadsa::internals::GraphWriter<seadsa::Graph *> &GW) {
+  static void
+  addCustomGraphFeatures(seadsa::Graph *g,
+                         seadsa::internals::GraphWriter<seadsa::Graph *> &GW) {
 
     typedef seadsa::Node Node;
     typedef seadsa::Field Field;
 
     auto EmitLinkTypeSuffix = [](const seadsa::Cell &C,
                                  seadsa::FieldType Ty =
-                                                   FIELD_TYPE_NOT_IMPLEMENTED) {
+                                     FIELD_TYPE_NOT_IMPLEMENTED) {
       std::string Buff;
       llvm::raw_string_ostream OS(Buff);
 
@@ -649,7 +608,7 @@ static std::string appendOutDir(std::string FileName) {
   return FileName;
 }
 
-static bool writeGraph(Graph *G, std::string Filename, ColorMap * cm = nullptr) {
+static bool writeGraph(Graph *G, std::string Filename, ColorMap *cm = nullptr) {
   std::string FullFilename = appendOutDir(Filename);
   std::error_code EC;
   raw_fd_ostream File(FullFilename, EC, sys::fs::F_Text);
@@ -779,14 +738,14 @@ StringRef DsaPrinterPass::getPassName() const {
 
 
 // Used by Graph::writeGraph().
-void WriteDsaGraph(Graph& G, const std::string &filename) {
+void WriteDsaGraph(Graph &G, const std::string &filename) {
   const bool Res = writeGraph(&G, filename);
   (void)Res;
   assert(Res && "Could not write graph");
 }
 
 // Used by Graph::viewGraph() and Node::viewGraph().
-void ShowDsaGraph(Graph& G) {
+void ShowDsaGraph(Graph &G) {
   static unsigned I = 0;
   const std::string Filename = "temp" + std::to_string(I++) + ".mem.dot";
   WriteDsaGraph(G, Filename);
@@ -802,7 +761,8 @@ struct DsaViewer : public ModulePass {
 
   bool runOnModule(Module &M) override {
     m_dsa = &getAnalysis<seadsa::DsaAnalysis>();
-    if (m_dsa->getDsaAnalysis().kind() == GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
+    if (m_dsa->getDsaAnalysis().kind() ==
+        GlobalAnalysisKind::CONTEXT_INSENSITIVE) {
       Function *main = M.getFunction("main");
       if (main && m_dsa->getDsaAnalysis().hasGraph(*main)) {
         Graph *G = &m_dsa->getDsaAnalysis().getGraph(*main);
@@ -835,9 +795,7 @@ struct DsaViewer : public ModulePass {
     AU.addRequired<DsaAnalysis>();
   }
 
-  StringRef getPassName() const override 
-  { return "SeaDsa graph viewer"; }
-
+  StringRef getPassName() const override { return "SeaDsa graph viewer"; }
 };
 
 char DsaPrinterPass::ID = 0;

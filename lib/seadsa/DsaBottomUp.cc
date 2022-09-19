@@ -89,17 +89,26 @@ void BottomUpAnalysis::cloneAndResolveArguments(
   if (calleeG.hasRetCell(callee)) {
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
 
-    // Clone the return value directly, if we know that it corresponds to a
-    // single allocation site (e.g., return value of a malloc, a global, etv.).
+    // If the return value corresponds to a global then it should
+    // propagate to the caller that global, regardless of the
+    // unifications in the callee graph.
     const Value *onlyAllocSite = findUniqueReturnValue(callee);
-    if (onlyAllocSite && !calleeG.hasAllocSiteForValue(*onlyAllocSite))
+    if (!flowSensitiveOpt ||
+        (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
       onlyAllocSite = nullptr;
-    if (!flowSensitiveOpt) onlyAllocSite = nullptr;
+    }
 
     const Cell &ret = calleeG.getRetCell(callee);
     Node &n = C.clone(*ret.getNode(), false, onlyAllocSite);
     Cell c(n, ret.getRawOffset());
     nc.unify(c);
+
+    // Unify the cloned global with the global in the caller graph.
+    if (onlyAllocSite) {
+      assert(isa<GlobalValue>(onlyAllocSite));
+      Cell &nc = callerG.mkCell(*onlyAllocSite, Cell());
+      nc.unify(c);
+    }
   }
 
   auto range = llvm::make_filter_range(
