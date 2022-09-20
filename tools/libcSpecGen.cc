@@ -436,8 +436,7 @@ void processFunc(int index, std::ofstream &out_file) {
     }
 
   // handle return value
-  if (isPtrType(decl.retType)) out_file << decl.retType << " retVal;\n";
-  else if (decl.retType != "void")
+  if (decl.retType != "void")
     out_file << decl.retType << " retVal = 0;\n";
 
   // Merge all marked pointers
