@@ -401,6 +401,7 @@ const Cell &Node::getLink(Field _f) const {
   if (m_links.count(omni)) return *m_links.at(omni);
 
   assert(false); // unreachable
+  llvm_unreachable();
 }
 
 void Node::setLink(const Field _f, const Cell &c) {
