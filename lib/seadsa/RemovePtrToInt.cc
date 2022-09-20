@@ -275,7 +275,7 @@ public:
     IRBuilder<> IRB(&I);
 
     ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
-    auto *gep = IRB.CreateGEP(ptr, {I.getOperand(1)});
+    auto *gep = IRB.CreateGEP(ptr, I.getOperand(1));
     return IRB.CreateBitCast(gep, m_ty);
   }
 
@@ -297,7 +297,7 @@ public:
       ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
       const APInt &opV = CI->getValue(); 
       auto *gep =
-          IRB.CreateGEP(ptr, {ConstantInt::get(CI->getType(), opV * -1)});
+          IRB.CreateGEP(ptr, ConstantInt::get(CI->getType(), opV * -1));
       return IRB.CreateBitCast(gep, m_ty);
     } else {
       // TODO: a non-constant operand
