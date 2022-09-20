@@ -436,7 +436,7 @@ void processFunc(int index, std::ofstream &out_file) {
     }
 
   // handle return value
-  if (isPtrType(decl.retType)) out_file << decl.retType << " retVal;\n";
+  if (isPtrType(decl.retType)) out_file << decl.retType << " retVal = NULL;\n";
   else if (decl.retType != "void")
     out_file << decl.retType << " retVal = 0;\n";
 
