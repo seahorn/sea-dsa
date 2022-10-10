@@ -277,7 +277,7 @@ public:
 
     ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
     auto *gep = IRB.CreateGEP(ptr->getType()->getScalarType()->getPointerElementType(),
-                              ptr, {I.getOperand(1)});
+                              ptr, I.getOperand(1));
     return IRB.CreateBitCast(gep, m_ty);
   }
 
