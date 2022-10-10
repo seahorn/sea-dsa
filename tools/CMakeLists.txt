@@ -1,6 +1,6 @@
 add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
-find_program(CLANG-FORMAT NAMES clang-format clang-format-mp-12 clang-format-12 REQUIRED)
+find_program(CLANG-FORMAT NAMES clang-format clang-format-mp-14 clang-format-14)
 
 set(LLVM_LINK_COMPONENTS
   irreader
@@ -34,12 +34,21 @@ endif()
 message(${CMAKE_CURRENT_SOURCE_DIR})
 
 if (CMAKE_C_COMPILER_ID MATCHES Clang)
-  add_custom_command(
-    OUTPUT libc.spec.c
-    COMMAND libcSpecGen
-    COMMAND ${CLANG-FORMAT} -i libc.spec.c
-    DEPENDS libcSpecGen
-    )
+  if (NOT CLANG-FORMAT)
+    message(WARNING "clang-format not found: libc.spec.c cannot be formatted")    
+    add_custom_command(
+      OUTPUT libc.spec.c
+      COMMAND libcSpecGen
+      DEPENDS libcSpecGen
+      )    
+  else()
+    add_custom_command(
+      OUTPUT libc.spec.c
+      COMMAND libcSpecGen
+      COMMAND ${CLANG-FORMAT} -i libc.spec.c
+      DEPENDS libcSpecGen
+      )    
+  endif()  
 
   add_library(LibcSpec-64 OBJECT libc.spec.c)
   target_compile_options(LibcSpec-64 BEFORE PRIVATE -emit-llvm)
