@@ -299,7 +299,8 @@ public:
       ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
       const APInt &opV = CI->getValue(); 
       auto *gep =
-          IRB.CreateGEP(ptr, ConstantInt::get(CI->getType(), opV * -1));
+        IRB.CreateGEP(ptr->getType()->getScalarType()->getPointerElementType(),
+                      ptr, ConstantInt::get(CI->getType(), opV * -1));
       return IRB.CreateBitCast(gep, m_ty);
     } else {
       // TODO: a non-constant operand
