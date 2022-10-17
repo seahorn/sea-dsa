@@ -74,85 +74,41 @@ static Value *stripBitCast(Value *V) {
     return BC->getOperand(0);
   }
     return V;
-
-static bool typeCompatible(const Type *t1, const Type *t2) {
-  if (t1->isPointerTy() && t2->isPointerTy()) {
-    return true;
-  }
-  return (t1 == t2);
 }
 
-static bool isCalleeTypeCompatible(const CallBase &CB, const Function &calleeF) {
+static bool isTypeCompatible(const Type *t1, const Type *t2) {
+  return (t1->isPointerTy() && t2->isPointerTy()) || (t1 == t2);
+}
+
+static bool isCalleeTypeCompatible(const CallBase &CB,
+                                   const Function &calleeF) {
   unsigned csNArgs = CB.arg_size();
   unsigned calleeNArgs = calleeF.arg_size();
   FunctionType *calleeFTy = calleeF.getFunctionType();
 
   if (calleeFTy->isVarArg()) {
     // assert(csNArgs >= calleeNArgs)
-    if (csNArgs < calleeNArgs) {
-      return false;
-    }
+    if (csNArgs < calleeNArgs) { return false; }
   } else {
     // assert(csNArgs == calleeNArgs)
-    if (csNArgs != calleeNArgs) {
-      return false;
-    }
+    if (csNArgs != calleeNArgs) { return false; }
   }
 
-  if (!typeCompatible(CB.getType(), calleeFTy->getReturnType())) {
+  if (!isTypeCompatible(CB.getType(), calleeFTy->getReturnType())) {
     return false;
   }
 
-  // assert(csNArgs >= calleeNArgs)  
-  for (unsigned i=0; i<calleeNArgs;++i) {
-    if (!typeCompatible(CB.getArgOperand(i)->getType(), calleeFTy->getParamType(i))) {
+  // assert(csNArgs >= calleeNArgs)
+  for (unsigned i = 0; i < calleeNArgs; ++i) {
+    if (!isTypeCompatible(CB.getArgOperand(i)->getType(),
+                          calleeFTy->getParamType(i))) {
       return false;
     }
   }
-  
+
   return true;
 }
 
-
-static bool typeCompatible(const Type *t1, const Type *t2) {
-  if (t1->isPointerTy() && t2->isPointerTy()) {
-    return true;
-  }
-  return (t1 == t2);
-}
-  
-static bool isCalleeTypeCompatible(const CallBase &CB, const Function &calleeF) {
-  unsigned csNArgs = CB.arg_size();
-  unsigned calleeNArgs = calleeF.arg_size();
-  FunctionType *calleeFTy = calleeF.getFunctionType();
-
-  if (calleeFTy->isVarArg()) {
-    // assert(csNArgs >= calleeNArgs)
-    if (csNArgs < calleeNArgs) {
-      return false;
-    }
-  } else {
-    // assert(csNArgs == calleeNArgs)
-    if (csNArgs != calleeNArgs) {
-      return false;
-    }
-  }
-
-  if (!typeCompatible(CB.getType(), calleeFTy->getReturnType())) {
-    return false;
-  }
-
-  // assert(csNArgs >= calleeNArgs)  
-  for (unsigned i=0; i<calleeNArgs;++i) {
-    if (!typeCompatible(CB.getArgOperand(i)->getType(), calleeFTy->getParamType(i))) {
-      return false;
-    }
-  }
-  
-  return true;
-}
-
-  
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
   //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
