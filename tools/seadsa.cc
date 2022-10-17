@@ -85,12 +85,15 @@ static llvm::cl::opt<seadsa::SeaDsaLogOpt, true, llvm::cl::parser<std::string>>
                 llvm::cl::location(seadsa::loc), llvm::cl::value_desc("string"),
                 llvm::cl::ValueRequired, llvm::cl::ZeroOrMore);
 
-static std::string appendOutDir(std::string path) {
-  if (!OutputDir.empty()) {
-    auto filename = llvm::sys::path::filename(path);
-    if (!llvm::sys::fs::create_directory(OutputDir)) {
-      std::string FullFileName = OutputDir + "/" + filename.str();
-      return FullFileName;
+/// Changes the \p path to be inside specified \p outdir
+///
+/// Creates output directory if necessary.
+/// Returns input \p path if directory cannot be changed
+static std::string withDir(const std::string &outdir, const std::string &path) {
+  if (!outdir.empty()) {
+    if (!llvm::sys::fs::create_directories(outdir)) {
+      auto fname = llvm::sys::path::filename(path);
+      return outdir + "/" + fname.str();
     }
   }
   return path;
@@ -104,7 +107,6 @@ int main(int argc, char **argv) {
   llvm::PrettyStackTraceProgram PSTP(argc, argv);
   llvm::EnableDebugBuffering = true;
 
-  std::error_code error_code;
   llvm::SMDiagnostic err;
   llvm::LLVMContext context;
   std::unique_ptr<llvm::Module> module;
@@ -121,16 +123,19 @@ int main(int argc, char **argv) {
     return 3;
   }
 
-  if (!AsmOutputFilename.empty())
+  if (!AsmOutputFilename.empty()) {
+    std::error_code error_code;
     asmOutput = std::make_unique<llvm::ToolOutputFile>(
-	 appendOutDir(AsmOutputFilename.c_str()), error_code, llvm::sys::fs::OF_Text);
-  if (error_code) {
-    if (llvm::errs().has_colors())
-      llvm::errs().changeColor(llvm::raw_ostream::RED);
-    llvm::errs() << "error: Could not open " << AsmOutputFilename << ": "
-                 << error_code.message() << "\n";
-    if (llvm::errs().has_colors()) llvm::errs().resetColor();
-    return 3;
+        withDir(OutputDir, AsmOutputFilename), error_code,
+        llvm::sys::fs::OF_Text);
+    if (error_code) {
+      if (llvm::errs().has_colors())
+        llvm::errs().changeColor(llvm::raw_ostream::RED);
+      llvm::errs() << "error: Could not open " << AsmOutputFilename << ": "
+                   << error_code.message() << "\n";
+      if (llvm::errs().has_colors()) llvm::errs().resetColor();
+      return 3;
+    }
   }
 
   ///////////////////////////////
