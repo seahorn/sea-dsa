@@ -1352,7 +1352,7 @@ void ShadowMemImpl::visitSetShadowMem(CallBase &CB) {
      operand 1 is the pointer to be marked
      operand 2 is the value to be marked
   */
-  auto &ptr = *CS.getArgOperand(1);
+  auto &ptr = *CB.getArgOperand(1);
   if (!m_graph->hasCell(ptr)) {
     LOG("dsa.setshadowem", errs() << "no cell for: " << ptr << "\n");
     return;
@@ -1375,7 +1375,7 @@ void ShadowMemImpl::visitGetShadowMem(CallBase &CB) {
       operand 0 is the slot to set
       operand 1 is the pointer whose mark we want
    */
-  auto &ptr = *CS.getArgOperand(1);
+  auto &ptr = *CB.getArgOperand(1);
   if (!m_graph->hasCell(ptr)) {
     LOG("dsa.getshadowmem", errs() << "no cell for: " << ptr << "\n");
     return;
