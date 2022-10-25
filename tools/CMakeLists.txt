@@ -1,6 +1,6 @@
 add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
-find_program(CLANG-FORMAT NAMES clang-format clang-format-mp-12 clang-format-12 REQUIRED)
+find_program(CLANG-FORMAT NAMES clang-format clang-format-mp-14 clang-format-14)
 
 set(LLVM_LINK_COMPONENTS
   irreader
