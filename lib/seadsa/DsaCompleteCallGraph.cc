@@ -13,6 +13,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/CallPromotionUtils.h"
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/CallGraphUtils.hh"
@@ -534,15 +535,18 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           for (const Value *v : alloc_sites) {
             if (const Function *fn =
                     dyn_cast<Function>(v->stripPointerCastsAndAliases())) {
-              foundAtLeastOneCallee = true;
-              CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
-              assert(CGNCallee);
-              if (!hasEdge(CGNCaller, CGNCallee, CGNCB)) {
-                assert(cb);
-                CGNCaller->addCalledFunction(cb, CGNCallee);
-                m_callees[cs.getInstruction()].push_back(fn);
-                change = true;
-              }
+	      // Check that the callbase and the callee are type-compatible
+	      if (isLegalToPromote(*cb, const_cast<Function*>(fn))) {
+		foundAtLeastOneCallee = true;
+		CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
+		assert(CGNCallee);
+		if (!hasEdge(CGNCaller, CGNCallee, CGNCB)) {
+		  assert(cb);
+		  CGNCaller->addCalledFunction(cb, CGNCallee);
+		  m_callees[cs.getInstruction()].push_back(fn);
+		  change = true;
+		}
+	      }
             }
           }
 
