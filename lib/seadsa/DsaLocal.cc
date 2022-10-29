@@ -1439,7 +1439,7 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
     visitAllocationFnCall(I);
     return;
   }
-   
+
   // direct function call
   if (auto *callee = getCalledFunction(I)) {
     if (m_allocInfo.isAllocWrapper(*callee)) {
@@ -1460,6 +1460,14 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
     return;
   }
 
+  // a function that does not return a pointer is a noop
+  if (!I.getType()->isPointerTy()) return;
+
+
+  // -- something unexpected. Keep an assert so that we know that something
+  // -- unexpected happened.
+
+  // calls that have no pointer arg
   // nothing is expected here
   assert(false && "Unexpected CallSite");
   llvm_unreachable("Unexpected");
