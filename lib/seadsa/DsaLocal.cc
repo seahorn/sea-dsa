@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "seadsa/Local.hh"
-
+#include "seadsa/ownsem.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
@@ -433,6 +433,7 @@ enum class SeadsaFn {
   LINK,
   MAKE,
   ACCESS,
+  RET_ALIAS_ARG,
   UNKNOWN
 };
 
@@ -458,8 +459,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitIntToPtrInst(IntToPtrInst &I);
   void visitPtrToIntInst(PtrToIntInst &I);
   void visitBitCastInst(BitCastInst &I);
-  void visitCmpInst(CmpInst &I) { /* do nothing */
-  }
+  void visitCmpInst(CmpInst &I) { /* do nothing */ }
   void visitInsertValueInst(InsertValueInst &I);
   void visitExtractValueInst(ExtractValueInst &I);
   void visitShuffleVectorInst(ShuffleVectorInst &I);
@@ -479,22 +479,28 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitAllocWrapperCall(CallBase &I);
   void visitAllocationFnCall(CallBase &I);
 
-
   SeadsaFn getSeaDsaFn(const Function *fn) {
     if (!fn) return SeadsaFn::UNKNOWN;
 
-    SeadsaFn fnType = StringSwitch<SeadsaFn>(fn->getName())
-                          .Case("sea_dsa_set_modified", SeadsaFn::MODIFY)
-                          .Case("sea_dsa_set_read", SeadsaFn::READ)
-                          .Case("sea_dsa_set_heap", SeadsaFn::HEAP)
-                          .Case("sea_dsa_set_ptrtoint", SeadsaFn::PTR_TO_INT)
-                          .Case("sea_dsa_set_inttoptr", SeadsaFn::INT_TO_PTR)
-                          .Case("sea_dsa_set_extern", SeadsaFn::EXTERN)
-                          .Case("sea_dsa_alias", SeadsaFn::ALIAS)
-                          .Case("sea_dsa_collapse", SeadsaFn::COLLAPSE)
-                          .Case("sea_dsa_mk_seq", SeadsaFn::MAKE_SEQ)
-                          .Case("sea_dsa_mk", SeadsaFn::MAKE)
-                          .Default(SeadsaFn::UNKNOWN);
+    SeadsaFn fnType =
+        StringSwitch<SeadsaFn>(fn->getName())
+            .Case("sea_dsa_set_modified", SeadsaFn::MODIFY)
+            .Case("sea_dsa_set_read", SeadsaFn::READ)
+            .Case("sea_dsa_set_heap", SeadsaFn::HEAP)
+            .Case("sea_dsa_set_ptrtoint", SeadsaFn::PTR_TO_INT)
+            .Case("sea_dsa_set_inttoptr", SeadsaFn::INT_TO_PTR)
+            .Case("sea_dsa_set_extern", SeadsaFn::EXTERN)
+            .Case("sea_dsa_alias", SeadsaFn::ALIAS)
+            .Case("sea_dsa_collapse", SeadsaFn::COLLAPSE)
+            .Case("sea_dsa_mk_seq", SeadsaFn::MAKE_SEQ)
+            .Case("sea_dsa_mk", SeadsaFn::MAKE)
+            .Cases("sea.mkown", "sea.mkshr", "sea.bor_mkbor", "sea.bor_ptr",
+                   "sea.bor_mksuc", "sea.begin_unique", "sea.end_unique",
+                   "sea.mov", "sea.set_fatptr_slot", "sea.get_fatptr_slot",
+                   SeadsaFn::RET_ALIAS_ARG)
+            .Cases("sea.bor_mem2reg", "sea.mov_mem2reg", "sea.bor_mkbor_part",
+                   SeadsaFn::RET_ALIAS_ARG)
+            .Default(SeadsaFn::UNKNOWN);
 
     if (fnType != SeadsaFn::UNKNOWN) return fnType;
 
@@ -515,6 +521,12 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     if (!fn) return false;
     auto n = fn->getName();
     return n.startswith("sea_dsa_");
+  }
+
+  /// Returns true if \p F is a \p ownsem_ family of functions
+  static bool isOwnSemFn(const Function *fn) {
+    if (!fn) return false;
+    return boost::hana::contains(OWNSEM_BUILTIN_NAMES, fn->getName());
   }
 
   // return function pointer to seadsa::Node setter
@@ -1259,6 +1271,20 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallBase &I) {
     return;
   }
 
+  case SeadsaFn::RET_ALIAS_ARG: {
+    LOG("sea-dsa-ret-alias", llvm::errs() << "In ret-alias\n";);
+    Value *inp = I.getOperand(0);
+    seadsa::Cell inpCell = valueCell(*inp);
+    assert(!m_graph.hasCell(I));
+    assert(!inpCell.isNull());
+    seadsa::Node *inpNode = inpCell.getNode();
+
+    seadsa::Node &n = m_graph.mkNode();
+    m_graph.mkCell(I, seadsa::Cell(n, 0));
+
+    n.unify(*inpNode);
+    return;
+  }
   case SeadsaFn::ALIAS: {
     llvm::SmallVector<seadsa::Cell, 8> toMerge;
     LOG("sea-dsa-alias", llvm::errs() << "In alias\n";);
@@ -1445,7 +1471,7 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
     if (m_allocInfo.isAllocWrapper(*callee)) {
       visitAllocWrapperCall(I);
       return;
-    } else if (isSeaDsaFn(callee)) {
+    } else if (isSeaDsaFn(callee) || isOwnSemFn(callee)) {
       visitSeaDsaFnCall(I);
       return;
     } else if (callee->isDeclaration()) {
@@ -1462,7 +1488,6 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
 
   // a function that does not return a pointer is a noop
   if (!I.getType()->isPointerTy()) return;
-
 
   // -- something unexpected. Keep an assert so that we know that something
   // -- unexpected happened.
@@ -1716,10 +1741,9 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
   n.setAlloca();
   m_graph.mkCell(dest, seadsa::Cell(n, 0));
   if (shouldBeTrackedIntToPtr(dest) && !m_graph.isFlat())
-    LOG("dsa-warn",
-        llvm::errs()
-            << "WARNING: " << dest << " @ addr " << &dest
-            << " is (unsoundly) assumed to point to a fresh memory region.\n";);
+    LOG("dsa-warn", llvm::errs() << "WARNING: " << dest << " @ addr " << &dest
+                                 << " is (unsoundly) assumed to point to a "
+                                    "fresh memory region.\n";);
 }
 
 void IntraBlockBuilder::visitIntToPtrInst(IntToPtrInst &I) {
@@ -1771,8 +1795,8 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
       if (auto *CI = dyn_cast<const CallInst>(user)) {
         const Function *callee = CI->getCalledFunction();
         if (callee) {
-          // callee might not access memory but it can return ptrtoint passed to
-          // it if (callee->doesNotAccessMemory())
+          // callee might not access memory but it can return ptrtoint passed
+          // to it if (callee->doesNotAccessMemory())
           //   continue;
           auto n = callee->getName();
           if (n.startswith("__sea_set_extptr_slot") ||

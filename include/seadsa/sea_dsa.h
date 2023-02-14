@@ -26,10 +26,10 @@ extern void sea_dsa_set_external(const void *p);
 // sea-dsa will collapse the argument's cell
 extern void sea_dsa_collapse(const void *p);
 // sea-dsa will return a fresh memory object
-extern void *sea_dsa_new() __attribute__((malloc));
+extern void *sea_dsa_new(void) __attribute__((malloc));
 // like sea_dsa_new except used for creating a node representation of an
 // existing memory object
-extern void *sea_dsa_mk();
+extern void *sea_dsa_mk(void);
 // links one cell to another cell. Can be manually extended with
 // sea_dsa_link_<type>(void *p, unsigned offset, <type>> *p2) in order to
 // describe what type it is linking to
