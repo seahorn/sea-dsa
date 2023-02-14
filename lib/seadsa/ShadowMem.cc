@@ -494,11 +494,12 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   CallInst &mkStoreFnCall(IRBuilder<> &B, const dsa::Cell &c, AllocaInst *v,
                           llvm::Optional<unsigned> bytes) {
 
-    auto *ci = mkShadowCall(B, c, m_memStoreFn,
-                            {m_B->getInt32(getFieldId(c)),
-                             m_B->CreateLoad(v->getType()->getPointerElementType(), v),
-                             getUniqueScalar(*m_llvmCtx, B, c)},
-                            "sm");
+    auto *ci =
+        mkShadowCall(B, c, m_memStoreFn,
+                     {m_B->getInt32(getFieldId(c)),
+                      m_B->CreateLoad(v->getType()->getPointerElementType(), v),
+                      getUniqueScalar(*m_llvmCtx, B, c)},
+                     "sm");
     markDefCall(ci, bytes);
     return *ci;
   }
@@ -536,10 +537,11 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   mkShadowMemTrsfr(IRBuilder<> &B, const dsa::Cell &dst, const dsa::Cell &src,
                    llvm::Optional<unsigned> bytes) {
     // insert memtrfr.load for the read access
-    auto *loadCI = mkShadowCall(B, src, m_memTrsfrLoadFn,
-                                {B.getInt32(getFieldId(src)),
-                                 B.CreateLoad(m_Int32Ty, getShadowForField(src)),
-                                 getUniqueScalar(*m_llvmCtx, B, src)});
+    auto *loadCI =
+        mkShadowCall(B, src, m_memTrsfrLoadFn,
+                     {B.getInt32(getFieldId(src)),
+                      B.CreateLoad(m_Int32Ty, getShadowForField(src)),
+                      getUniqueScalar(*m_llvmCtx, B, src)});
     markUseCall(loadCI, bytes);
 
     // insert normal mem.store for the write access
@@ -553,8 +555,8 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     unsigned id = getFieldId(c);
     auto *ci =
         mkShadowCall(B, c, m_argRefFn,
-                     {B.getInt32(id), m_B->CreateLoad(m_Int32Ty, v), m_B->getInt32(idx),
-                      getUniqueScalar(*m_llvmCtx, B, c)});
+                     {B.getInt32(id), m_B->CreateLoad(m_Int32Ty, v),
+                      m_B->getInt32(idx), getUniqueScalar(*m_llvmCtx, B, c)});
     markUseCall(ci, bytes);
     return *ci;
   }
@@ -564,10 +566,11 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     AllocaInst *v = getShadowForField(c);
     unsigned id = getFieldId(c);
 
-    auto *ci = mkShadowCall(B, c, argFn,
-                            {B.getInt32(id), B.CreateLoad(m_Int32Ty, v), B.getInt32(idx),
-                             getUniqueScalar(*m_llvmCtx, B, c)},
-                            "sh");
+    auto *ci =
+        mkShadowCall(B, c, argFn,
+                     {B.getInt32(id), B.CreateLoad(m_Int32Ty, v),
+                      B.getInt32(idx), getUniqueScalar(*m_llvmCtx, B, c)},
+                     "sh");
 
     B.CreateStore(ci, v);
     markDefCall(ci, bytes);
@@ -585,10 +588,11 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
   CallInst &mkMarkOut(IRBuilder<> &B, const dsa::Cell &c, unsigned idx,
                       llvm::Optional<unsigned> bytes) {
-    auto *ci = mkShadowCall(
-        B, c, m_markOut,
-        {B.getInt32(getFieldId(c)), B.CreateLoad(m_Int32Ty, getShadowForField(c)),
-         B.getInt32(idx), getUniqueScalar(*m_llvmCtx, B, c)});
+    auto *ci =
+        mkShadowCall(B, c, m_markOut,
+                     {B.getInt32(getFieldId(c)),
+                      B.CreateLoad(m_Int32Ty, getShadowForField(c)),
+                      B.getInt32(idx), getUniqueScalar(*m_llvmCtx, B, c)});
     markUseCall(ci, bytes);
     return *ci;
   }
@@ -648,12 +652,12 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   bool mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache);
 
 public:
-  ShadowMemImpl(dsa::GlobalAnalysis &dsa, 
+  ShadowMemImpl(dsa::GlobalAnalysis &dsa,
                 TargetLibraryInfoWrapperPass &tliWrapper, CallGraph *cg,
                 Pass &pass, bool splitDsaNodes, bool computeReadMod,
                 bool memOptimizer, bool useTBAA, bool useSNAAA)
-      : m_dsa(dsa), m_tliWrapper(tliWrapper), m_dl(nullptr),
-        m_callGraph(cg), m_pass(pass), m_splitDsaNodes(splitDsaNodes),
+      : m_dsa(dsa), m_tliWrapper(tliWrapper), m_dl(nullptr), m_callGraph(cg),
+        m_pass(pass), m_splitDsaNodes(splitDsaNodes),
         m_computeReadMod(computeReadMod), m_memOptimizer(memOptimizer),
         m_useTBAA(useTBAA), m_useSNAAA(useSNAAA) {}
 
@@ -697,11 +701,10 @@ public:
   void visitFree(CallBase &I);
   void visitDsaCallSite(dsa::DsaCallSite &CS);
 
-  void
-  visitSetShadowMem(CallBase &CB);
-  void
-  visitGetShadowMem(CallBase &CB); 
-
+  void visitSetShadowMem(CallBase &CB);
+  void visitGetShadowMem(CallBase &CB);
+  void visitBorMem2Reg(CallBase &CB);
+  void visitMoveReg2Mem(CallBase &CB);
 
   /// \brief Returns a reference to the global sea-dsa analysis.
   GlobalAnalysis &getDsaAnalysis() { return m_dsa; }
@@ -934,7 +937,7 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
   if (exit->size() > 1) {
     exit = llvm::SplitBlock(exit, ret,
                             // these two passes will not be preserved if null
-                            (DominatorTree*)nullptr /*DominatorTree*/,
+                            (DominatorTree *)nullptr /*DominatorTree*/,
                             nullptr /*LoopInfo*/);
     ret = exit->getTerminator();
   }
@@ -1080,7 +1083,6 @@ void ShadowMemImpl::visitCallBase(CallBase &I) {
       !(callee->getName().startswith("seahorn.bounce")))
     return;
 
-
   LOG("shadow_cs", errs() << "Call: " << I << "\n";);
 
   if (callee->getName().equals("calloc")) {
@@ -1104,12 +1106,22 @@ void ShadowMemImpl::visitCallBase(CallBase &I) {
   }
 
   if (callee->getName().equals("sea.set_shadowmem")) {
-    visitSetShadowMem(I); 
+    visitSetShadowMem(I);
+    return;
+  }
+
+  if (callee->getName().equals("sea.mov_reg2mem")) {
+    visitMoveReg2Mem(I);
+    return;
+  }
+
+  if (callee->getName().equals("sea.bor_mem2reg")) {
+    visitBorMem2Reg(I);
     return;
   }
 
   if (callee->getName().equals("sea.get_shadowmem")) {
-    visitGetShadowMem(I); 
+    visitGetShadowMem(I);
     return;
   }
 
@@ -1360,6 +1372,46 @@ void ShadowMemImpl::visitSetShadowMem(CallBase &CB) {
   const dsa::Cell &cell = m_graph->getCell(ptr);
   if (cell.isNull()) {
     LOG("dsa.setshadowmem", errs() << "cell is null for: " << ptr << "\n");
+    return;
+  }
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memDef = mkShadowStore(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memDef, ptr, &callInst);
+}
+
+void ShadowMemImpl::visitBorMem2Reg(CallBase &CB) {
+  LOG("dsa.bormem2reg", errs() << "Visiting bor_mem2reg \n");
+  /* isMetadataSet definition:
+     bool @sea_is_alloc(i8*)
+     operand 0 is the pointer to be marked
+  */
+  auto &src_ptr = *CB.getArgOperand(0);
+  if (!m_graph->hasCell(src_ptr)) {
+    LOG("dsa.bormem2reg", errs() << "no cell for: " << src_ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(src_ptr);
+  if (cell.isNull()) {
+    LOG("dsa.bormem2reg", errs() << "cell is null for: " << src_ptr << "\n");
+    return;
+  }
+  auto &callInst = CB;
+  m_B->SetInsertPoint(&callInst);
+  CallInst &memUse = mkShadowLoad(*m_B, cell, 1 /* bytes to access */);
+  associateConcretePtr(memUse, src_ptr, &callInst);
+}
+
+void ShadowMemImpl::visitMoveReg2Mem(CallBase &CB) {
+  LOG("dsa.setshadowmem", errs() << "Visiting MoveReg2Mem \n");
+  auto &callInst = CB;
+  auto &ptr = *CB.getArgOperand(1);
+  if (!m_graph->hasCell(ptr)) {
+    LOG("dsa.movereg2mem", errs() << "no cell for: " << ptr << "\n");
+    return;
+  }
+  const dsa::Cell &cell = m_graph->getCell(ptr);
+  if (cell.isNull()) {
+    LOG("dsa.movereg2mem", errs() << "cell is null for: " << ptr << "\n");
     return;
   }
   m_B->SetInsertPoint(&callInst);
@@ -1857,7 +1909,7 @@ void ShadowMemImpl::solveUses(Function &F) {
 }
 
 /** ShadowMem class **/
-ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi/*unused*/,
+ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi /*unused*/,
                      llvm::TargetLibraryInfoWrapperPass &tli,
                      llvm::CallGraph *cg, llvm::Pass &pass, bool splitDsaNodes,
                      bool computeReadMod, bool memOptimizer, bool useTBAA,
