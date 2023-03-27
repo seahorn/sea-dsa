@@ -10,6 +10,7 @@
 #include "seadsa/Graph.hh"
 
 #include <memory>
+#include <set>
 #include <vector>
 
 namespace llvm {
