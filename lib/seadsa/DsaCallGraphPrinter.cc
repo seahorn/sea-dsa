@@ -5,6 +5,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallPrinter.h"
+#include "llvm/Analysis/DOTGraphTraitsPass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/FileSystem.h"
@@ -20,6 +21,35 @@ namespace seadsa {
 extern std::string DotOutputDir;
 }
 
+namespace llvm {
+template <>
+struct DOTGraphTraits<CallGraph *> : public DefaultDOTGraphTraits {
+  DOTGraphTraits(bool isSimple = false) : DefaultDOTGraphTraits(isSimple) {}
+
+  static std::string getGraphName(CallGraph *CG) {
+    return "Call graph: " + std::string(CG->getModule().getModuleIdentifier());
+  }
+
+  static bool isNodeHidden(const CallGraphNode *Node,
+                         const CallGraph *CG) {
+    if (Node->getFunction())
+      return false;
+    return true;
+  }
+
+  std::string getNodeLabel(const CallGraphNode *Node,
+                           CallGraph *CG) {
+    if (Node == CG->getExternalCallingNode())
+      return "external caller";
+    if (Node == CG->getCallsExternalNode())
+      return "external callee";
+
+    if (Function *Func = Node->getFunction())
+      return std::string(Func->getName());
+    return "external node";
+  }
+};
+}
 
 namespace seadsa {
 
@@ -56,11 +86,14 @@ bool DsaCallGraphPrinter::runOnModule(Module &M) {
   auto &CCG = getAnalysis<CompleteCallGraph>();
   auto &dsaCallGraph = CCG.getCompleteCallGraph();
   
-  auto writeGraph = [](std::string Filename, CallGraph &CG) {
-    std::error_code EC;
+  auto writeGraph = [&](std::string Filename, CallGraph &CG) {
     errs() << "Writing '" << Filename << "'...";
+
+    std::error_code EC;
     raw_fd_ostream File(Filename, EC, sys::fs::OF_Text);
-    std::string Title("Call graph");
+
+    std::string Title =
+        DOTGraphTraits<CallGraph *>::getGraphName(&dsaCallGraph);
     const bool IsSimple = false;    
     if (!EC)
       WriteGraph(File, &CG, IsSimple, Title);
