@@ -9,14 +9,14 @@
 
 namespace seadsa {
 
-static llvm::cl::opt<bool>
-    EnableOmnipotentChar("sea-dsa-omnipotent-char",
-                         llvm::cl::desc("Enable SeaDsa omnipotent char (default is true)"),
-                         // NOTE: Setting this to false results in unsound results
-                         // because LLVM insists on storing pointers as i8*
-                         // even when they have different types in the source
-                         // language
-                         llvm::cl::init(true));
+static llvm::cl::opt<bool> EnableOmnipotentChar(
+    "sea-dsa-omnipotent-char",
+    llvm::cl::desc("Enable SeaDsa omnipotent char (default is true)"),
+    // NOTE: Setting this to false results in unsound results
+    // because LLVM insists on storing pointers as i8*
+    // even when they have different types in the source
+    // language
+    llvm::cl::init(true));
 
 namespace seadsa {
 bool g_IsTypeAware;
@@ -75,6 +75,11 @@ static bool IsOmnipotentChar(llvm::Type *const Ty) {
   assert(Ty);
   if (auto *ITy = llvm::dyn_cast<const llvm::IntegerType>(Ty))
     return ITy->getBitWidth() == 8;
+  else if (auto *ATy = llvm::dyn_cast<const llvm::ArrayType>(Ty)) {
+    // -- array of omni chars is an omni char
+    // -- used by RustC (or llvm optimizer), where [0 x i8]* is used instead of i8*
+    return ATy->getNumElements() == 0 && IsOmnipotentChar(ATy->getElementType());
+  }
 
   return false;
 }
