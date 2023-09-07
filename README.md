@@ -151,7 +151,7 @@ Each node field represents a cell (i.e., an offset in the node). For
 instance, the node fields `<0,i32**>` and `<8,i32**>` pointed by `%6`
 and `%15`, respectively are two different cells from the same memory
 object. The field `<8,i32**>` represents the cell at offset 8 in the
-corresponding memory object and its type is `i32**`.  Since edges are
+corresponding memory object and its type is `i32**`.  Since black edges are
 between cells, they are labeled with a number that represents the
 offset in the destination node. Blue edges connect formal parameters
 of the function with a cell. Purple edges connect LLVM pointer
