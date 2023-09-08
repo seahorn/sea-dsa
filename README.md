@@ -145,7 +145,7 @@ directory `DIR` then add the option `-sea-dsa-dot-outdir=DIR`
 	
 ![Example of a memory graph](https://github.com/seahorn/sea-dsa/blob/tea-dsa/tests/expected_graphs/simple.jpg?raw=true)
 
-In our memory model, a pointer is represented by a __cell__ which is a
+In our memory model, a pointer value is represented by a __cell__ which is a
 pair of a memory object and offset. Memory objects are represented as
 nodes in the memory graph. Edges are between cells.
 
@@ -153,9 +153,10 @@ Each node field represents a cell (i.e., an offset in the node). For
 instance, the node fields `<0,i32**>` and `<8,i32**>` pointed by `%6`
 and `%15`, respectively are two different cells from the same memory
 object. The field `<8,i32**>` represents the cell at offset 8 in the
-corresponding memory object and its type is `i32**`.  Since black edges are
-between cells, they are labeled with a number that represents the
-offset in the destination node. Blue edges connect formal parameters
+corresponding memory object and its type is `i32**`.  
+Black edges represent points-to relationships between cells. 
+They are labeled with a number that represents the offset in the destination node.
+Blue edges connect formal parameters
 of the function with a cell. Purple edges connect LLVM pointer
 variables with cells.  Nodes can have markers such as `S` (stack
 allocated memory), `H` (heap allocate memory), `M` (modified memory),
