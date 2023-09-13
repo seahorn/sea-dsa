@@ -1,13 +1,6 @@
 digraph "Call graph" {
 	label="Call graph";
 
-	Node0x7fa705e007f0 [shape=record,label="{external node}"];
-	Node0x7fa705e007f0 -> Node0x7fa705e00880;
-	Node0x7fa705e007f0 -> Node0x7fa705e00900;
-	Node0x7fa705e007f0 -> Node0x7fa705e009a0;
-	Node0x7fa705e007f0 -> Node0x7fa705e00a80;
-	Node0x7fa705e007f0 -> Node0x7fa705e00ae0;
-	Node0x7fa705e007f0 -> Node0x7fa705e00c10;
 	Node0x7fa705e00880 [shape=record,label="{add}"];
 	Node0x7fa705e00900 [shape=record,label="{sub}"];
 	Node0x7fa705e009a0 [shape=record,label="{mul}"];
@@ -21,5 +14,4 @@ digraph "Call graph" {
 	Node0x7fa705e00ae0 -> Node0x7fa705e009a0;
 	Node0x7fa705e00ae0 -> Node0x7fa705e00a80;
 	Node0x7fa705e00c10 [shape=record,label="{nd_uint}"];
-	Node0x7fa705e00c10 -> Node0x7fa705e00820;
 }
