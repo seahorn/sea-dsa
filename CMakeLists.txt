@@ -53,43 +53,14 @@ option (SEA_DSA_STATIC_EXE "Static executable." OFF)
 
 ## llvm
 if (TOP_LEVEL)
-  include(ExternalProject)
-  # if top-level, offer to build llvm
-  ExternalProject_Add (llvm
-    SVN_REPOSITORY http://llvm.org/svn/llvm-project/llvm/tags/RELEASE_800/final/
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/ext/llvm
-    INSTALL_DIR ${CMAKE_BINARY_DIR}/run
-    CMAKE_ARGS
-    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-    -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-    -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-    -DLLVM_TARGETS_TO_BUILD:STRING=X86 -DWITH_POLY:BOOL=OFF
-    -DLLVM_ENABLE_PEDANTIC=OFF
-    -DLLVM_ENABLE_LLD=${SEA_ENABLE_LLD}
-    -DLLVM_ENABLE_PIC=ON
-    -DLLVM_BUILD_LLVM_DYLIB:BOOL=${BUILD_SEA_DSA_LIBS_SHARED}
-    -DLLVM_INCLUDE_TESTS:BOOL=OFF
-    -DLLVM_INCLUDE_GO_TESTS=OFF
-    -DLLVM_INCLUDE_EXAMPLES=OFF
-    -DLLVM_INCLUDE_DOCS=OFF
-    -DLLVM_BINDINGS_LIST=" "
-    LOG_CONFIGURE 1
-    LOG_BUILD 1
-    LOG_INSTALL 1)
-
-  # There seems to be a bug in LLVM 11's Debian packages.
-  # See: https://github.com/banach-space/llvm-tutor/commit/72cb20d058b9b3f51717c7a17607f7a4c7398642.
-  # So 11.1 is used here instead of 11.
   find_package (LLVM 14.0 CONFIG)
   if (NOT LLVM_FOUND)
     ExternalProject_Get_Property (llvm INSTALL_DIR)
     set (LLVM_ROOT ${INSTALL_DIR})
     set (LLVM_DIR ${LLVM_ROOT}/lib/cmake/llvm CACHE PATH
       "Forced location of LLVM cmake config" FORCE)
-    message (WARNING "No llvm found. Run \n\tcmake --build . && cmake ${CMAKE_SOURCE_DIR}")
+    message (WARNING "No llvm found. Install LLVM 14.")
     return()
-  else()
-    set_target_properties(llvm PROPERTIES EXCLUDE_FROM_ALL ON)
   endif()
 
   message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
