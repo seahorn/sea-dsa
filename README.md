@@ -1,7 +1,7 @@
 # SeaDsa: A Points-to Analysis for Verification of Low-level C/C++ #
 
 <a href="https://travis-ci.org/seahorn/sea-dsa">
-    <img src="https://travis-ci.org/seahorn/sea-dsa.svg?branch=master" title="Ubuntu 14.04 LTS 64bit, g++-5"/>
+    <img src="https://travis-ci.org/seahorn/sea-dsa.svg?branch=dev14" title="Ubuntu 22.04 LTS 64bit, clang-14"/>
 </a>
 
 
@@ -18,6 +18,8 @@ used as a stand-alone tool or together with
 the [SeaHorn](https://github.com/seahorn/seahorn)
 verification framework and its analyses.
 
+This branch supports LLVM 14.
+
 ## Requirements ## 
 
 `SeaDsa` is written in C++ and uses the Boost library. The main requirements
@@ -25,7 +27,7 @@ are:
 
 - C++ compiler supporting c++14
 - Boost >= 1.65
-- LLVM 10
+- LLVM 14
 
 To run tests, install the following packages:
 
@@ -69,10 +71,10 @@ project's `CMakeLists.txt`:
 
 ### Standalone (for developers) ###
 
-If you already installed `llvm-10` on your machine:
+If you already installed `llvm-14` on your machine:
 
     mkdir build && cd build
-	cmake -DCMAKE_INSTALL_PREFIX=run -DLLVM_DIR=__here_llvm-10__/share/llvm/cmake  ..
+	cmake -DCMAKE_INSTALL_PREFIX=run -DLLVM_DIR=__here_llvm-14__/share/llvm/cmake  ..
    	cmake --build . --target install
 	
 Otherwise:
@@ -143,24 +145,25 @@ directory `DIR` then add the option `-sea-dsa-dot-outdir=DIR`
 	
 ![Example of a memory graph](https://github.com/seahorn/sea-dsa/blob/tea-dsa/tests/expected_graphs/simple.jpg?raw=true)
 
-In our memory model, a pointer is represented by a __cell__ which is a
-pair of a memory object and offset. Memory objects are represented as
-nodes in the memory graph. Edges are between cells.
+In our memory model, a pointer value is represented by a __cell__
+which is a pair of a memory object and offset. Memory objects are
+represented as nodes in the memory graph. Edges are between cells.
 
 Each node field represents a cell (i.e., an offset in the node). For
 instance, the node fields `<0,i32**>` and `<8,i32**>` pointed by `%6`
 and `%15`, respectively are two different cells from the same memory
 object. The field `<8,i32**>` represents the cell at offset 8 in the
-corresponding memory object and its type is `i32**`.  Since black edges are
-between cells, they are labeled with a number that represents the
-offset in the destination node. Blue edges connect formal parameters
-of the function with a cell. Purple edges connect LLVM pointer
-variables with cells.  Nodes can have markers such as `S` (stack
-allocated memory), `H` (heap allocate memory), `M` (modified memory),
-`R` (read memory), `E` (externally allocated memory), etc. If a node
-is red then it means that the analysis lost field sensitivity for that
-node. The label `{void}` is used to denote that the node has been
-allocated but it has not been used by the program.
+corresponding memory object and its type is `i32**`.  Black edges
+represent points-to relationships between cells. They are labeled with
+a number that represents the offset in the destination node. Blue
+edges connect formal parameters of the function with a cell. Purple
+edges connect LLVM pointer variables with cells.  Nodes can have
+markers such as `S` (stack allocated memory), `H` (heap allocate
+memory), `M` (modified memory), `R` (read memory), `E` (externally
+allocated memory), etc. If a node is red then it means that the
+analysis lost field sensitivity for that node. The label `{void}` is
+used to denote that the node has been allocated but it has not been
+used by the program.
 
 `sea-dsa` can also resolve indirect calls. An _indirect call_ is a
 call where the callee is not known statically. `sea-dsa` identifies
