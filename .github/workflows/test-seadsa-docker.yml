@@ -4,11 +4,11 @@ name: CI
 
 # Controls when the action will run. 
 on:
-  # Triggers the workflow on push or pull request events but only for the dev10 branch
+  # Triggers the workflow on push or pull request events but only for the dev14 branch
   push:
-    branches: dev10
+    branches: dev14
   pull_request:
-    branches: dev10
+    branches: dev14
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -23,6 +23,6 @@ jobs:
       - name: Check out repo
         uses: actions/checkout@v2
         with:
-          ref: dev10 # only checkout dev10
+          ref: dev14 # only checkout dev14
       - name: Build seadsa and run tests
-        run: docker build -t seahorn/sea-dsa-builder:bionic-llvm10 -f docker/sea-dsa-builder.Dockerfile .
+        run: docker build -t seahorn/sea-dsa-builder:jammy-llvm14 -f docker/sea-dsa-builder.Dockerfile .
