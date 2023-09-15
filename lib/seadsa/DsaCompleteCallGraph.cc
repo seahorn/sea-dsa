@@ -94,10 +94,10 @@ static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
         CallGraphNode *calleeCGN = seaCg[calleeF];
         callerCGN->removeCallEdgeFor(CB);
         callerCGN->addCalledFunction(&CB, calleeCGN);
-        LOG("dsa-callgraph-trivial", llvm::errs()
-                                         << "Added edge from " << F.getName()
-                                         << " to " << calleeF->getName()
-                                         << " with callsite=" << CB << "\n";);
+        LOG("dsa-callgraph", llvm::errs()
+	    << "Added edge from " << F.getName()
+	    << " to " << calleeF->getName()
+	    << " with callsite=" << CB << "\n";);
       }
     }
   }
@@ -210,7 +210,7 @@ void CompleteCallGraphAnalysis::cloneAndResolveArgumentsAndCallSites(
     Cell &nc = callerG.mkCell(*CS.getInstruction(), Cell());
 
     // Clone the return value directly, if we know that it corresponds to a
-    // single allocation site from a global
+    // single allocation site (e.g., return value of a malloc, a global, etc.)
     const Value *onlyAllocSite = findUniqueReturnValue(callee);
     if (NoBUFlowSensitiveOpt ||
         (onlyAllocSite && !isa<GlobalValue>(onlyAllocSite))) {
@@ -555,6 +555,9 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
               assert(CGNCallee);
               if (!hasEdge(CGNCaller, CGNCallee, *cb)) {
                 assert(cb);
+		LOG("dsa-callgraph",		
+		    llvm::errs() << "Added edge from " << caller->getName() << " to "
+		    << fn->getName() << " with callsite=" << *cb << "\n";);
                 CGNCaller->addCalledFunction(cb, CGNCallee);
                 m_callees[cs.getInstruction()].push_back(fn);
                 change = true;
@@ -571,14 +574,6 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
             //    callee to resolve it)
             // 3) it has no external allocation site.
             m_resolved.insert(cs.getInstruction());
-            // LOG("dsa-callgraph-resolve",
-            //  errs() << "Resolving indirect call by "
-            //         << kv.first->getName() << " at "
-            //         <<
-            //         cs.getInstruction()->getParent()->getParent()->getName()
-            //            << ":\n";
-            //  cs.write(errs()); errs() << "\n";
-            //  errs() << "Marked as complete.\n";);
           }
         }
 
@@ -605,23 +600,36 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
   for (auto &F : M) {
     if (F.empty()) continue;
     
-    CallGraphNode *CGNF = (*m_complete_cg)[&F];
-    assert(CGNF);
-    if (!CGNF) continue;
-
-    // collect first callsites to avoid invalidating iterators
-    std::vector<CallBase*> toRemove;
-    for (auto &kv : llvm::make_range(CGNF->begin(), CGNF->end())) {
-      if (!kv.first) continue;
-      CallBase &CB = *dyn_cast<CallBase>(*kv.first);
-      if (CB.isIndirectCall() &&
-          !kv.second->getFunction() /* has no callee */) {
-        if (m_resolved.count(&CB) > 0) toRemove.push_back(&CB);
+    CallGraphNode *callerCG = (*m_complete_cg)[&F];
+    assert(callerCG);
+    if (!callerCG) continue;
+    
+    // This loop removes safely edges while iterating
+    auto et = callerCG->end();
+    for (auto it = callerCG->begin();it!=et;) {
+      if (it->first) {
+	CallBase &CB = *dyn_cast<CallBase>(*(it->first));
+	if (CB.isIndirectCall() && !it->second->getFunction() /* has no callee */) {
+	  if (m_resolved.count(&CB) > 0) {
+	    LOG("dsa-callgraph",		
+		llvm::errs() << "Removed edge from "
+  		<< callerCG->getFunction()->getName() << " to "
+		<< it->second << " (external node) with callsite=" << CB << "\n";);
+	    
+	    // we need to bail out if we are going to remove the last edge
+	    bool wasLast = (it+1 == et);
+	    // we don't increment it because removeCallEdge modifies *it
+	    callerCG->removeCallEdge(it); 
+	    if (wasLast) {
+	      break;
+	    }
+	    // we update et after deleting one of the edges
+	    et = callerCG->end();
+	    continue;
+	  }
+	}
       }
-    }
-    for (CallBase *CB : toRemove) {
-      assert(CB);
-      CGNF->removeCallEdgeFor(*CB);
+      ++it;
     }
   }
 
