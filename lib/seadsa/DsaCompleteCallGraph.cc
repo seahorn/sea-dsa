@@ -13,6 +13,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/CallPromotionUtils.h"
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/CallGraphUtils.hh"
@@ -76,38 +77,6 @@ static Value *stripBitCast(Value *V) {
     return V;
 }
 
-static bool isTypeCompatible(const Type *t1, const Type *t2) {
-  return (t1->isPointerTy() && t2->isPointerTy()) || (t1 == t2);
-}
-
-static bool isCalleeTypeCompatible(const CallBase &CB,
-                                   const Function &calleeF) {
-  unsigned csNArgs = CB.arg_size();
-  unsigned calleeNArgs = calleeF.arg_size();
-  FunctionType *calleeFTy = calleeF.getFunctionType();
-
-  if (calleeFTy->isVarArg()) {
-    // assert(csNArgs >= calleeNArgs)
-    if (csNArgs < calleeNArgs) { return false; }
-  } else {
-    // assert(csNArgs == calleeNArgs)
-    if (csNArgs != calleeNArgs) { return false; }
-  }
-
-  if (!isTypeCompatible(CB.getType(), calleeFTy->getReturnType())) {
-    return false;
-  }
-
-  // assert(csNArgs >= calleeNArgs)
-  for (unsigned i = 0; i < calleeNArgs; ++i) {
-    if (!isTypeCompatible(CB.getArgOperand(i)->getType(),
-                          calleeFTy->getParamType(i))) {
-      return false;
-    }
-  }
-
-  return true;
-}
 
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
@@ -567,9 +536,9 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
           const Function *caller = cs.getCaller();
           CallGraphNode *CGNCaller = (*m_complete_cg)[caller];
           assert(CGNCaller);
-          const CallBase &CGNCB = *dyn_cast<CallBase>(cs.getInstruction());
-          CallBase *cb = const_cast<CallBase *>(&CGNCB);
-
+	  // We remove "const" because of isLegalToPromote
+          CallBase *cb = const_cast<CallBase *>(dyn_cast<CallBase>(cs.getInstruction()));
+	  
           // At this point, we can try to resolve the indirect call
           // Update the callgraph by adding a new edge to each
           // resolved callee. However, the call site is not marked as
@@ -579,18 +548,15 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
             if (const Function *fn =
                     dyn_cast<Function>(v->stripPointerCastsAndAliases())) {
 
-	      // If the callee is not type-compatible with the
-	      // callsite then we ignore it. This ensures that the
-	      // bottom-up phase only inlines a callee's graph if the
-	      // callee's signature is type-compatible with the
-	      // callsite.
-	      if (!isCalleeTypeCompatible(*cb, *fn)) {
-		continue;
+	      // Check that the callbase and the callee are type-compatible
+	      if (!isLegalToPromote(*cb, const_cast<Function*>(fn))) {
+	      	continue;
 	      }
+	      
               foundAtLeastOneCallee = true;
               CallGraphNode *CGNCallee = (*m_complete_cg)[fn];
               assert(CGNCallee);
-              if (!hasEdge(CGNCaller, CGNCallee, CGNCB)) {
+              if (!hasEdge(CGNCaller, CGNCallee, *cb)) {
                 assert(cb);
                 CGNCaller->addCalledFunction(cb, CGNCallee);
                 m_callees[cs.getInstruction()].push_back(fn);
