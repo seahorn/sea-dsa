@@ -65,28 +65,25 @@ static const Value *findUniqueReturnValue(const Function &F) {
   return onlyRetVal;
 }
 
-static Value *stripBitCast(Value *V) {
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(V)) {
-    if (CE->isCast()) {
-      return CE->getOperand(0);
-    }
-  }
-  if (BitCastInst *BC = dyn_cast<BitCastInst>(V)) {
-    return BC->getOperand(0);
-  }
-    return V;
-}
-
-
 static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
   // Resolve trivial indirect calls through bitcasts:
   //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
+  //    call i32 bitcast (i32 (...)* @nd_uint to i32 ()*)()
+  //    call i32 (i32, i32)* bitcast (i32 (i32, i32)* (...)* @nd_binfptr to i32 (i32, i32)* ()*)()
   //
   // This is important because our top-down/bottom-up analyses
   // traverse the call graph in a particular order (topological or
   // reverse topological). If these edges are missing then the
   // propagation can be done "too early" without analyzing the caller
   // or callee yet.
+  auto stripBitCast = [](Value *V) {
+    if (BitCastInst *BC = dyn_cast<BitCastInst>(V)) {
+      return BC->getOperand(0);
+    } else {
+      return V->stripPointerCasts();
+    }
+  };
+  
   for (auto &I : llvm::make_range(inst_begin(&F), inst_end(&F))) {
     if (!(isa<CallInst>(I) || isa<InvokeInst>(I))) continue;
     CallBase &CB = *dyn_cast<CallBase>(&I);
