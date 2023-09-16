@@ -1,8 +1,6 @@
 # SeaDsa: A Points-to Analysis for Verification of Low-level C/C++ #
 
-<a href="https://travis-ci.org/seahorn/sea-dsa">
-    <img src="https://travis-ci.org/seahorn/sea-dsa.svg?branch=dev14" title="Ubuntu 22.04 LTS 64bit, clang-14"/>
-</a>
+<a href="https://github.com/seahorn/sea-dsa/actions"><img src="https://github.com/seahorn/sea-dsa/workflows/CI/badge.svg" title="Ubuntu 22.04 LTS 64bit, clang++-14"/></a>
 
 
 `SeaDsa` is a context-, field-, and array-sensitive unification-based
