@@ -1251,9 +1251,10 @@ void ShadowMemImpl::visitMemhavoc(CallBase &I) {
   }
 
   m_B->SetInsertPoint(&I);
-  CallInst &memUse =
-      mkShadowLoad(*m_B, cell, dsa::getTypeSizeInBytes(*ptr.getType(), *m_dl));
-  associateConcretePtr(memUse, ptr, &I);
+  CallInst &memDef = mkShadowStore(
+      *m_B, cell,
+      dsa::getTypeSizeInBytes(*ptr.getType(), *m_dl) /* bytes to access */);
+  associateConcretePtr(memDef, ptr, &I);
 }
 
 void ShadowMemImpl::visitIsModified(CallBase &I) {
