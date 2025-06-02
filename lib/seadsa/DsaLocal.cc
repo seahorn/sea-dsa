@@ -168,8 +168,9 @@ Function *getCalledFunction(CallBase &CB) {
 
 namespace {
 // forward declaration
-std::pair<int64_t, uint64_t>
-computeGepOffset(Type *ptrTy, ArrayRef<Value *> Indicies, const DataLayout &dl);
+std::pair<int64_t, uint64_t> computeGepOffset(Type *srcElementTy,
+                                              ArrayRef<Value *> Indicies,
+                                              const DataLayout &dl);
 
 /*****************************************************************************/
 /* BlockBuilderBase */
@@ -316,32 +317,37 @@ class GlobalBuilder : public BlockBuilderBase {
     if (isa<ConstantDataSequential>(Init)) { return; }
 
     if (Init->getType()->isPointerTy() && !isa<ConstantPointerNull>(Init)) {
-      if (cast<PointerType>(Init->getType())
-              ->getElementType()
-              ->isFunctionTy()) {
-        seadsa::Node &n = m_graph.mkNode();
-        seadsa::Cell nc(n, 0);
-        seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*Init);
-        assert(site);
-        n.addAllocSite(*site);
+      // FIXME: This creates a node for a global function pointer. Needed by
+      // vtable in C++
+      // Disabled for now since in LLVM 15 there is no way to determine if the pointer is a
+      // function. May be inferenced by checking if the pointer is ever loaded as a function.
 
-        // connect c with nc
-        c.growSize(0, Init->getType());
-        c.addAccessedType(0, Init->getType());
-        c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
-        return;
-      }
+      // if (cast<PointerType>(Init->getType())
+      //         ->getElementType()
+      //         ->isFunctionTy()) {
+      //   seadsa::Node &n = m_graph.mkNode();
+      //   seadsa::Cell nc(n, 0);
+      //   seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*Init);
+      //   assert(site);
+      //   n.addAllocSite(*site);
 
-      if (m_graph.hasCell(*Init)) {
-        // @g1 =  ...*
-        // @g2 =  ...** @g1
-        seadsa::Cell &nc = m_graph.mkCell(*Init, seadsa::Cell());
-        // connect c with nc
-        c.growSize(0, Init->getType());
-        c.addAccessedType(0, Init->getType());
-        c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
-        return;
-      }
+      //   // connect c with nc
+      //   c.growSize(0, Init->getType());
+      //   c.addAccessedType(0, Init->getType());
+      //   c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
+      //   return;
+      // }
+
+      // if (m_graph.hasCell(*Init)) {
+      //   // @g1 =  ...*
+      //   // @g2 =  ...** @g1
+      //   seadsa::Cell &nc = m_graph.mkCell(*Init, seadsa::Cell());
+      //   // connect c with nc
+      //   c.growSize(0, Init->getType());
+      //   c.addAccessedType(0, Init->getType());
+      //   c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
+      //   return;
+      // }
     }
   }
 
@@ -798,10 +804,6 @@ void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
   }
 }
 
-static bool isBytePtrTy(const Type *ty) {
-  return ty->isPointerTy() && ty->getPointerElementType()->isIntegerTy(8);
-}
-
 void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
   using namespace seadsa;
 
@@ -849,14 +851,10 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
   Cell dest(val.getNode(), val.getRawOffset());
 
   // -- guess best type for the store. Use the type of the value being
-  // -- stored, unless it is i8*, in which case check if the store location
-  // -- has a better type
+  // -- stored
+  // Since LLVM 15, a loss of precision is incurred compared to past version for when omnichar pointers are being stored
   Type *ty = ValOp->getType();
-  if (isBytePtrTy(ty)) {
-    Type *opTy = SI.getPointerOperand()->stripPointerCasts()->getType();
-    if (opTy->isPointerTy() && opTy->getPointerElementType()->isPointerTy())
-      ty = opTy->getPointerElementType();
-  }
+
   base.addLink(Field(0, FieldType(ty)), dest);
 }
 
@@ -889,11 +887,11 @@ template <typename T> T gcd(T a, T b) {
    The first element of the pair is the fixed offset. The second is
    a gcd of the variable offset.
  */
-std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
+std::pair<int64_t, uint64_t> computeGepOffset(Type *srcElementTy,
                                               ArrayRef<Value *> Indicies,
                                               const DataLayout &dl) {
-  Type *Ty = ptrTy;
-  assert(Ty->isPointerTy());
+
+  Type *Ty = srcElementTy;
 
   // numeric offset
   int64_t noffset = 0;
@@ -901,9 +899,8 @@ std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
   // divisor
   uint64_t divisor = 0;
 
-  Type *srcElemTy = cast<PointerType>(ptrTy)->getElementType();
   generic_gep_type_iterator<Value *const *> TI =
-      gep_type_begin(srcElemTy, Indicies);
+      gep_type_begin(srcElementTy, Indicies);
 
   for (unsigned CurIDX = 0, EndIDX = Indicies.size(); CurIDX != EndIDX;
        ++CurIDX, ++TI) {
@@ -912,9 +909,8 @@ std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
       noffset += dl.getStructLayout(STy)->getElementOffset(fieldNo);
       Ty = STy->getElementType(fieldNo);
     } else {
-      if (PointerType *ptrTy = dyn_cast<PointerType>(Ty))
-        Ty = ptrTy->getElementType();
-      else if (Ty->isArrayTy())
+      // We do nothing to pointer type now
+      if (Ty->isArrayTy())
         Ty = Ty->getArrayElementType();
       else if (auto vt = dyn_cast<VectorType>(Ty))
         Ty = vt->getElementType();
@@ -951,13 +947,11 @@ uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
       offset += layout->getElementOffset(idx);
       ty = sty->getElementType(idx);
     } else {
-      if (PointerType *ptrTy = dyn_cast<PointerType>(ty))
-        ty = ptrTy->getElementType();
-      else if (ty->isArrayTy())
+      if (ty->isArrayTy())
         ty = ty->getArrayElementType();
       else if (auto vt = dyn_cast<VectorType>(ty))
         ty = vt->getElementType();
-      assert(ty && "Type is neither PointerType nor SequentialType");
+      assert(ty && "Type being indexed is not a SequentialType");
       offset += idx * dl.getTypeAllocSize(ty);
     }
   }
@@ -1018,7 +1012,21 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     return;
   }
 
-  auto off = computeGepOffset(ptr.getType(), indicies, m_dl);
+  Type *srcElementType;
+
+  // We require a cast to GEPOperator first, since we can only acquire the
+  // source element type through GEPOperator.
+  if (auto *g = dyn_cast<GEPOperator>(&gep)) {
+    srcElementType = g->getSourceElementType();
+  } else {
+    errs() << "Attempted to cast following value into a GEP instruction: ";
+    gep.print(llvm::errs());
+    errs() << "\n";
+    assert(false && "Not a GEP instruction");
+    return;
+  }
+
+  auto off = computeGepOffset(srcElementType, indicies, m_dl);
   if (off.first < 0) {
     if (base.getOffset() + off.first >= 0) {
       m_graph.mkCell(gep,
@@ -1535,50 +1543,55 @@ bool hasNoPointerTy(const llvm::Type *t) {
 }
 
 bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
-  Value *srcPtr = MI.getSource();
-  auto *srcTy = srcPtr->getType()->getPointerElementType();
+  // FIXME: LLVM 15, Kevin: Since we can no longer access pointee types, it is
+  // now
+  // impossible to determine whether the pointee's struct type contains
+  // pointers. This whole function is effectively hamstrung as it now only
+  // returns false.
 
   ConstantInt *rawLength = dyn_cast<ConstantInt>(MI.getLength());
-  if (!rawLength) return false;
+  if (!rawLength)
+    return false; // Analysis is not possible if length is not constant
 
   const uint64_t length = rawLength->getZExtValue();
   LOG("dsa", errs() << "MemTransfer length:\t" << length << "\n");
 
-  // opaque structs may transfer pointers
-  if (!srcTy->isSized()) return false;
+  // // opaque structs may transfer pointers
+  // if (!srcTy->isSized()) return false;
 
-  // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
-  // This can occur when someone tries to transfer int the middle of a struct.
-  if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
-    LOG("dsa-warn", errs() << "WARNING: MemTransfer past object size!\n"
-                           << "\tTransfer:  ");
-    LOG("dsa", MI.print(errs()));
-    LOG("dsa-warn", errs() << "\n\tLength:  " << length << "\n\tType size:  "
-                           << (DL.getTypeSizeInBits(srcTy) / 8) << "\n");
-    return false;
-  }
+  // // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
+  // // This can occur when someone tries to transfer int the middle of a struct.
+  // if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
+  //   LOG("dsa-warn", errs() << "WARNING: MemTransfer past object size!\n"
+  //                          << "\tTransfer:  ");
+  //   LOG("dsa", MI.print(errs()));
+  //   LOG("dsa-warn", errs() << "\n\tLength:  " << length << "\n\tType size:  "
+  //                          << (DL.getTypeSizeInBits(srcTy) / 8) << "\n");
+  //   return false;
+  // }
 
-  static SmallDenseMap<std::pair<Type *, unsigned>, bool, 16>
-      knownNoPointersInStructs;
+  // static SmallDenseMap<std::pair<Type *, unsigned>, bool, 16>
+  //     knownNoPointersInStructs;
 
-  if (knownNoPointersInStructs.count({srcTy, length}) != 0)
-    return knownNoPointersInStructs[{srcTy, length}];
+  // if (knownNoPointersInStructs.count({srcTy, length}) != 0)
+  //   return knownNoPointersInStructs[{srcTy, length}];
 
-  for (auto &subTy : seadsa::AggregateIterator::range(srcTy, &DL)) {
-    if (subTy.Offset >= length) break;
+  // for (auto &subTy : seadsa::AggregateIterator::range(srcTy, &DL)) {
+  //   if (subTy.Offset >= length) break;
 
-    if (subTy.Ty->isPointerTy()) {
-      LOG("dsa", errs() << "Found ptr member "; subTy.Ty->print(errs());
-          errs() << "\n\tin "; srcTy->print(errs());
-          errs() << "\n\tMemTransfer transfers pointers!\n");
+  //   if (subTy.Ty->isPointerTy()) {
+  //     LOG("dsa", errs() << "Found ptr member "; subTy.Ty->print(errs());
+  //         errs() << "\n\tin "; srcTy->print(errs());
+  //         errs() << "\n\tMemTransfer transfers pointers!\n");
 
-      knownNoPointersInStructs[{srcTy, length}] = false;
-      return false;
-    }
-  }
+  //     knownNoPointersInStructs[{srcTy, length}] = false;
+  //     return false;
+  //   }
+  // }
 
-  knownNoPointersInStructs[{srcTy, length}] = true;
-  return true;
+  // knownNoPointersInStructs[{srcTy, length}] = true;
+  // return true;
+  return false;
 }
 
 void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
@@ -1614,9 +1627,9 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   seadsa::Cell destCell = m_graph.mkCell(*I.getDest(), seadsa::Cell());
 
   if (TrustTypes &&
-      ((sourceCell.getNode()->links().size() == 0 &&
-        hasNoPointerTy(I.getSource()->getType()->getPointerElementType())) ||
-       transfersNoPointers(I, m_dl))) {
+      // FIXME: LLVM 15, Kevin: The removal of the pointer type means we can no longer avoid unification upon a memory
+      // operation by looking at its type.
+      (transfersNoPointers(I, m_dl))) {
     /* do nothing */
     // no pointers are copied from source to dest, so there is no
     // need to unify them
