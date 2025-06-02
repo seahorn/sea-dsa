@@ -143,15 +143,14 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
 
     Rewrites the following use of ptrtoint
 
-    %20 = ptrtoint %struct.Entry* %m to i32
-    %22 = getelementptr inbounds %struct.Entry, %struct.Entry* %G, i32 0, i32 1
-    %23 = bitcast %struct.Entry** %22 to i32*
-    store i32 %20, i32* %23
+    %20 = ptrtoint ptr %m to i32
+    %22 = getelementptr inbounds %struct.Entry, ptr %G, i32 0, i32 1
+    store i32 %20, ptr %22
 
     Into
 
-    %22 = getelementptr inbounds %struct.Entry, %struct.Entry* %G, i32 0, i32 1
-    store %struct.Entry* %m, %struct.Entry** %22
+    %22 = getelementptr inbounds %struct.Entry, ptr %G, i32 0, i32 1
+    store ptr %m, ptr %22
 
    */
   // -- clang-format on
@@ -160,42 +159,19 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
   auto *P2I = dyn_cast<PtrToIntInst>(SI->getValueOperand());
   if (!P2I) return false;
 
-  auto *BC = dyn_cast<BitCastInst>(SI->getPointerOperand());
-  if (!BC) return false;
+  auto *GEP = dyn_cast<GetElementPtrInst>(SI->getPointerOperand());
+  if (!GEP) return false;
 
   auto *PtrVal = P2I->getPointerOperand();
   auto *PtrIntTy = DL.getIntPtrType(PtrVal->getType());
-
   if (PtrIntTy != P2I->getType()) return false;
 
-  auto *BCTy = BC->getType();
-  if (!BCTy->isPointerTy() || BCTy->getPointerElementType() != PtrIntTy)
-    return false;
-
-  auto *BCVal = BC->getOperand(0);
-  auto *NewStoreDestTy = BCVal->getType();
-  auto *NewStoreValTy = NewStoreDestTy->getPointerElementType();
-
   IRBuilder<> IRB(SI);
-  if (!NewStoreValTy->isPointerTy()) {
-    // -- if the store value type is not a pointer, but what is being stored is
-    // i8*
-    // -- then store through i8** pointer instead
-    if (PtrVal->getType()->isPointerTy() &&
-        PtrVal->getType()->getPointerElementType()->isIntegerTy(8)) {
-      NewStoreValTy = IRB.getInt8PtrTy();
-      BCVal = IRB.CreateBitCast(BCVal, NewStoreValTy->getPointerTo());
-    } else {
-      return false;
-    }
-  }
 
   DOG(llvm::errs() << "RP2I: cleaning up: " << *SI << "\n";);
-  auto *NewBC = PtrVal->getType() != NewStoreValTy
-                    ? IRB.CreateBitCast(PtrVal, NewStoreValTy)
-                    : PtrVal;
-  auto *res = IRB.CreateStore(NewBC, BCVal);
 
+  // Create a new StoreInst with the same metadata as SI
+  auto *res = IRB.CreateStore(PtrVal, GEP);
   res->setVolatile(SI->isVolatile());
   res->setAlignment(SI->getAlign());
   res->setOrdering(SI->getOrdering());
@@ -205,7 +181,6 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
   // Collect instructions to erase. Deffer that not to invalidate iterators.
   StoresToErase.insert(SI);
   MaybeUnusedInsts.insert(P2I);
-  MaybeUnusedInsts.insert(BC);
 
   return true;
 }
@@ -213,16 +188,15 @@ static bool visitStoreInst(StoreInst *SI, Function &F, const DataLayout &DL,
 /** Promotes integer expression to pointers to eliminate inttoptr instructions
  */
 class PointerPromoter : public InstVisitor<PointerPromoter, Value *> {
-  Type *m_ty;
   SmallPtrSetImpl<Instruction *> &m_toRemove;
-  DenseMap<Value*, Value*> &m_toReplace;
+  DenseMap<Value *, Value *> &m_toReplace;
   // -- to break cycles in PHINodes
   SmallPtrSet<Instruction *, 16> m_visited;
 
 public:
   PointerPromoter(SmallPtrSetImpl<Instruction *> &toRemove,
                   DenseMap<Value *, Value *> &toReplace)
-    : m_ty(nullptr), m_toRemove(toRemove), m_toReplace(toReplace) {}
+      : m_toRemove(toRemove), m_toReplace(toReplace) {}
 
   Value *visitInstruction(Instruction &I) { return nullptr; }
 
@@ -231,9 +205,7 @@ public:
     m_toRemove.insert(&I);
 
     auto *op = I.getOperand(0);
-    if (op->getType() == m_ty) return op;
-    IRBuilder<> IRB(&I);
-    return IRB.CreateBitCast(op, m_ty);
+    return op;
   }
 
   Value *visitPHINode(PHINode &I) {
@@ -254,7 +226,7 @@ public:
     }
 
     IRBuilder<> IRB(&I);
-    auto *newPhi = IRB.CreatePHI(m_ty, I.getNumIncomingValues());
+    auto *newPhi = IRB.CreatePHI(IRB.getPtrTy(), I.getNumIncomingValues());
 
     for (unsigned i = 0, e = I.getNumIncomingValues(); i < e; ++i) {
       newPhi->addIncoming(vals[i], I.getIncomingBlock(i));
@@ -264,7 +236,6 @@ public:
   }
 
   Value *visitAdd(BinaryOperator &I) {
-    // errs() << "visitAdd: " << I << "\n";
     auto *op0 = dyn_cast<Instruction>(I.getOperand(0));
     if (!op0) return nullptr;
 
@@ -276,9 +247,8 @@ public:
     IRBuilder<> IRB(&I);
 
     ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
-    auto *gep = IRB.CreateGEP(ptr->getType()->getScalarType()->getPointerElementType(),
-                              ptr, I.getOperand(1));
-    return IRB.CreateBitCast(gep, m_ty);
+    auto *gep = IRB.CreateGEP(IRB.getInt8Ty(), ptr, I.getOperand(1));
+    return gep;
   }
 
   Value *visitSub(BinaryOperator &I) {
@@ -287,34 +257,30 @@ public:
 
       auto *op0 = dyn_cast<Instruction>(I.getOperand(0));
       if (!op0) return nullptr;
-      
+
       auto *ptr = this->visit(op0);
       if (!ptr) return nullptr;
-      
+
       m_toRemove.insert(&I);
 
       if (CI->isZero()) { return ptr; }
-      
+
       IRBuilder<> IRB(&I);
-      ptr = IRB.CreateBitCast(ptr, IRB.getInt8PtrTy());
-      const APInt &opV = CI->getValue(); 
-      auto *gep =
-        IRB.CreateGEP(ptr->getType()->getScalarType()->getPointerElementType(),
-                      ptr, ConstantInt::get(CI->getType(), opV * -1));
-      return IRB.CreateBitCast(gep, m_ty);
+      const APInt &opV = CI->getValue();
+      auto *gep = IRB.CreateGEP(IRB.getInt8Ty(), ptr,
+                                ConstantInt::get(CI->getType(), opV * -1));
+      return gep;
     } else {
       // TODO: a non-constant operand
-    return nullptr;
-  }
+      return nullptr;
+    }
   }
 
   Value *visitLoad(LoadInst &I) {
-    assert(m_ty);
     // errs() << "visitLoad: " << I << "\n";
     auto *ptr = I.getPointerOperand();
     IRBuilder<> IRB(&I);
-    ptr = IRB.CreateBitCast(ptr, m_ty->getPointerTo());
-    auto *res = IRB.CreateLoad(ptr->getType()->getPointerElementType(), ptr);
+    auto *res = IRB.CreateLoad(IRB.getPtrTy(), ptr);
     res->setVolatile(I.isVolatile());
     res->setAlignment(I.getAlign());
     res->setOrdering(I.getOrdering());
@@ -329,7 +295,6 @@ public:
         if (SI->getValueOperand() != &I) { continue; }
         IRB.SetInsertPoint(SI);
         auto *ptr = SI->getPointerOperand();
-        ptr = IRB.CreateBitCast(ptr, m_ty->getPointerTo());
         auto newStore = IRB.CreateStore(res, ptr);
         newStore->setVolatile(SI->isVolatile());
         newStore->setAlignment(SI->getAlign());
@@ -340,7 +305,7 @@ public:
         m_toRemove.insert(SI);
       } else if (isa<IntToPtrInst>(u)) {
         /* skip  */;
-      } else  {
+      } else {
         // -- if there is an interesting user, schedule it to be replaced
         if (!p2i) {
           IRB.SetInsertPoint(&I);
@@ -356,9 +321,6 @@ public:
   Value *visitIntToPtrInst(IntToPtrInst &I) {
     // errs() << "Visiting: " << I << "\n";
 
-    assert(!m_ty);
-    m_ty = I.getType();
-
     auto *op = dyn_cast<Instruction>(I.getOperand(0));
     Value *ret = nullptr;
     if (op) ret = this->visit(*op);
@@ -367,17 +329,15 @@ public:
       I.replaceAllUsesWith(ret);
       m_toRemove.insert(&I);
     }
-
-    m_ty = nullptr;
     return ret;
   }
 };
 
 static bool visitIntToPtrInst(IntToPtrInst *I2P, Function &F,
                               const DataLayout &DL, DominatorTree &DT,
-                  SmallDenseMap<PHINode *, PHINode *> &NewPhis,
-                  SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts,
-                  DenseMap<Value*, Value*> &RenameMap) {
+                              SmallDenseMap<PHINode *, PHINode *> &NewPhis,
+                              SmallPtrSetImpl<Instruction *> &MaybeUnusedInsts,
+                              DenseMap<Value *, Value *> &RenameMap) {
   assert(I2P);
 
   auto *IntVal = I2P->getOperand(0);
@@ -482,7 +442,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   SmallPtrSet<StoreInst *, 8> StoresToErase;
   SmallPtrSet<Instruction *, 16> MaybeUnusedInsts;
-  DenseMap<Value*, Value*> RenameMap;
+  DenseMap<Value *, Value *> RenameMap;
   SmallDenseMap<PHINode *, PHINode *> NewPhis;
 
   for (auto &BB : F) {
@@ -513,7 +473,7 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
       llvm::make_filter_range(MaybeUnusedInsts, [](Instruction *I) {
         return isInstructionTriviallyDead(I);
       }));
-  
+
   // TODO: RecursivelyDeleteTriviallyDeadInstructions takes a vector of
   // WeakTrackingVH since LLVM 11, which implies that `MaybeUnusedInsts` should
   // be a vector of WeakTrackingVH as well. See comment:
@@ -522,9 +482,9 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
   // removed before this call. So it should be safe to keep its original type
   // and map it to WeakTrackingVH as the following code does.
   SmallVector<WeakTrackingVH, 16> TriviallyDeadHandles;
-  for (auto i : TriviallyDeadInstructions)  
-      TriviallyDeadHandles.emplace_back(WeakTrackingVH(i));
-  
+  for (auto i : TriviallyDeadInstructions)
+    TriviallyDeadHandles.emplace_back(WeakTrackingVH(i));
+
   RecursivelyDeleteTriviallyDeadInstructions(TriviallyDeadHandles);
   for (auto kv : RenameMap) {
     kv.first->replaceAllUsesWith(kv.second);
