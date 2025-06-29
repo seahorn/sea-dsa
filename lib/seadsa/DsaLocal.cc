@@ -319,8 +319,9 @@ class GlobalBuilder : public BlockBuilderBase {
     if (Init->getType()->isPointerTy() && !isa<ConstantPointerNull>(Init)) {
       // FIXME: This creates a node for a global function pointer. Needed by
       // vtable in C++
-      // Disabled for now since in LLVM 15 there is no way to determine if the pointer is a
-      // function. May be inferenced by checking if the pointer is ever loaded as a function.
+      // Disabled for now since in LLVM 15 there is no way to determine if the
+      // pointer is a function. May be inferenced by checking if the pointer is
+      // ever loaded as a function.
 
       // if (cast<PointerType>(Init->getType())
       //         ->getElementType()
@@ -838,7 +839,8 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
 
   // -- guess best type for the store. Use the type of the value being
   // -- stored
-  // Since LLVM 15, a loss of precision is incurred compared to past version for when omnichar pointers are being stored
+  // Since LLVM 15, a loss of precision is incurred compared to past version for
+  // when omnichar pointers are being stored
   Type *ty = ValOp->getType();
 
   base.addLink(Field(0, FieldType(ty)), dest);
@@ -1514,12 +1516,102 @@ bool hasNoPointerTy(const llvm::Type *t) {
   return true;
 }
 
+// Given a pointer value, yield all instructions/values that define or use it.
+static llvm::SmallVector<const Value *, 8>
+findPointerOrigins(const Value *ptr) {
+  llvm::SmallVector<const Value *, 8> origins;
+  origins.push_back(ptr);
+  for (const User *user : ptr->users()) {
+    origins.push_back(user);
+  }
+  return origins;
+}
+
+// Given an origin value, return the possible candidate pointee type for ptr.
+// - If analysis is inconclusive or ambiguous, return nullptr
+static SmallPtrSet<Type *, 2> getPointeeTypesFromOrigin(const Value *ptr,
+                                                        const Value *origin) {
+
+  SmallPtrSet<Type *, 2> results;
+
+  if (const Instruction *inst = dyn_cast<Instruction>(origin)) {
+    switch (inst->getOpcode()) {
+    case Instruction::Alloca: {
+      LOG("dsa", errs() << "Alloca pointee type inference\t" << "\n");
+
+      if (origin == ptr) {
+        results.insert(cast<AllocaInst>(inst)->getAllocatedType());
+      }
+      break;
+    }
+
+    case Instruction::BitCast:
+      LOG("dsa", errs() << "BitCast pointee type inference\t" << "\n");
+      break;
+
+    case Instruction::GetElementPtr: {
+      LOG("dsa", errs() << "GEP pointee type inference\t" << "\n");
+
+      auto gep = cast<GetElementPtrInst>(inst);
+      const Value *gepPtrOp = gep->getPointerOperand();
+      Type *gepSrcElemTy = gep->getSourceElementType();
+
+      // If the input pointer operand is the same as ptr, add its pointee type
+      if (gepPtrOp == ptr) { results.insert(gepSrcElemTy); }
+
+      // If the result value of the GEP is the same as ptr, compute the
+      // resulting type
+      if (origin == ptr) {
+        Type *ty = gepSrcElemTy;
+        for (gep_type_iterator GTI = gep_type_begin(gep),
+                               GTE = gep_type_end(gep);
+             GTI != GTE; ++GTI) {
+          ty = GTI.getIndexedType();
+        }
+        results.insert(ty);
+      }
+      break;
+    }
+
+    default:
+      LOG("dsa-warn",
+          errs() << "Unhandled instruction in getPointeeTypesFromOrigin: "
+                 << *inst << "\n");
+      break;
+    }
+  }
+
+  return results;
+}
+
+// Try to infer the pointee type of an opaque pointer.
+// - If analysis is inconclusive or ambiguous, return nullptr
+Type *inferPointee(const Value *ptr) {
+  SmallPtrSet<Type *, 3> pointeeTypes;
+  auto origins = findPointerOrigins(ptr);
+
+  for (const Value *origin : origins) {
+    auto originPointeeTypes = getPointeeTypesFromOrigin(ptr, origin);
+
+    if (originPointeeTypes.size() > 1) return nullptr;
+    if (originPointeeTypes.size() == 1) {
+      Type *type = *originPointeeTypes.begin();
+      pointeeTypes.insert(type);
+    }
+
+    if (pointeeTypes.size() > 1) {
+      // If we have more than one type, we cannot determine the pointee type
+      return nullptr;
+    }
+  }
+
+  if (pointeeTypes.size() == 1) return *pointeeTypes.begin();
+  return nullptr;
+}
+
 bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
-  // FIXME: LLVM 15, Kevin: Since we can no longer access pointee types, it is
-  // now
-  // impossible to determine whether the pointee's struct type contains
-  // pointers. This whole function is effectively hamstrung as it now only
-  // returns false.
+  Value *srcPtr = MI.getSource();
+  auto *srcTy = inferPointee(srcPtr);
 
   ConstantInt *rawLength = dyn_cast<ConstantInt>(MI.getLength());
   if (!rawLength)
@@ -1528,42 +1620,43 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   const uint64_t length = rawLength->getZExtValue();
   LOG("dsa", errs() << "MemTransfer length:\t" << length << "\n");
 
-  // // opaque structs may transfer pointers
-  // if (!srcTy->isSized()) return false;
+  if (!srcTy) return false; // Cannot determine the pointee type
 
-  // // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
-  // // This can occur when someone tries to transfer int the middle of a struct.
-  // if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
-  //   LOG("dsa-warn", errs() << "WARNING: MemTransfer past object size!\n"
-  //                          << "\tTransfer:  ");
-  //   LOG("dsa", MI.print(errs()));
-  //   LOG("dsa-warn", errs() << "\n\tLength:  " << length << "\n\tType size:  "
-  //                          << (DL.getTypeSizeInBits(srcTy) / 8) << "\n");
-  //   return false;
-  // }
+  // opaque structs may transfer pointers
+  if (!srcTy->isSized()) return false;
 
-  // static SmallDenseMap<std::pair<Type *, unsigned>, bool, 16>
-  //     knownNoPointersInStructs;
+  // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
+  // This can occur when someone tries to transfer int the middle of a struct.
+  if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
+    LOG("dsa-warn", errs() << "WARNING: MemTransfer past object size!\n"
+                           << "\tTransfer:  ");
+    LOG("dsa", MI.print(errs()));
+    LOG("dsa-warn", errs() << "\n\tLength:  " << length << "\n\tType size:  "
+                           << (DL.getTypeSizeInBits(srcTy) / 8) << "\n");
+    return false;
+  }
 
-  // if (knownNoPointersInStructs.count({srcTy, length}) != 0)
-  //   return knownNoPointersInStructs[{srcTy, length}];
+  static SmallDenseMap<std::pair<Type *, unsigned>, bool, 16>
+      knownNoPointersInStructs;
 
-  // for (auto &subTy : seadsa::AggregateIterator::range(srcTy, &DL)) {
-  //   if (subTy.Offset >= length) break;
+  if (knownNoPointersInStructs.count({srcTy, length}) != 0)
+    return knownNoPointersInStructs[{srcTy, length}];
 
-  //   if (subTy.Ty->isPointerTy()) {
-  //     LOG("dsa", errs() << "Found ptr member "; subTy.Ty->print(errs());
-  //         errs() << "\n\tin "; srcTy->print(errs());
-  //         errs() << "\n\tMemTransfer transfers pointers!\n");
+  for (auto &subTy : seadsa::AggregateIterator::range(srcTy, &DL)) {
+    if (subTy.Offset >= length) break;
 
-  //     knownNoPointersInStructs[{srcTy, length}] = false;
-  //     return false;
-  //   }
-  // }
+    if (subTy.Ty->isPointerTy()) {
+      LOG("dsa", errs() << "Found ptr member "; subTy.Ty->print(errs());
+          errs() << "\n\tin "; srcTy->print(errs());
+          errs() << "\n\tMemTransfer transfers pointers!\n");
 
-  // knownNoPointersInStructs[{srcTy, length}] = true;
-  // return true;
-  return false;
+      knownNoPointersInStructs[{srcTy, length}] = false;
+      return false;
+    }
+  }
+
+  knownNoPointersInStructs[{srcTy, length}] = true;
+  return true;
 }
 
 void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
@@ -1599,8 +1692,9 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   seadsa::Cell destCell = m_graph.mkCell(*I.getDest(), seadsa::Cell());
 
   if (TrustTypes &&
-      // FIXME: LLVM 15, Kevin: The removal of the pointer type means we can no longer avoid unification upon a memory
-      // operation by looking at its type.
+      // FIXME: LLVM 15, Kevin: The removal of the pointer type means we can no
+      // longer avoid unification upon a memory operation by looking at its
+      // type.
       (transfersNoPointers(I, m_dl))) {
     /* do nothing */
     // no pointers are copied from source to dest, so there is no
