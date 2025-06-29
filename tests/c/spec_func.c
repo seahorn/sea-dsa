@@ -1,6 +1,6 @@
 // clang-format off
 
-// clang -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone spec-func.c -o ../spec-func.ll
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
 
 // clang-format on
 

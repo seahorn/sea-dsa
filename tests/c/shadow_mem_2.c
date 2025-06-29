@@ -1,3 +1,9 @@
+// clang-format off
+
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
+
+// clang-format on
+
 extern int nd(void);
 extern void __VERIFIER_error(void) __attribute__((noreturn));
 extern void __VERIFIER_assume(int);
@@ -23,4 +29,3 @@ int main() {
   assert(a[0] + a[1] == 96);
   return 0;
 }
-
