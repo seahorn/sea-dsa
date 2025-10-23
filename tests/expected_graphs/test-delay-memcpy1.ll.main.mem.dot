@@ -1,0 +1,33 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x57709409acd0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i64\}:SMR}"];
+	Node0x57709409add0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:SMR}"];
+	Node0x57709409c570 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32,16:i8*,8:i32 (i8*, i32*)*,28:i32,24:i32\}:SMR}"];
+	Node0x57709409e7c0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32,32:i32,36:i32\}:SM}"];
+	Node0x577094090840 [shape=plaintext, label ="  %14 = getelementptr inbounds %struct.B, %struct.B* %malloc13, i64 0, i32 1, !dbg !109"];
+	Node0x577094090840 -> Node0x57709409e7c0[arrowtail=tee,label="32",fontsize=8,color=purple];
+	Node0x57709408f680 [shape=plaintext, label ="  %8 = getelementptr inbounds %struct.A, %struct.A* %malloc2, i64 0, i32 3, !dbg !93"];
+	Node0x57709408f680 -> Node0x57709409c570[arrowtail=tee,label="28",fontsize=8,color=purple];
+	Node0x577094090d00 [shape=plaintext, label ="  %18 = getelementptr inbounds %struct.A, %struct.A* %malloc2, i64 0, i32 1, !dbg !117"];
+	Node0x577094090d00 -> Node0x57709409c570[arrowtail=tee,label="8",fontsize=8,color=purple];
+	Node0x5770940909f0 [shape=plaintext, label ="  %15 = getelementptr inbounds %struct.B, %struct.B* %malloc13, i64 0, i32 2, !dbg !112"];
+	Node0x5770940909f0 -> Node0x57709409e7c0[arrowtail=tee,label="36",fontsize=8,color=purple];
+	Node0x57709408fa20 [shape=plaintext, label ="  %10 = getelementptr inbounds %struct.A, %struct.A* %malloc2, i64 0, i32 1, i32 1, !dbg !99"];
+	Node0x57709408fa20 -> Node0x57709409c570[arrowtail=tee,label="16",fontsize=8,color=purple];
+	Node0x57709408e960 [shape=plaintext, label ="  %2 = alloca i32, align 4"];
+	Node0x57709408e960 -> Node0x57709409add0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x57709408e9d0 [shape=plaintext, label ="malloc2"];
+	Node0x57709408e9d0 -> Node0x57709409c570[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x57709408f4d0 [shape=plaintext, label ="  %7 = getelementptr inbounds %struct.A, %struct.A* %malloc2, i64 0, i32 2, !dbg !90"];
+	Node0x57709408f4d0 -> Node0x57709409c570[arrowtail=tee,label="24",fontsize=8,color=purple];
+	Node0x57709408f850 [shape=plaintext, label ="  %9 = getelementptr inbounds %struct.A, %struct.A* %malloc2, i64 0, i32 1, i32 0, !dbg !96"];
+	Node0x57709408f850 -> Node0x57709409c570[arrowtail=tee,label="8",fontsize=8,color=purple];
+	Node0x57709408e8f0 [shape=plaintext, label ="  %1 = alloca i64, align 8"];
+	Node0x57709408e8f0 -> Node0x57709409acd0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x5770940903a0 [shape=plaintext, label ="malloc13"];
+	Node0x5770940903a0 -> Node0x57709409e7c0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x577094090ba0 [shape=plaintext, label ="  %16 = getelementptr inbounds %struct.B, %struct.B* %malloc13, i64 0, i32 3, !dbg !115"];
+	Node0x577094090ba0 -> Node0x57709409e7c0[arrowtail=tee,label="40",fontsize=8,color=purple];
+}

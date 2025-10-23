@@ -54,6 +54,12 @@ static llvm::cl::opt<bool> AssumeExternalFunctonsAllocators(
         "Treat all external functions as potential memory allocators"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> EnableLazyMemTransfer(
+    "sea-dsa-lazy-mem-transfer",
+    llvm::cl::desc("Delay processing of memory transfer instructions to a "
+                   "separate pass (inline only)"),
+    llvm::cl::init(false));
+
 /*****************************************************************************/
 /* HELPERS                                                                   */
 /*****************************************************************************/
@@ -445,6 +451,8 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   // if true, cells are created for indirect callee
   bool m_track_callsites;
+  // if true, processing of memory transfer instructions is delayed
+  bool m_lazy_mem_transfer;
 
   void visitAllocaInst(AllocaInst &AI);
   void visitSelectInst(SelectInst &SI);
@@ -469,6 +477,13 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   void visitMemSetInst(MemSetInst &I);
   void visitMemTransferInst(MemTransferInst &I);
+  // Explicit eager / lazy handlers for MemTransferInst
+  void visitMemTransferInstEager(MemTransferInst &I, bool TrustTypes,
+                                 seadsa::Cell &sourceCell,
+                                 seadsa::Cell &destCell);
+  void visitMemTransferInstLazy(MemTransferInst &I, bool TrustTypes,
+                                seadsa::Cell &sourceCell,
+                                seadsa::Cell &destCell);
 
   void visitCallBase(CallBase &I);
   void visitInlineAsmCall(CallBase &I);
@@ -539,13 +554,23 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     }
   }
 
+  bool runOnEagerMemTransferMode() const {
+    return !EnableLazyMemTransfer || !m_lazy_mem_transfer;
+  }
+  bool runOnLazyMemTransferMode() const {
+    return EnableLazyMemTransfer && !m_lazy_mem_transfer;
+  }
+
 public:
   IntraBlockBuilder(Function &func, seadsa::Graph &graph, const DataLayout &dl,
                     const TargetLibraryInfo &tli,
                     const seadsa::AllocWrapInfo &allocInfo,
-                    bool track_callsites)
+                    bool track_callsites, bool enableLazyMemTransfer)
       : BlockBuilderBase(func, graph, dl, tli, allocInfo),
-        m_track_callsites(track_callsites) {}
+        m_track_callsites(track_callsites),
+        m_lazy_mem_transfer(enableLazyMemTransfer) {}
+
+  void shouldProceedLazyMemTransfer() { m_lazy_mem_transfer = false; }
 };
 
 seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
@@ -1556,7 +1581,72 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   return true;
 }
 
+void IntraBlockBuilder::visitMemTransferInstEager(MemTransferInst &I,
+                                                  bool TrustTypes,
+                                                  seadsa::Cell &sourceCell,
+                                                  seadsa::Cell &destCell) {
+  // unify the two cells because potentially all bytes of source
+  // are copied into dest
+  if (TrustTypes &&
+      ((sourceCell.getNode()->links().size() == 0 &&
+        hasNoPointerTy(I.getSource()->getType()->getPointerElementType())) ||
+       transfersNoPointers(I, m_dl))) {
+    /* do nothing */
+    // no pointers are copied from source to dest, so there is no
+    // need to unify them
+  } else {
+    destCell.unify(sourceCell);
+  }
+}
+
+void IntraBlockBuilder::visitMemTransferInstLazy(MemTransferInst &I,
+                                                 bool TrustTypes,
+                                                 seadsa::Cell &sourceCell,
+                                                 seadsa::Cell &destCell) {
+  unsigned copySize = sourceCell.getNode()->size(); // default to full size
+  if (isa<ConstantInt>(I.getLength())) {
+    // based on memcpy length
+    ConstantInt *len = dyn_cast<ConstantInt>(I.getLength());
+    copySize = (unsigned)len->getZExtValue();
+  } else if (TrustTypes &&
+             m_dl.getTypeStoreSize(
+                 I.getSource()->getType()->getPointerElementType()) ==
+                 m_dl.getTypeStoreSize(
+                     I.getDest()->getType()->getPointerElementType())) {
+    // based on type size if types are trusted and have same size
+    copySize = (unsigned)m_dl.getTypeStoreSize(
+        I.getSource()->getType()->getPointerElementType());
+  }
+
+  // copy links from source cell to dest
+  // if dest links already exist, then unify the two links
+  const auto &srcLinks = sourceCell.getNode()->links();
+
+  for (auto &link : srcLinks) {
+    // check if link is within copy size
+    if (link.first.getOffset() < sourceCell.getRawOffset() ||
+        link.first.getOffset() >= sourceCell.getRawOffset() + copySize) {
+      continue;
+    }
+    seadsa::Field newField = link.first.subOffset(sourceCell.getRawOffset());
+    destCell.addLink(newField, *link.second);
+    if (sourceCell.getNode()->hasAccessedType(link.first.getOffset())) {
+      auto fieldTypes =
+          sourceCell.getNode()->getAccessedType(link.first.getOffset());
+      for (const llvm::Type *t : fieldTypes) {
+        destCell.addAccessedType(newField.getOffset(),
+                                 const_cast<llvm::Type *>(t));
+      }
+    }
+  }
+}
+
 void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
+  if (!runOnEagerMemTransferMode()) {
+    // pending to apply until assignment is stable
+    return;
+  }
+
   // -- skip copy NULL
   if (isNullConstant(*I.getSource())) return;
 
@@ -1583,24 +1673,24 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   assert(m_graph.hasCell(*I.getDest()));
   assert(m_graph.hasCell(*I.getSource()));
 
-  // unify the two cells because potentially all bytes of source
-  // are copied into dest
   seadsa::Cell sourceCell = valueCell(*I.getSource());
   seadsa::Cell destCell = m_graph.mkCell(*I.getDest(), seadsa::Cell());
+  LOG("dsa-memtransfer", errs() << "Visiting: " << I << "\n";
+      errs() << "Before\n"; errs() << "Source Cell: " << sourceCell << "\n";
+      errs() << "Dest Cell: " << destCell << "\n";);
 
-  if (TrustTypes &&
-      ((sourceCell.getNode()->links().size() == 0 &&
-        hasNoPointerTy(I.getSource()->getType()->getPointerElementType())) ||
-       transfersNoPointers(I, m_dl))) {
-    /* do nothing */
-    // no pointers are copied from source to dest, so there is no
-    // need to unify them
+  if (runOnLazyMemTransferMode()) {
+    visitMemTransferInstLazy(I, TrustTypes, sourceCell, destCell);
   } else {
-    destCell.unify(sourceCell);
+    visitMemTransferInstEager(I, TrustTypes, sourceCell, destCell);
   }
 
   sourceCell.setRead();
   destCell.setModified();
+
+  LOG("dsa-memtransfer", errs() << "After\n";
+      errs() << "Source Cell: " << sourceCell << "\n";
+      errs() << "Dest Cell: " << destCell << "\n";);
 
   // TODO: can also update size of dest and source using I.getLength ()
 }
@@ -1866,13 +1956,30 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
     globalBuilder.initGlobalVariables();
   }
 
+  // -- delay applying MemTransferInst until the end of the local analysis
+  // -- only apply for main function
+  bool canDelayMemTransfer =
+      F.getName().equals("main") && EnableLazyMemTransfer;
+
   IntraBlockBuilder intraBuilder(F, g, m_dl, tli, m_allocInfo,
-                                 m_track_callsites);
+                                 m_track_callsites, canDelayMemTransfer);
   InterBlockBuilder interBuilder(F, g, m_dl, tli, m_allocInfo);
   for (const BasicBlock *bb : bbs)
     intraBuilder.visit(*const_cast<BasicBlock *>(bb));
   for (const BasicBlock *bb : bbs)
     interBuilder.visit(*const_cast<BasicBlock *>(bb));
+
+  if (canDelayMemTransfer) {
+    // -- now process MemTransferInsts
+    intraBuilder.shouldProceedLazyMemTransfer();
+    for (const BasicBlock *bb : bbs) {
+      for (Instruction &I : *const_cast<BasicBlock *>(bb)) {
+        if (auto *MTI = dyn_cast<MemTransferInst>(&I)) {
+          intraBuilder.visit(*MTI);
+        }
+      }
+    }
+  }
 
   g.compress();
   g.remove_dead();
