@@ -389,7 +389,7 @@ Cell &Node::getLink_(const Field &_f) {
 
 const Cell &Node::getLink(Field _f) const {
   assert(!isForwarding());
-  assert(g_IsTypeAware || f.getType().isUnknown() || f.getType().isOmniType());
+  assert(g_IsTypeAware || _f.getType().isUnknown() || _f.getType().isOmniType());
   Field f = Offset::getAdjustedField(*this, _f);
 
   if (m_links.count(f)) return *m_links.at(f);
