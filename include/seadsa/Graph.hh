@@ -735,7 +735,7 @@ public:
   void growSize(unsigned v);
 
   bool hasLink(Field f) const {
-    assert(g_IsTypeAware || f.getType().isUnknown());
+    assert(g_IsTypeAware || f.getType().isUnknown() || f.getType().isOmniType());
     return m_links.count(Offset::getAdjustedField(*this, f));
   }
 
