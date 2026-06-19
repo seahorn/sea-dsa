@@ -451,8 +451,12 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   // if true, cells are created for indirect callee
   bool m_track_callsites;
-  // if true, processing of memory transfer instructions is delayed
-  bool m_lazy_mem_transfer;
+  // if true, memory transfer instructions for this function are deferred to a
+  // separate pass and handled with the lazy (range-copy) transfer function;
+  // currently enabled for 'main' only
+  bool m_delay_mem_transfer;
+  // if true, we are currently executing that deferred pass
+  bool m_in_deferred_pass;
 
   void visitAllocaInst(AllocaInst &AI);
   void visitSelectInst(SelectInst &SI);
@@ -554,23 +558,25 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     }
   }
 
-  bool runOnEagerMemTransferMode() const {
-    return !EnableLazyMemTransfer || !m_lazy_mem_transfer;
+  // skip a memtransfer in the current pass when it is deferred and we have not
+  // yet reached the deferred pass
+  bool shouldDeferMemTransfer() const {
+    return m_delay_mem_transfer && !m_in_deferred_pass;
   }
-  bool runOnLazyMemTransferMode() const {
-    return EnableLazyMemTransfer && !m_lazy_mem_transfer;
-  }
+  // deferred functions use the lazy (range-copy) transfer function; every other
+  // function uses the eager (unify) transfer function
+  bool useLazyMemTransfer() const { return m_delay_mem_transfer; }
 
 public:
   IntraBlockBuilder(Function &func, seadsa::Graph &graph, const DataLayout &dl,
                     const TargetLibraryInfo &tli,
                     const seadsa::AllocWrapInfo &allocInfo,
-                    bool track_callsites, bool enableLazyMemTransfer)
+                    bool track_callsites, bool delayMemTransfer)
       : BlockBuilderBase(func, graph, dl, tli, allocInfo),
         m_track_callsites(track_callsites),
-        m_lazy_mem_transfer(enableLazyMemTransfer) {}
+        m_delay_mem_transfer(delayMemTransfer), m_in_deferred_pass(false) {}
 
-  void shouldProceedLazyMemTransfer() { m_lazy_mem_transfer = false; }
+  void beginDeferredMemTransferPass() { m_in_deferred_pass = true; }
 };
 
 seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
@@ -1641,8 +1647,8 @@ void IntraBlockBuilder::visitMemTransferInstLazy(MemTransferInst &I,
 }
 
 void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
-  if (!runOnEagerMemTransferMode()) {
-    // pending to apply until assignment is stable
+  if (shouldDeferMemTransfer()) {
+    // pending to apply until assignments are stable in the deferred pass
     return;
   }
 
@@ -1678,7 +1684,7 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
       errs() << "Before\n"; errs() << "Source Cell: " << sourceCell << "\n";
       errs() << "Dest Cell: " << destCell << "\n";);
 
-  if (runOnLazyMemTransferMode()) {
+  if (useLazyMemTransfer()) {
     visitMemTransferInstLazy(I, TrustTypes, sourceCell, destCell);
   } else {
     visitMemTransferInstEager(I, TrustTypes, sourceCell, destCell);
@@ -1970,7 +1976,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
 
   if (canDelayMemTransfer) {
     // -- now process MemTransferInsts
-    intraBuilder.shouldProceedLazyMemTransfer();
+    intraBuilder.beginDeferredMemTransferPass();
     for (const BasicBlock *bb : bbs) {
       for (Instruction &I : *const_cast<BasicBlock *>(bb)) {
         if (auto *MTI = dyn_cast<MemTransferInst>(&I)) {
