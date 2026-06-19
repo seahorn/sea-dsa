@@ -56,8 +56,8 @@ static llvm::cl::opt<bool> AssumeExternalFunctonsAllocators(
 
 static llvm::cl::opt<bool> EnableLazyMemTransfer(
     "sea-dsa-lazy-mem-transfer",
-    llvm::cl::desc("Delay processing of memory transfer instructions to a "
-                   "separate pass (inline only)"),
+    llvm::cl::desc("Delay processing of memory transfer instructions in 'main' "
+                   "to a separate pass; inline functions into main before use"),
     llvm::cl::init(false));
 
 /*****************************************************************************/
@@ -1603,18 +1603,17 @@ void IntraBlockBuilder::visitMemTransferInstLazy(MemTransferInst &I,
                                                  bool TrustTypes,
                                                  seadsa::Cell &sourceCell,
                                                  seadsa::Cell &destCell) {
-  unsigned copySize = sourceCell.getNode()->size(); // default to full size
-  if (isa<ConstantInt>(I.getLength())) {
+  uint64_t copySize = sourceCell.getNode()->size(); // default to full size
+  if (auto *len = dyn_cast<ConstantInt>(I.getLength())) {
     // based on memcpy length
-    ConstantInt *len = dyn_cast<ConstantInt>(I.getLength());
-    copySize = (unsigned)len->getZExtValue();
+    copySize = len->getZExtValue();
   } else if (TrustTypes &&
              m_dl.getTypeStoreSize(
                  I.getSource()->getType()->getPointerElementType()) ==
                  m_dl.getTypeStoreSize(
                      I.getDest()->getType()->getPointerElementType())) {
     // based on type size if types are trusted and have same size
-    copySize = (unsigned)m_dl.getTypeStoreSize(
+    copySize = m_dl.getTypeStoreSize(
         I.getSource()->getType()->getPointerElementType());
   }
 
