@@ -2,13 +2,13 @@
 
 name: CI
 
-# Controls when the action will run. 
+# Run CI on pushes to and pull requests targeting the LLVM-14 branches.
+# (dev15 is LLVM-15; add it here once main moves to a newer LLVM.)
 on:
-  # Triggers the workflow on push or pull request events but only for the dev14 branch
   push:
-    branches: dev14
+    branches: [dev14, main]
   pull_request:
-    branches: dev14
+    branches: [dev14, main]
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -19,10 +19,11 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      # Checks out the triggering commit (push) or PR merge ref (pull_request)
       - name: Check out repo
-        uses: actions/checkout@v2
-        with:
-          ref: dev14 # only checkout dev14
+        uses: actions/checkout@v4
+      # The Dockerfile builds seadsa and runs the test targets (test-sea-dsa
+      # for lit tests and sea-dsa-units for unit tests), so a failing test
+      # fails the build.
       - name: Build seadsa and run tests
         run: docker build -t seahorn/sea-dsa-builder:jammy-llvm14 -f docker/sea-dsa-builder.Dockerfile .
