@@ -1611,16 +1611,20 @@ void IntraBlockBuilder::visitMemTransferInstDelay(MemTransferInst &I,
                                                  seadsa::Cell &destCell) {
   uint64_t copySize = sourceCell.getNode()->size(); // default to full size
   if (auto *len = dyn_cast<ConstantInt>(I.getLength())) {
-    // based on memcpy length
+    // a constant length pins down exactly how many bytes are copied
     copySize = len->getZExtValue();
   } else if (TrustTypes &&
              m_dl.getTypeStoreSize(
                  I.getSource()->getType()->getPointerElementType()) ==
                  m_dl.getTypeStoreSize(
                      I.getDest()->getType()->getPointerElementType())) {
-    // based on type size if types are trusted and have same size
-    copySize = m_dl.getTypeStoreSize(
+    // length is a runtime value: the same-typed pointee store size is only a
+    // hint, so use it to grow copySize but never to shrink below the source
+    // node size. Shrinking (e.g. to 1 for an i8/char* buffer) would drop links
+    // that a runtime-length copy may actually move -- unsound.
+    uint64_t typeSize = m_dl.getTypeStoreSize(
         I.getSource()->getType()->getPointerElementType());
+    copySize = std::max(copySize, typeSize);
   }
 
   // if there is nothing to copy (e.g. the source node has no inferred size
