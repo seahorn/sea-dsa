@@ -1,4 +1,4 @@
-; RUN: %seadsa  %butd_dsa --sea-dsa-dot %s --sea-dsa-lazy-mem-transfer --sea-dsa-stats --sea-dsa-type-aware --sea-dsa-dot-outdir=%T/test-delay-memcpy2.ll
+; RUN: %seadsa  %butd_dsa --sea-dsa-dot %s --sea-dsa-delay-mem-transfer --sea-dsa-stats --sea-dsa-type-aware --sea-dsa-dot-outdir=%T/test-delay-memcpy2.ll
 ; RUN: %cmp-graphs %tests/test-delay-memcpy2.ll.main.mem.dot %T/test-delay-memcpy2.ll/main.mem.dot | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 

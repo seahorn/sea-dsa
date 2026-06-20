@@ -54,8 +54,8 @@ static llvm::cl::opt<bool> AssumeExternalFunctonsAllocators(
         "Treat all external functions as potential memory allocators"),
     llvm::cl::init(false));
 
-static llvm::cl::opt<bool> EnableLazyMemTransfer(
-    "sea-dsa-lazy-mem-transfer",
+static llvm::cl::opt<bool> EnableDelayMemTransfer(
+    "sea-dsa-delay-mem-transfer",
     llvm::cl::desc("Delay processing of memory transfer instructions in 'main' "
                    "to a separate pass; inline functions into main before use"),
     llvm::cl::init(false));
@@ -452,7 +452,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   // if true, cells are created for indirect callee
   bool m_track_callsites;
   // if true, memory transfer instructions for this function are deferred to a
-  // separate pass and handled with the lazy (range-copy) transfer function;
+  // separate pass and handled with the delayed (range-copy) transfer function;
   // currently enabled for 'main' only
   bool m_delay_mem_transfer;
   // if true, we are currently executing that deferred pass
@@ -481,11 +481,11 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   void visitMemSetInst(MemSetInst &I);
   void visitMemTransferInst(MemTransferInst &I);
-  // Explicit eager / lazy handlers for MemTransferInst
+  // Explicit eager / delayed handlers for MemTransferInst
   void visitMemTransferInstEager(MemTransferInst &I, bool TrustTypes,
                                  seadsa::Cell &sourceCell,
                                  seadsa::Cell &destCell);
-  void visitMemTransferInstLazy(MemTransferInst &I, bool TrustTypes,
+  void visitMemTransferInstDelay(MemTransferInst &I, bool TrustTypes,
                                 seadsa::Cell &sourceCell,
                                 seadsa::Cell &destCell);
 
@@ -563,9 +563,9 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   bool shouldDeferMemTransfer() const {
     return m_delay_mem_transfer && !m_in_deferred_pass;
   }
-  // deferred functions use the lazy (range-copy) transfer function; every other
-  // function uses the eager (unify) transfer function
-  bool useLazyMemTransfer() const { return m_delay_mem_transfer; }
+  // deferred functions use the delayed (range-copy) transfer function; every
+  // other function uses the eager (unify) transfer function
+  bool useDelayMemTransfer() const { return m_delay_mem_transfer; }
 
 public:
   IntraBlockBuilder(Function &func, seadsa::Graph &graph, const DataLayout &dl,
@@ -1605,7 +1605,7 @@ void IntraBlockBuilder::visitMemTransferInstEager(MemTransferInst &I,
   }
 }
 
-void IntraBlockBuilder::visitMemTransferInstLazy(MemTransferInst &I,
+void IntraBlockBuilder::visitMemTransferInstDelay(MemTransferInst &I,
                                                  bool TrustTypes,
                                                  seadsa::Cell &sourceCell,
                                                  seadsa::Cell &destCell) {
@@ -1623,25 +1623,66 @@ void IntraBlockBuilder::visitMemTransferInstLazy(MemTransferInst &I,
         I.getSource()->getType()->getPointerElementType());
   }
 
-  // copy links from source cell to dest
-  // if dest links already exist, then unify the two links
-  const auto &srcLinks = sourceCell.getNode()->links();
+  // if there is nothing to copy (e.g. the source node has no inferred size
+  // yet, so the default copySize is 0), do nothing
+  if (copySize == 0)
+    return;
 
-  for (auto &link : srcLinks) {
-    // check if link is within copy size
-    if (link.first.getOffset() < sourceCell.getRawOffset() ||
-        link.first.getOffset() >= sourceCell.getRawOffset() + copySize) {
-      continue;
+  const unsigned srcOffset = sourceCell.getRawOffset();
+  const unsigned dstOffset = destCell.getRawOffset();
+
+  // When source and destination share a node, copying links inserts into the
+  // same links map we read from. If the copied ranges
+  // [srcOffset, srcOffset + copySize) and [dstOffset, dstOffset + copySize)
+  // overlap, the copy is self-referential, so collapse conservatively. The two
+  // ranges have equal length, hence they are disjoint iff the gap between their
+  // start offsets is at least copySize (computed without overflow).
+  if (sourceCell.getNode() == destCell.getNode()) {
+    uint64_t gap = srcOffset <= dstOffset ? uint64_t(dstOffset - srcOffset)
+                                          : uint64_t(srcOffset - dstOffset);
+    if (gap < copySize) {
+      destCell.unify(sourceCell);
+      return;
     }
-    seadsa::Field newField = link.first.subOffset(sourceCell.getRawOffset());
-    destCell.addLink(newField, *link.second);
-    if (sourceCell.getNode()->hasAccessedType(link.first.getOffset())) {
-      auto fieldTypes =
-          sourceCell.getNode()->getAccessedType(link.first.getOffset());
-      for (const llvm::Type *t : fieldTypes) {
+  }
+
+  // First record the source fields to copy while iterating, then mutate dest
+  // afterwards. In the same-node case addLink can change the source links map,
+  // so rather than hold a cell reference across that mutation we keep only the
+  // Field keys (plain values that cannot dangle) and re-fetch each link from the
+  // re-resolved source node when we apply it.
+  llvm::SmallVector<seadsa::Field, 8> toCopy;
+  for (const auto &link : sourceCell.getNode()->links()) {
+    const unsigned linkOffset = link.first.getOffset();
+    // keep only links inside the copied byte range [srcOffset, srcOffset +
+    // copySize). Compare via subtraction so that srcOffset + copySize cannot
+    // overflow (this also lets copySize be treated as effectively unbounded).
+    if (linkOffset < srcOffset || linkOffset - srcOffset >= copySize)
+      continue;
+    toCopy.push_back(link.first);
+  }
+
+  // copy links (and their accessed types) from source cell to dest;
+  // if dest links already exist, then unify the two links
+  for (const seadsa::Field &srcField : toCopy) {
+    seadsa::Node *srcNode = sourceCell.getNode();
+    // the link may be gone if a previous addLink collapsed the (shared) source
+    // node; skip it then -- getLink would otherwise assert
+    if (!srcNode->hasLink(srcField))
+      continue;
+    const seadsa::Cell &target = srcNode->getLink(srcField);
+    const unsigned linkOffset = srcField.getOffset();
+    seadsa::Field newField = srcField.subOffset(srcOffset);
+    LOG("dsa-memtransfer",
+        errs() << "Copying link at source offset " << linkOffset
+               << " to dest offset " << newField.getOffset() << ": " << target
+               << "\n";);
+    destCell.addLink(newField, target);
+    if (srcNode->hasAccessedType(linkOffset)) {
+      auto fieldTypes = srcNode->getAccessedType(linkOffset);
+      for (const llvm::Type *t : fieldTypes)
         destCell.addAccessedType(newField.getOffset(),
                                  const_cast<llvm::Type *>(t));
-      }
     }
   }
 }
@@ -1684,8 +1725,8 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
       errs() << "Before\n"; errs() << "Source Cell: " << sourceCell << "\n";
       errs() << "Dest Cell: " << destCell << "\n";);
 
-  if (useLazyMemTransfer()) {
-    visitMemTransferInstLazy(I, TrustTypes, sourceCell, destCell);
+  if (useDelayMemTransfer()) {
+    visitMemTransferInstDelay(I, TrustTypes, sourceCell, destCell);
   } else {
     visitMemTransferInstEager(I, TrustTypes, sourceCell, destCell);
   }
@@ -1964,7 +2005,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   // -- delay applying MemTransferInst until the end of the local analysis
   // -- only apply for main function
   bool canDelayMemTransfer =
-      F.getName().equals("main") && EnableLazyMemTransfer;
+      F.getName().equals("main") && EnableDelayMemTransfer;
 
   IntraBlockBuilder intraBuilder(F, g, m_dl, tli, m_allocInfo,
                                  m_track_callsites, canDelayMemTransfer);
