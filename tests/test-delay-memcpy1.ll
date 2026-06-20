@@ -1,5 +1,5 @@
 ; RUN: %seadsa  %butd_dsa --sea-dsa-dot %s --sea-dsa-delay-mem-transfer --sea-dsa-stats --sea-dsa-type-aware --sea-dsa-dot-outdir=%T/test-delay-memcpy1.ll
-; RUN: %cmp-graphs %tests/test-delay-memcpy1.ll.main.mem.dot %T/test-delay-memcpy1.ll/main.mem.dot | OutputCheck %s -d --comment=";"
+; RUN: %cmp-graphs %tests/test-delay-memcpy1.ll.main.mem.dot %T/test-delay-memcpy1.ll/main.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 
 ; ModuleID = 'test-delay-memcpy1.ll'
