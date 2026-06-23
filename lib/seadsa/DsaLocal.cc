@@ -1609,39 +1609,46 @@ void IntraBlockBuilder::visitMemTransferInstDelay(MemTransferInst &I,
                                                  bool TrustTypes,
                                                  seadsa::Cell &sourceCell,
                                                  seadsa::Cell &destCell) {
-  uint64_t copySize = sourceCell.getNode()->size(); // default to full size
+  // bytes copied: exact for a constant length; otherwise the source node size,
+  // with an equal-typed pointee size allowed only to grow it (never shrink --
+  // shrinking, e.g. to 1 for an i8 buffer, would drop links a longer copy moves)
+  uint64_t copySize = sourceCell.getNode()->size();
   if (auto *len = dyn_cast<ConstantInt>(I.getLength())) {
-    // a constant length pins down exactly how many bytes are copied
     copySize = len->getZExtValue();
   } else if (TrustTypes &&
              m_dl.getTypeStoreSize(
                  I.getSource()->getType()->getPointerElementType()) ==
                  m_dl.getTypeStoreSize(
                      I.getDest()->getType()->getPointerElementType())) {
-    // length is a runtime value: the same-typed pointee store size is only a
-    // hint, so use it to grow copySize but never to shrink below the source
-    // node size. Shrinking (e.g. to 1 for an i8/char* buffer) would drop links
-    // that a runtime-length copy may actually move -- unsound.
     uint64_t typeSize = m_dl.getTypeStoreSize(
         I.getSource()->getType()->getPointerElementType());
     copySize = std::max(copySize, typeSize);
   }
 
-  // if there is nothing to copy (e.g. the source node has no inferred size
-  // yet, so the default copySize is 0), do nothing
-  if (copySize == 0)
+  if (copySize == 0) return; // nothing to copy
+
+  // Range-copy only when both source and dest are field-sensitive (not an
+  // array/sequence and not offset-collapsed). A folded node on either side
+  // can't be copied offset-by-offset, so unify conservatively.
+  seadsa::Node *srcN = sourceCell.getNode();
+  seadsa::Node *dstN = destCell.getNode();
+  bool srcFolded = srcN->isArray() || srcN->isOffsetCollapsed();
+  bool dstFolded = dstN->isArray() || dstN->isOffsetCollapsed();
+  if (srcFolded || dstFolded) {
+    // TODO: improve precision for sequence/collapsed nodes instead of always
+    // unifying -- e.g. replicate an array element's links across the copied
+    // strides for an equal-stride, element-start-aligned copy.
+    destCell.unify(sourceCell);
     return;
+  }
 
   const unsigned srcOffset = sourceCell.getRawOffset();
   const unsigned dstOffset = destCell.getRawOffset();
 
-  // When source and destination share a node, copying links inserts into the
-  // same links map we read from. If the copied ranges
-  // [srcOffset, srcOffset + copySize) and [dstOffset, dstOffset + copySize)
-  // overlap, the copy is self-referential, so collapse conservatively. The two
-  // ranges have equal length, hence they are disjoint iff the gap between their
-  // start offsets is at least copySize (computed without overflow).
-  if (sourceCell.getNode() == destCell.getNode()) {
+  // Same node on both sides: if the copied ranges overlap, the copy is
+  // self-referential -> unify. Equal-length ranges are disjoint iff the gap
+  // between starts is >= copySize (subtraction avoids overflow).
+  if (srcN == dstN) {
     uint64_t gap = srcOffset <= dstOffset ? uint64_t(dstOffset - srcOffset)
                                           : uint64_t(srcOffset - dstOffset);
     if (gap < copySize) {
@@ -1650,28 +1657,23 @@ void IntraBlockBuilder::visitMemTransferInstDelay(MemTransferInst &I,
     }
   }
 
-  // First record the source fields to copy while iterating, then mutate dest
-  // afterwards. In the same-node case addLink can change the source links map,
-  // so rather than hold a cell reference across that mutation we keep only the
-  // Field keys (plain values that cannot dangle) and re-fetch each link from the
-  // re-resolved source node when we apply it.
+  // Record in-range source fields first, then mutate dest: addLink can change
+  // the source links map (same-node case), so keep only Field keys (which can't
+  // dangle) and re-fetch each link when applying.
   llvm::SmallVector<seadsa::Field, 8> toCopy;
-  for (const auto &link : sourceCell.getNode()->links()) {
+  for (const auto &link : srcN->links()) {
     const unsigned linkOffset = link.first.getOffset();
-    // keep only links inside the copied byte range [srcOffset, srcOffset +
-    // copySize). Compare via subtraction so that srcOffset + copySize cannot
-    // overflow (this also lets copySize be treated as effectively unbounded).
+    // keep links within [srcOffset, srcOffset + copySize); subtract to avoid
+    // overflow
     if (linkOffset < srcOffset || linkOffset - srcOffset >= copySize)
       continue;
     toCopy.push_back(link.first);
   }
 
-  // copy links (and their accessed types) from source cell to dest;
-  // if dest links already exist, then unify the two links
+  // copy each link (and its accessed types) to dest, rebased by srcOffset
   for (const seadsa::Field &srcField : toCopy) {
     seadsa::Node *srcNode = sourceCell.getNode();
-    // the link may be gone if a previous addLink collapsed the (shared) source
-    // node; skip it then -- getLink would otherwise assert
+    // skip if a prior addLink collapsed the source node and dropped the link
     if (!srcNode->hasLink(srcField))
       continue;
     const seadsa::Cell &target = srcNode->getLink(srcField);
