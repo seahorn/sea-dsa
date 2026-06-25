@@ -126,7 +126,7 @@ void SeaMemoryDef::print(raw_ostream &OS) const {
     OS << "->";
     printID(getOptimized());
 
-    if (Optional<AliasResult> AR = getOptimizedAccessType()) OS << " " << *AR;
+    if (std::optional<AliasResult> AR = getOptimizedAccessType()) OS << " " << *AR;
   }
 
   if (m_Cell.getNode()) {
@@ -170,7 +170,7 @@ void SeaMemoryUse::print(raw_ostream &OS) const {
     OS << LiveOnEntryStr;
   OS << ')';
 
-  if (Optional<AliasResult> AR = getOptimizedAccessType()) OS << " " << *AR;
+  if (std::optional<AliasResult> AR = getOptimizedAccessType()) OS << " " << *AR;
 }
 
 void SeaMemoryAccess::dump() const {

@@ -26,9 +26,9 @@ using namespace llvm;
 
 char AllocSiteInfo::ID = 0;
 
-static MDNode *mkMetaConstant(llvm::Optional<unsigned> val, LLVMContext &ctx) {
-  MDNode *meta = MDNode::get(ctx, llvm::None);
-  if (val.hasValue())
+static MDNode *mkMetaConstant(std::optional<unsigned> val, LLVMContext &ctx) {
+  MDNode *meta = MDNode::get(ctx, std::nullopt);
+  if (val.has_value())
     meta = MDNode::get(ctx, ConstantAsMetadata::get(ConstantInt::get(
                                 ctx, llvm::APInt(64u, size_t(*val)))));
   return meta;
@@ -90,9 +90,9 @@ bool AllocSiteInfo::runOnModule(Module &M) {
   return changed;
 }
 
-Optional<unsigned> AllocSiteInfo::maybeEvalAllocSize(Value &v,
+std::optional<unsigned> AllocSiteInfo::maybeEvalAllocSize(Value &v,
                                                      LLVMContext &ctx) {
-  llvm::Optional<unsigned> bytes = llvm::None;
+  std::optional<unsigned> bytes = std::nullopt;
 
   llvm::ObjectSizeOpts Opts;
   Opts.RoundToAlign = true;
@@ -109,7 +109,7 @@ Optional<unsigned> AllocSiteInfo::maybeEvalAllocSize(Value &v,
 }
 
 void AllocSiteInfo::markAsAllocSite(Instruction &inst,
-                                    Optional<unsigned> allocatedBytes) {
+                                    std::optional<unsigned> allocatedBytes) {
   MDNode *meta = mkMetaConstant(allocatedBytes, inst.getContext());
   inst.setMetadata(m_allocSiteMetadataTag, meta);
 }
@@ -131,7 +131,7 @@ bool AllocSiteInfo::markAllocs(Function &F) {
       if (auto *ci = dyn_cast<CallInst>(&inst)) {
         if (auto *callee = ci->getCalledFunction()) {
           if (m_awi->isAllocWrapper(*callee)) {
-            Optional<unsigned> bytes = maybeEvalAllocSize(*ci, F.getContext());
+            std::optional<unsigned> bytes = maybeEvalAllocSize(*ci, F.getContext());
             markAsAllocSite(*ci, bytes);
             changed = true;
           }
@@ -152,7 +152,7 @@ bool AllocSiteInfo::isAllocSite(const Value &v) {
   return false;
 }
 
-llvm::Optional<unsigned> AllocSiteInfo::getAllocSiteSize(const Value &v) {
+std::optional<unsigned> AllocSiteInfo::getAllocSiteSize(const Value &v) {
   assert(isAllocSite(v) && "Check if it's an alloc site first!");
   MDNode *meta = nullptr;
   if (auto *inst = dyn_cast<Instruction>(&v))
@@ -173,7 +173,7 @@ llvm::Optional<unsigned> AllocSiteInfo::getAllocSiteSize(const Value &v) {
       return unsigned(valInt->getLimitedValue());
     }
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 // static llvm::RegisterPass<seadsa::AllocSiteInfo> X("seadsa-alloc-site-info",

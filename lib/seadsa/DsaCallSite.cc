@@ -34,10 +34,10 @@ getCalledFunctionThroughAliasesAndCasts(const CallBase &cb) {
 }
 
 DsaCallSite::DsaCallSite(const CallBase &cb)
-    : m_cb(&cb), m_cell(None), m_cloned(false),
+    : m_cb(&cb), m_cell(std::nullopt), m_cloned(false),
       m_callee(getCalledFunctionThroughAliasesAndCasts(cb)) {}
 DsaCallSite::DsaCallSite(const Instruction &cs)
-    : m_cb(dyn_cast<const CallBase>(&cs)), m_cell(None), m_cloned(false),
+    : m_cb(dyn_cast<const CallBase>(&cs)), m_cell(std::nullopt), m_cloned(false),
       m_callee(getCalledFunctionThroughAliasesAndCasts(*m_cb)) {
   assert(m_cb);
 }
@@ -45,26 +45,26 @@ DsaCallSite::DsaCallSite(const Instruction &cs, Cell c)
     : m_cb(dyn_cast<const CallBase>(&cs)), m_cell(c), m_cloned(false),
       m_callee(getCalledFunctionThroughAliasesAndCasts(*m_cb)) {
   assert(m_cb);
-  m_cell.getValue().getNode();
+  m_cell.value().getNode();
 }
 DsaCallSite::DsaCallSite(const Instruction &cs, const Function &callee)
-    : m_cb(dyn_cast<const CallBase>(&cs)), m_cell(None), m_cloned(false),
+    : m_cb(dyn_cast<const CallBase>(&cs)), m_cell(std::nullopt), m_cloned(false),
       m_callee(&callee) {
   assert(m_cb);
   assert(isIndirectCall() ||
          getCalledFunctionThroughAliasesAndCasts(*m_cb) == &callee);
 }
 
-bool DsaCallSite::hasCell() const { return m_cell.hasValue(); }
+bool DsaCallSite::hasCell() const { return m_cell.has_value(); }
 
 const Cell &DsaCallSite::getCell() const {
   assert(hasCell());
-  return m_cell.getValue();
+  return m_cell.value();
 }
 
 Cell &DsaCallSite::getCell() {
   assert(hasCell());
-  return m_cell.getValue();
+  return m_cell.value();
 }
 
 const llvm::Value &DsaCallSite::getCalledValue() const {
@@ -132,7 +132,7 @@ DsaCallSite::const_actual_iterator DsaCallSite::actual_end() const {
 void DsaCallSite::write(raw_ostream &o) const {
   o << *m_cb;
   if (isIndirectCall() && hasCell()) {
-    o << "\nCallee cell " << m_cell.getValue();
+    o << "\nCallee cell " << m_cell.value();
   }
 }
 

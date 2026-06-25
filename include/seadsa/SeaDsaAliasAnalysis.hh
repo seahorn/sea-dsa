@@ -24,8 +24,8 @@ class AllocWrapInfo;
 class DsaLibFuncInfo;
 class BottomUpTopDownGlobalAnalysis;
 
-class SeaDsaAAResult : public llvm::AAResultBase<SeaDsaAAResult> {
-  using Base = llvm::AAResultBase<SeaDsaAAResult>;
+class SeaDsaAAResult : public llvm::AAResultBase {
+  using Base = llvm::AAResultBase;
   friend Base;
 
 public:
@@ -41,7 +41,8 @@ public:
   }
 
   llvm::AliasResult alias(const llvm::MemoryLocation &,
-                          const llvm::MemoryLocation &, llvm::AAQueryInfo &);
+                          const llvm::MemoryLocation &, llvm::AAQueryInfo &,
+                          const llvm::Instruction *);
 
 private:
   llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;

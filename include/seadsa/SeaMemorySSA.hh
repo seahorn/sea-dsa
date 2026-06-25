@@ -61,8 +61,8 @@ public:
   }
 
   void setDsaCell(const seadsa::Cell &c) { m_Cell = c; }
-  void setDsaCell(const llvm::Optional<Cell> &c) {
-    if (c.hasValue()) m_Cell = c.getValue();
+  void setDsaCell(const std::optional<Cell> &c) {
+    if (c.has_value()) m_Cell = c.value();
   }
   const seadsa::Cell &getDsaCell() const { return m_Cell; }
 
@@ -137,7 +137,7 @@ public:
 
   // Retrieve AliasResult type of the optimized access. Ideally this would be
   // returned by the caching walker and may go away in the future.
-  Optional<AliasResult> getOptimizedAccessType() const {
+  std::optional<AliasResult> getOptimizedAccessType() const {
     return OptimizedAccessAlias;
   }
 
@@ -160,12 +160,12 @@ protected:
   // Use deleteValue() to delete a generic MemoryUseOrDef.
   ~SeaMemoryUseOrDef() = default;
 
-  void setOptimizedAccessType(Optional<AliasResult> AR) {
+  void setOptimizedAccessType(std::optional<AliasResult> AR) {
     OptimizedAccessAlias = AR;
   }
 
   void setDefiningAccess(SeaMemoryAccess *DMA, bool Optimized = false,
-                         Optional<AliasResult> AR = AliasResult(AliasResult::MayAlias)) {
+                         std::optional<AliasResult> AR = AliasResult(AliasResult::MayAlias)) {
     if (!Optimized) {
       setOperand(0, DMA);
       return;
@@ -176,7 +176,7 @@ protected:
 
 private:
   Instruction *MemoryInstruction;
-  Optional<AliasResult> OptimizedAccessAlias;
+  std::optional<AliasResult> OptimizedAccessAlias;
 };
 
 class SeaMemoryUse final : public SeaMemoryUseOrDef {

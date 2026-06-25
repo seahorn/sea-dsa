@@ -173,14 +173,14 @@ void Cloner::copyAllocationSites(
 }
 
 void Cloner::importCallPaths(DsaAllocSite &site,
-                             llvm::Optional<DsaAllocSite *> other) {
+                             std::optional<DsaAllocSite *> other) {
   if (isUnset())
     return;
 
-  assert(other.hasValue());
-  if (!other.hasValue())
+  assert(other.has_value());
+  if (!other.has_value())
     return;
 
-  site.importCallPaths(*other.getValue(),
-                       DsaCallSite(*m_context.m_cs.getValue()), isBottomUp());
+  site.importCallPaths(*other.value(),
+                       DsaCallSite(*m_context.m_cs.value()), isBottomUp());
 }
