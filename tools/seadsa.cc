@@ -220,7 +220,10 @@ int main(int argc, char **argv) {
       pass_manager.add(seadsa::createDsaCallGraphPrinterPass());
     }
 
-    if (AAEval) { pass_manager.add(llvm::createAAEvalPass()); }
+    if (AAEval) {
+      // llvm::createAAEvalPass() (legacy AA-eval) was removed in LLVM 18.
+      llvm::errs() << "warning: --aa-eval is unsupported under LLVM 18\n";
+    }
 
     if (!MemDot && !MemViewer && !seadsa::PrintDsaStats &&
         !seadsa::PrintCallGraphStats && !CallGraphDot && !AAEval) {

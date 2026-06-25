@@ -280,7 +280,7 @@ class GlobalBuilder : public BlockBuilderBase {
 
     if (const ConstantVector *CP = dyn_cast<ConstantVector>(Init)) {
       unsigned ElementSize =
-          m_dl.getTypeAllocSize(CP->getType()->getElementType()).getFixedSize();
+          m_dl.getTypeAllocSize(CP->getType()->getElementType()).getFixedValue();
       for (unsigned i = 0, e = CP->getNumOperands(); i != e; ++i) {
         unsigned noffset = offset + i * ElementSize;
         seadsa::Cell nc = seadsa::Cell(c.getNode(), noffset);
@@ -294,7 +294,7 @@ class GlobalBuilder : public BlockBuilderBase {
     if (const ConstantArray *CPA = dyn_cast<ConstantArray>(Init)) {
       unsigned ElementSize =
           m_dl.getTypeAllocSize(CPA->getType()->getElementType())
-              .getFixedSize();
+              .getFixedValue();
       for (unsigned i = 0, e = CPA->getNumOperands(); i != e; ++i) {
         unsigned noffset = offset + i * ElementSize;
         seadsa::Cell nc = seadsa::Cell(c.getNode(), noffset);
@@ -514,9 +514,9 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
     // may need to define multiple sea_dsa_link types. For example:
     // sea_dsa_link_to_charptr(const void *p, unsigned offset, const char*
     // p2);
-    if (fn->getName().startswith("sea_dsa_link"))
+    if (fn->getName().starts_with("sea_dsa_link"))
       fnType = SeadsaFn::LINK;
-    else if (fn->getName().startswith("sea_dsa_access"))
+    else if (fn->getName().starts_with("sea_dsa_access"))
       fnType = SeadsaFn::ACCESS;
 
     return fnType;
@@ -526,7 +526,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   static bool isSeaDsaFn(const Function *fn) {
     if (!fn) return false;
     auto n = fn->getName();
-    return n.startswith("sea_dsa_");
+    return n.starts_with("sea_dsa_");
   }
 
   /// Returns true if \p F is a \p ownsem_ family of functions
@@ -1202,7 +1202,7 @@ void IntraBlockBuilder::visitExternalCall(CallBase &I) {
   Cell &c = m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
   c.getNode()->setExternal();
 
-  if (callee->getName().startswith("verifier.nondet.abstract.memory")) return;
+  if (callee->getName().starts_with("verifier.nondet.abstract.memory")) return;
 
   // TODO: better handling of external funcations
   // TOOD: Use function attributes and external specifications
@@ -1684,7 +1684,7 @@ bool BlockBuilderBase::isFixedOffset(const IntToPtrInst &inst, Value *&base,
       }
       offset = C->getZExtValue();
     } else if (auto *LI = dyn_cast<LoadInst>(X)) {
-      PointerType *liType = Type::getInt8PtrTy(LI->getContext());
+      PointerType *liType = PointerType::getUnqual(LI->getContext());
       seadsa::Cell ptrCell =
           valueCell(*LI->getPointerOperand()->stripPointerCasts());
       ptrCell.addAccessedType(0, liType);
@@ -1812,7 +1812,7 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
           // to it if (callee->doesNotAccessMemory())
           //   continue;
           auto n = callee->getName();
-          if (n.startswith("__sea_set_extptr_slot") ||
+          if (n.starts_with("__sea_set_extptr_slot") ||
               n.equals("verifier.assume") || n.equals("llvm.assume"))
             continue;
         }

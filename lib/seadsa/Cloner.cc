@@ -24,7 +24,7 @@ static bool isConstantNoPtr(const llvm::Value *v) {
     return false;
 
   // Cheaply check if the global value has a string-like name.
-  if (v->hasName() && v->getName().startswith(".str."))
+  if (v->hasName() && v->getName().starts_with(".str."))
     return true;
 
   if (!v->getType()->isPointerTy()) return false;

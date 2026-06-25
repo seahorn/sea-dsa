@@ -103,9 +103,9 @@ Value *getUniqueScalar(LLVMContext &ctx, IRBuilder<> &B, const dsa::Cell &c) {
     // -- are probably not very common.
     if (auto *gv = dyn_cast_or_null<GlobalVariable>(v))
       if (gv->getValueType()->isSingleValueType())
-        return B.CreateBitCast(v, Type::getInt8PtrTy(ctx));
+        return B.CreateBitCast(v, PointerType::getUnqual(ctx));
   }
-  return ConstantPointerNull::get(Type::getInt8PtrTy(ctx));
+  return ConstantPointerNull::get(PointerType::getUnqual(ctx));
 }
 
 /// Computes the set of notes reachable from \p n
@@ -516,7 +516,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     Value *scalar = getUniqueScalar(*m_llvmCtx, B, c);
     if (!isa<ConstantPointerNull>(scalar)) return nullptr;
 
-    Value *u = B.CreateBitCast(&_u, Type::getInt8PtrTy(*m_llvmCtx));
+    Value *u = B.CreateBitCast(&_u, PointerType::getUnqual(*m_llvmCtx));
     AllocaInst *v = getShadowForField(c);
     auto *ci = mkShadowCall(
         B, c, m_memGlobalVarInitFn,
@@ -1075,10 +1075,10 @@ void ShadowMemImpl::visitCallBase(CallBase &I) {
   auto *callee = I.getCalledFunction();
   if (!callee) return;
 
-  if ((callee->getName().startswith("seahorn.") ||
-       callee->getName().startswith("verifier.")) &&
+  if ((callee->getName().starts_with("seahorn.") ||
+       callee->getName().starts_with("verifier.")) &&
       /* seahorn.bounce should be treated as a regular function*/
-      !(callee->getName().startswith("seahorn.bounce")))
+      !(callee->getName().starts_with("seahorn.bounce")))
     return;
 
 
@@ -1517,7 +1517,7 @@ Constant *getOrInsertFunction(Module &M, StringRef Name, Type *RetTy,
 void ShadowMemImpl::mkShadowFunctions(Module &M) {
   LLVMContext &ctx = M.getContext();
   m_Int32Ty = Type::getInt32Ty(ctx);
-  Type *i8PtrTy = Type::getInt8PtrTy(ctx);
+  Type *i8PtrTy = PointerType::getUnqual(ctx);
   Type *voidTy = Type::getVoidTy(ctx);
 
   m_memLoadFn = getOrInsertFunction(M, m_memLoadTag, voidTy, m_Int32Ty,
