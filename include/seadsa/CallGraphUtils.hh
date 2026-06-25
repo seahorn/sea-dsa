@@ -2,7 +2,7 @@
 
 #include "seadsa/CallSite.hh"
 #include "seadsa/DsaLibFuncInfo.hh"
-#include "llvm/ADT/Optional.h"
+#include <optional>
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/CallGraph.h"
 

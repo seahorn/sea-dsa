@@ -1,7 +1,7 @@
 #ifndef __DSA_CALLSITE_HH_
 #define __DSA_CALLSITE_HH_
 
-#include "llvm/ADT/Optional.h"
+#include <optional>
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Module.h"

@@ -3,7 +3,7 @@
    information is exposed metadata attached to allocation sites.
  */
 #pragma once
-#include "llvm/ADT/Optional.h"
+#include <optional>
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Pass.h"
 
