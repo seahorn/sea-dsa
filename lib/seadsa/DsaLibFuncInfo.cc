@@ -257,7 +257,7 @@ void DsaLibFuncInfo::generateSpec(const llvm::Function &F,
 
   // sets the attributes that the original node has onto the spec graph value
   auto setAttributes = [&](const Node *gNode, Value *specVal) {
-    auto bitCastVal = builder.CreateBitCast(specVal, builder.getInt8PtrTy());
+    auto bitCastVal = builder.CreateBitCast(specVal, builder.getPtrTy());
 
     if (gNode->isModified()) { builder.CreateCall(specFnModify, bitCastVal); }
     if (gNode->isHeap()) { builder.CreateCall(specFnHeap, bitCastVal); }
@@ -281,7 +281,7 @@ void DsaLibFuncInfo::generateSpec(const llvm::Function &F,
     if (!G->hasCell(*fIt)) continue;
 
     Value &v = *specIt;
-    Value *castVal = builder.CreateBitCast(&v, builder.getInt8PtrTy());
+    Value *castVal = builder.CreateBitCast(&v, builder.getPtrTy());
     visitStack.push({G->getCell(*fIt).getNode(), castVal});
   }
 
@@ -317,7 +317,7 @@ void DsaLibFuncInfo::generateSpec(const llvm::Function &F,
           castChild = builder.CreateBitCast(newNodeVal, ty);
         else
           castChild = builder.CreateBitCast(
-              newNodeVal, llvm::Type::getInt8PtrTy(m_specModule->getContext()));
+              newNodeVal, llvm::PointerType::getUnqual(m_specModule->getContext()));
         builder.CreateCall(linkFn, {specVal, llvmOffset, castChild});
 
         visitStack.push({link.second->getNode(), newNodeVal});

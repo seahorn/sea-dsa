@@ -109,8 +109,8 @@ std::optional<unsigned> AllocSiteInfo::maybeEvalAllocSize(Value &v,
   Opts.EvalMode = llvm::ObjectSizeOpts::Mode::Max;
   ObjectSizeOffsetVisitor OSOV(*m_dl, m_tli, ctx, Opts);
   auto OffsetAlign = OSOV.compute(&v);
-  if (OSOV.knownSize(OffsetAlign)) {
-    const int64_t sz = OffsetAlign.first.getSExtValue();
+  if (OffsetAlign.knownSize()) {
+    const int64_t sz = OffsetAlign.Size.getSExtValue();
     assert(sz >= 0);
     bytes = unsigned(sz);
   }
