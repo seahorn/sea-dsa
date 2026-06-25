@@ -175,11 +175,12 @@ void argReachableNodes(const Function &fn, dsa::Graph &g, Set1 &inReach,
 /// alias -- this class is just a simple workaround.
 /// TODO: Investigate crashes in llvm::AAResultsWrapperPass.
 class LocalAAResultsWrapper {
+  llvm::AAResults *m_results = nullptr;
   llvm::BasicAAResult *m_baa = nullptr;
   llvm::TypeBasedAAResult *m_tbaa = nullptr;
   llvm::ScopedNoAliasAAResult *m_snaaa = nullptr;
 
-  MemoryLocation getMemLoc(Value &ptr, Value *inst, Optional<unsigned> size) {
+  MemoryLocation getMemLoc(Value &ptr, Value *inst, std::optional<unsigned> size) {
     MemoryLocation loc(&ptr, LocationSize::beforeOrAfterPointer());
     if (auto *i = dyn_cast_or_null<Instruction>(inst)) {
       AAMDNodes aaTags;
@@ -187,34 +188,34 @@ class LocalAAResultsWrapper {
       loc = MemoryLocation(&ptr, MemoryLocation::UnknownSize, aaTags);
     }
 
-    if (size.hasValue()) loc = loc.getWithNewSize(*size);
+    if (size.has_value()) loc = loc.getWithNewSize(*size);
 
     return loc;
   }
 
 public:
   LocalAAResultsWrapper() = default;
-  LocalAAResultsWrapper(BasicAAResult *baa, TypeBasedAAResult *tbaa,
-                        ScopedNoAliasAAResult *snaaa)
-      : m_baa(baa), m_tbaa(tbaa), m_snaaa(snaaa) {}
+  LocalAAResultsWrapper(AAResults *results, BasicAAResult *baa,
+                        TypeBasedAAResult *tbaa, ScopedNoAliasAAResult *snaaa)
+      : m_results(results), m_baa(baa), m_tbaa(tbaa), m_snaaa(snaaa) {}
   LocalAAResultsWrapper(const LocalAAResultsWrapper &) = default;
   LocalAAResultsWrapper &operator=(const LocalAAResultsWrapper &) = default;
 
-  bool isNoAlias(Value &ptrA, Value *instA, Optional<unsigned> sizeA,
-                 Value &ptrB, Value *instB, Optional<unsigned> sizeB) {
+  bool isNoAlias(Value &ptrA, Value *instA, std::optional<unsigned> sizeA,
+                 Value &ptrB, Value *instB, std::optional<unsigned> sizeB) {
     if (!m_baa && !m_tbaa && !m_snaaa) return false;
 
     MemoryLocation A = getMemLoc(ptrA, instA, sizeA);
     MemoryLocation B = getMemLoc(ptrB, instB, sizeB);
 
-    SimpleAAQueryInfo AAQI;
-    if (m_tbaa && m_tbaa->alias(A, B, AAQI) == AliasResult::NoAlias)
+    SimpleAAQueryInfo AAQI(*m_results);
+    if (m_tbaa && m_tbaa->alias(A, B, AAQI, nullptr) == AliasResult::NoAlias)
       return true;
 
-    if (m_snaaa && m_snaaa->alias(A, B, AAQI) == AliasResult::NoAlias)
+    if (m_snaaa && m_snaaa->alias(A, B, AAQI, nullptr) == AliasResult::NoAlias)
       return true;
 
-    return m_baa && m_baa->alias(A, B, AAQI) == AliasResult::NoAlias;
+    return m_baa && m_baa->alias(A, B, AAQI, nullptr) == AliasResult::NoAlias;
   }
 };
 } // end namespace
@@ -431,36 +432,36 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     return m_computeReadMod ? m_modList[&f].count(n) > 0 : n->isModified();
   }
 
-  MDNode *mkMetaConstant(llvm::Optional<unsigned> val) {
+  MDNode *mkMetaConstant(std::optional<unsigned> val) {
     assert(m_llvmCtx);
-    if (val.hasValue())
+    if (val.has_value())
       return MDNode::get(*m_llvmCtx,
                          ConstantAsMetadata::get(ConstantInt::get(
                              *m_llvmCtx, llvm::APInt(64u, size_t(*val)))));
 
-    return MDNode::get(*m_llvmCtx, llvm::None);
+    return MDNode::get(*m_llvmCtx, std::nullopt);
   }
 
-  Optional<unsigned> maybeGetMetaConstant(CallInst &memOp, StringRef metaName) {
+  std::optional<unsigned> maybeGetMetaConstant(CallInst &memOp, StringRef metaName) {
     if (MDNode *meta = memOp.getMetadata(metaName))
       if (meta->getNumOperands() > 0)
         if (auto *c = dyn_cast<ConstantAsMetadata>(meta->getOperand(0)))
           if (auto *cInt = dyn_cast<ConstantInt>(c->getValue()))
             return unsigned(cInt->getLimitedValue());
 
-    return llvm::None;
+    return std::nullopt;
   }
 
-  void markDefCall(CallInst *ci, llvm::Optional<unsigned> accessedBytes) {
+  void markDefCall(CallInst *ci, std::optional<unsigned> accessedBytes) {
     assert(m_llvmCtx);
-    MDNode *meta = MDNode::get(*m_llvmCtx, None);
+    MDNode *meta = MDNode::get(*m_llvmCtx, std::nullopt);
     ci->setMetadata(m_metadataTag, meta);
     ci->setMetadata(m_memDefTag, mkMetaConstant(accessedBytes));
   }
 
-  void markUseCall(CallInst *ci, llvm::Optional<unsigned> accessedBytes) {
+  void markUseCall(CallInst *ci, std::optional<unsigned> accessedBytes) {
     assert(m_llvmCtx);
-    MDNode *meta = MDNode::get(*m_llvmCtx, None);
+    MDNode *meta = MDNode::get(*m_llvmCtx, std::nullopt);
     ci->setMetadata(m_metadataTag, meta);
     ci->setMetadata(m_memUseTag, mkMetaConstant(accessedBytes));
   }
@@ -478,13 +479,13 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
     CallInst *ci;
     Value *us = getUniqueScalar(*m_llvmCtx, B, c);
     ci = mkShadowCall(B, c, fn, {B.getInt32(getFieldId(c)), us}, "sm");
-    markDefCall(ci, llvm::None);
+    markDefCall(ci, std::nullopt);
     B.CreateStore(ci, a);
     return *ci;
   }
 
   CallInst &mkShadowStore(IRBuilder<> &B, const dsa::Cell &c,
-                          llvm::Optional<unsigned> bytes) {
+                          std::optional<unsigned> bytes) {
     AllocaInst *v = getShadowForField(c);
     auto &ci = mkStoreFnCall(B, c, v, bytes);
     B.CreateStore(&ci, v);
@@ -492,7 +493,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   }
 
   CallInst &mkStoreFnCall(IRBuilder<> &B, const dsa::Cell &c, AllocaInst *v,
-                          llvm::Optional<unsigned> bytes) {
+                          std::optional<unsigned> bytes) {
 
     auto *ci = mkShadowCall(B, c, m_memStoreFn,
                             {m_B->getInt32(getFieldId(c)),
@@ -505,7 +506,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
   CallInst *mkShadowGlobalVarInit(IRBuilder<> &B, const dsa::Cell &c,
                                   llvm::GlobalVariable &_u,
-                                  llvm::Optional<unsigned> bytes) {
+                                  std::optional<unsigned> bytes) {
 
     // Do not insert shadow.mem.global.init() if the global is a unique scalar
     // Such scalars are initialized directly in the code
@@ -523,7 +524,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   }
 
   CallInst &mkShadowLoad(IRBuilder<> &B, const dsa::Cell &c,
-                         llvm::Optional<unsigned> bytes) {
+                         std::optional<unsigned> bytes) {
     auto *ci = mkShadowCall(B, c, m_memLoadFn,
                             {B.getInt32(getFieldId(c)),
                              B.CreateLoad(m_Int32Ty, getShadowForField(c)),
@@ -534,7 +535,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
   std::pair<CallInst &, CallInst &>
   mkShadowMemTrsfr(IRBuilder<> &B, const dsa::Cell &dst, const dsa::Cell &src,
-                   llvm::Optional<unsigned> bytes) {
+                   std::optional<unsigned> bytes) {
     // insert memtrfr.load for the read access
     auto *loadCI = mkShadowCall(B, src, m_memTrsfrLoadFn,
                                 {B.getInt32(getFieldId(src)),
@@ -548,7 +549,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   }
 
   CallInst &mkArgRef(IRBuilder<> &B, const dsa::Cell &c, unsigned idx,
-                     llvm::Optional<unsigned> bytes) {
+                     std::optional<unsigned> bytes) {
     AllocaInst *v = getShadowForField(c);
     unsigned id = getFieldId(c);
     auto *ci =
@@ -560,7 +561,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   }
 
   CallInst &mkArgNewMod(IRBuilder<> &B, Constant *argFn, const dsa::Cell &c,
-                        unsigned idx, llvm::Optional<unsigned> bytes) {
+                        unsigned idx, std::optional<unsigned> bytes) {
     AllocaInst *v = getShadowForField(c);
     unsigned id = getFieldId(c);
 
@@ -575,7 +576,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   }
 
   CallInst &mkMarkIn(IRBuilder<> &B, const dsa::Cell &c, Value *v, unsigned idx,
-                     llvm::Optional<unsigned> bytes) {
+                     std::optional<unsigned> bytes) {
     auto *ci = mkShadowCall(B, c, m_markIn,
                             {B.getInt32(getFieldId(c)), v, B.getInt32(idx),
                              getUniqueScalar(*m_llvmCtx, B, c)});
@@ -584,7 +585,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   }
 
   CallInst &mkMarkOut(IRBuilder<> &B, const dsa::Cell &c, unsigned idx,
-                      llvm::Optional<unsigned> bytes) {
+                      std::optional<unsigned> bytes) {
     auto *ci = mkShadowCall(
         B, c, m_markOut,
         {B.getInt32(getFieldId(c)), B.CreateLoad(m_Int32Ty, getShadowForField(c)),
@@ -641,7 +642,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   void solveUses(Function &F);
 
   // Helper functions used by `solveUses`.
-  using MaybeAllocSites = Optional<SmallDenseSet<Value *, 8>>;
+  using MaybeAllocSites = std::optional<SmallDenseSet<Value *, 8>>;
   using AllocSitesCache = DenseMap<Value *, MaybeAllocSites>;
   bool isMemInit(const CallInst &memOp);
   const MaybeAllocSites &getAllAllocSites(Value &ptr, AllocSitesCache &cache);
@@ -713,7 +714,7 @@ public:
   /// It should be call after ShadowMem has finished. Note that this
   /// method unlike getFieldId does not allocate a new id if the cell
   /// does not have one.
-  llvm::Optional<unsigned> getCellId(const Cell &c) const {
+  std::optional<unsigned> getCellId(const Cell &c) const {
     const dsa::Node *n = c.getNode();
     assert(n);
     unsigned offset = getOffset(c);
@@ -721,27 +722,27 @@ public:
     if (it != m_nodeIds.end())
       return it->second + offset;
     else
-      return llvm::None;
+      return std::nullopt;
   }
 
   /// \brief Returns the cell associated to the shadow memory instruction.
   ///
   /// If the instruction is not a shadow memory instruction then it returns
-  /// llvm::None.
-  llvm::Optional<Cell> getShadowMemCell(const CallInst &ci) const {
+  /// std::nullopt.
+  std::optional<Cell> getShadowMemCell(const CallInst &ci) const {
     if (!isShadowMemInst(ci)) {
       LOG("shadow_cs", errs() << "Warning: " << ci
                               << " is not a shadow memory instruction.\n";);
-      return llvm::None;
+      return std::nullopt;
     }
     auto it = m_shadowMemInstToCell.find(&ci);
     if (it != m_shadowMemInstToCell.end()) {
-      return llvm::Optional<Cell>(it->second);
+      return std::optional<Cell>(it->second);
     } else {
       LOG("shadow_cs",
           errs() << "Warning: cannot find cell associated to shadow mem inst "
                  << ci << "\n";);
-      return llvm::None;
+      return std::nullopt;
     }
   }
 
@@ -867,7 +868,7 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
     results.addAAResult(*snaaa);
   }
 
-  m_localAAResults = LocalAAResultsWrapper(&baa, tbaa.get(), snaaa.get());
+  m_localAAResults = LocalAAResultsWrapper(&results, &baa, tbaa.get(), snaaa.get());
 
   // -- instrument function F with pseudo-instructions
   m_llvmCtx = &F.getContext();
@@ -951,11 +952,11 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
     if ((isRead(n, F) || isModified(n, F)) && retReach.count(n) <= 0) {
       assert(!inits[n].empty());
       /// initial value
-      mkMarkIn(B, c, inits[n][c.getRawOffset()], idx, llvm::None);
+      mkMarkIn(B, c, inits[n][c.getRawOffset()], idx, std::nullopt);
     }
 
     /// final value
-    if (isModified(n, F)) { mkMarkOut(B, c, idx, llvm::None); }
+    if (isModified(n, F)) { mkMarkOut(B, c, idx, std::nullopt); }
   };
 
   unsigned idx = 0;
@@ -1177,14 +1178,14 @@ void ShadowMemImpl::visitDsaCallSite(dsa::DsaCallSite &CS) {
     // -- read only node ignore nodes that are only reachable
     // -- from the return of the function
     if (isRead(CN, CF) && !isModified(CN, CF) && !isReturned(CN)) {
-      mkArgRef(*m_B, callerC, idx, llvm::None);
+      mkArgRef(*m_B, callerC, idx, std::nullopt);
       // Unclear how to get the associated concrete pointer here.
     }
     // -- read/write or new node
     else if (isModified(CN, CF)) {
       // -- n is new node iff it is reachable only from the return node
       Constant *argFn = isReturned(CN) ? m_argNewFn : m_argModFn;
-      mkArgNewMod(*m_B, argFn, callerC, idx, llvm::None);
+      mkArgNewMod(*m_B, argFn, callerC, idx, std::nullopt);
       // Unclear how to get the associated concrete pointer here.
     }
   };
@@ -1471,7 +1472,7 @@ void ShadowMemImpl::visitMemSetInst(MemSetInst &I) {
   // if (c.getOffset() != 0) return;
   m_B->SetInsertPoint(&I);
 
-  Optional<unsigned> len = llvm::None;
+  std::optional<unsigned> len = std::nullopt;
   if (auto *sz = dyn_cast_or_null<ConstantInt>(I.getLength()))
     len = sz->getLimitedValue();
 
@@ -1494,7 +1495,7 @@ void ShadowMemImpl::visitMemTransferInst(MemTransferInst &I) {
   if (dstC.getOffset() != 0)
     return;
   */
-  Optional<unsigned> len = llvm::None;
+  std::optional<unsigned> len = std::nullopt;
   if (auto *length = dyn_cast_or_null<ConstantInt>(I.getLength()))
     len = length->getLimitedValue();
 
@@ -1716,7 +1717,7 @@ ShadowMemImpl::getAllAllocSites(Value &ptr, AllocSitesCache &cache) {
         llvm::errs() << "Cannot retrieve all alloc sites for " << ptr
                      << "\n\tbecause of the instruction: " << *stripped
                      << "\n");
-    return (cache[strippedInit] = llvm::None);
+    return (cache[strippedInit] = std::nullopt);
   }
 
   return (cache[strippedInit] = allocSites);
@@ -1755,9 +1756,9 @@ bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
   // XXX Cannot do that because pointers can be the same but differ due to TBAA
   // if (defPtr == usePtr) return true;
 
-  const Optional<unsigned> usedBytes =
+  const std::optional<unsigned> usedBytes =
       maybeGetMetaConstant(memUse, m_memUseTag);
-  const Optional<unsigned> defdBytes =
+  const std::optional<unsigned> defdBytes =
       maybeGetMetaConstant(memDef, m_memDefTag);
 
   // If the offsets don't overlap, no clobbering may happen.
@@ -1774,10 +1775,10 @@ bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
         llvm::errs() << "\tmayClobber[3]\n\t\tuseStart: " << useStartOffset
                      << ", defStart: " << defStartOffset << "\n");
 
-    if (defdBytes.hasValue())
+    if (defdBytes.has_value())
       if (useStartOffset >= defStartOffset + *defdBytes) return false;
 
-    if (usedBytes.hasValue())
+    if (usedBytes.has_value())
       if (useStartOffset + *usedBytes <= defStartOffset) return false;
   }
   LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[4]\n");
@@ -1797,12 +1798,12 @@ bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
   LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[6]\n");
 
   auto useAllocSites = getAllAllocSites(*usePtr, cache);
-  if (!useAllocSites.hasValue()) return true;
+  if (!useAllocSites.has_value()) return true;
 
   LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[7]\n");
 
   auto defAllocSites = getAllAllocSites(*defPtr, cache);
-  if (!defAllocSites.hasValue()) return true;
+  if (!defAllocSites.has_value()) return true;
 
   LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[8]\n");
 
@@ -1886,7 +1887,7 @@ GlobalAnalysis &ShadowMem::getDsaAnalysis() { return m_impl->getDsaAnalysis(); }
 
 bool ShadowMem::splitDsaNodes() const { return m_impl->splitDsaNodes(); }
 
-llvm::Optional<unsigned> ShadowMem::getCellId(const dsa::Cell &c) const {
+std::optional<unsigned> ShadowMem::getCellId(const dsa::Cell &c) const {
   return m_impl->getCellId(c);
 }
 
@@ -1894,7 +1895,7 @@ ShadowMemInstOp ShadowMem::getShadowMemOp(const CallInst &ci) const {
   return m_impl->getShadowMemOp(ci);
 }
 
-llvm::Optional<Cell> ShadowMem::getShadowMemCell(const CallInst &ci) const {
+std::optional<Cell> ShadowMem::getShadowMemCell(const CallInst &ci) const {
   return m_impl->getShadowMemCell(ci);
 }
 

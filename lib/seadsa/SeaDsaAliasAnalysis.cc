@@ -6,13 +6,23 @@
 #include "seadsa/Graph.hh"
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/support/Debug.h"
-#include "llvm/Analysis/CFLAliasAnalysisUtils.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 
 #define DEBUG_TYPE "sea-aa"
+
+namespace {
+// Inlined from the removed llvm/Analysis/CFLAliasAnalysisUtils.h (LLVM 16).
+static const llvm::Function *parentFunctionOfValue(const llvm::Value *Val) {
+  if (auto *Inst = llvm::dyn_cast<llvm::Instruction>(Val))
+    return Inst->getParent()->getParent();
+  if (auto *Arg = llvm::dyn_cast<llvm::Argument>(Val))
+    return Arg->getParent();
+  return nullptr;
+}
+} // namespace
 using namespace llvm;
 using namespace seadsa;
 namespace dsa = seadsa;
@@ -34,9 +44,9 @@ SeaDsaAAResult::~SeaDsaAAResult() = default;
 
 static Module *getModuleFromQuery(Value *ValA, Value *ValB) {
   Function *MaybeFnA =
-      const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValA));
+      const_cast<Function *>(parentFunctionOfValue(ValA));
   Function *MaybeFnB =
-      const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValB));
+      const_cast<Function *>(parentFunctionOfValue(ValB));
   if (!MaybeFnA && !MaybeFnB) {
     // The only times this is known to happen are when globals + InlineAsm are
     // involved
@@ -60,7 +70,7 @@ static uint64_t storageSize(const Type *t, const DataLayout &dl) {
   return dl.getTypeStoreSize(const_cast<Type *>(t));
 }
 
-static Optional<uint64_t> sizeOf(const Graph::Set &types,
+static std::optional<uint64_t> sizeOf(const Graph::Set &types,
                                  const DataLayout &dl) {
   if (types.isEmpty()) {
     return 0;
@@ -76,7 +86,7 @@ static Optional<uint64_t> sizeOf(const Graph::Set &types,
           })) {
         return sz;
       } else {
-        return None;
+        return std::nullopt;
       }
     }
   }
@@ -117,15 +127,16 @@ static bool mayAlias(const Cell &c1, const Cell &c2, const DataLayout &dl) {
   if (!n1->hasAccessedType(o1)) { return true; }
 
   auto sizeOfOffset1 = sizeOf(n1->getAccessedType(o1), dl);
-  if (!sizeOfOffset1.hasValue()) { return true; }
+  if (!sizeOfOffset1.has_value()) { return true; }
 
   // if offsets can overlap then may alias
-  return (o1 + sizeOfOffset1.getValue()) >= o2;
+  return (o1 + sizeOfOffset1.value()) >= o2;
 }
 
 llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
                                         const llvm::MemoryLocation &LocB,
-                                        llvm::AAQueryInfo &AAQI) {
+                                        llvm::AAQueryInfo &AAQI,
+                                        const llvm::Instruction *CtxI) {
   DOG(llvm::errs() << "SeaDsaAA --- Alias query: " << *LocA.Ptr << " and "
                    << *LocB.Ptr << "\n\n";);
 
@@ -153,11 +164,11 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
   }
 
   // We tried to run seadsa but we couldn't
-  if (!m_dsa) { return AAResultBase::alias(LocA, LocB, AAQI); }
+  if (!m_dsa) { return AAResultBase::alias(LocA, LocB, AAQI, CtxI); }
 
-  auto FnA = const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValA));
-  auto FnB = const_cast<Function *>(llvm::cflaa::parentFunctionOfValue(ValB));
-  if (!FnA || !FnB) { return AAResultBase::alias(LocA, LocB, AAQI); }
+  auto FnA = const_cast<Function *>(parentFunctionOfValue(ValA));
+  auto FnB = const_cast<Function *>(parentFunctionOfValue(ValB));
+  if (!FnA || !FnB) { return AAResultBase::alias(LocA, LocB, AAQI, CtxI); }
 
   assert(m_dsa);
   assert(m_dl);
@@ -168,7 +179,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
   if (&gA != &gB) {
     DOG(llvm::errs() << "SeaDsaAA does not handle inter-procedural queries at "
                         "the moment.\n");
-    return AAResultBase::alias(LocA, LocB, AAQI);
+    return AAResultBase::alias(LocA, LocB, AAQI, CtxI);
   }
 
   if (gA.hasCell(*ValA) && gA.hasCell(*ValB)) {
@@ -178,7 +189,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
   }
 
   // -- fall back to default implementation
-  return AAResultBase::alias(LocA, LocB, AAQI);
+  return AAResultBase::alias(LocA, LocB, AAQI, CtxI);
 }
 
 char SeaDsaAAWrapperPass::ID = 0;

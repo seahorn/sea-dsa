@@ -5,7 +5,7 @@
 namespace seadsa {
 
 struct CloningContext {
-  llvm::Optional<const llvm::Instruction *> m_cs;
+  std::optional<const llvm::Instruction *> m_cs;
   enum DirectionKind { Unset, BottomUp, TopDown };
   DirectionKind m_dir;
 
@@ -15,7 +15,7 @@ struct CloningContext {
   static CloningContext mkNoContext() { return {}; }
 
 private:
-  CloningContext() : m_cs(llvm::None), m_dir(DirectionKind::Unset) {}
+  CloningContext() : m_cs(std::nullopt), m_dir(DirectionKind::Unset) {}
 };
 
 /**
@@ -75,6 +75,6 @@ private:
   void copyAllocationSites(const Node &from, Node &to, bool forceAddAlloca,
                            const llvm::Value *onlyAllocSite = nullptr);
   void importCallPaths(DsaAllocSite &site,
-                       llvm::Optional<DsaAllocSite *> other);
+                       std::optional<DsaAllocSite *> other);
 };
 } // namespace seadsa

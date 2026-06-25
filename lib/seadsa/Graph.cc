@@ -1177,7 +1177,7 @@ bool Graph::hasCell(const llvm::Value &u) const {
 
 DsaAllocSite *seadsa::Graph::mkAllocSite(const llvm::Value &v) {
   auto res = getAllocSite(v);
-  if (res.hasValue()) return res.getValue();
+  if (res.has_value()) return res.value();
 
   m_allocSites.emplace_back(new DsaAllocSite(*this, v));
   DsaAllocSite *as = m_allocSites.back().get();

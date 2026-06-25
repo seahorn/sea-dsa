@@ -41,11 +41,11 @@ void CallGraphWrapper::buildDependencies() {
         continue;
 
       for (auto &callRecord : *cgn) {
-	llvm::Optional<DsaCallSite> DsaCS =
+	std::optional<DsaCallSite> DsaCS =
 	  call_graph_utils::getDsaCallSite(callRecord);
-	if (!DsaCS.hasValue())
+	if (!DsaCS.has_value())
 	  continue;
-	insertCallers(DsaCS.getValue().getCallee(), DsaCS.getValue());	
+	insertCallers(DsaCS.value().getCallee(), DsaCS.value());	
       }
     }
   }
@@ -66,11 +66,11 @@ void CallGraphWrapper::buildDependencies() {
       insert(callers[fn].begin(), callers[fn].end(), *uses);
 
       for (auto &callRecord : *cgn) {
-	llvm::Optional<DsaCallSite> DsaCS =
+	std::optional<DsaCallSite> DsaCS =
 	  call_graph_utils::getDsaCallSite(callRecord);
-	if (!DsaCS.hasValue())
+	if (!DsaCS.has_value())
 	  continue;
-        insert(DsaCS.getValue(), *defs);
+        insert(DsaCS.value(), *defs);
       }
     }
     
