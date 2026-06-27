@@ -72,6 +72,28 @@ GlobalAnalysis &DsaAnalysis::getDsaAnalysis() {
   return *m_ga;
 }
 
+static std::unique_ptr<GlobalAnalysis>
+mkGlobalAnalysis(const DataLayout &dl, TargetLibraryInfoWrapperPass &tli,
+                 const AllocWrapInfo &awi, const DsaLibFuncInfo &dlfi,
+                 CallGraph &cg, Graph::SetFactory &sf) {
+  switch (DsaGlobalAnalysis) {
+  case GlobalAnalysisKind::CONTEXT_INSENSITIVE:
+    return std::make_unique<ContextInsensitiveGlobalAnalysis>(
+        dl, tli, awi, dlfi, cg, sf, false);
+  case GlobalAnalysisKind::FLAT_MEMORY:
+    return std::make_unique<ContextInsensitiveGlobalAnalysis>(
+        dl, tli, awi, dlfi, cg, sf, true /* use flat */);
+  case GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE:
+    return std::make_unique<BottomUpTopDownGlobalAnalysis>(dl, tli, awi, dlfi,
+                                                           cg, sf);
+  case GlobalAnalysisKind::BU:
+    return std::make_unique<BottomUpGlobalAnalysis>(dl, tli, awi, dlfi, cg, sf);
+  default: /* CONTEXT_SENSITIVE */
+    return std::make_unique<ContextSensitiveGlobalAnalysis>(
+        dl, tli, awi, dlfi, cg, sf, true /* always store summary graphs */);
+  }
+}
+
 bool DsaAnalysis::runOnModule(Module &M) {
   m_dl = &M.getDataLayout();
   m_tliWrapper = &getAnalysis<TargetLibraryInfoWrapperPass>();
@@ -81,31 +103,8 @@ bool DsaAnalysis::runOnModule(Module &M) {
   m_dsaLibFuncInfo->initialize(M);
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
 
-  switch (DsaGlobalAnalysis) {
-  case GlobalAnalysisKind::CONTEXT_INSENSITIVE:
-    m_ga.reset(new ContextInsensitiveGlobalAnalysis(
-        *m_dl, *m_tliWrapper, *m_allocInfo, *m_dsaLibFuncInfo, cg, m_setFactory,
-        false));
-    break;
-  case GlobalAnalysisKind::FLAT_MEMORY:
-    m_ga.reset(new ContextInsensitiveGlobalAnalysis(
-        *m_dl, *m_tliWrapper, *m_allocInfo, *m_dsaLibFuncInfo, cg, m_setFactory,
-        true /* use flat*/));
-    break;
-  case GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE:
-    m_ga.reset(
-        new BottomUpTopDownGlobalAnalysis(*m_dl, *m_tliWrapper, *m_allocInfo,
-                                          *m_dsaLibFuncInfo, cg, m_setFactory));
-    break;
-  case GlobalAnalysisKind::BU:
-    m_ga.reset(new BottomUpGlobalAnalysis(*m_dl, *m_tliWrapper, *m_allocInfo,
-                                          *m_dsaLibFuncInfo, cg, m_setFactory));
-    break;
-  default: /* CONTEXT_SENSITIVE */
-    m_ga.reset(new ContextSensitiveGlobalAnalysis(
-        *m_dl, *m_tliWrapper, *m_allocInfo, *m_dsaLibFuncInfo, cg, m_setFactory,
-        true /* always store summary graphs*/));
-  }
+  m_ga = mkGlobalAnalysis(*m_dl, *m_tliWrapper, *m_allocInfo,
+                          *m_dsaLibFuncInfo, cg, m_setFactory);
 
   m_ga->runOnModule(M);
 
@@ -133,3 +132,21 @@ INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(DsaLibFuncInfo)
 INITIALIZE_PASS_END(DsaAnalysis, "dsa-wrapper",
                     "Entry point for all SeaDsa clients", false, false)
+
+// --- self-contained DsaInfo for new-PM consumers ---
+seadsa::LocalDsaInfo::LocalDsaInfo(Module &M,
+                                   TargetLibraryInfoWrapperPass &tliWrapper) {
+  const DataLayout &dl = M.getDataLayout();
+  m_allocInfo = std::make_unique<AllocWrapInfo>(&tliWrapper);
+  m_allocInfo->initialize(M, nullptr);
+  m_dsaLibFuncInfo = std::make_unique<DsaLibFuncInfo>();
+  m_dsaLibFuncInfo->initialize(M);
+  m_cg = std::make_unique<CallGraph>(M);
+  m_ga = mkGlobalAnalysis(dl, tliWrapper, *m_allocInfo, *m_dsaLibFuncInfo, *m_cg,
+                          m_setFactory);
+  m_ga->runOnModule(M);
+  m_info = std::make_unique<DsaInfo>(dl, tliWrapper, *m_ga);
+  m_info->runOnModule(M);
+}
+
+seadsa::LocalDsaInfo::~LocalDsaInfo() = default;
