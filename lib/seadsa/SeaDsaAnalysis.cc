@@ -2,26 +2,32 @@
 
 #include "seadsa/DsaAnalysis.hh" // mkGlobalAnalysis
 
-#include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Module.h"
 
 using namespace llvm;
 
 namespace seadsa {
 
-// Each AnalysisInfoMixin-derived analysis needs a unique key object; its
-// address identifies the analysis in the AnalysisManager.
 AnalysisKey AllocWrapInfoAnalysis::Key;
 AnalysisKey DsaLibFuncInfoAnalysis::Key;
 AnalysisKey DsaInfoAnalysis::Key;
 
+// Per-function TLI from the new-PM TargetLibraryAnalysis (via the FAM proxy):
+// no legacy TargetLibraryInfoWrapperPass anywhere.
+static TargetLibraryInfoGetter mkTLIGetter(Module &M, ModuleAnalysisManager &MAM) {
+  auto &FAM =
+      MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+  return [&FAM](const Function &F) -> const TargetLibraryInfo & {
+    return FAM.getResult<TargetLibraryAnalysis>(const_cast<Function &>(F));
+  };
+}
+
 AllocWrapInfoAnalysis::Result
-AllocWrapInfoAnalysis::run(Module &M, ModuleAnalysisManager &) {
-  auto tli =
-      std::make_unique<TargetLibraryInfoWrapperPass>(Triple(M.getTargetTriple()));
-  auto awi = std::make_unique<AllocWrapInfo>(tli.get());
+AllocWrapInfoAnalysis::run(Module &M, ModuleAnalysisManager &MAM) {
+  auto awi = std::make_unique<AllocWrapInfo>(mkTLIGetter(M, MAM));
   awi->initialize(M, /*legacy Pass=*/nullptr);
-  return Result(std::move(tli), std::move(awi));
+  return Result(std::move(awi));
 }
 
 DsaLibFuncInfoAnalysis::Result
@@ -33,27 +39,23 @@ DsaLibFuncInfoAnalysis::run(Module &M, ModuleAnalysisManager &) {
 
 DsaInfoAnalysis::Result
 DsaInfoAnalysis::run(Module &M, ModuleAnalysisManager &MAM) {
-  // -- Pull the dependency analyses from the manager; if another consumer
-  // -- already requested them this turn, these are cache hits.
   AllocWrapInfo &awi =
       MAM.getResult<AllocWrapInfoAnalysis>(M).getAllocWrapInfo();
   DsaLibFuncInfo &dlfi =
       MAM.getResult<DsaLibFuncInfoAnalysis>(M).getDsaLibFuncInfo();
 
+  TargetLibraryInfoGetter getTLI = mkTLIGetter(M, MAM);
   const DataLayout &dl = M.getDataLayout();
-  auto tli =
-      std::make_unique<TargetLibraryInfoWrapperPass>(Triple(M.getTargetTriple()));
   auto cg = std::make_unique<CallGraph>(M);
   auto sf = std::make_unique<Graph::SetFactory>();
 
-  auto ga = mkGlobalAnalysis(dl, *tli, awi, dlfi, *cg, *sf);
+  auto ga = mkGlobalAnalysis(dl, getTLI, awi, dlfi, *cg, *sf);
   ga->runOnModule(M);
 
-  auto info = std::make_unique<DsaInfo>(dl, *tli, *ga);
+  auto info = std::make_unique<DsaInfo>(dl, getTLI, *ga);
   info->runOnModule(M);
 
-  return Result(std::move(tli), std::move(cg), std::move(sf), std::move(ga),
-                std::move(info));
+  return Result(std::move(cg), std::move(sf), std::move(ga), std::move(info));
 }
 
 } // namespace seadsa

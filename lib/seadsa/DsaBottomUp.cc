@@ -137,7 +137,7 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
 
   LOG("dsa-bu", errs() << "Started bottom-up analysis ... \n");
 
-  LocalAnalysis la(m_dl, m_tliWrapper, m_allocInfo);
+  LocalAnalysis la(m_dl, m_getTLI, m_allocInfo);
 
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
     auto &scc = *it;
