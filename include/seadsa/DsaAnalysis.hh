@@ -6,6 +6,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
+#include <memory>
+
 #include "seadsa/Global.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/Info.hh"
@@ -64,6 +66,26 @@ public:
 } // namespace seadsa
 
 namespace seadsa {
+
+/// Self-contained DsaInfo for new-PM consumers: owns the global analysis and the
+/// supporting info objects it depends on, built without the legacy pass manager.
+/// Construct with the module and a caller-owned TLI wrapper, then query
+/// getDsaInfo() (valid for the lifetime of this object).
+class LocalDsaInfo {
+  std::unique_ptr<AllocWrapInfo> m_allocInfo;
+  std::unique_ptr<DsaLibFuncInfo> m_dsaLibFuncInfo;
+  std::unique_ptr<llvm::CallGraph> m_cg;
+  Graph::SetFactory m_setFactory;
+  std::unique_ptr<GlobalAnalysis> m_ga;
+  std::unique_ptr<DsaInfo> m_info;
+
+public:
+  LocalDsaInfo(llvm::Module &M,
+               llvm::TargetLibraryInfoWrapperPass &tliWrapper);
+  ~LocalDsaInfo();
+  DsaInfo &getDsaInfo() { return *m_info; }
+};
+
 llvm::Pass *createDsaInfoPass();
 llvm::Pass *createDsaPrintStatsPass();
 llvm::Pass *createDsaPrinterPass();
