@@ -101,7 +101,7 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
   else
     m_graph.reset(new Graph(m_dl, m_setFactory));
 
-  LocalAnalysis la(m_dl, m_tliWrapper, m_allocInfo);
+  LocalAnalysis la(m_dl, m_getTLI, m_allocInfo);
 
   // -- bottom-up inlining of all graphs
   for (auto it = scc_begin(&m_cg); !it.isAtEnd(); ++it) {
@@ -205,7 +205,8 @@ void ContextInsensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool ContextInsensitiveGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
-  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &tliW = getAnalysis<TargetLibraryInfoWrapperPass>();
+  seadsa::TargetLibraryInfoGetter tli = seadsa::mkTLIGetter(tliW);
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
   allocInfo.initialize(M, this);
@@ -238,7 +239,8 @@ void FlatMemoryGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool FlatMemoryGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
-  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &tliW = getAnalysis<TargetLibraryInfoWrapperPass>();
+  seadsa::TargetLibraryInfoGetter tli = seadsa::mkTLIGetter(tliW);
   auto &cg = getAnalysis<CallGraphWrapperPass>().getCallGraph();
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
@@ -292,11 +294,11 @@ std::unique_ptr<Graph> cloneGraph(const llvm::DataLayout &dl,
 //////
 
 ContextSensitiveGlobalAnalysis::ContextSensitiveGlobalAnalysis(
-    const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+    const llvm::DataLayout &dl, seadsa::TargetLibraryInfoGetter getTLI,
     const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
     llvm::CallGraph &cg, SetFactory &setFactory, bool storeSummaryGraphs)
     : GlobalAnalysis(GlobalAnalysisKind::CONTEXT_SENSITIVE), m_dl(dl),
-      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+      m_getTLI(getTLI), m_allocInfo(allocInfo),
       m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg), m_setFactory(setFactory),
       m_store_bu_graphs(storeSummaryGraphs) {}
 
@@ -339,7 +341,7 @@ bool ContextSensitiveGlobalAnalysis::runOnModule(Module &M) {
   // -- Run bottom up analysis on the whole call graph
   //    and initialize worklist
   const bool flowSensitiveOpt = false;
-  BottomUpAnalysis bu(m_dl, m_tliWrapper, m_allocInfo, m_dsaLibFuncInfo, m_cg,
+  BottomUpAnalysis bu(m_dl, m_getTLI, m_allocInfo, m_dsaLibFuncInfo, m_cg,
                       flowSensitiveOpt);
   bu.runOnModule(M, m_graphs);
 
@@ -620,11 +622,11 @@ bool ContextSensitiveGlobalAnalysis::hasSummaryGraph(const Function &fn) const {
 /// Context-sensitive analysis: bottom-up + top-down
 ///////
 BottomUpTopDownGlobalAnalysis::BottomUpTopDownGlobalAnalysis(
-    const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+    const llvm::DataLayout &dl, seadsa::TargetLibraryInfoGetter getTLI,
     const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
     llvm::CallGraph &cg, SetFactory &setFactory, bool storeSummaryGraphs)
     : GlobalAnalysis(GlobalAnalysisKind::BUTD_CONTEXT_SENSITIVE), m_dl(dl),
-      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+      m_getTLI(getTLI), m_allocInfo(allocInfo),
       m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg), m_setFactory(setFactory),
       m_store_bu_graphs(storeSummaryGraphs) {}
 
@@ -642,7 +644,7 @@ bool BottomUpTopDownGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run bottom up analysis on the whole call graph: callees before
   // -- callers.
-  BottomUpAnalysis bu(m_dl, m_tliWrapper, m_allocInfo, m_dsaLibFuncInfo, m_cg);
+  BottomUpAnalysis bu(m_dl, m_getTLI, m_allocInfo, m_dsaLibFuncInfo, m_cg);
   bu.runOnModule(M, m_graphs);
 
   if (m_store_bu_graphs) {
@@ -704,11 +706,11 @@ bool BottomUpTopDownGlobalAnalysis::hasSummaryGraph(const Function &fn) const {
 /// Bottom-up analysis
 ///////
 BottomUpGlobalAnalysis::BottomUpGlobalAnalysis(
-    const llvm::DataLayout &dl, llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+    const llvm::DataLayout &dl, seadsa::TargetLibraryInfoGetter getTLI,
     const AllocWrapInfo &allocInfo, const DsaLibFuncInfo &dsaLibFuncInfo,
     llvm::CallGraph &cg, SetFactory &setFactory)
     : GlobalAnalysis(GlobalAnalysisKind::BU), m_dl(dl),
-      m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+      m_getTLI(getTLI), m_allocInfo(allocInfo),
       m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg), m_setFactory(setFactory) {}
 
 bool BottomUpGlobalAnalysis::runOnModule(Module &M) {
@@ -724,7 +726,7 @@ bool BottomUpGlobalAnalysis::runOnModule(Module &M) {
 
   // -- Run bottom up analysis on the whole call graph: callees before
   // -- callers.
-  BottomUpAnalysis bu(m_dl, m_tliWrapper, m_allocInfo, m_dsaLibFuncInfo, m_cg);
+  BottomUpAnalysis bu(m_dl, m_getTLI, m_allocInfo, m_dsaLibFuncInfo, m_cg);
   bu.runOnModule(M, m_graphs);
 
   // Removing dead nodes (if any)
@@ -776,7 +778,8 @@ void ContextSensitiveGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool ContextSensitiveGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
-  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &tliW = getAnalysis<TargetLibraryInfoWrapperPass>();
+  seadsa::TargetLibraryInfoGetter tli = seadsa::mkTLIGetter(tliW);
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
   allocInfo.initialize(M, this);
@@ -812,7 +815,8 @@ void BottomUpTopDownGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool BottomUpTopDownGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
-  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &tliW = getAnalysis<TargetLibraryInfoWrapperPass>();
+  seadsa::TargetLibraryInfoGetter tli = seadsa::mkTLIGetter(tliW);
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
   allocInfo.initialize(M, this);
@@ -847,7 +851,8 @@ void BottomUpGlobalPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool BottomUpGlobalPass::runOnModule(Module &M) {
   auto &dl = M.getDataLayout();
-  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &tliW = getAnalysis<TargetLibraryInfoWrapperPass>();
+  seadsa::TargetLibraryInfoGetter tli = seadsa::mkTLIGetter(tliW);
   auto &allocInfo = getAnalysis<AllocWrapInfo>();
   auto &dsaLibFuncInfo = getAnalysis<DsaLibFuncInfo>();
   allocInfo.initialize(M, this);

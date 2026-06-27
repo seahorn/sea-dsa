@@ -1875,7 +1875,7 @@ void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   LOG("dsa-progress",
       errs() << "Running seadsa::Local on " << F.getName() << "\n");
 
-  auto &tli = m_tliWrapper.getTLI(F);
+  auto &tli = m_getTLI(F);
   // create cells and nodes for formal arguments
   for (Argument &a : F.args())
     if (a.getType()->isPointerTy() && !g.hasCell(a)) {
@@ -1970,7 +1970,8 @@ bool Local::runOnFunction(Function &F) {
 
   LOG("progress", errs() << "DSA: " << F.getName() << "\n";);
 
-  auto &tli = getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &tliW = getAnalysis<TargetLibraryInfoWrapperPass>();
+  seadsa::TargetLibraryInfoGetter tli = seadsa::mkTLIGetter(tliW);
   LocalAnalysis la(*m_dl, tli, *m_allocInfo);
   GraphRef g = std::make_shared<Graph>(*m_dl, m_setFactory);
   la.runOnFunction(F, *g);

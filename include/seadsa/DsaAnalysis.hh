@@ -11,6 +11,7 @@
 #include "seadsa/Global.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/Info.hh"
+#include "seadsa/TargetLibraryInfoGetter.hh"
 
 /* Entry point for all Dsa clients */
 
@@ -31,7 +32,7 @@ class DsaLibFuncInfo;
 /// DsaAnalysis pass and the new-PM DsaInfoAnalysis.
 std::unique_ptr<GlobalAnalysis>
 mkGlobalAnalysis(const llvm::DataLayout &dl,
-                 llvm::TargetLibraryInfoWrapperPass &tli,
+                 const TargetLibraryInfoGetter &getTLI,
                  const AllocWrapInfo &awi, const DsaLibFuncInfo &dlfi,
                  llvm::CallGraph &cg, Graph::SetFactory &sf);
 
@@ -63,10 +64,8 @@ public:
 
   const llvm::DataLayout &getDataLayout();
 
-  llvm::TargetLibraryInfoWrapperPass &getTLIWrapper() {
-    assert(m_tliWrapper);
-    return *m_tliWrapper;
-  }
+  // Per-function TLI getter backed by the legacy wrapper this pass requires.
+  TargetLibraryInfoGetter getTLIGetter();
   const llvm::TargetLibraryInfo &getTLI(const llvm::Function &F);
 
   GlobalAnalysis &getDsaAnalysis();

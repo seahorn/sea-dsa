@@ -78,7 +78,7 @@ class DsaInfo {
   typedef boost::unordered_map<const llvm::Value *, std::string> NamingMap;
 
   const llvm::DataLayout &m_dl;
-  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
+  seadsa::TargetLibraryInfoGetter m_getTLI;
   GlobalAnalysis &m_dsa;
   NodeInfoMap m_nodes_map;            // map Node to NodeInfo
   AllocSiteBiMap m_alloc_sites_bimap; // bimap allocation sites to id
@@ -143,9 +143,9 @@ private:
 
 public:
   DsaInfo(const llvm::DataLayout &dl,
-          llvm::TargetLibraryInfoWrapperPass &tliWrapper, GlobalAnalysis &dsa,
+          seadsa::TargetLibraryInfoGetter getTLI, GlobalAnalysis &dsa,
           bool verbose = true)
-      : m_dl(dl), m_tliWrapper(tliWrapper), m_dsa(dsa) {}
+      : m_dl(dl), m_getTLI(getTLI), m_dsa(dsa) {}
 
   bool runOnModule(llvm::Module &M);
   bool runOnFunction(llvm::Function &fn);

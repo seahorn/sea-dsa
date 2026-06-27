@@ -13,10 +13,9 @@
 /// instead of rebuilding them. If two passes both request DsaInfoAnalysis, the
 /// expensive points-to analysis runs once.
 ///
-/// Note: sea-dsa predates the new-PM TargetLibraryAnalysis and consumes the
-/// legacy TargetLibraryInfoWrapperPass *object*, so each result owns a wrapper
-/// built from the module triple. A deeper refactor would teach sea-dsa to take
-/// a TLI getter (function_ref) and drop the wrapper entirely.
+/// TLI comes from a TargetLibraryInfoGetter sourced from the new-PM
+/// TargetLibraryAnalysis (via the FunctionAnalysisManager proxy) -- no legacy
+/// TargetLibraryInfoWrapperPass is constructed here.
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/PassManager.h"
@@ -39,13 +38,10 @@ class AllocWrapInfoAnalysis
 
 public:
   class Result {
-    std::unique_ptr<llvm::TargetLibraryInfoWrapperPass> m_tliWrapper;
     std::unique_ptr<AllocWrapInfo> m_awi;
 
   public:
-    Result(std::unique_ptr<llvm::TargetLibraryInfoWrapperPass> tli,
-           std::unique_ptr<AllocWrapInfo> awi)
-        : m_tliWrapper(std::move(tli)), m_awi(std::move(awi)) {}
+    explicit Result(std::unique_ptr<AllocWrapInfo> awi) : m_awi(std::move(awi)) {}
     AllocWrapInfo &getAllocWrapInfo() { return *m_awi; }
     bool invalidate(llvm::Module &, const llvm::PreservedAnalyses &PA,
                     llvm::ModuleAnalysisManager::Invalidator &) {
@@ -92,19 +88,16 @@ class DsaInfoAnalysis : public llvm::AnalysisInfoMixin<DsaInfoAnalysis> {
 
 public:
   class Result {
-    std::unique_ptr<llvm::TargetLibraryInfoWrapperPass> m_tliWrapper;
     std::unique_ptr<llvm::CallGraph> m_cg;
     std::unique_ptr<Graph::SetFactory> m_setFactory;
     std::unique_ptr<GlobalAnalysis> m_ga;
     std::unique_ptr<DsaInfo> m_info;
 
   public:
-    Result(std::unique_ptr<llvm::TargetLibraryInfoWrapperPass> tli,
-           std::unique_ptr<llvm::CallGraph> cg,
+    Result(std::unique_ptr<llvm::CallGraph> cg,
            std::unique_ptr<Graph::SetFactory> sf,
            std::unique_ptr<GlobalAnalysis> ga, std::unique_ptr<DsaInfo> info)
-        : m_tliWrapper(std::move(tli)), m_cg(std::move(cg)),
-          m_setFactory(std::move(sf)), m_ga(std::move(ga)),
+        : m_cg(std::move(cg)), m_setFactory(std::move(sf)), m_ga(std::move(ga)),
           m_info(std::move(info)) {}
     DsaInfo &getDsaInfo() { return *m_info; }
     bool invalidate(llvm::Module &, const llvm::PreservedAnalyses &PA,

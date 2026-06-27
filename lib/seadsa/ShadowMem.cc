@@ -1,4 +1,5 @@
 #include "seadsa/ShadowMem.hh"
+#include "seadsa/TargetLibraryInfoGetter.hh"
 #include "seadsa/SeaMemorySSA.hh"
 
 #include "seadsa/AllocSiteInfo.hh"
@@ -229,7 +230,7 @@ bool isShadowMemInst(const llvm::Value &v) {
 
 class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   dsa::GlobalAnalysis &m_dsa;
-  TargetLibraryInfoWrapperPass &m_tliWrapper;
+  seadsa::TargetLibraryInfoGetter m_getTLI;
   const DataLayout *m_dl;
   CallGraph *m_callGraph;
   Pass &m_pass;
@@ -650,10 +651,10 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
 public:
   ShadowMemImpl(dsa::GlobalAnalysis &dsa, 
-                TargetLibraryInfoWrapperPass &tliWrapper, CallGraph *cg,
+                seadsa::TargetLibraryInfoGetter getTLI, CallGraph *cg,
                 Pass &pass, bool splitDsaNodes, bool computeReadMod,
                 bool memOptimizer, bool useTBAA, bool useSNAAA)
-      : m_dsa(dsa), m_tliWrapper(tliWrapper), m_dl(nullptr),
+      : m_dsa(dsa), m_getTLI(getTLI), m_dl(nullptr),
         m_callGraph(cg), m_pass(pass), m_splitDsaNodes(splitDsaNodes),
         m_computeReadMod(computeReadMod), m_memOptimizer(memOptimizer),
         m_useTBAA(useTBAA), m_useSNAAA(useSNAAA) {}
@@ -842,7 +843,7 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
   m_graph = &m_dsa.getGraph(F);
   m_shadows.clear();
 
-  auto &tli = m_tliWrapper.getTLI(F);
+  auto &tli = m_getTLI(F);
   // Alias analyses in LLVM are function passes, so we can only get the results
   // once the function is known. The Pass Manager is not able to schedule the
   // AA's here, construct them manually as a workaround.
@@ -1863,7 +1864,7 @@ ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi/*unused*/,
                      llvm::CallGraph *cg, llvm::Pass &pass, bool splitDsaNodes,
                      bool computeReadMod, bool memOptimizer, bool useTBAA,
                      bool useSNAAA)
-    : m_impl(new ShadowMemImpl(dsa, tli, cg, pass, splitDsaNodes,
+    : m_impl(new ShadowMemImpl(dsa, seadsa::mkTLIGetter(tli), cg, pass, splitDsaNodes,
                                computeReadMod, memOptimizer, useTBAA,
                                useSNAAA)) {}
 
@@ -1916,7 +1917,7 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
 
   GlobalAnalysis &dsa = getAnalysis<DsaAnalysis>().getDsaAnalysis();
   AllocSiteInfo &asi = getAnalysis<AllocSiteInfo>();
-  auto &tliWrapper = getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &getTLI = getAnalysis<TargetLibraryInfoWrapperPass>();
   CallGraph *cg = nullptr;
   auto cgPass = getAnalysisIfAvailable<CallGraphWrapperPass>();
   if (cgPass) cg = &cgPass->getCallGraph();
@@ -1924,7 +1925,7 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
   LOG("shadow_verbose", errs() << "Module before shadow insertion:\n"
                                << M << "\n";);
 
-  m_shadowMem.reset(new ShadowMem(dsa, asi, tliWrapper, cg, *this, SplitFields,
+  m_shadowMem.reset(new ShadowMem(dsa, asi, getTLI, cg, *this, SplitFields,
                                   LocalReadMod, ShadowMemOptimize,
                                   ShadowMemUseTBAA, ShadowMemUseSNAAA));
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "seadsa/TargetLibraryInfoGetter.hh"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -40,7 +41,7 @@ private:
 
   /// -- for building complete call graph
   const llvm::DataLayout &m_dl;
-  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
+  seadsa::TargetLibraryInfoGetter m_getTLI;
   Graph::SetFactory m_setFactory;
   const AllocWrapInfo &m_allocInfo;
   llvm::CallGraph &m_cg;
@@ -60,7 +61,7 @@ private:
 
 public:
   CompleteCallGraphAnalysis(const llvm::DataLayout &dl,
-                            llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+                            seadsa::TargetLibraryInfoGetter getTLI,
                             const AllocWrapInfo &allocInfo,
                             const DsaLibFuncInfo &dsaLibFuncInfo,
                             llvm::CallGraph &cg,

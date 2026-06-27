@@ -1,6 +1,7 @@
 // ==- SeaDsaAliasAnalysis.hh - DSA-based Alias Analysis  ==//
 
 #pragma once
+#include "seadsa/TargetLibraryInfoGetter.hh"
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -29,7 +30,7 @@ class SeaDsaAAResult : public llvm::AAResultBase {
   friend Base;
 
 public:
-  explicit SeaDsaAAResult(llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+  explicit SeaDsaAAResult(seadsa::TargetLibraryInfoGetter getTLI,
                           AllocWrapInfo &AWI, DsaLibFuncInfo &dlfi);
 
   SeaDsaAAResult(SeaDsaAAResult &&RHS);
@@ -45,7 +46,7 @@ public:
                           const llvm::Instruction *);
 
 private:
-  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
+  seadsa::TargetLibraryInfoGetter m_getTLI;
   const llvm::DataLayout *m_dl;
   AllocWrapInfo &m_awi;
   DsaLibFuncInfo &m_dlfi;

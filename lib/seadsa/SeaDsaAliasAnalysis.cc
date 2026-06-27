@@ -29,13 +29,13 @@ namespace dsa = seadsa;
 
 namespace seadsa {
 
-SeaDsaAAResult::SeaDsaAAResult(TargetLibraryInfoWrapperPass &tliWrapper,
+SeaDsaAAResult::SeaDsaAAResult(seadsa::TargetLibraryInfoGetter getTLI,
                                AllocWrapInfo &awi, DsaLibFuncInfo &dlfi)
-    : m_tliWrapper(tliWrapper), m_awi(awi), m_dlfi(dlfi), m_fac(nullptr),
+    : m_getTLI(getTLI), m_awi(awi), m_dlfi(dlfi), m_fac(nullptr),
       m_cg(nullptr), m_dsa(nullptr) {}
 
 SeaDsaAAResult::SeaDsaAAResult(SeaDsaAAResult &&RHS)
-    : AAResultBase(std::move(RHS)), m_tliWrapper(RHS.m_tliWrapper),
+    : AAResultBase(std::move(RHS)), m_getTLI(RHS.m_getTLI),
       m_dl(nullptr), m_awi(RHS.m_awi), m_dlfi(RHS.m_dlfi),
       m_fac(std::move(RHS.m_fac)), m_cg(std::move(RHS.m_cg)),
       m_dsa(std::move(RHS.m_dsa)) {}
@@ -157,7 +157,7 @@ llvm::AliasResult SeaDsaAAResult::alias(const llvm::MemoryLocation &LocA,
       m_cg = std::make_unique<CallGraph>(*M);
       m_awi.initialize(*M, nullptr);
       m_dsa = std::make_unique<BottomUpTopDownGlobalAnalysis>(
-          *m_dl, m_tliWrapper, m_awi, m_dlfi, *m_cg, *m_fac);
+          *m_dl, m_getTLI, m_awi, m_dlfi, *m_cg, *m_fac);
       DOG(llvm::errs() << "Running SeaDsaAA.\n");
       m_dsa->runOnModule(*M);
     }
@@ -202,10 +202,11 @@ SeaDsaAAWrapperPass::SeaDsaAAWrapperPass() : ImmutablePass(ID) {
 
 void SeaDsaAAWrapperPass::initializePass() {
   DOG(errs() << "initializing SeaDsaAAWrapperPass\n");
-  auto &tliWrapper = this->getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &tliW = this->getAnalysis<TargetLibraryInfoWrapperPass>();
+  seadsa::TargetLibraryInfoGetter getTLI = seadsa::mkTLIGetter(tliW);
   auto &awi = this->getAnalysis<AllocWrapInfo>();
   auto &dlfi = this->getAnalysis<DsaLibFuncInfo>();
-  Result.reset(new SeaDsaAAResult(tliWrapper, awi, dlfi));
+  Result.reset(new SeaDsaAAResult(getTLI, awi, dlfi));
 }
 
 void SeaDsaAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
