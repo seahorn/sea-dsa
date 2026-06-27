@@ -2029,3 +2029,11 @@ INITIALIZE_PASS_BEGIN(StripShadowMemPass, "strip-shadow-sea-dsa",
                       "Remove shadow.mem pseudo-functions", false, false)
 INITIALIZE_PASS_END(StripShadowMemPass, "strip-shadow-sea-dsa",
                     "Remove shadow.mem pseudo-functions", false, false)
+
+// --- new pass manager wrapper (StripShadowMem is analysis-free) ---
+llvm::PreservedAnalyses
+seadsa::StripShadowMemNewPmPass::run(llvm::Module &M,
+                                     llvm::ModuleAnalysisManager &) {
+  return StripShadowMemPass().runOnModule(M) ? llvm::PreservedAnalyses::none()
+                                             : llvm::PreservedAnalyses::all();
+}
