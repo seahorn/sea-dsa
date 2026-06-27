@@ -72,8 +72,8 @@ GlobalAnalysis &DsaAnalysis::getDsaAnalysis() {
   return *m_ga;
 }
 
-static std::unique_ptr<GlobalAnalysis>
-mkGlobalAnalysis(const DataLayout &dl, TargetLibraryInfoWrapperPass &tli,
+std::unique_ptr<GlobalAnalysis>
+seadsa::mkGlobalAnalysis(const DataLayout &dl, TargetLibraryInfoWrapperPass &tli,
                  const AllocWrapInfo &awi, const DsaLibFuncInfo &dlfi,
                  CallGraph &cg, Graph::SetFactory &sf) {
   switch (DsaGlobalAnalysis) {
@@ -133,20 +133,3 @@ INITIALIZE_PASS_DEPENDENCY(DsaLibFuncInfo)
 INITIALIZE_PASS_END(DsaAnalysis, "dsa-wrapper",
                     "Entry point for all SeaDsa clients", false, false)
 
-// --- self-contained DsaInfo for new-PM consumers ---
-seadsa::LocalDsaInfo::LocalDsaInfo(Module &M,
-                                   TargetLibraryInfoWrapperPass &tliWrapper) {
-  const DataLayout &dl = M.getDataLayout();
-  m_allocInfo = std::make_unique<AllocWrapInfo>(&tliWrapper);
-  m_allocInfo->initialize(M, nullptr);
-  m_dsaLibFuncInfo = std::make_unique<DsaLibFuncInfo>();
-  m_dsaLibFuncInfo->initialize(M);
-  m_cg = std::make_unique<CallGraph>(M);
-  m_ga = mkGlobalAnalysis(dl, tliWrapper, *m_allocInfo, *m_dsaLibFuncInfo, *m_cg,
-                          m_setFactory);
-  m_ga->runOnModule(M);
-  m_info = std::make_unique<DsaInfo>(dl, tliWrapper, *m_ga);
-  m_info->runOnModule(M);
-}
-
-seadsa::LocalDsaInfo::~LocalDsaInfo() = default;

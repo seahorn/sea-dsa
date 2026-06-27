@@ -27,6 +27,14 @@ namespace seadsa {
 class AllocWrapInfo;
 class DsaLibFuncInfo;
 
+/// Build the flag-selected global (points-to) analysis. Shared by the legacy
+/// DsaAnalysis pass and the new-PM DsaInfoAnalysis.
+std::unique_ptr<GlobalAnalysis>
+mkGlobalAnalysis(const llvm::DataLayout &dl,
+                 llvm::TargetLibraryInfoWrapperPass &tli,
+                 const AllocWrapInfo &awi, const DsaLibFuncInfo &dlfi,
+                 llvm::CallGraph &cg, Graph::SetFactory &sf);
+
 class DsaAnalysis : public llvm::ModulePass {
 
   const llvm::DataLayout *m_dl;
@@ -66,25 +74,6 @@ public:
 } // namespace seadsa
 
 namespace seadsa {
-
-/// Self-contained DsaInfo for new-PM consumers: owns the global analysis and the
-/// supporting info objects it depends on, built without the legacy pass manager.
-/// Construct with the module and a caller-owned TLI wrapper, then query
-/// getDsaInfo() (valid for the lifetime of this object).
-class LocalDsaInfo {
-  std::unique_ptr<AllocWrapInfo> m_allocInfo;
-  std::unique_ptr<DsaLibFuncInfo> m_dsaLibFuncInfo;
-  std::unique_ptr<llvm::CallGraph> m_cg;
-  Graph::SetFactory m_setFactory;
-  std::unique_ptr<GlobalAnalysis> m_ga;
-  std::unique_ptr<DsaInfo> m_info;
-
-public:
-  LocalDsaInfo(llvm::Module &M,
-               llvm::TargetLibraryInfoWrapperPass &tliWrapper);
-  ~LocalDsaInfo();
-  DsaInfo &getDsaInfo() { return *m_info; }
-};
 
 llvm::Pass *createDsaInfoPass();
 llvm::Pass *createDsaPrintStatsPass();

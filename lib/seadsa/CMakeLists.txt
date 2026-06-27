@@ -11,6 +11,7 @@ add_llvm_library (SeaDsaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   DsaBottomUp.cc
   DsaTopDown.cc
   DsaAnalysis.cc
+  SeaDsaAnalysis.cc
   DsaPrinter.cc
   CallGraphWrapper.cc
   TypeUtils.cc
