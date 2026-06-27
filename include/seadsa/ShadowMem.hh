@@ -4,6 +4,7 @@
  * Memory SSA form.
  ****/
 
+#include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
 #include <memory>
@@ -110,6 +111,11 @@ public:
 };
 
 llvm::Pass *createStripShadowMemPass();
+
+class StripShadowMemNewPmPass : public llvm::PassInfoMixin<StripShadowMemNewPmPass> {
+public:
+  llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
+};
 llvm::Pass *createShadowMemPass();
 
 bool isShadowMemInst(const llvm::Value &v);

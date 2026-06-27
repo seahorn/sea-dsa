@@ -426,6 +426,10 @@ static bool visitIntToPtrInst(IntToPtrInst *I2P, Function &F,
 }
 
 bool RemovePtrToInt::runOnFunction(Function &F) {
+  return runImpl(F, getAnalysis<DominatorTreeWrapperPass>().getDomTree());
+}
+
+bool RemovePtrToInt::runImpl(Function &F, DominatorTree &DT) {
   if (F.isDeclaration()) return false;
 
   // Skip special functions
@@ -437,9 +441,6 @@ bool RemovePtrToInt::runOnFunction(Function &F) {
 
   bool Changed = false;
   auto &DL = F.getParent()->getDataLayout();
-  // Would be better to get the DominatorTreeWrapperPass, but the pass manager
-  // crashed when it's required.
-  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   SmallPtrSet<StoreInst *, 8> StoresToErase;
   SmallPtrSet<Instruction *, 16> MaybeUnusedInsts;
   DenseMap<Value *, Value *> RenameMap;
@@ -517,3 +518,13 @@ INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
 INITIALIZE_PASS_END(RemovePtrToInt, "sea-remove-ptrtoint",
                     "Remove ptrtoint instructions", false, false)
+
+// --- new pass manager wrapper ---
+#include "llvm/IR/Dominators.h"
+llvm::PreservedAnalyses
+seadsa::RemovePtrToIntPass::run(llvm::Function &F,
+                               llvm::FunctionAnalysisManager &FAM) {
+  bool changed = RemovePtrToInt().runImpl(F, FAM.getResult<llvm::DominatorTreeAnalysis>(F));
+  return changed ? llvm::PreservedAnalyses::none()
+                 : llvm::PreservedAnalyses::all();
+}
