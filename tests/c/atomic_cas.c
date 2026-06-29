@@ -1,6 +1,10 @@
 #include <stdbool.h>
 
-// clang -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone atomic_cas.c -o ../atomic_cas.ll
+// clang-format off
+
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
+
+// clang-format on
 
 #define CAS(x, y, z) __atomic_compare_exchange_n(x, &(y), z, true, 0, 0)
 

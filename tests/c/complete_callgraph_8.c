@@ -1,3 +1,9 @@
+// clang-format off
+
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
+
+// clang-format on
+
 /* Static cycle in the call graph */
 struct class_t;
 typedef int (*FN_PTR)(struct class_t *, int);

@@ -1,3 +1,9 @@
+// clang-format off
+
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
+
+// clang-format on
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -27,5 +33,3 @@ int main(void) {
   sassert(return_handler_struct()->handler() == 0);
   return 0;
 }
-
-

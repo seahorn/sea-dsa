@@ -38,19 +38,16 @@ llvm::Type *GetInnermostTypeImpl(llvm::Type *const Ty, SeenTypes &seen) {
   while (!seen.count(currentTy)) {
     seen.insert(currentTy);
 
-    if (currentTy->isPointerTy()) {
-      auto *ElemTy = currentTy->getPointerElementType();
-      currentTy = GetInnermostTypeImpl(ElemTy, seen)
-                      ->getPointerTo(currentTy->getPointerAddressSpace());
-      break;
-    }
+    // FIXME: We're at a dead-end when we encounter a pointer type.
+    if (currentTy->isPointerTy()) break;
 
     auto It = AggregateIterator::mkBegin(currentTy, /* DL = */ nullptr);
     auto *FirstTy = It->Ty;
     if (!FirstTy) break;
 
-    if (FirstTy->isPointerTy() && FirstTy->getPointerElementType() == currentTy)
-      break;
+    // FIXME: We cannot check this
+    // if (FirstTy->isPointerTy() && FirstTy->getPointerElementType() == currentTy)
+    //   break;
 
     if (FirstTy == currentTy) break;
 
@@ -64,6 +61,7 @@ llvm::Type *GetInnermostTypeImpl(llvm::Type *const Ty, SeenTypes &seen) {
 
 /// This is intended to be used within a single llvm::Context. When there's more
 /// than one context, the caching might misbehave.
+/// LLVM 15: the lack of a pointee type means that pointers are also primitive types, which may be returned.
 llvm::Type *GetFirstPrimitiveTy(llvm::Type *const Ty) {
   assert(Ty);
 
@@ -85,8 +83,9 @@ static bool IsOmnipotentChar(llvm::Type *const Ty) {
 }
 
 static bool IsOmnipotentPtr(llvm::Type *const Ty) {
-  auto res = Ty->isPointerTy() && IsOmnipotentChar(Ty->getPointerElementType());
-  return res;
+  // LLVM 15, Kevin: Opaque pointer prevents us from being able to determine if a pointer
+  // is omnipotent. Conservatively return false.
+  return false;
 }
 
 FieldType::FieldType(llvm::Type *Ty) {
