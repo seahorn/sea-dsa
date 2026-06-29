@@ -1,0 +1,3 @@
+# Out-of-source build directories (local CMake/Ninja trees -- never tracked)
+/build/
+/build-*/
