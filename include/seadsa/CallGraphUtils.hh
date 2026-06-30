@@ -2,9 +2,10 @@
 
 #include "seadsa/CallSite.hh"
 #include "seadsa/DsaLibFuncInfo.hh"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/CallGraph.h"
+
+#include <optional>
 
 namespace seadsa {
 namespace call_graph_utils {

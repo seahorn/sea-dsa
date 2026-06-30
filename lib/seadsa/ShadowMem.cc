@@ -1917,7 +1917,7 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
 
   GlobalAnalysis &dsa = getAnalysis<DsaAnalysis>().getDsaAnalysis();
   AllocSiteInfo &asi = getAnalysis<AllocSiteInfo>();
-  auto &getTLI = getAnalysis<TargetLibraryInfoWrapperPass>();
+  auto &tliWrapper = getAnalysis<TargetLibraryInfoWrapperPass>();
   CallGraph *cg = nullptr;
   auto cgPass = getAnalysisIfAvailable<CallGraphWrapperPass>();
   if (cgPass) cg = &cgPass->getCallGraph();
@@ -1925,7 +1925,7 @@ bool ShadowMemPass::runOnModule(llvm::Module &M) {
   LOG("shadow_verbose", errs() << "Module before shadow insertion:\n"
                                << M << "\n";);
 
-  m_shadowMem.reset(new ShadowMem(dsa, asi, getTLI, cg, *this, SplitFields,
+  m_shadowMem.reset(new ShadowMem(dsa, asi, tliWrapper, cg, *this, SplitFields,
                                   LocalReadMod, ShadowMemOptimize,
                                   ShadowMemUseTBAA, ShadowMemUseSNAAA));
 
