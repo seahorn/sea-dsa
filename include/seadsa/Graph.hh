@@ -18,6 +18,7 @@
 #include "seadsa/FieldType.hh"
 
 #include <functional>
+#include <optional>
 
 namespace llvm {
 class Type;

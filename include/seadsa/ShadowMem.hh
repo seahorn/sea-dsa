@@ -8,6 +8,7 @@
 #include "llvm/Pass.h"
 
 #include <memory>
+#include <optional>
 
 #include "seadsa/DsaAnalysis.hh"
 

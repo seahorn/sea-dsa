@@ -3,9 +3,10 @@
    information is exposed metadata attached to allocation sites.
  */
 #pragma once
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Pass.h"
+
+#include <optional>
 
 namespace llvm {
 class DataLayout;

@@ -1,12 +1,13 @@
 #ifndef __DSA_CALLSITE_HH_
 #define __DSA_CALLSITE_HH_
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/User.h"
 #include "llvm/Pass.h"
+
+#include <optional>
 
 // XXX: included for Cell.
 #include "seadsa/Graph.hh"
