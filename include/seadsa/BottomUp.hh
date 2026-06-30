@@ -1,4 +1,5 @@
 #pragma once
+#include "seadsa/TargetLibraryInfoGetter.hh"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -31,7 +32,7 @@ private:
   typedef std::shared_ptr<SimulationMapper> SimulationMapperRef;
 
   const llvm::DataLayout &m_dl;
-  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
+  seadsa::TargetLibraryInfoGetter m_getTLI;
   const AllocWrapInfo &m_allocInfo;
   const DsaLibFuncInfo &m_dsaLibFuncInfo;
   llvm::CallGraph &m_cg;
@@ -44,11 +45,11 @@ public:
                                        bool flowSensitiveOpt = true);
 
   BottomUpAnalysis(const llvm::DataLayout &dl,
-                   llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+                   seadsa::TargetLibraryInfoGetter getTLI,
                    const AllocWrapInfo &allocInfo,
                    const DsaLibFuncInfo &dsaLibFuncInfo, llvm::CallGraph &cg,
                    bool flowSensitiveOpt = true)
-      : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+      : m_dl(dl), m_getTLI(getTLI), m_allocInfo(allocInfo),
         m_dsaLibFuncInfo(dsaLibFuncInfo), m_cg(cg),
         m_flowSensitiveOpt(flowSensitiveOpt) {}
 

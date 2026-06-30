@@ -107,7 +107,7 @@ bool DsaInfo::is_alive_node::operator()(const NodeInfo &n) {
 void DsaInfo::recordMemAccess(const Value *v, Graph &g, const Instruction &I) {
   v = v->stripPointerCasts();
 
-  auto &tli = m_tliWrapper.getTLI(*I.getParent()->getParent());
+  auto &tli = m_getTLI(*I.getParent()->getParent());
   if (isStaticallyKnown(&m_dl, &tli, v)) return;
 
   if (!g.hasCell(*v)) {
@@ -478,7 +478,7 @@ void DsaInfoPass::getAnalysisUsage(AnalysisUsage &AU) const {
 bool DsaInfoPass::runOnModule(Module &M) {
 
   auto &dsa = getAnalysis<DsaAnalysis>();
-  m_dsa_info.reset(new DsaInfo(dsa.getDataLayout(), dsa.getTLIWrapper(),
+  m_dsa_info.reset(new DsaInfo(dsa.getDataLayout(), dsa.getTLIGetter(),
                                dsa.getDsaAnalysis()));
 
   m_dsa_info->runOnModule(M);

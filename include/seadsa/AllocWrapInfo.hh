@@ -3,6 +3,7 @@
    AllocatorIdentification.h from llvm-dsa
  */
 #pragma once
+#include "seadsa/TargetLibraryInfoGetter.hh"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Pass.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -26,7 +27,7 @@ protected:
   mutable std::set<llvm::StringRef> m_allocs;
   mutable std::set<llvm::StringRef> m_deallocs;
 
-  mutable llvm::TargetLibraryInfoWrapperPass *m_tliWrapper;
+  mutable seadsa::TargetLibraryInfoGetter m_getTLI;
 
   void findAllocs(llvm::Module &M) const;
   bool findWrappers(llvm::Module &M, Pass *P,
@@ -36,8 +37,8 @@ protected:
   
 public:
   static char ID;
-  AllocWrapInfo(llvm::TargetLibraryInfoWrapperPass *tliWrapper = nullptr)
-    : ImmutablePass(ID), m_tliWrapper(tliWrapper) {}
+  AllocWrapInfo(seadsa::TargetLibraryInfoGetter getTLI = nullptr)
+    : ImmutablePass(ID), m_getTLI(getTLI) {}
 
   // P is used to call LoopInfoWrapperPass.
   // It can be null if the client of AllocWrapInfo is an immutable
@@ -54,13 +55,9 @@ public:
   const std::set<llvm::StringRef> &getAllocWrapperNames(llvm::Module &) const;
 
 
-  llvm::TargetLibraryInfoWrapperPass &getTLIWrapper() const {
-    assert(m_tliWrapper);
-    return *m_tliWrapper;
-  }
   const llvm::TargetLibraryInfo &getTLI(const llvm::Function &F) const {
-    assert(m_tliWrapper);
-    return m_tliWrapper->getTLI(F);
+    assert(m_getTLI);
+    return m_getTLI(F);
   }
 };
 

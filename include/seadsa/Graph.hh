@@ -18,6 +18,7 @@
 #include "seadsa/FieldType.hh"
 
 #include <functional>
+#include <optional>
 
 namespace llvm {
 class Type;
@@ -200,11 +201,11 @@ public:
 
   virtual const Cell &getRetCell(const llvm::Function &fn) const;
 
-  llvm::Optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
+  std::optional<DsaAllocSite *> getAllocSite(const llvm::Value &v) const {
     auto it = m_valueToAllocSite.find(&v);
     if (it != m_valueToAllocSite.end()) return it->second;
 
-    return llvm::None;
+    return std::nullopt;
   }
 
   DsaAllocSite *mkAllocSite(const llvm::Value &v);

@@ -2,21 +2,22 @@
 
 #include "seadsa/CallSite.hh"
 #include "seadsa/DsaLibFuncInfo.hh"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/CallGraph.h"
+
+#include <optional>
 
 namespace seadsa {
 namespace call_graph_utils {
 
 // Return a dsa callsite from a llvm CallGraph edge
 template <typename CallRecord>
-llvm::Optional<DsaCallSite>
+std::optional<DsaCallSite>
 getDsaCallSite(CallRecord &callRecord, const DsaLibFuncInfo *dlfi = nullptr) {
   const llvm::Function *callee = callRecord.second->getFunction();
-  if (!callee) return llvm::None;
+  if (!callee) return std::nullopt;
   if (callee->isDeclaration() || callee->empty()) {
-    if (!dlfi || !dlfi->hasSpecFunc(*callee)) return llvm::None;
+    if (!dlfi || !dlfi->hasSpecFunc(*callee)) return std::nullopt;
   }
 
   if (dlfi && dlfi->hasSpecFunc(*callee)) callee = dlfi->getSpecFunc(*callee);
@@ -24,12 +25,12 @@ getDsaCallSite(CallRecord &callRecord, const DsaLibFuncInfo *dlfi = nullptr) {
   auto &cs = *llvm::dyn_cast<llvm::CallBase>(*callRecord.first);
   if (cs.isIndirectCall()) {
     DsaCallSite dsaCS(cs, *callee);
-    return (dsaCS.getCallee() ? llvm::Optional<DsaCallSite>(dsaCS)
-                              : llvm::None);
+    return (dsaCS.getCallee() ? std::optional<DsaCallSite>(dsaCS)
+                              : std::nullopt);
   } else {
     DsaCallSite dsaCS(cs);
-    return (dsaCS.getCallee() ? llvm::Optional<DsaCallSite>(dsaCS)
-                              : llvm::None);
+    return (dsaCS.getCallee() ? std::optional<DsaCallSite>(dsaCS)
+                              : std::nullopt);
   }
 }
 

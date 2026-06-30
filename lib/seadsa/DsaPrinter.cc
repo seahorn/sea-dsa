@@ -677,10 +677,10 @@ public:
             if (!fn || fn->isDeclaration() || fn->empty()) { continue; }
             // -- store the simulation maps from the SCC
             for (auto &callRecord : *cgn) {
-              llvm::Optional<DsaCallSite> dsaCS =
+              std::optional<DsaCallSite> dsaCS =
                   call_graph_utils::getDsaCallSite(callRecord);
-              if (!dsaCS.hasValue()) { continue; }
-              DsaCallSite &cs = dsaCS.getValue();
+              if (!dsaCS.has_value()) { continue; }
+              DsaCallSite &cs = dsaCS.value();
               Function *f_caller = fn;
               const Function *f_callee = cs.getCallee();
               Graph &callerG = m_dsa.getGraph(*f_caller);

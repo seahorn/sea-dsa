@@ -6,9 +6,12 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
+#include <memory>
+
 #include "seadsa/Global.hh"
 #include "seadsa/Graph.hh"
 #include "seadsa/Info.hh"
+#include "seadsa/TargetLibraryInfoGetter.hh"
 
 /* Entry point for all Dsa clients */
 
@@ -24,6 +27,14 @@ class Function;
 namespace seadsa {
 class AllocWrapInfo;
 class DsaLibFuncInfo;
+
+/// Build the flag-selected global (points-to) analysis. Shared by the legacy
+/// DsaAnalysis pass and the new-PM DsaInfoAnalysis.
+std::unique_ptr<GlobalAnalysis>
+mkGlobalAnalysis(const llvm::DataLayout &dl,
+                 const TargetLibraryInfoGetter &getTLI,
+                 const AllocWrapInfo &awi, const DsaLibFuncInfo &dlfi,
+                 llvm::CallGraph &cg, Graph::SetFactory &sf);
 
 class DsaAnalysis : public llvm::ModulePass {
 
@@ -53,10 +64,8 @@ public:
 
   const llvm::DataLayout &getDataLayout();
 
-  llvm::TargetLibraryInfoWrapperPass &getTLIWrapper() {
-    assert(m_tliWrapper);
-    return *m_tliWrapper;
-  }
+  // Per-function TLI getter backed by the legacy wrapper this pass requires.
+  TargetLibraryInfoGetter getTLIGetter();
   const llvm::TargetLibraryInfo &getTLI(const llvm::Function &F);
 
   GlobalAnalysis &getDsaAnalysis();
@@ -64,6 +73,7 @@ public:
 } // namespace seadsa
 
 namespace seadsa {
+
 llvm::Pass *createDsaInfoPass();
 llvm::Pass *createDsaPrintStatsPass();
 llvm::Pass *createDsaPrinterPass();

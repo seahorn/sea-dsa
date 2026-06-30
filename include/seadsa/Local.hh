@@ -1,4 +1,5 @@
 #pragma once
+#include "seadsa/TargetLibraryInfoGetter.hh"
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
@@ -19,15 +20,15 @@ class AllocWrapInfo;
 
 class LocalAnalysis {
   const llvm::DataLayout &m_dl;
-  llvm::TargetLibraryInfoWrapperPass &m_tliWrapper;
+  seadsa::TargetLibraryInfoGetter m_getTLI;
   const seadsa::AllocWrapInfo &m_allocInfo;
   bool m_track_callsites;
 
 public:
   LocalAnalysis(const llvm::DataLayout &dl,
-                llvm::TargetLibraryInfoWrapperPass &tliWrapper,
+                seadsa::TargetLibraryInfoGetter getTLI,
                 const AllocWrapInfo &allocInfo, bool track_callsites = false)
-      : m_dl(dl), m_tliWrapper(tliWrapper), m_allocInfo(allocInfo),
+      : m_dl(dl), m_getTLI(getTLI), m_allocInfo(allocInfo),
         m_track_callsites(track_callsites) {}
 
   void runOnFunction(llvm::Function &F, Graph &g);

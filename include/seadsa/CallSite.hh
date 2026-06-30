@@ -1,12 +1,13 @@
 #ifndef __DSA_CALLSITE_HH_
 #define __DSA_CALLSITE_HH_
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/User.h"
 #include "llvm/Pass.h"
+
+#include <optional>
 
 // XXX: included for Cell.
 #include "seadsa/Graph.hh"
@@ -32,7 +33,7 @@ class DsaCallSite {
   const llvm::CallBase *m_cb;
   // -- the cell to which the indirect callee function points to.
   //    it has no value if the callsite is direct.
-  llvm::Optional<Cell> m_cell;
+  std::optional<Cell> m_cell;
   // -- whether the callsite has been cloned: used only internally during
   // -- bottom-up pass.
   bool m_cloned;

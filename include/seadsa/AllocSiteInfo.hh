@@ -3,9 +3,10 @@
    information is exposed metadata attached to allocation sites.
  */
 #pragma once
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Pass.h"
+
+#include <optional>
 
 namespace llvm {
 class DataLayout;
@@ -29,12 +30,12 @@ class AllocSiteInfo : public llvm::ModulePass {
 
   const llvm::StringRef m_allocSiteMetadataTag = getAllocSiteMetadataTag();
 
-  llvm::Optional<unsigned> maybeEvalAllocSize(llvm::Value &v,
+  std::optional<unsigned> maybeEvalAllocSize(llvm::Value &v,
                                               llvm::LLVMContext &ctx);
   bool markAllocs(llvm::Function &F);
 
   void markAsAllocSite(llvm::Instruction &inst,
-                       llvm::Optional<unsigned> allocatedBytes = llvm::None);
+                       std::optional<unsigned> allocatedBytes = std::nullopt);
 
 public:
   static char ID;
@@ -53,7 +54,7 @@ public:
   };
 
   static bool isAllocSite(const llvm::Value &v);
-  static llvm::Optional<unsigned>
+  static std::optional<unsigned>
   getAllocSiteSize(const llvm::Value &v);
 };
 } // namespace seadsa
