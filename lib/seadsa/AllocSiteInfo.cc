@@ -44,10 +44,20 @@ void AllocSiteInfo::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool AllocSiteInfo::runOnModule(Module &M) {
   auto &tliWrapper = getAnalysis<TargetLibraryInfoWrapperPass>();
-  m_dl = &M.getDataLayout();
-  m_awi = &getAnalysis<AllocWrapInfo>();
+  auto &awi = getAnalysis<AllocWrapInfo>();
+  awi.initialize(M, this);
+  return runImpl(
+      M,
+      [&tliWrapper](const llvm::Function &F) -> const llvm::TargetLibraryInfo & {
+        return tliWrapper.getTLI(const_cast<llvm::Function &>(F));
+      },
+      awi);
+}
 
-  m_awi->initialize(M, this);
+bool AllocSiteInfo::runImpl(Module &M, TargetLibraryInfoGetter getTLI,
+                            AllocWrapInfo &awi) {
+  m_dl = &M.getDataLayout();
+  m_awi = &awi;
   
   bool changed = false;
 
@@ -58,7 +68,7 @@ bool AllocSiteInfo::runOnModule(Module &M) {
                            << "\n");
       continue;
     }
-    m_tli = &tliWrapper.getTLI(fn);
+    m_tli = &getTLI(fn);
 
     ASI_LOG(llvm::errs() << "Running AllocSiteInfo pass on function "
                          << fn.getName() << "\n");

@@ -3,6 +3,7 @@
    information is exposed metadata attached to allocation sites.
  */
 #pragma once
+#include "seadsa/TargetLibraryInfoGetter.hh"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Pass.h"
 
@@ -43,6 +44,9 @@ public:
   AllocSiteInfo()
       : ModulePass(ID), m_tli(nullptr), m_dl(nullptr), m_awi(nullptr) {}
   bool runOnModule(llvm::Module &) override;
+  /// shared with the new-PM analysis: awi must already be initialized
+  bool runImpl(llvm::Module &M, TargetLibraryInfoGetter getTLI,
+               AllocWrapInfo &awi);
   llvm::StringRef getPassName() const override {
     return "Allocation Site Identification pass";
   }

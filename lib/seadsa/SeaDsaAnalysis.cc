@@ -1,3 +1,4 @@
+#include "seadsa/AllocSiteInfo.hh"
 #include "seadsa/SeaDsaAnalysis.hh"
 
 #include "seadsa/DsaAnalysis.hh" // mkGlobalAnalysis
@@ -15,7 +16,7 @@ AnalysisKey DsaInfoAnalysis::Key;
 
 // Per-function TLI from the new-PM TargetLibraryAnalysis (via the FAM proxy):
 // no legacy TargetLibraryInfoWrapperPass anywhere.
-static TargetLibraryInfoGetter mkTLIGetter(Module &M, ModuleAnalysisManager &MAM) {
+TargetLibraryInfoGetter seadsa::mkTLIGetter(Module &M, ModuleAnalysisManager &MAM) {
   auto &FAM =
       MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   return [&FAM](const Function &F) -> const TargetLibraryInfo & {
@@ -35,6 +36,17 @@ DsaLibFuncInfoAnalysis::run(Module &M, ModuleAnalysisManager &) {
   auto dlfi = std::make_unique<DsaLibFuncInfo>();
   dlfi->initialize(M);
   return Result(std::move(dlfi));
+}
+
+AnalysisKey AllocSiteInfoAnalysis::Key;
+
+AllocSiteInfoAnalysis::Result
+AllocSiteInfoAnalysis::run(Module &M, ModuleAnalysisManager &MAM) {
+  AllocWrapInfo &awi =
+      MAM.getResult<AllocWrapInfoAnalysis>(M).getAllocWrapInfo();
+  auto asi = std::make_unique<AllocSiteInfo>();
+  asi->runImpl(M, mkTLIGetter(M, MAM), awi);
+  return Result(std::move(asi));
 }
 
 DsaInfoAnalysis::Result

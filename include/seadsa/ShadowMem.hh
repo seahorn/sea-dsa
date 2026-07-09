@@ -20,9 +20,17 @@ class TargetLibraryInfoWrapperPass;
 class DataLayout;
 class CallGraph;
 class CallInst;
+class DominatorTree;
+class AssumptionCache;
 } // namespace llvm
 
+#include <functional>
+
 namespace seadsa {
+
+using DomTreeGetter = std::function<llvm::DominatorTree &(llvm::Function &)>;
+using AssumptionCacheGetter =
+    std::function<llvm::AssumptionCache &(llvm::Function &)>;
 class ShadowMemImpl;
 class GlobalAnalysis;
 class AllocSiteInfo;
@@ -56,6 +64,12 @@ public:
             bool splitDsaNodes = false, bool computeReadMod = false,
             bool memOptimizer = true, bool useTBAA = true,
             bool useSNAAA = true);
+  /// new-PM construction: analyses provided as getters
+  ShadowMem(GlobalAnalysis &dsa, TargetLibraryInfoGetter getTLI,
+            llvm::CallGraph *cg, DomTreeGetter getDT,
+            AssumptionCacheGetter getAC, bool splitDsaNodes = false,
+            bool computeReadMod = false, bool memOptimizer = true,
+            bool useTBAA = true, bool useSNAAA = true);
 
   ~ShadowMem();
 
@@ -112,6 +126,21 @@ public:
 };
 
 llvm::Pass *createStripShadowMemPass();
+
+/// New-PM twin of ShadowMemPass: instruments the module with shadow.mem
+/// calls, taking sea-dsa's GlobalAnalysis from DsaInfoAnalysis and the
+/// per-function analyses from the FAM. Runs AllocSiteInfoAnalysis for its
+/// alloc-marking side effect first. Pass a sink to keep the ShadowMem
+/// object alive for consumers.
+class ShadowMemNewPmPass : public llvm::PassInfoMixin<ShadowMemNewPmPass> {
+  std::unique_ptr<ShadowMem> *m_keep;
+
+public:
+  ShadowMemNewPmPass(std::unique_ptr<ShadowMem> *keep = nullptr)
+      : m_keep(keep) {}
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM);
+};
 
 class StripShadowMemNewPmPass : public llvm::PassInfoMixin<StripShadowMemNewPmPass> {
 public:

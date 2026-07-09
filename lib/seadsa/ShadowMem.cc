@@ -1,3 +1,4 @@
+#include "seadsa/SeaDsaAnalysis.hh"
 #include "seadsa/ShadowMem.hh"
 #include "seadsa/TargetLibraryInfoGetter.hh"
 #include "seadsa/SeaMemorySSA.hh"
@@ -233,7 +234,8 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   seadsa::TargetLibraryInfoGetter m_getTLI;
   const DataLayout *m_dl;
   CallGraph *m_callGraph;
-  Pass &m_pass;
+  seadsa::DomTreeGetter m_getDT;
+  seadsa::AssumptionCacheGetter m_getAC;
 
   DenseMap<llvm::Function *, std::unique_ptr<SeaMemorySSA>> m_MemorySSAPerFunc;
 
@@ -607,11 +609,8 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
       }
     }
 
-    DominatorTree &DT =
-        m_pass.getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
-    AssumptionCache &AC =
-        m_pass.getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(
-            F);
+    DominatorTree &DT = m_getDT(F);
+    AssumptionCache &AC = m_getAC(F);
     PromoteMemToReg(allocas, DT, &AC);
   }
 
@@ -652,10 +651,12 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 public:
   ShadowMemImpl(dsa::GlobalAnalysis &dsa, 
                 seadsa::TargetLibraryInfoGetter getTLI, CallGraph *cg,
-                Pass &pass, bool splitDsaNodes, bool computeReadMod,
+                seadsa::DomTreeGetter getDT, seadsa::AssumptionCacheGetter getAC,
+                bool splitDsaNodes, bool computeReadMod,
                 bool memOptimizer, bool useTBAA, bool useSNAAA)
       : m_dsa(dsa), m_getTLI(getTLI), m_dl(nullptr),
-        m_callGraph(cg), m_pass(pass), m_splitDsaNodes(splitDsaNodes),
+        m_callGraph(cg), m_getDT(std::move(getDT)), m_getAC(std::move(getAC)),
+        m_splitDsaNodes(splitDsaNodes),
         m_computeReadMod(computeReadMod), m_memOptimizer(memOptimizer),
         m_useTBAA(useTBAA), m_useSNAAA(useSNAAA) {}
 
@@ -848,10 +849,8 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
   // once the function is known. The Pass Manager is not able to schedule the
   // AA's here, construct them manually as a workaround.
   AAResults results(tli);
-  DominatorTree &dt =
-      m_pass.getAnalysis<llvm::DominatorTreeWrapperPass>(F).getDomTree();
-  AssumptionCache &ac =
-      m_pass.getAnalysis<llvm::AssumptionCacheTracker>().getAssumptionCache(F);
+  DominatorTree &dt = m_getDT(F);
+  AssumptionCache &ac = m_getAC(F);
   BasicAAResult baa(*m_dl, F, tli, ac, &dt);
   // AA's need to be registered in the results object that will finish their
   // initialization.
@@ -1864,9 +1863,26 @@ ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi/*unused*/,
                      llvm::CallGraph *cg, llvm::Pass &pass, bool splitDsaNodes,
                      bool computeReadMod, bool memOptimizer, bool useTBAA,
                      bool useSNAAA)
-    : m_impl(new ShadowMemImpl(dsa, seadsa::mkTLIGetter(tli), cg, pass, splitDsaNodes,
-                               computeReadMod, memOptimizer, useTBAA,
-                               useSNAAA)) {}
+    : m_impl(new ShadowMemImpl(
+          dsa, seadsa::mkTLIGetter(tli), cg,
+          [&pass](llvm::Function &F) -> llvm::DominatorTree & {
+            return pass.getAnalysis<llvm::DominatorTreeWrapperPass>(F)
+                .getDomTree();
+          },
+          [&pass](llvm::Function &F) -> llvm::AssumptionCache & {
+            return pass.getAnalysis<llvm::AssumptionCacheTracker>()
+                .getAssumptionCache(F);
+          },
+          splitDsaNodes, computeReadMod, memOptimizer, useTBAA, useSNAAA)) {}
+
+ShadowMem::ShadowMem(GlobalAnalysis &dsa, TargetLibraryInfoGetter getTLI,
+                     llvm::CallGraph *cg, DomTreeGetter getDT,
+                     AssumptionCacheGetter getAC, bool splitDsaNodes,
+                     bool computeReadMod, bool memOptimizer, bool useTBAA,
+                     bool useSNAAA)
+    : m_impl(new ShadowMemImpl(dsa, std::move(getTLI), cg, std::move(getDT),
+                               std::move(getAC), splitDsaNodes, computeReadMod,
+                               memOptimizer, useTBAA, useSNAAA)) {}
 
 ShadowMem::~ShadowMem() {}
 
@@ -2032,6 +2048,39 @@ INITIALIZE_PASS_END(StripShadowMemPass, "strip-shadow-sea-dsa",
                     "Remove shadow.mem pseudo-functions", false, false)
 
 // --- new pass manager wrapper (StripShadowMem is analysis-free) ---
+llvm::PreservedAnalyses
+seadsa::ShadowMemNewPmPass::run(llvm::Module &M,
+                                llvm::ModuleAnalysisManager &MAM) {
+  if (M.begin() == M.end()) return llvm::PreservedAnalyses::all();
+  // alloc-site marking side effect + info
+  MAM.getResult<AllocSiteInfoAnalysis>(M);
+  GlobalAnalysis &dsa =
+      MAM.getResult<DsaInfoAnalysis>(M).getGlobalAnalysis();
+  llvm::CallGraph &cg = MAM.getResult<llvm::CallGraphAnalysis>(M);
+  // The impl interleaves CFG mutation with repeated DT/AC queries; the legacy
+  // pass recomputed them fresh on every getAnalysis call, so serve FRESH
+  // trees here as well (a FAM-cached result would go stale mid-run).
+  auto dtStore =
+      std::make_shared<std::vector<std::unique_ptr<llvm::DominatorTree>>>();
+  auto acStore =
+      std::make_shared<std::vector<std::unique_ptr<llvm::AssumptionCache>>>();
+  auto sm = std::make_unique<ShadowMem>(
+      dsa, mkTLIGetter(M, MAM), &cg,
+      [dtStore](llvm::Function &F) -> llvm::DominatorTree & {
+        dtStore->push_back(std::make_unique<llvm::DominatorTree>(F));
+        return *dtStore->back();
+      },
+      [acStore](llvm::Function &F) -> llvm::AssumptionCache & {
+        acStore->push_back(std::make_unique<llvm::AssumptionCache>(F));
+        return *acStore->back();
+      },
+      SplitFields, LocalReadMod, ShadowMemOptimize, ShadowMemUseTBAA,
+      ShadowMemUseSNAAA);
+  sm->runOnModule(M);
+  if (m_keep) *m_keep = std::move(sm);
+  return llvm::PreservedAnalyses::none();
+}
+
 llvm::PreservedAnalyses
 seadsa::StripShadowMemNewPmPass::run(llvm::Module &M,
                                      llvm::ModuleAnalysisManager &) {
