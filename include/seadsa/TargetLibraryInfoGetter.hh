@@ -12,6 +12,9 @@ namespace llvm {
 class Function;
 class TargetLibraryInfo;
 class TargetLibraryInfoWrapperPass;
+class Module;
+template <typename IRUnitT, typename... ExtraArgTs> class AnalysisManager;
+using ModuleAnalysisManager = AnalysisManager<Module>;
 } // namespace llvm
 
 namespace seadsa {
@@ -21,4 +24,7 @@ using TargetLibraryInfoGetter =
 /// Adapt a legacy TargetLibraryInfoWrapperPass into a getter (the wrapper must
 /// outlive the returned getter).
 TargetLibraryInfoGetter mkTLIGetter(llvm::TargetLibraryInfoWrapperPass &W);
+/// new-PM variant: serves TLI from the module's FunctionAnalysisManager
+TargetLibraryInfoGetter mkTLIGetter(llvm::Module &M,
+                                    llvm::ModuleAnalysisManager &MAM);
 } // namespace seadsa

@@ -16,6 +16,7 @@
 /// TLI comes from a TargetLibraryInfoGetter sourced from the new-PM
 /// TargetLibraryAnalysis (via the FunctionAnalysisManager proxy) -- no legacy
 /// TargetLibraryInfoWrapperPass is constructed here.
+#include "seadsa/AllocSiteInfo.hh"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/PassManager.h"
@@ -82,6 +83,31 @@ public:
 /// Cached DsaInfo (sea-dsa's points-to summary). Depends on
 /// AllocWrapInfoAnalysis + DsaLibFuncInfoAnalysis (fetched from the MAM) and
 /// owns the global analysis it is built on.
+/// Runs AllocSiteInfo (marks alloc sites; a transform side effect) and owns
+/// the resulting info object.
+class AllocSiteInfoAnalysis
+    : public llvm::AnalysisInfoMixin<AllocSiteInfoAnalysis> {
+  friend llvm::AnalysisInfoMixin<AllocSiteInfoAnalysis>;
+  static llvm::AnalysisKey Key;
+
+public:
+  class Result {
+    std::unique_ptr<AllocSiteInfo> m_asi;
+
+  public:
+    Result(std::unique_ptr<AllocSiteInfo> asi) : m_asi(std::move(asi)) {}
+    AllocSiteInfo &getAllocSiteInfo() { return *m_asi; }
+    bool invalidate(llvm::Module &, const llvm::PreservedAnalyses &PA,
+                    llvm::ModuleAnalysisManager::Invalidator &) {
+      auto PAC = PA.getChecker<AllocSiteInfoAnalysis>();
+      return !(PAC.preserved() ||
+               PAC.preservedSet<llvm::AllAnalysesOn<llvm::Module>>());
+    }
+  };
+
+  Result run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
+};
+
 class DsaInfoAnalysis : public llvm::AnalysisInfoMixin<DsaInfoAnalysis> {
   friend llvm::AnalysisInfoMixin<DsaInfoAnalysis>;
   static llvm::AnalysisKey Key;
@@ -100,6 +126,7 @@ public:
         : m_cg(std::move(cg)), m_setFactory(std::move(sf)), m_ga(std::move(ga)),
           m_info(std::move(info)) {}
     DsaInfo &getDsaInfo() { return *m_info; }
+    GlobalAnalysis &getGlobalAnalysis() { return *m_ga; }
     bool invalidate(llvm::Module &, const llvm::PreservedAnalyses &PA,
                     llvm::ModuleAnalysisManager::Invalidator &) {
       auto PAC = PA.getChecker<DsaInfoAnalysis>();
