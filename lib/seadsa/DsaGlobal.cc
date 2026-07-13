@@ -526,6 +526,11 @@ void ContextSensitiveGlobalAnalysis::propagateTopDown(const DsaCallSite &cs,
   const bool noescape = true;
   TopDownAnalysis::cloneAndResolveArguments(cs, callerG, calleeG,
                                             flowSensitiveOpt, noescape);
+  calleeG.compress();
+  // Cloning marks caller-only nodes as foreign; nodes unified with native
+  // callee state lose that marker. Match the regular top-down analysis by
+  // discarding the remaining context-only copies after each propagation.
+  TopDownAnalysis::removeForeignNodes(calleeG);
 
   LOG(
       "dsa-global", if (decidePropagation(cs, calleeG, callerG) == DOWN) {

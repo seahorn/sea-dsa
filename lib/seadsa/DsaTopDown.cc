@@ -114,6 +114,11 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
   // Don't compress here -- caller should take care of it.
 }
 
+void TopDownAnalysis::removeForeignNodes(Graph &graph) {
+  if (!NoTDCopyingOpt)
+    graph.removeNodes([](const Node *n) { return n->isForeign(); });
+}
+
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
   LOG("dsa-td", errs() << "Started top-down analysis ... \n");
 
@@ -201,9 +206,7 @@ bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
                                  m_flowSensitiveOpt & !NoTDFlowSensitiveOpt,
                                  m_noescape);
 
-        // remove foreign nodes
-        if (!NoTDCopyingOpt)
-          calleeG.removeNodes([](const Node *n) { return n->isForeign(); });
+        removeForeignNodes(calleeG);
 
         LOG("dsa-td", llvm::errs()
                           << "\tCallee size after clone: " << calleeG.numNodes()
