@@ -29,6 +29,7 @@ public:
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &callerG,
                                        Graph &calleeG, bool flowSensitiveOpt = true, 
 				       bool noescape = true);
+  static void removeForeignNodes(Graph &graph);
 
   TopDownAnalysis(llvm::CallGraph &cg,
 		  bool flowSensitiveOpt = true,
