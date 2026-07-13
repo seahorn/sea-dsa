@@ -972,7 +972,7 @@ void Graph::remove_dead() {
   m_nodes.erase(
       std::remove_if(
           m_nodes.begin(), m_nodes.end(),
-          [reachable](const std::unique_ptr<Node, DsaAllocatorDeleter> &n) {
+          [&reachable](const std::unique_ptr<Node, DsaAllocatorDeleter> &n) {
             LOG("dsa-dead", if (reachable.count(&*n) == 0) errs()
                                 << "\tremoving dead " << &*n << "\n";);
             return (reachable.count(&*n) == 0);
