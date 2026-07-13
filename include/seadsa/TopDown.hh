@@ -29,6 +29,8 @@ public:
   static void cloneAndResolveArguments(const DsaCallSite &CS, Graph &callerG,
                                        Graph &calleeG, bool flowSensitiveOpt = true, 
 				       bool noescape = true);
+  // Graph::removeNodes calls remove_dead(), which requires a compressed graph.
+  // Keep that precondition inside the helper so every caller is safe.
   static void removeForeignNodes(Graph &graph);
 
   TopDownAnalysis(llvm::CallGraph &cg,

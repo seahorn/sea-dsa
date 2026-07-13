@@ -115,8 +115,10 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 }
 
 void TopDownAnalysis::removeForeignNodes(Graph &graph) {
-  if (!NoTDCopyingOpt)
+  if (!NoTDCopyingOpt) {
+    graph.compress();
     graph.removeNodes([](const Node *n) { return n->isForeign(); });
+  }
 }
 
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {

@@ -526,10 +526,9 @@ void ContextSensitiveGlobalAnalysis::propagateTopDown(const DsaCallSite &cs,
   const bool noescape = true;
   TopDownAnalysis::cloneAndResolveArguments(cs, callerG, calleeG,
                                             flowSensitiveOpt, noescape);
-  calleeG.compress();
-  // Cloning marks caller-only nodes as foreign; nodes unified with native
-  // callee state lose that marker. Match the regular top-down analysis by
-  // discarding the remaining context-only copies after each propagation.
+  // As in regular top-down analysis, discard caller-only context copies after
+  // each propagation. The helper compresses first to satisfy remove_dead()'s
+  // precondition, including resolution of call-site cells.
   TopDownAnalysis::removeForeignNodes(calleeG);
 
   LOG(
