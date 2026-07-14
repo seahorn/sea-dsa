@@ -73,4 +73,18 @@ public:
 };
 
 llvm::ImmutablePass *createSeaDsaAAWrapperPass();
+
+/// New-PM function analysis whose Result is SeaDsaAAResult. Register it in an
+/// AAManager ahead of the default pipeline (mirroring the legacy
+/// ExternalAAWrapperPass ordering) to expose seadsa to AAEvaluator and other
+/// new-PM AA consumers. Requires AllocWrapInfoAnalysis and
+/// DsaLibFuncInfoAnalysis results to be cached in the module analysis manager.
+class SeaDsaAA : public llvm::AnalysisInfoMixin<SeaDsaAA> {
+  friend llvm::AnalysisInfoMixin<SeaDsaAA>;
+  static llvm::AnalysisKey Key;
+
+public:
+  using Result = SeaDsaAAResult;
+  Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+};
 } // namespace seadsa

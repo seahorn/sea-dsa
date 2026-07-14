@@ -2,6 +2,8 @@
 // seadsda -- Print heap graphs and call graph computed by sea-dsa
 ///
 
+#include "llvm/Analysis/AliasAnalysisEvaluator.h"
+#include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CallPrinter.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -10,6 +12,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/LinkAllPasses.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
@@ -27,6 +30,7 @@
 #include "seadsa/DsaLibFuncInfo.hh"
 #include "seadsa/InitializePasses.hh"
 #include "seadsa/SeaDsaAliasAnalysis.hh"
+#include "seadsa/SeaDsaAnalysis.hh"
 #include "seadsa/ShadowMem.hh"
 #include "seadsa/support/Debug.h"
 #include "seadsa/support/RemovePtrToInt.hh"
@@ -220,10 +224,8 @@ int main(int argc, char **argv) {
       pass_manager.add(seadsa::createDsaCallGraphPrinterPass());
     }
 
-    if (AAEval) {
-      // llvm::createAAEvalPass() (legacy AA-eval) was removed in LLVM 18.
-      llvm::errs() << "warning: --aa-eval is unsupported under LLVM 18\n";
-    }
+    // AAEval runs after the legacy pipeline below: llvm::createAAEvalPass()
+    // (legacy AA-eval) was removed in LLVM 18, so it goes through the new PM.
 
     if (!MemDot && !MemViewer && !seadsa::PrintDsaStats &&
         !seadsa::PrintCallGraphStats && !CallGraphDot && !AAEval) {
@@ -238,6 +240,38 @@ int main(int argc, char **argv) {
     pass_manager.add(createPrintModulePass(asmOutput->os()));
 
   pass_manager.run(*module.get());
+
+  if (AAEval && !RunShadowMem) {
+    // The legacy createAAEvalPass() was removed in LLVM 18; run the new-PM
+    // AAEvaluator instead, with seadsa's AA registered ahead of the default
+    // chain (mirroring the legacy ExternalAAWrapperPass ordering). The
+    // aggregate report prints when the evaluator is destroyed.
+    llvm::PassBuilder PB;
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+    FAM.registerPass([] {
+      llvm::AAManager AA;
+      AA.registerFunctionAnalysis<seadsa::SeaDsaAA>();
+      AA.registerFunctionAnalysis<llvm::BasicAA>();
+      return AA;
+    });
+    FAM.registerPass([] { return seadsa::SeaDsaAA(); });
+    MAM.registerPass([] { return seadsa::AllocWrapInfoAnalysis(); });
+    MAM.registerPass([] { return seadsa::DsaLibFuncInfoAnalysis(); });
+    PB.registerModuleAnalyses(MAM);
+    PB.registerCGSCCAnalyses(CGAM);
+    PB.registerFunctionAnalyses(FAM);
+    PB.registerLoopAnalyses(LAM);
+    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+    // prime the module-level seadsa inputs SeaDsaAA reads via cached results
+    MAM.getResult<seadsa::AllocWrapInfoAnalysis>(*module);
+    MAM.getResult<seadsa::DsaLibFuncInfoAnalysis>(*module);
+    llvm::ModulePassManager MPM;
+    MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::AAEvaluator()));
+    MPM.run(*module, MAM);
+  }
 
   if (!AsmOutputFilename.empty()) asmOutput->keep();
 

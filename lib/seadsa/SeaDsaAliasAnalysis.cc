@@ -1,4 +1,6 @@
 #include "seadsa/SeaDsaAliasAnalysis.hh"
+#include "seadsa/SeaDsaAnalysis.hh"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/DsaLibFuncInfo.hh"
@@ -214,6 +216,26 @@ void SeaDsaAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addRequired<AllocWrapInfo>();
   AU.addRequired<DsaLibFuncInfo>();
+}
+
+llvm::AnalysisKey SeaDsaAA::Key;
+
+SeaDsaAA::Result SeaDsaAA::run(llvm::Function &F,
+                               llvm::FunctionAnalysisManager &FAM) {
+  auto &MAMProxy = FAM.getResult<llvm::ModuleAnalysisManagerFunctionProxy>(F);
+  llvm::Module &M = *F.getParent();
+  auto *AWI = MAMProxy.getCachedResult<AllocWrapInfoAnalysis>(M);
+  auto *DLFI = MAMProxy.getCachedResult<DsaLibFuncInfoAnalysis>(M);
+  assert(AWI && DLFI &&
+         "AllocWrapInfoAnalysis and DsaLibFuncInfoAnalysis "
+         "must be run before SeaDsaAA");
+  TargetLibraryInfoGetter getTLI =
+      [&FAM](const llvm::Function &Fn) -> const llvm::TargetLibraryInfo & {
+    return FAM.getResult<llvm::TargetLibraryAnalysis>(
+        const_cast<llvm::Function &>(Fn));
+  };
+  return SeaDsaAAResult(getTLI, AWI->getAllocWrapInfo(),
+                        DLFI->getDsaLibFuncInfo());
 }
 } // namespace seadsa
 

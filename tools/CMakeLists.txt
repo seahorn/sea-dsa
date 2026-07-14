@@ -6,6 +6,7 @@ set(LLVM_LINK_COMPONENTS
   irreader
   bitwriter
   analysis
+  passes
   ipo
   scalaropts
   instrumentation
