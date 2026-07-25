@@ -324,6 +324,14 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   NodeSetMap m_readList;
   /// \brief A map from Function to all DsaNode that are written by it
   NodeSetMap m_modList;
+  /// \brief A map from Function to all DsaNode whose READ metadata the program
+  /// observes, via sea_is_read / sea_reset_read.
+  ///
+  /// Only loads on these nodes become MemDefs under
+  /// --horn-shadow-mem-load-is-def. A program that never queries read metadata
+  /// -- which is every existing client -- gets no load MemDefs at all, so it
+  /// pays neither the extra memory versions nor any change in shadow SSA.
+  NodeSetMap m_readTrackedList;
 
   // -- temporaries, used by visitor
   llvm::LLVMContext *m_llvmCtx = nullptr;
@@ -355,6 +363,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   /// The procedure is unsound if used together with context-sensitive mode of
   /// SeaDsa
   void doReadMod();
+  void computeReadTracked(Module &M);
 
   /// \brief Computes Mod/Ref sets for the given function \p F
   void updateReadMod(Function &F, NodeSet &readSet, NodeSet &modSet);
@@ -441,6 +450,13 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
           if (n->isModified()) n->write(errs());
         });
     return m_computeReadMod ? m_modList[&f].count(n) > 0 : n->isModified();
+  }
+
+  /// \brief Whether the program observes READ metadata of \p n in \p f.
+  bool isReadTracked(const dsa::Node *n, const Function &f) {
+    if (!n) return false;
+    auto it = m_readTrackedList.find(&f);
+    return it != m_readTrackedList.end() && it->second.count(n) > 0;
   }
 
   MDNode *mkMetaConstant(std::optional<unsigned> val) {
@@ -678,6 +694,9 @@ public:
     }
 
     if (m_computeReadMod) doReadMod();
+
+    // after doReadMod: it assigns m_modList, and this adds to it
+    computeReadTracked(M);
 
     mkShadowFunctions(M);
     m_nodeIds.clear();
@@ -1060,10 +1079,16 @@ void ShadowMemImpl::visitLoadInst(LoadInst &I) {
   if (c.isNull()) return;
 
   m_B->SetInsertPoint(&I);
-  if (ShadowMemLoadIsDef) {
+  if (ShadowMemLoadIsDef &&
+      isReadTracked(c.getNode(), *I.getFunction())) {
     // A load must be a MemDef (not a MemUse) for OpSem to be able to stamp
     // read metadata at the loaded address: only a def is given a write
     // register. Mirrors ShadowMemAllocIsDef.
+    //
+    // Restricted to nodes whose read metadata is actually observed
+    // (computeReadTracked). Emitting a def for every load would add a memory
+    // version per load -- measured at up to 18x on memory-heavy jobs -- and
+    // would contradict the mod/ref summary for nodes classified read-only.
     CallInst &memDef =
         mkShadowStore(*m_B, c, dsa::getTypeSizeInBytes(*I.getType(), *m_dl));
     associateConcretePtr(memDef, *loadSrc, &I);
@@ -1601,6 +1626,52 @@ void ShadowMemImpl::doReadMod() {
       if (!f) continue;
       m_readList[f].insert(read.begin(), read.end());
       m_modList[f].insert(modified.begin(), modified.end());
+    }
+  }
+}
+
+/// \brief Find the nodes whose READ metadata the program observes.
+///
+/// Only loads on these nodes are emitted as MemDefs (see visitLoadInst), so a
+/// program that never calls sea_is_read/sea_reset_read is completely unaffected
+/// by --horn-shadow-mem-load-is-def.
+///
+/// Such a node must also be treated as *modified*: emitting a MemDef for it
+/// creates a new memory version, and if the mod/ref summary still classified it
+/// read-only its call sites would pass it as `shadow.mem.arg.ref` (in-only),
+/// leaving the shadow SSA inconsistent across the boundary. Mark it both on the
+/// node (used when mod/ref is not computed locally, the default) and in
+/// m_modList (used when it is).
+void ShadowMemImpl::computeReadTracked(Module &M) {
+  if (!ShadowMemLoadIsDef) return;
+
+  for (Function &F : M) {
+    if (F.isDeclaration() || !m_dsa.hasGraph(F)) continue;
+    dsa::Graph &G = m_dsa.getGraph(F);
+
+    for (Instruction &inst : llvm::instructions(F)) {
+      auto *ci = dyn_cast<CallInst>(&inst);
+      if (!ci) continue;
+      Function *cf = ci->getCalledFunction();
+      if (!cf) continue;
+      StringRef name = cf->getName();
+      if (!(name.equals("sea.is_read") || name.equals("sea.reset_read")))
+        continue;
+      if (ci->arg_size() < 1) continue;
+
+      Value *ptr = ci->getArgOperand(0);
+      if (!G.hasCell(*ptr)) continue;
+      const dsa::Cell &c = G.getCell(*ptr);
+      if (c.isNull()) continue;
+
+      dsa::Node *n = c.getNode();
+      m_readTrackedList[&F].insert(n);
+      // keep the mod/ref summary consistent with the MemDefs we will emit
+      n->setModified();
+      m_modList[&F].insert(n);
+      LOG("shadow_readtracked",
+          errs() << "read-tracked node in " << F.getName() << " via " << name
+                 << "\n";);
     }
   }
 }
