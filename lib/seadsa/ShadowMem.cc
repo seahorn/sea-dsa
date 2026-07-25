@@ -69,6 +69,14 @@ llvm::cl::opt<bool> ShadowMemAllocIsDef(
     llvm::cl::desc("Treat alloc as MemDef instead of MemUse"),
     llvm::cl::init(false));
 
+// Opt-in: needed only when read metadata must be stamped at the loaded
+// address (e.g. observing an address channel). Off by default because it
+// makes every load a new memory version, which grows the VC.
+llvm::cl::opt<bool> ShadowMemLoadIsDef(
+    "horn-shadow-mem-load-is-def",
+    llvm::cl::desc("Treat load as MemDef instead of MemUse"),
+    llvm::cl::init(false));
+
 using namespace llvm;
 namespace dsa = seadsa;
 namespace {
@@ -1052,9 +1060,18 @@ void ShadowMemImpl::visitLoadInst(LoadInst &I) {
   if (c.isNull()) return;
 
   m_B->SetInsertPoint(&I);
-  CallInst &memUse =
-      mkShadowLoad(*m_B, c, dsa::getTypeSizeInBytes(*I.getType(), *m_dl));
-  associateConcretePtr(memUse, *loadSrc, &I);
+  if (ShadowMemLoadIsDef) {
+    // A load must be a MemDef (not a MemUse) for OpSem to be able to stamp
+    // read metadata at the loaded address: only a def is given a write
+    // register. Mirrors ShadowMemAllocIsDef.
+    CallInst &memDef =
+        mkShadowStore(*m_B, c, dsa::getTypeSizeInBytes(*I.getType(), *m_dl));
+    associateConcretePtr(memDef, *loadSrc, &I);
+  } else {
+    CallInst &memUse =
+        mkShadowLoad(*m_B, c, dsa::getTypeSizeInBytes(*I.getType(), *m_dl));
+    associateConcretePtr(memUse, *loadSrc, &I);
+  }
 }
 
 void ShadowMemImpl::visitStoreInst(StoreInst &I) {
