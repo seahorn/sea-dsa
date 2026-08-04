@@ -891,8 +891,6 @@ std::pair<int64_t, uint64_t> computeGepOffset(Type *srcElementTy,
                                               ArrayRef<Value *> Indicies,
                                               const DataLayout &dl) {
 
-  Type *Ty = srcElementTy;
-
   // numeric offset
   int64_t noffset = 0;
 
@@ -907,13 +905,13 @@ std::pair<int64_t, uint64_t> computeGepOffset(Type *srcElementTy,
     if (StructType *STy = TI.getStructTypeOrNull()) {
       unsigned fieldNo = cast<ConstantInt>(Indicies[CurIDX])->getZExtValue();
       noffset += dl.getStructLayout(STy)->getElementOffset(fieldNo);
-      Ty = STy->getElementType(fieldNo);
     } else {
-      // We do nothing to pointer type now
-      if (Ty->isArrayTy())
-        Ty = Ty->getArrayElementType();
-      else if (auto vt = dyn_cast<VectorType>(Ty))
-        Ty = vt->getElementType();
+      // The type strided over by index CurIDX. For CurIDX == 0 that is
+      // srcElementTy itself -- the first index strides over the source
+      // element type, it does not index into it. Descending by hand here
+      // (as the pre-opaque-pointer code did, when this function received
+      // the *pointer* type) would consume the first index twice.
+      Type *Ty = TI.getIndexedType();
       assert(Ty && "Type is neither PointerType nor SequentialType");
 
       uint64_t sz = dl.getTypeStoreSize(Ty);
