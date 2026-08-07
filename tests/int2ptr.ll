@@ -10,13 +10,13 @@ target triple = "x86_64-unknown-linux-gnu"
 define void @entry() #0 {
 bb:
   %a = alloca i32, align 4
-  %ptr = alloca i32*, align 8
+  %ptr = alloca ptr, align 8
   %tmp = call i32 @nd()
-  store i32 %tmp, i32* %a, align 4
-  %tmp1 = load i32, i32* %a, align 4
+  store i32 %tmp, ptr %a, align 4
+  %tmp1 = load i32, ptr %a, align 4
   %tmp2 = sext i32 %tmp1 to i64
-  %tmp3 = inttoptr i64 %tmp2 to i32*
-  store i32* %tmp3, i32** %ptr, align 8
+  %tmp3 = inttoptr i64 %tmp2 to ptr
+  store ptr %tmp3, ptr %ptr, align 8
   ret void
 }
 
