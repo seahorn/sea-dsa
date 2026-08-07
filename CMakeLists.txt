@@ -40,8 +40,8 @@ endif()
 
 # Add path for custom modules
 list (APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-# put static libraries first
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
+# NB. the "put static libraries first" preference is applied further down, after
+# LLVM has been probed. See the comment on it for why the order matters.
 
 option(SEA_ENABLE_LLD "Use lld as C and C++ linker." OFF)
 if(SEA_ENABLE_LLD)
@@ -94,6 +94,43 @@ if (TOP_LEVEL)
     endif()
   endif()
 endif ()
+
+# put static libraries first
+#
+# This deliberately runs *after* LLVM is probed, and must stay there.
+# LLVMConfig.cmake runs Find modules for LLVM's own dependencies (zstd, zlib,
+# libxml2, curl, ...), and LLVM's exported targets link the *shared* imported
+# target each of those defines -- LLVMSupport pulls in zstd::libzstd_shared.
+# Several of those Find modules pick shared vs static from whichever file
+# find_library() happens to hit first: LLVM's Findzstd.cmake defines
+# zstd::libzstd_static instead of zstd::libzstd_shared as soon as it resolves
+# libzstd.a. With ".a" pushed to the front before find_package(LLVM), the build
+# dies at generate time, in every target that links LLVM, with
+#   Target "seadsa" links to target "zstd::libzstd_shared" but the target was
+#   not found.
+# which points at nothing that is obviously ours. Everything we probe ourselves
+# (Boost below) still gets the static-first preference.
+if (TOP_LEVEL AND LLVM_FOUND AND LLVM_ENABLE_ZSTD
+    AND NOT TARGET zstd::libzstd_shared)
+  # A build directory configured before the above was in place has the wrong
+  # zstd_LIBRARY sitting in its cache, and find_library() would keep handing it
+  # back. Drop the cached probe and redo it rather than making the user wipe the
+  # build directory.
+  unset(zstd_LIBRARY CACHE)
+  unset(zstd_STATIC_LIBRARY CACHE)
+  unset(zstd_INCLUDE_DIR CACHE)
+  find_package(zstd)
+  if (NOT TARGET zstd::libzstd_shared)
+    message(FATAL_ERROR
+      "LLVM ${LLVM_PACKAGE_VERSION} was built with zstd and its exported targets "
+      "link zstd::libzstd_shared, but no shared zstd was found. Install one "
+      "(Debian/Ubuntu: libzstd-dev) or point the build at it with "
+      "-Dzstd_LIBRARY=<path to libzstd${CMAKE_SHARED_LIBRARY_SUFFIX}> "
+      "-Dzstd_INCLUDE_DIR=<path to the directory holding zstd.h>.")
+  endif()
+endif()
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
 
 
 ## Boost
