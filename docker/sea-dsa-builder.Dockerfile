@@ -26,8 +26,7 @@ RUN cmake .. -GNinja \
 
 RUN cmake --build . --target install
 
-RUN ln -s /usr/local/bin/lit bin/llvm-lit
-ENV PATH "/sea-dsa/build/run/bin:$PATH"
+ENV PATH="/sea-dsa/build/run/bin:$PATH"
 
 # lit is provided by the base image, but OutputCheck (which the lit RUN
 # directives pipe into) is not; install it.
