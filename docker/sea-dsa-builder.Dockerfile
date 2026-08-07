@@ -2,7 +2,7 @@
 # Primarily used by the CI
 # Arguments:
 #  - BUILD_TYPE: Debug, RelWithDebInfo, Coverage
-FROM seahorn/buildpack-deps-seahorn:jammy-llvm14
+FROM ghcr.io/seahorn/buildpack-deps-seahorn:jammy-llvm17
 
 # Assume that docker-build is ran in the top-level SeaHorn directory
 COPY . /sea-dsa
@@ -18,8 +18,8 @@ ARG BUILD_TYPE=RelWithDebInfo
 RUN cmake .. -GNinja \
   -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
   -DCMAKE_INSTALL_PREFIX=run \
-  -DCMAKE_CXX_COMPILER=clang++-14 \
-  -DCMAKE_C_COMPILER=clang-14 \
+  -DCMAKE_CXX_COMPILER=clang++-17 \
+  -DCMAKE_C_COMPILER=clang-17 \
   -DSEA_ENABLE_LLD=ON \
   -DCPACK_GENERATOR="TGZ" \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
