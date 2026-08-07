@@ -4,13 +4,13 @@ digraph unnamed {
 
 	Node0x1e88050 [shape=record,label="{\{0:i32\}:SMR}"];
 	Node0x1e88510 [shape=record,label="{\{0:i32\}:SM}"];
-	Node0x1e88610 [shape=record,label="{\{0:i32**\}:SMR|{<s0>\<0, i32**\>}}"];
+	Node0x1e88610 [shape=record,label="{\{0:ptr\}:SMR|{<s0>\<0, ptr\>}}"];
 	Node0x1e88730 [shape=record,label="{\{0:i32\}:SMR}"];
 	Node0x1e895a0 [shape=record,label="{\{void\}:S}"];
-	Node0x1e89680 [shape=record,label="{\{0:%struct.Foo*\}:SMR|{<s0>\<0, i32*\>}}"];
+	Node0x1e89680 [shape=record,label="{\{0:ptr\}:SMR|{<s0>\<0, ptr\>}}"];
 	Node0x1e89750 [shape=record,label="{\{0:i32\}:SMR}"];
-	Node0x1e8b5b0 [shape=record,label="{\{8:float*\}: Sequence ME|{<s0>\<8, float*\>}}"];
-	Node0x1e8b730 [shape=record,label="{\{0:i32*\}: Sequence ME|{<s0>\<0, i32*\>}}"];
+	Node0x1e8b5b0 [shape=record,label="{\{8:ptr\}: Sequence ME|{<s0>\<8, ptr\>}}"];
+	Node0x1e8b730 [shape=record,label="{\{0:ptr\}: Sequence ME|{<s0>\<0, ptr\>}}"];
 	Node0x1e73df8[ shape=plaintext, label ="tmp26"];
 	Node0x1e73df8 -> Node0x1e8b5b0[arrowtail=tee,label="8",fontsize=8,color=purple];
 	Node0x1e731b8[ shape=plaintext, label ="tmp15"];
@@ -39,8 +39,8 @@ digraph unnamed {
 	Node0x1e71fb8 -> Node0x1e895a0[arrowtail=tee,label="0",fontsize=8,color=purple];
 	Node0x1e71f38[ shape=plaintext, label ="i"];
 	Node0x1e71f38 -> Node0x1e88730[arrowtail=tee,label="0",fontsize=8,color=purple];
-	Node0x1e88610:s0 -> Node0x1e8b730[arrowtail=tee,label="0, i32**",fontsize=8];
-	Node0x1e89680:s0 -> Node0x1e8b5b0[arrowtail=tee,label="0, i32*",fontsize=8];
-	Node0x1e8b5b0:s0 -> Node0x1e895a0[arrowtail=tee,label="0, float*",fontsize=8];
-	Node0x1e8b730:s0 -> Node0x1e88510[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x1e88610:s0 -> Node0x1e8b730[arrowtail=tee,label="0, ptr",fontsize=8];
+	Node0x1e89680:s0 -> Node0x1e8b5b0[arrowtail=tee,label="0, ptr",fontsize=8];
+	Node0x1e8b5b0:s0 -> Node0x1e895a0[arrowtail=tee,label="0, ptr",fontsize=8];
+	Node0x1e8b730:s0 -> Node0x1e88510[arrowtail=tee,label="0, ptr",fontsize=8];
 }

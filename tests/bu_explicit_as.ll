@@ -12,26 +12,25 @@ target triple = "x86_64-pc-linux-gnu"
 @str2 = internal constant [5 x i8] c"str2\00", align 1
 
 ; Function Attrs: nounwind uwtable
-define i8* @foo(i32) #0 {
+define ptr @foo(i32 %0) #0 {
   %2 = icmp ne i32 %0, 0
   %3 = zext i1 %2 to i64
-  %4 = select i1 %2, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @str1, i32 0, i32 0), i8* getelementptr inbounds ([5 x i8], [5 x i8]* @str2, i32 0, i32 0)
-  call void @print(i8* %4)
-  ret i8* getelementptr inbounds ([5 x i8], [5 x i8]* @str1, i32 0, i32 0)
+  %4 = select i1 %2, ptr @str1, ptr @str2
+  call void @print(ptr %4)
+  ret ptr @str1
 }
 
-declare void @print(i8*) #2
+declare void @print(ptr) #1
 
 ; Function Attrs: nounwind uwtable
-define i32 @main(i32, i8**) #0 {
-  %3 = call i8* @foo(i32 %0)
-  call void @print(i8* %3)
+define i32 @main(i32 %0, ptr %1) #0 {
+  %3 = call ptr @foo(i32 %0)
+  call void @print(ptr %3)
   ret i32 0
 }
 
 attributes #0 = { nounwind uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { argmemonly nounwind }
-attributes #2 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
 !llvm.module.flags = !{!0}
 !llvm.ident = !{!1}
