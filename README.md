@@ -1,6 +1,6 @@
 # SeaDsa: A Points-to Analysis for Verification of Low-level C/C++ #
 
-<a href="https://github.com/seahorn/sea-dsa/actions"><img src="https://github.com/seahorn/sea-dsa/workflows/CI/badge.svg" title="Ubuntu 22.04 LTS 64bit, clang++-14"/></a>
+<a href="https://github.com/seahorn/sea-dsa/actions"><img src="https://github.com/seahorn/sea-dsa/workflows/CI/badge.svg" title="Ubuntu 22.04 LTS 64bit, clang++-16"/></a>
 
 
 `SeaDsa` is a context-, field-, and array-sensitive unification-based
@@ -16,16 +16,16 @@ used as a stand-alone tool or together with
 the [SeaHorn](https://github.com/seahorn/seahorn)
 verification framework and its analyses.
 
-This branch supports LLVM 14.
+This branch supports LLVM 16.
 
 ## Requirements ## 
 
 `SeaDsa` is written in C++ and uses the Boost library. The main requirements
 are: 
 
-- C++ compiler supporting c++14
+- C++ compiler supporting c++17
 - Boost >= 1.65
-- LLVM 14
+- LLVM 16
 
 To run tests, install the following packages:
 
@@ -69,10 +69,10 @@ project's `CMakeLists.txt`:
 
 ### Standalone (for developers) ###
 
-If you already installed `llvm-14` on your machine:
+If you already installed `llvm-16` on your machine:
 
     mkdir build && cd build
-	cmake -DCMAKE_INSTALL_PREFIX=run -DLLVM_DIR=__here_llvm-14__/share/llvm/cmake  ..
+	cmake -DCMAKE_INSTALL_PREFIX=run -DLLVM_DIR=__here_llvm-16__/share/llvm/cmake  ..
    	cmake --build . --target install
 	
 Otherwise:
