@@ -2,13 +2,16 @@
 
 name: CI
 
-# Run CI on pushes to and pull requests targeting the LLVM-14 branches.
-# (dev15 is LLVM-15; add it here once main moves to a newer LLVM.)
+# Run CI on pushes to main and on pull requests targeting main.
+# Each dev<N> branch carries its own copy of this workflow, scoped to itself and
+# pinned to its own LLVM version, so listing those branches here would be a no-op:
+# GitHub resolves workflow files from the pushed branch (push) or the base branch
+# (pull_request), never from main.
 on:
   push:
-    branches: [dev14, main]
+    branches: [main]
   pull_request:
-    branches: [dev14, main]
+    branches: [main]
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
