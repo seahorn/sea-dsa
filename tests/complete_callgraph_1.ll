@@ -11,10 +11,10 @@ target triple = "arm64-apple-macosx13.0.0"
 define i32 @add(i32 %0, i32 %1) #0 {
   %3 = alloca i32, align 4
   %4 = alloca i32, align 4
-  store i32 %0, i32* %3, align 4
-  store i32 %1, i32* %4, align 4
-  %5 = load i32, i32* %3, align 4
-  %6 = load i32, i32* %4, align 4
+  store i32 %0, ptr %3, align 4
+  store i32 %1, ptr %4, align 4
+  %5 = load i32, ptr %3, align 4
+  %6 = load i32, ptr %4, align 4
   %7 = add nsw i32 %5, %6
   ret i32 %7
 }
@@ -23,23 +23,23 @@ define i32 @add(i32 %0, i32 %1) #0 {
 define i32 @sub(i32 %0, i32 %1) #0 {
   %3 = alloca i32, align 4
   %4 = alloca i32, align 4
-  store i32 %0, i32* %3, align 4
-  store i32 %1, i32* %4, align 4
-  %5 = load i32, i32* %3, align 4
-  %6 = load i32, i32* %4, align 4
+  store i32 %0, ptr %3, align 4
+  store i32 %1, ptr %4, align 4
+  %5 = load i32, ptr %3, align 4
+  %6 = load i32, ptr %4, align 4
   %7 = sub nsw i32 %5, %6
   ret i32 %7
 }
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
-define i32 @use(i32 (i32, i32)* %0) #0 {
-  %2 = alloca i32 (i32, i32)*, align 8
+define i32 @use(ptr %0) #0 {
+  %2 = alloca ptr, align 8
   %3 = alloca i32, align 4
-  store i32 (i32, i32)* %0, i32 (i32, i32)** %2, align 8
-  %4 = load i32 (i32, i32)*, i32 (i32, i32)** %2, align 8
+  store ptr %0, ptr %2, align 8
+  %4 = load ptr, ptr %2, align 8
   %5 = call i32 %4(i32 10, i32 20)
-  store i32 %5, i32* %3, align 4
-  %6 = load i32, i32* %3, align 4
+  store i32 %5, ptr %3, align 4
+  %6 = load i32, ptr %3, align 4
   ret i32 %6
 }
 
@@ -48,13 +48,13 @@ define i32 @main() #0 {
   %1 = alloca i32, align 4
   %2 = alloca i32, align 4
   %3 = alloca i32, align 4
-  store i32 0, i32* %1, align 4
-  %4 = call i32 @use(i32 (i32, i32)* @add)
-  store i32 %4, i32* %2, align 4
-  %5 = call i32 @use(i32 (i32, i32)* @sub)
-  store i32 %5, i32* %3, align 4
-  %6 = load i32, i32* %2, align 4
-  %7 = load i32, i32* %3, align 4
+  store i32 0, ptr %1, align 4
+  %4 = call i32 @use(ptr @add)
+  store i32 %4, ptr %2, align 4
+  %5 = call i32 @use(ptr @sub)
+  store i32 %5, ptr %3, align 4
+  %6 = load i32, ptr %2, align 4
+  %7 = load i32, ptr %3, align 4
   %8 = add nsw i32 %6, %7
   ret i32 %8
 }
@@ -66,10 +66,10 @@ attributes #0 = { noinline nounwind optnone ssp uwtable "frame-pointer"="non-lea
 
 !0 = !{i32 2, !"SDK Version", [2 x i32] [i32 13, i32 1]}
 !1 = !{i32 1, !"wchar_size", i32 4}
-!2 = !{i32 1, !"branch-target-enforcement", i32 0}
-!3 = !{i32 1, !"sign-return-address", i32 0}
-!4 = !{i32 1, !"sign-return-address-all", i32 0}
-!5 = !{i32 1, !"sign-return-address-with-bkey", i32 0}
+!2 = !{i32 8, !"branch-target-enforcement", i32 0}
+!3 = !{i32 8, !"sign-return-address", i32 0}
+!4 = !{i32 8, !"sign-return-address-all", i32 0}
+!5 = !{i32 8, !"sign-return-address-with-bkey", i32 0}
 !6 = !{i32 7, !"PIC Level", i32 2}
 !7 = !{i32 7, !"uwtable", i32 1}
 !8 = !{i32 7, !"frame-pointer", i32 1}

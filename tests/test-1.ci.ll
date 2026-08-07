@@ -6,41 +6,41 @@
 target datalayout = "e-m:o-p:32:32-f64:32:64-f80:128-n8:16:32-S128"
 target triple = "i386-apple-macosx10.11.0"
 
-@llvm.used = appending global [8 x i8*] [i8* bitcast (void ()* @seahorn.fail to i8*), i8* bitcast (void (i1)* @verifier.assume to i8*), i8* bitcast (void (i1)* @verifier.assume.not to i8*), i8* bitcast (void ()* @verifier.error to i8*), i8* bitcast (void (i1)* @verifier.assume to i8*), i8* bitcast (void (i1)* @verifier.assume.not to i8*), i8* bitcast (void ()* @verifier.error to i8*), i8* bitcast (void ()* @seahorn.fail to i8*)], section "llvm.metadata"
+@llvm.used = appending global [8 x ptr] [ptr @seahorn.fail, ptr @verifier.assume, ptr @verifier.assume.not, ptr @verifier.error, ptr @verifier.assume, ptr @verifier.assume.not, ptr @verifier.error, ptr @seahorn.fail], section "llvm.metadata"
 
 ; Function Attrs: nounwind ssp
-define internal fastcc void @f(i32* %x, i32* %y) unnamed_addr #0 {
+define internal fastcc void @f(ptr %x, ptr %y) unnamed_addr #0 {
   call void @seahorn.fn.enter() #3
-  store i32 1, i32* %x, align 4
-  store i32 2, i32* %y, align 4
+  store i32 1, ptr %x, align 4
+  store i32 2, ptr %y, align 4
   ret void
 }
 
 ; Function Attrs: nounwind ssp
-define internal fastcc void @g(i32* %p, i32* %q, i32* %r, i32* %s) unnamed_addr #0 {
+define internal fastcc void @g(ptr %p, ptr %q, ptr %r, ptr %s) unnamed_addr #0 {
   call void @seahorn.fn.enter() #3
-  call fastcc void @f(i32* %p, i32* %q)
-  call fastcc void @f(i32* %r, i32* %s)
+  call fastcc void @f(ptr %p, ptr %q)
+  call fastcc void @f(ptr %r, ptr %s)
   ret void
 }
 
 ; Function Attrs: nounwind ssp
-define i32 @main(i32 %argc, i8** %argv) #0 {
+define i32 @main(i32 %argc, ptr %argv) #0 {
   call void @seahorn.fn.enter() #3
   %x = alloca i32, align 4
   %y = alloca i32, align 4
   %w = alloca i32, align 4
   %z = alloca i32, align 4
-  %1 = call i32 bitcast (i32 (...)* @nd to i32 ()*)() #3
+  %1 = call i32 @nd() #3
   %2 = icmp eq i32 %1, 0
-  %x.y = select i1 %2, i32* %x, i32* %y
-  call fastcc void @g(i32* %x.y, i32* nonnull %y, i32* nonnull %w, i32* nonnull %z)
-  %3 = load i32, i32* %x, align 4
-  %4 = load i32, i32* %y, align 4
+  %x.y = select i1 %2, ptr %x, ptr %y
+  call fastcc void @g(ptr %x.y, ptr nonnull %y, ptr nonnull %w, ptr nonnull %z)
+  %3 = load i32, ptr %x, align 4
+  %4 = load i32, ptr %y, align 4
   %5 = add nsw i32 %3, %4
-  %6 = load i32, i32* %w, align 4
+  %6 = load i32, ptr %w, align 4
   %7 = add nsw i32 %5, %6
-  %8 = load i32, i32* %z, align 4
+  %8 = load i32, ptr %z, align 4
   %9 = add nsw i32 %7, %8
   ret i32 %9
 }
@@ -68,5 +68,5 @@ attributes #3 = { nounwind }
 !llvm.module.flags = !{!0}
 !llvm.ident = !{!1}
 
-!0 = !{i32 1, !"PIC Level", i32 2}
+!0 = !{i32 7, !"PIC Level", i32 2}
 !1 = !{!"clang version 3.8.0 (tags/RELEASE_380/final)"}

@@ -7,56 +7,56 @@ source_filename = "issue97.c"
 target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 target triple = "arm64-apple-macosx13.0.0"
 
-%struct.command = type { i8*, void (...)*, i8 }
+%struct.command = type { ptr, ptr, i8 }
 
 @state = global i32 0, align 4
-@global = global i8* null, align 8
+@global = global ptr null, align 8
 @.str = private unnamed_addr constant [3 x i8] c"c1\00", align 1
 @.str.1 = private unnamed_addr constant [3 x i8] c"c2\00", align 1
-@commands = constant [2 x %struct.command] [%struct.command { i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i32 0, i32 0), void (...)* bitcast (void ()* @c1 to void (...)*), i8 0 }, %struct.command { i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.1, i32 0, i32 0), void (...)* bitcast (void ()* @c2 to void (...)*), i8 1 }], align 8
+@commands = constant [2 x %struct.command] [%struct.command { ptr @.str, ptr @c1, i8 0 }, %struct.command { ptr @.str.1, ptr @c2, i8 1 }], align 8
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
-define void @parse_input(i8* %0) #0 {
-  %2 = alloca i8*, align 8
+define void @parse_input(ptr %0) #0 {
+  %2 = alloca ptr, align 8
   %3 = alloca i32, align 4
-  store i8* %0, i8** %2, align 8
-  store i32 0, i32* %3, align 4
+  store ptr %0, ptr %2, align 8
+  store i32 0, ptr %3, align 4
   br label %4
 
 4:                                                ; preds = %34, %1
-  %5 = load i32, i32* %3, align 4
+  %5 = load i32, ptr %3, align 4
   %6 = icmp slt i32 %5, 2
   br i1 %6, label %7, label %37
 
 7:                                                ; preds = %4
-  %8 = load i32, i32* %3, align 4
+  %8 = load i32, ptr %3, align 4
   %9 = sext i32 %8 to i64
-  %10 = getelementptr inbounds [2 x %struct.command], [2 x %struct.command]* @commands, i64 0, i64 %9
-  %11 = getelementptr inbounds %struct.command, %struct.command* %10, i32 0, i32 0
-  %12 = load i8*, i8** %11, align 8
-  %13 = load i8*, i8** %2, align 8
-  %14 = call i32 @strcmp(i8* %12, i8* %13) #3
+  %10 = getelementptr inbounds [2 x %struct.command], ptr @commands, i64 0, i64 %9
+  %11 = getelementptr inbounds %struct.command, ptr %10, i32 0, i32 0
+  %12 = load ptr, ptr %11, align 8
+  %13 = load ptr, ptr %2, align 8
+  %14 = call i32 @strcmp(ptr %12, ptr %13) #3
   %15 = icmp eq i32 %14, 0
   br i1 %15, label %16, label %33
 
 16:                                               ; preds = %7
-  %17 = load i32, i32* @state, align 4
-  %18 = load i32, i32* %3, align 4
+  %17 = load i32, ptr @state, align 4
+  %18 = load i32, ptr %3, align 4
   %19 = sext i32 %18 to i64
-  %20 = getelementptr inbounds [2 x %struct.command], [2 x %struct.command]* @commands, i64 0, i64 %19
-  %21 = getelementptr inbounds %struct.command, %struct.command* %20, i32 0, i32 2
-  %22 = load i8, i8* %21, align 8
+  %20 = getelementptr inbounds [2 x %struct.command], ptr @commands, i64 0, i64 %19
+  %21 = getelementptr inbounds %struct.command, ptr %20, i32 0, i32 2
+  %22 = load i8, ptr %21, align 8
   %23 = sext i8 %22 to i32
   %24 = icmp sge i32 %17, %23
   br i1 %24, label %25, label %32
 
 25:                                               ; preds = %16
-  %26 = load i32, i32* %3, align 4
+  %26 = load i32, ptr %3, align 4
   %27 = sext i32 %26 to i64
-  %28 = getelementptr inbounds [2 x %struct.command], [2 x %struct.command]* @commands, i64 0, i64 %27
-  %29 = getelementptr inbounds %struct.command, %struct.command* %28, i32 0, i32 1
-  %30 = load void (...)*, void (...)** %29, align 8
-  %31 = bitcast void (...)* %30 to void ()*
+  %28 = getelementptr inbounds [2 x %struct.command], ptr @commands, i64 0, i64 %27
+  %29 = getelementptr inbounds %struct.command, ptr %28, i32 0, i32 1
+  %30 = load ptr, ptr %29, align 8
+  %31 = bitcast ptr %30 to ptr
   call void %31()
   br label %37
 
@@ -67,9 +67,9 @@ define void @parse_input(i8* %0) #0 {
   br label %34
 
 34:                                               ; preds = %33
-  %35 = load i32, i32* %3, align 4
+  %35 = load i32, ptr %3, align 4
   %36 = add nsw i32 %35, 1
-  store i32 %36, i32* %3, align 4
+  store i32 %36, ptr %3, align 4
   br label %4, !llvm.loop !10
 
 37:                                               ; preds = %25, %4
@@ -77,34 +77,34 @@ define void @parse_input(i8* %0) #0 {
 }
 
 ; Function Attrs: nocallback nounwind readonly willreturn
-declare i32 @strcmp(i8*, i8*) #1
+declare i32 @strcmp(ptr, ptr) #1
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
 define void @c1() #0 {
-  %1 = alloca i8*, align 8
-  %2 = call noalias i8* @malloc(i32 1) #4
-  store i8* %2, i8** %1, align 8
-  %3 = load i8*, i8** %1, align 8
-  %4 = icmp ne i8* %3, null
+  %1 = alloca ptr, align 8
+  %2 = call noalias ptr @malloc(i32 1) #4
+  store ptr %2, ptr %1, align 8
+  %3 = load ptr, ptr %1, align 8
+  %4 = icmp ne ptr %3, null
   br i1 %4, label %6, label %5
 
 5:                                                ; preds = %0
   br label %13
 
 6:                                                ; preds = %0
-  %7 = load i8*, i8** @global, align 8
-  %8 = icmp ne i8* %7, null
+  %7 = load ptr, ptr @global, align 8
+  %8 = icmp ne ptr %7, null
   br i1 %8, label %9, label %11
 
 9:                                                ; preds = %6
-  %10 = load i8*, i8** @global, align 8
-  call void @free(i8* %10) #4
+  %10 = load ptr, ptr @global, align 8
+  call void @free(ptr %10) #4
   br label %11
 
 11:                                               ; preds = %9, %6
-  %12 = load i8*, i8** %1, align 8
-  store i8* %12, i8** @global, align 8
-  store i32 1, i32* @state, align 4
+  %12 = load ptr, ptr %1, align 8
+  store ptr %12, ptr @global, align 8
+  store i32 1, ptr @state, align 4
   br label %13
 
 13:                                               ; preds = %11, %5
@@ -112,33 +112,33 @@ define void @c1() #0 {
 }
 
 ; Function Attrs: nocallback nounwind
-declare noalias i8* @malloc(i32) #2
+declare noalias ptr @malloc(i32) #2
 
 ; Function Attrs: nocallback nounwind
-declare void @free(i8*) #2
+declare void @free(ptr) #2
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
 define void @c2() #0 {
-  %1 = alloca i8*, align 8
-  store i8* null, i8** %1, align 8
-  %2 = load i8*, i8** %1, align 8
-  %3 = icmp ne i8* %2, null
+  %1 = alloca ptr, align 8
+  store ptr null, ptr %1, align 8
+  %2 = load ptr, ptr %1, align 8
+  %3 = icmp ne ptr %2, null
   br i1 %3, label %4, label %7
 
 4:                                                ; preds = %0
-  %5 = load i8*, i8** @global, align 8
-  %6 = icmp ne i8* %5, null
+  %5 = load ptr, ptr @global, align 8
+  %6 = icmp ne ptr %5, null
   br i1 %6, label %8, label %7
 
 7:                                                ; preds = %4, %0
   br label %11
 
 8:                                                ; preds = %4
-  %9 = load i8*, i8** %1, align 8
-  call void @free(i8* %9) #4
-  %10 = load i8*, i8** @global, align 8
-  call void @free(i8* %10) #4
-  store i32 0, i32* @state, align 4
+  %9 = load ptr, ptr %1, align 8
+  call void @free(ptr %9) #4
+  %10 = load ptr, ptr @global, align 8
+  call void @free(ptr %10) #4
+  store i32 0, ptr @state, align 4
   br label %11
 
 11:                                               ; preds = %8, %7
@@ -148,10 +148,10 @@ define void @c2() #0 {
 ; Function Attrs: noinline nounwind optnone ssp uwtable
 define i32 @main() #0 {
   %1 = alloca i32, align 4
-  store i32 0, i32* %1, align 4
-  call void @parse_input(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0))
-  call void @parse_input(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0))
-  call void @parse_input(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.1, i64 0, i64 0))
+  store i32 0, ptr %1, align 4
+  call void @parse_input(ptr @.str)
+  call void @parse_input(ptr @.str)
+  call void @parse_input(ptr @.str.1)
   ret i32 0
 }
 
@@ -166,10 +166,10 @@ attributes #4 = { nocallback nounwind }
 
 !0 = !{i32 2, !"SDK Version", [2 x i32] [i32 13, i32 1]}
 !1 = !{i32 1, !"wchar_size", i32 4}
-!2 = !{i32 1, !"branch-target-enforcement", i32 0}
-!3 = !{i32 1, !"sign-return-address", i32 0}
-!4 = !{i32 1, !"sign-return-address-all", i32 0}
-!5 = !{i32 1, !"sign-return-address-with-bkey", i32 0}
+!2 = !{i32 8, !"branch-target-enforcement", i32 0}
+!3 = !{i32 8, !"sign-return-address", i32 0}
+!4 = !{i32 8, !"sign-return-address-all", i32 0}
+!5 = !{i32 8, !"sign-return-address-with-bkey", i32 0}
 !6 = !{i32 7, !"PIC Level", i32 2}
 !7 = !{i32 7, !"uwtable", i32 1}
 !8 = !{i32 7, !"frame-pointer", i32 1}
