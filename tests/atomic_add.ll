@@ -11,23 +11,23 @@ target triple = "x86_64-apple-macosx10.14.0"
 define i32 @main() #0 {
   %1 = alloca i32, align 4
   %2 = alloca i32, align 4
-  %3 = alloca i32*, align 8
+  %3 = alloca ptr, align 8
   %4 = alloca i32, align 4
   %5 = alloca i32, align 4
   %6 = alloca i32, align 4
-  store i32 0, i32* %1, align 4
-  store i32 5, i32* %2, align 4
-  store i32* %2, i32** %3, align 8
-  store i32 7, i32* %4, align 4
-  %7 = load i32*, i32** %3, align 8
-  %8 = load i32, i32* %4, align 4
-  store i32 %8, i32* %5, align 4
-  %9 = load i32, i32* %5, align 4
-  %10 = atomicrmw add i32* %7, i32 %9 monotonic
-  store i32 %10, i32* %6, align 4
-  %11 = load i32, i32* %6, align 4
-  %12 = load i32*, i32** %3, align 8
-  %13 = load i32, i32* %12, align 4
+  store i32 0, ptr %1, align 4
+  store i32 5, ptr %2, align 4
+  store ptr %2, ptr %3, align 8
+  store i32 7, ptr %4, align 4
+  %7 = load ptr, ptr %3, align 8
+  %8 = load i32, ptr %4, align 4
+  store i32 %8, ptr %5, align 4
+  %9 = load i32, ptr %5, align 4
+  %10 = atomicrmw add ptr %7, i32 %9 monotonic, align 4
+  store i32 %10, ptr %6, align 4
+  %11 = load i32, ptr %6, align 4
+  %12 = load ptr, ptr %3, align 8
+  %13 = load i32, ptr %12, align 4
   %14 = icmp eq i32 %13, 7
   call void @__VERIFIER_assert(i1 zeroext %14)
   ret i32 0

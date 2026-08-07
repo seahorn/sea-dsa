@@ -7,16 +7,16 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
 ; Function Attrs: nounwind uwtable
-define void @entry(i8** %argv, float* %ptr) #0 {
+define void @entry(ptr %argv, ptr %ptr) #0 {
 bb:
-	%f = load float, float* %ptr, align 8
-  %tmp = alloca i8**, align 8
-  %str = alloca i8*, align 8
-  store i8** %argv, i8*** %tmp, align 8
-  %tmp1 = load i8**, i8*** %tmp, align 8
-  %tmp2 = getelementptr inbounds i8*, i8** %tmp1, i64 0
-  %tmp3 = load i8*, i8** %tmp2, align 8
-  store i8* %tmp3, i8** %str, align 8
+  %f = load float, ptr %ptr, align 8
+  %tmp = alloca ptr, align 8
+  %str = alloca ptr, align 8
+  store ptr %argv, ptr %tmp, align 8
+  %tmp1 = load ptr, ptr %tmp, align 8
+  %tmp2 = getelementptr inbounds ptr, ptr %tmp1, i64 0
+  %tmp3 = load ptr, ptr %tmp2, align 8
+  store ptr %tmp3, ptr %str, align 8
   ret void
 }
 

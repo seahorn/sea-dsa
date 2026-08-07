@@ -12,25 +12,25 @@ target triple = "x86_64-unknown-linux-gnu"
 @.str = private unnamed_addr constant [5 x i8] c"str2\00", align 1
 
 ; Function Attrs: nounwind uwtable
-define void @foo(i8*) local_unnamed_addr #0 {
-  tail call void @print(i8* %0) #2
+define void @foo(ptr %0) local_unnamed_addr #0 {
+  tail call void @print(ptr %0) #2
   ret void
 }
 
-declare void @print(i8*) local_unnamed_addr #1
+declare void @print(ptr) local_unnamed_addr #1
 
 ; Function Attrs: nounwind uwtable
-define void @entry(i8*) local_unnamed_addr #0 {
-  tail call void @print(i8* %0) #2
+define void @entry(ptr %0) local_unnamed_addr #0 {
+  tail call void @print(ptr %0) #2
   ret void
 }
 
 ; Function Attrs: nounwind uwtable
-define i32 @main(i32, i8** nocapture readnone) local_unnamed_addr #0 {
+define i32 @main(i32 %0, ptr nocapture readnone %1) local_unnamed_addr #0 {
   %3 = icmp sgt i32 %0, 2
-  %4 = select i1 %3, i8* getelementptr inbounds ([5 x i8], [5 x i8]* @str1, i64 0, i64 0), i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.str, i64 0, i64 0)
-  tail call void @foo(i8* %4)
-  tail call void @entry(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @str1, i64 0, i64 0))
+  %4 = select i1 %3, ptr @str1, ptr @.str
+  tail call void @foo(ptr %4)
+  tail call void @entry(ptr @str1)
   ret i32 0
 }
 

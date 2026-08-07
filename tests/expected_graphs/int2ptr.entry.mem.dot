@@ -3,7 +3,7 @@ digraph unnamed {
 	node  [fontname=Helvetica, fontsize=11];
 
 	Node0x12a9c90 [shape=record,label="{\{0:i32\}:SMR}"];
-	Node0x12bb410 [shape=record,label="{\{0:i32*\}:SM|{<s0>\<0, i32*\>}}"];
+	Node0x12bb410 [shape=record,label="{\{0:ptr\}:SM|{<s0>\<0, ptr\>}}"];
 	Node0x12bb570 [shape=record,label="{\{void\}:SP}"];
 	Node0x12a6328[ shape=plaintext, label ="ptr"];
 	Node0x12a6328 -> Node0x12bb410[arrowtail=tee,label="0",fontsize=8,color=purple];
@@ -11,5 +11,5 @@ digraph unnamed {
 	Node0x12a6748 -> Node0x12bb570[arrowtail=tee,label="0",fontsize=8,color=purple];
 	Node0x12a5c68[ shape=plaintext, label ="a"];
 	Node0x12a5c68 -> Node0x12a9c90[arrowtail=tee,label="0",fontsize=8,color=purple];
-	Node0x12bb410:s0 -> Node0x12bb570[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x12bb410:s0 -> Node0x12bb570[arrowtail=tee,label="0, ptr",fontsize=8];
 }
