@@ -12,11 +12,11 @@ bb:
   %tmp = alloca i32, align 4
   %a = alloca i32, align 4
   %b = alloca i32, align 4
-  %res = alloca i32*, align 8
-  store i32 %c, i32* %tmp, align 4
-  store i32 1, i32* %a, align 4
-  store i32 2, i32* %b, align 4
-  %tmp1 = load i32, i32* %tmp, align 4
+  %res = alloca ptr, align 8
+  store i32 %c, ptr %tmp, align 4
+  store i32 1, ptr %a, align 4
+  store i32 2, ptr %b, align 4
+  %tmp1 = load i32, ptr %tmp, align 4
   %tmp2 = icmp ne i32 %tmp1, 0
   br i1 %tmp2, label %bb3, label %bb4
 
@@ -27,10 +27,10 @@ bb4:                                              ; preds = %bb
   br label %bb5
 
 bb5:                                              ; preds = %bb4, %bb3
-  %tmp6 = phi i32* [ %a, %bb3 ], [ %b, %bb4 ]
-  store i32* %tmp6, i32** %res, align 8
-  %tmp7 = load i32*, i32** %res, align 8
-  %tmp8 = load i32, i32* %tmp7, align 4
+  %tmp6 = phi ptr [ %a, %bb3 ], [ %b, %bb4 ]
+  store ptr %tmp6, ptr %res, align 8
+  %tmp7 = load ptr, ptr %res, align 8
+  %tmp8 = load i32, ptr %tmp7, align 4
   ret i32 %tmp8
 }
 

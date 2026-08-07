@@ -9,37 +9,37 @@ target triple = "x86_64-apple-macosx10.14.0"
 
 ; Function Attrs: noinline nounwind ssp uwtable
 define i32 @main() #0 {
-  %1 = alloca i32*, align 8
-  %newVal = alloca i32*, align 8
-  %2 = call i32** (...) @nd_ptr()
-  %3 = call i32* (...) @nd_cmp()
-  store i32* %3, i32** %1, align 8
-  %4 = call i32* (...) @new_val()
-  store i32* %4, i32** %newVal, align 8
-  %5 = bitcast i32** %1 to i32*
-  %6 = bitcast i32** %newVal to i32*
-  %oldVal = load i32*, i32** %2, align 8  
-  %7 = cmpxchg weak i32** %2, i32* %5, i32* %6 monotonic monotonic
-  %8 = extractvalue { i32*, i1 } %7, 0
-  %9 = extractvalue { i32*, i1 } %7, 1
-  br i1 %9, label %10, label %11
+  %1 = alloca ptr, align 8
+  %newVal = alloca ptr, align 8
+  %2 = call ptr (...) @nd_ptr()
+  %3 = call ptr (...) @nd_cmp()
+  store ptr %3, ptr %1, align 8
+  %4 = call ptr (...) @new_val()
+  store ptr %4, ptr %newVal, align 8
+  %5 = bitcast ptr %1 to ptr
+  %6 = bitcast ptr %newVal to ptr
+  %oldVal = load ptr, ptr %2, align 8
+  %7 = cmpxchg weak ptr %2, ptr %5, ptr %6 monotonic monotonic, align 8
+  %8 = extractvalue { ptr, i1 } %7, 0
+  %9 = extractvalue { ptr, i1 } %7, 1
+  br i1 %9, label %11, label %10
 
-; <label>:11:                     
-  store i32* %8, i32** %1, align 8
-  br label %10
+10:                                               ; preds = %0
+  store ptr %8, ptr %1, align 8
+  br label %11
 
-; <label>:10:                     
-  %12 = load i32*, i32** %2, align 8
-  %13 = icmp eq i32* %12, %4
+11:                                               ; preds = %10, %0
+  %12 = load ptr, ptr %2, align 8
+  %13 = icmp eq ptr %12, %4
   call void @__VERIFIER_assert(i1 zeroext %13)
   ret i32 0
 }
 
-declare i32** @nd_ptr(...) #1
+declare ptr @nd_ptr(...) #1
 
-declare i32* @nd_cmp(...) #1
+declare ptr @nd_cmp(...) #1
 
-declare i32* @new_val(...) #1
+declare ptr @new_val(...) #1
 
 declare void @__VERIFIER_assert(i1 zeroext) #1
 

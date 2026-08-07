@@ -2,8 +2,8 @@ digraph unnamed {
 	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
 	node  [fontname=Helvetica, fontsize=11];
 
-	Node0x7fe2f4c16770 [shape=record,fillcolor=gray, style=filled,label="{\{0:i8*\}:MR\nAS: A, B\n|{<s0>\<0, omni_i8*\>}}"];
-	Node0x7fe2f4c16800 [shape=record,fillcolor=gray, style=filled,label="{\{0:i8*\}:M\nAS: C\n|{<s0>\<0, omni_i8*\>}}"];
+	Node0x7fe2f4c16770 [shape=record,fillcolor=gray, style=filled,label="{\{0:ptr\}:MR\nAS: A, B\n|{<s0>\<0, omni_ptr\>}}"];
+	Node0x7fe2f4c16800 [shape=record,fillcolor=gray, style=filled,label="{\{0:ptr\}:M\nAS: C\n|{<s0>\<0, omni_ptr\>}}"];
 	Node0x7fe2f4c114b8 [shape=plaintext, label ="B"];
 	Node0x7fe2f4c114b8 -> Node0x7fe2f4c16770[arrowtail=tee,label="0",fontsize=8,color=purple];
 	Node0x7fe2f4c12918 [shape=plaintext, label ="tmp"];
@@ -12,6 +12,6 @@ digraph unnamed {
 	Node0x7fe2f4c11548 -> Node0x7fe2f4c16800[arrowtail=tee,label="0",fontsize=8,color=purple];
 	Node0x7fe2f4c11378 [shape=plaintext, label ="A"];
 	Node0x7fe2f4c11378 -> Node0x7fe2f4c16770[arrowtail=tee,label="0",fontsize=8,color=purple];
-	Node0x7fe2f4c16770:s0 -> Node0x7fe2f4c16800[arrowtail=tee,label="0, omni_i8*",fontsize=8];
-	Node0x7fe2f4c16800:s0 -> Node0x7fe2f4c16770[arrowtail=tee,label="0, omni_i8*",fontsize=8];
+	Node0x7fe2f4c16770:s0 -> Node0x7fe2f4c16800[arrowtail=tee,label="0, omni_ptr",fontsize=8];
+	Node0x7fe2f4c16800:s0 -> Node0x7fe2f4c16770[arrowtail=tee,label="0, omni_ptr",fontsize=8];
 }
