@@ -1,0 +1,8 @@
+digraph "Call graph" {
+	label="Call graph";
+
+	Node0x100000010 [shape=record,label="{main}"];
+	Node0x100000010 -> Node0x100000020;
+	Node0x100000010 -> Node0x100000020;
+	Node0x100000020 [shape=record,label="{nd_uint}"];
+}
