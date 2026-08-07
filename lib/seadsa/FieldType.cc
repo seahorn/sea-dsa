@@ -38,16 +38,19 @@ llvm::Type *GetInnermostTypeImpl(llvm::Type *const Ty, SeenTypes &seen) {
   while (!seen.count(currentTy)) {
     seen.insert(currentTy);
 
-    // FIXME: We're at a dead-end when we encounter a pointer type.
+    // -- a pointer is a dead-end: opaque pointers carry no pointee to descend
+    //    into, so ptr is itself the first primitive type.
     if (currentTy->isPointerTy()) break;
 
     auto It = AggregateIterator::mkBegin(currentTy, /* DL = */ nullptr);
     auto *FirstTy = It->Ty;
     if (!FirstTy) break;
 
-    // FIXME: We cannot check this
-    // if (FirstTy->isPointerTy() && FirstTy->getPointerElementType() == currentTy)
-    //   break;
+    // Typed pointers needed an extra stop here for a struct whose first field
+    // pointed back at it (`FirstTy->getPointerElementType() == currentTy`),
+    // which would otherwise descend forever. Opaque pointers erase the target,
+    // so such a struct is plainly { ptr, ... } and the loop already stops at
+    // the pointer above -- there is no cycle left to detect.
 
     if (FirstTy == currentTy) break;
 
@@ -83,8 +86,17 @@ static bool IsOmnipotentChar(llvm::Type *const Ty) {
 }
 
 static bool IsOmnipotentPtr(llvm::Type *const Ty) {
-  // LLVM 15, Kevin: Opaque pointer prevents us from being able to determine if a pointer
-  // is omnipotent. Conservatively return false.
+  // No field is omnipotent under opaque pointers, and none needs to be.
+  //
+  // The omnipotent char existed because LLVM stored a pointer of any source
+  // type as i8*, so a link written through an i8* field and one written
+  // through, say, an i32* field landed on different Fields for the same
+  // offset. Marking the i8* field omni let getLink/addLink bridge them.
+  //
+  // Opaque pointers collapse every pointer to `ptr`, so two pointer accesses
+  // at one offset now build the *same* Field and unify directly. There is no
+  // longer a pointee type to test, and nothing left for the test to buy: the
+  // omni fallbacks in Graph.cc and Mapper.cc are unreachable by construction.
   return false;
 }
 

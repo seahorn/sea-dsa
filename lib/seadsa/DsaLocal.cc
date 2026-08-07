@@ -317,37 +317,48 @@ class GlobalBuilder : public BlockBuilderBase {
     if (isa<ConstantDataSequential>(Init)) { return; }
 
     if (Init->getType()->isPointerTy() && !isa<ConstantPointerNull>(Init)) {
-      // FIXME: This creates a node for a global function pointer. Needed by
-      // vtable in C++
-      // Disabled for now since in LLVM 15 there is no way to determine if the pointer is a
-      // function. May be inferenced by checking if the pointer is ever loaded as a function.
+      // Creates a node for a global function pointer. Needed by vtable in C++
+      // and to resolve indirect calls through function pointers installed by a
+      // global initializer.
+      //
+      // The old check asked the *type* whether it points to a function
+      // (getElementType()->isFunctionTy()), which opaque pointers removed. Ask
+      // the *value* instead: the initializer constant of a function pointer is
+      // the Function itself, so isa<Function> answers the same question and
+      // needs no pointee type. stripPointerCasts() keeps that true for an
+      // initializer that is wrapped in a cast.
+      //
+      // The unstripped constant is recorded as the allocation site;
+      // CompleteCallGraphAnalysis strips casts again before matching it against
+      // Function, so either form resolves.
+      if (isa<Function>(Init->stripPointerCasts())) {
+        seadsa::Node &n = m_graph.mkNode();
+        seadsa::Cell nc(n, 0);
+        seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*Init);
+        assert(site);
+        n.addAllocSite(*site);
 
-      // if (cast<PointerType>(Init->getType())
-      //         ->getElementType()
-      //         ->isFunctionTy()) {
-      //   seadsa::Node &n = m_graph.mkNode();
-      //   seadsa::Cell nc(n, 0);
-      //   seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*Init);
-      //   assert(site);
-      //   n.addAllocSite(*site);
+        // connect c with nc
+        c.growSize(0, Init->getType());
+        c.addAccessedType(0, Init->getType());
+        c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
+        return;
+      }
 
-      //   // connect c with nc
-      //   c.growSize(0, Init->getType());
-      //   c.addAccessedType(0, Init->getType());
-      //   c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
-      //   return;
-      // }
-
-      // if (m_graph.hasCell(*Init)) {
-      //   // @g1 =  ...*
-      //   // @g2 =  ...** @g1
-      //   seadsa::Cell &nc = m_graph.mkCell(*Init, seadsa::Cell());
-      //   // connect c with nc
-      //   c.growSize(0, Init->getType());
-      //   c.addAccessedType(0, Init->getType());
-      //   c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
-      //   return;
-      // }
+      // A global initialized with the address of another global:
+      //   @g1 = global ...
+      //   @g2 = global ptr @g1
+      // Link g2's cell to g1's so that a load of @g2 reaches @g1's node. Without
+      // it, anything stored through @g2 is invisible at @g1 -- which is how a
+      // function pointer installed via such an indirection loses its identity.
+      if (m_graph.hasCell(*Init)) {
+        seadsa::Cell &nc = m_graph.mkCell(*Init, seadsa::Cell());
+        // connect c with nc
+        c.growSize(0, Init->getType());
+        c.addAccessedType(0, Init->getType());
+        c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
+        return;
+      }
     }
   }
 
@@ -1540,13 +1551,19 @@ bool hasNoPointerTy(const llvm::Type *t) {
   return true;
 }
 
-bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
-  // FIXME: LLVM 15, Kevin: Since we can no longer access pointee types, it is
-  // now
-  // impossible to determine whether the pointee's struct type contains
-  // pointers. This whole function is effectively hamstrung as it now only
-  // returns false.
+/// Type of the object \p V points to, when it can be recovered without a
+/// pointee type. Opaque pointers removed PointerType::getElementType(), but an
+/// object still records the type it was declared with at the point it is
+/// created, and a memcpy operand is usually just such an object. Returns null
+/// when the type cannot be established.
+static Type *allocatedObjectType(const Value *V) {
+  V = V->stripPointerCasts();
+  if (auto *GV = dyn_cast<const GlobalVariable>(V)) return GV->getValueType();
+  if (auto *AI = dyn_cast<const AllocaInst>(V)) return AI->getAllocatedType();
+  return nullptr;
+}
 
+bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   ConstantInt *rawLength = dyn_cast<ConstantInt>(MI.getLength());
   if (!rawLength)
     return false; // Analysis is not possible if length is not constant
@@ -1554,42 +1571,39 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   const uint64_t length = rawLength->getZExtValue();
   LOG("dsa", errs() << "MemTransfer length:\t" << length << "\n");
 
-  // // opaque structs may transfer pointers
-  // if (!srcTy->isSized()) return false;
+  // The transferred type used to be read off the source operand's pointer
+  // type. Opaque pointers removed that, so take it from the source object
+  // instead. When the source is not an object we can name, we cannot tell what
+  // is being copied and must assume pointers are.
+  Type *srcTy = allocatedObjectType(MI.getSource());
+  if (!srcTy) return false;
 
-  // // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
-  // // This can occur when someone tries to transfer int the middle of a struct.
-  // if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
-  //   LOG("dsa-warn", errs() << "WARNING: MemTransfer past object size!\n"
-  //                          << "\tTransfer:  ");
-  //   LOG("dsa", MI.print(errs()));
-  //   LOG("dsa-warn", errs() << "\n\tLength:  " << length << "\n\tType size:  "
-  //                          << (DL.getTypeSizeInBits(srcTy) / 8) << "\n");
-  //   return false;
-  // }
+  // opaque structs may transfer pointers
+  if (!srcTy->isSized()) return false;
 
-  // static SmallDenseMap<std::pair<Type *, unsigned>, bool, 16>
-  //     knownNoPointersInStructs;
+  // TODO: Go up to the GEP chain to find nearest fitting type to transfer.
+  // This can occur when someone tries to transfer int the middle of a struct.
+  if (length * 8 > DL.getTypeSizeInBits(srcTy)) {
+    LOG("dsa-warn", errs() << "WARNING: MemTransfer past object size!\n"
+                           << "\tTransfer:  ");
+    LOG("dsa", MI.print(errs()));
+    LOG("dsa-warn", errs() << "\n\tLength:  " << length << "\n\tType size:  "
+                           << (DL.getTypeSizeInBits(srcTy) / 8) << "\n");
+    return false;
+  }
 
-  // if (knownNoPointersInStructs.count({srcTy, length}) != 0)
-  //   return knownNoPointersInStructs[{srcTy, length}];
+  for (auto &subTy : seadsa::AggregateIterator::range(srcTy, &DL)) {
+    if (subTy.Offset >= length) break;
 
-  // for (auto &subTy : seadsa::AggregateIterator::range(srcTy, &DL)) {
-  //   if (subTy.Offset >= length) break;
+    if (subTy.Ty->isPointerTy()) {
+      LOG("dsa", errs() << "Found ptr member "; subTy.Ty->print(errs());
+          errs() << "\n\tin "; srcTy->print(errs());
+          errs() << "\n\tMemTransfer transfers pointers!\n");
+      return false;
+    }
+  }
 
-  //   if (subTy.Ty->isPointerTy()) {
-  //     LOG("dsa", errs() << "Found ptr member "; subTy.Ty->print(errs());
-  //         errs() << "\n\tin "; srcTy->print(errs());
-  //         errs() << "\n\tMemTransfer transfers pointers!\n");
-
-  //     knownNoPointersInStructs[{srcTy, length}] = false;
-  //     return false;
-  //   }
-  // }
-
-  // knownNoPointersInStructs[{srcTy, length}] = true;
-  // return true;
-  return false;
+  return true;
 }
 
 void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
