@@ -86,7 +86,23 @@ TEST_CASE("FirstPrimT.LL_reverse") {
   LLVMContext &C = GetCtx();
   auto *St = StructType::create(C, "LL2");
   St->setBody({St->getPointerTo(0), GetIntPtr(C)->getPointerTo(0)});
-  CHECK(seadsa::GetFirstPrimitiveTy(St) == St);
+  // Typed pointers made this struct self-referential -- { LL2*, i32** } -- and
+  // the descent had to stop at LL2 itself to avoid looping. Opaque pointers
+  // erase the target, so the type is plainly { ptr, ptr }: there is no cycle
+  // to detect, and the first primitive type really is ptr.
+  CHECK(seadsa::GetFirstPrimitiveTy(St) == St->getElementType(0));
+}
+
+// Descent through nested aggregates stops at the first scalar rather than the
+// first pointer, so this still discriminates once every pointer is ptr.
+TEST_CASE("FirstPrimT.NestedAggregate") {
+  LLVMContext &C = GetCtx();
+  auto *I16 = IntegerType::getInt16Ty(C);
+  auto *Inner = StructType::create(C, "Inner");
+  Inner->setBody({I16, GetIntPtr(C)});
+  auto *Outer = StructType::create(C, "Outer");
+  Outer->setBody({Inner, GetIntPtr(C)});
+  CHECK(seadsa::GetFirstPrimitiveTy(Outer) == I16);
 }
 
 TEST_CASE("FirstPrimT.Nested") {
