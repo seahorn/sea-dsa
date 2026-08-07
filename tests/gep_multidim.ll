@@ -27,7 +27,6 @@ target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 @table = global [6 x [2 x i32]] zeroinitializer, align 4
 @arr = global [2 x [4 x %struct.S]] zeroinitializer, align 4
 
-; multi-dimensional array: t[1][1] and t[5][1]
 define internal i32 @f(ptr %t) {
 entry:
   %p1 = getelementptr inbounds [2 x i32], ptr %t, i64 1, i64 1
@@ -38,7 +37,6 @@ entry:
   ret i32 %add
 }
 
-; array of structs: s[1][2].snd
 define internal i32 @g(ptr %s) {
 entry:
   %q = getelementptr inbounds [4 x %struct.S], ptr %s, i64 1, i64 2, i32 1
