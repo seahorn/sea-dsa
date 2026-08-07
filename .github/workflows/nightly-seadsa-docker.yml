@@ -1,0 +1,37 @@
+# Nightly: build and test main and every maintained dev<N> branch.
+#
+# Each branch pins its own LLVM version inside docker/sea-dsa-builder.Dockerfile
+# (FROM seahorn/buildpack-deps-seahorn:jammy-llvm<N>), so the build needs no
+# build-args -- checking out the branch is enough. The Dockerfile also runs the
+# test-sea-dsa and sea-dsa-units targets, so a failing test fails the build.
+#
+# Images are built only to exercise the branch; nothing is pushed anywhere.
+#
+# NOTE: scheduled workflows only run from the repository's default branch, so
+# this file must live on main for the cron to fire. Add a branch below when a
+# new dev<N> is cut.
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.branch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [main, dev14, dev15, dev16, dev17, dev18]
+
+    steps:
+      - name: Check out ${{ matrix.branch }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+
+      - name: Build seadsa and run tests (${{ matrix.branch }})
+        run: docker build -t seadsa-nightly:${{ matrix.branch }} -f docker/sea-dsa-builder.Dockerfile .
