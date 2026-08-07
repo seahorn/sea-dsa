@@ -7,31 +7,31 @@ source_filename = "complete_callgraph_15.c"
 target datalayout = "e-m:o-i64:64-i128:128-n32:64-S128"
 target triple = "arm64-apple-macosx13.0.0"
 
-%struct.test_handler = type { i32 (...)* }
+%struct.test_handler = type { ptr }
 
-@handle_var = global %struct.test_handler { i32 (...)* bitcast (i32 ()* @foo to i32 (...)*) }, align 8
+@handle_var = global %struct.test_handler { ptr @foo }, align 8
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
 define i32 @foo() #0 {
   %1 = alloca i32, align 4
-  store i32 0, i32* %1, align 4
-  %2 = load i32, i32* %1, align 4
+  store i32 0, ptr %1, align 4
+  %2 = load i32, ptr %1, align 4
   ret i32 %2
 }
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
-define %struct.test_handler* @return_handler_struct() #0 {
-  ret %struct.test_handler* @handle_var
+define ptr @return_handler_struct() #0 {
+  ret ptr @handle_var
 }
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
 define i32 @main() #0 {
   %1 = alloca i32, align 4
-  store i32 0, i32* %1, align 4
-  %2 = call %struct.test_handler* @return_handler_struct()
-  %3 = getelementptr inbounds %struct.test_handler, %struct.test_handler* %2, i32 0, i32 0
-  %4 = load i32 (...)*, i32 (...)** %3, align 8
-  %5 = bitcast i32 (...)* %4 to i32 ()*
+  store i32 0, ptr %1, align 4
+  %2 = call ptr @return_handler_struct()
+  %3 = getelementptr inbounds %struct.test_handler, ptr %2, i32 0, i32 0
+  %4 = load ptr, ptr %3, align 8
+  %5 = bitcast ptr %4 to ptr
   %6 = call i32 %5()
   %7 = icmp eq i32 %6, 0
   br i1 %7, label %9, label %8
@@ -56,10 +56,10 @@ attributes #1 = { "frame-pointer"="non-leaf" "no-trapping-math"="true" "probe-st
 
 !0 = !{i32 2, !"SDK Version", [2 x i32] [i32 13, i32 1]}
 !1 = !{i32 1, !"wchar_size", i32 4}
-!2 = !{i32 1, !"branch-target-enforcement", i32 0}
-!3 = !{i32 1, !"sign-return-address", i32 0}
-!4 = !{i32 1, !"sign-return-address-all", i32 0}
-!5 = !{i32 1, !"sign-return-address-with-bkey", i32 0}
+!2 = !{i32 8, !"branch-target-enforcement", i32 0}
+!3 = !{i32 8, !"sign-return-address", i32 0}
+!4 = !{i32 8, !"sign-return-address-all", i32 0}
+!5 = !{i32 8, !"sign-return-address-with-bkey", i32 0}
 !6 = !{i32 7, !"PIC Level", i32 2}
 !7 = !{i32 7, !"uwtable", i32 1}
 !8 = !{i32 7, !"frame-pointer", i32 1}
