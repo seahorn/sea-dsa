@@ -7,6 +7,6 @@ Based on SeaHorn docker. For details, see `docker/README.md` in the correspondin
 Use the following command
 
 ```
-docker build --build-arg BUILD_TYPE=RelWithDebInfo -t seahorn/sea-dsa-builder:jammy-llvm14 -f docker/sea-dsa-builder.Dockerfile .
+docker build --build-arg BUILD_TYPE=RelWithDebInfo -t seahorn/sea-dsa-builder:jammy-llvm16 -f docker/sea-dsa-builder.Dockerfile .
 ```
 
