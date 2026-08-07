@@ -65,41 +65,47 @@ static const Value *findUniqueReturnValue(const Function &F) {
   return onlyRetVal;
 }
 
-static void resolveIndirectCallsThroughBitCast(Function &F, CallGraph &seaCg) {
-  // Resolve trivial indirect calls through bitcasts:
-  //    call void (...) bitcast (void ()* @parse_dir_colors to void (...)*)()
-  //    call i32 bitcast (i32 (...)* @nd_uint to i32 ()*)()
-  //    call i32 (i32, i32)* bitcast (i32 (i32, i32)* (...)* @nd_binfptr to i32 (i32, i32)* ()*)()
+static void resolveDirectCallsMissedByCallGraph(Function &F, CallGraph &seaCg) {
+  // Add the call graph edges that llvm::CallGraph does not record even though
+  // the callee is a known function. It uses CallBase::getCalledFunction(),
+  // which returns null whenever the call-site signature differs from the
+  // callee's -- most commonly a call to an unprototyped function:
+  //
+  //    call i32 @nd_uint()          with  declare i32 @nd_uint(...)
+  //
+  // where the call site is i32 () and the callee is i32 (...). The callee is
+  // named right there in the instruction, but llvm::CallGraph still records no
+  // edge, so we add it back.
   //
   // This is important because our top-down/bottom-up analyses
   // traverse the call graph in a particular order (topological or
   // reverse topological). If these edges are missing then the
   // propagation can be done "too early" without analyzing the caller
   // or callee yet.
-  auto stripBitCast = [](Value *V) {
+  auto stripCasts = [](Value *V) {
     if (BitCastInst *BC = dyn_cast<BitCastInst>(V)) {
       return BC->getOperand(0);
     } else {
       return V->stripPointerCasts();
     }
   };
-  
+
   for (auto &I : llvm::make_range(inst_begin(&F), inst_end(&F))) {
     if (!(isa<CallInst>(I) || isa<InvokeInst>(I))) continue;
     CallBase &CB = *dyn_cast<CallBase>(&I);
-    Value *calleeV = CB.getCalledOperand();
-    if (calleeV != stripBitCast(calleeV)) {
-      if (Function *calleeF = dyn_cast<Function>(stripBitCast(calleeV))) {
-        CallGraphNode *callerCGN = seaCg[&F];
-        CallGraphNode *calleeCGN = seaCg[calleeF];
-        callerCGN->removeCallEdgeFor(CB);
-        callerCGN->addCalledFunction(&CB, calleeCGN);
-        LOG("dsa-callgraph", llvm::errs()
-	    << "Added edge from " << F.getName()
-	    << " to " << calleeF->getName()
-	    << " with callsite=" << CB << "\n";);
-      }
-    }
+    Function *calleeF = dyn_cast<Function>(stripCasts(CB.getCalledOperand()));
+    // -- nothing to repair: either a genuinely indirect call, or a direct call
+    //    that llvm::CallGraph already has an edge for.
+    if (!calleeF || CB.getCalledFunction() == calleeF) continue;
+
+    CallGraphNode *callerCGN = seaCg[&F];
+    CallGraphNode *calleeCGN = seaCg[calleeF];
+    callerCGN->removeCallEdgeFor(CB);
+    callerCGN->addCalledFunction(&CB, calleeCGN);
+    LOG("dsa-callgraph", llvm::errs()
+	<< "Added edge from " << F.getName()
+	<< " to " << calleeF->getName()
+	<< " with callsite=" << CB << "\n";);
   }
 }
 
@@ -368,7 +374,7 @@ bool CompleteCallGraphAnalysis::runOnModule(Module &M) {
     GraphRef fGraph = std::make_shared<Graph>(m_dl, m_setFactory);
     graphs[&F] = fGraph;
     // resolve trivial indirect calls
-    resolveIndirectCallsThroughBitCast(F, *m_complete_cg);
+    resolveDirectCallsMissedByCallGraph(F, *m_complete_cg);
   }
 
   const bool track_callsites = true;
