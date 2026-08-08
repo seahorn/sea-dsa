@@ -1,4 +1,5 @@
-# Nightly: build and test main and every maintained dev<N> branch.
+# Nightly: build and test main, because it is the default branch, and dev18,
+# because it tracks the newest LLVM.
 #
 # Each branch pins its own LLVM version inside docker/sea-dsa-builder.Dockerfile
 # (FROM seahorn/buildpack-deps-seahorn:jammy-llvm<N>), so the build needs no
@@ -25,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [main, dev14, dev15, dev16, dev17, dev18]
+        branch: [main, dev18]
 
     steps:
       - name: Check out ${{ matrix.branch }}
