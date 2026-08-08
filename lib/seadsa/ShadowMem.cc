@@ -2078,7 +2078,15 @@ seadsa::ShadowMemNewPmPass::run(llvm::Module &M,
       ShadowMemUseSNAAA);
   sm->runOnModule(M);
   if (m_keep) *m_keep = std::move(sm);
-  return llvm::PreservedAnalyses::none();
+  // The instrumentation invalidates everything else, but not DsaInfoAnalysis:
+  // its result owns the GlobalAnalysis that the ShadowMem we just handed to
+  // *m_keep holds by reference, so invalidating it would leave that reference
+  // (and ShadowMem::getDsaAnalysis) dangling. Keeping it also matches the
+  // legacy pass manager, where the DsaAnalysis pass outlives the
+  // instrumentation and consumers see the same pre-instrumentation graphs.
+  auto PA = llvm::PreservedAnalyses::none();
+  PA.preserve<DsaInfoAnalysis>();
+  return PA;
 }
 
 llvm::PreservedAnalyses
