@@ -356,7 +356,7 @@ void DsaLibFuncInfo::generateSpec(const llvm::Function &F,
     builder.CreateRet(retVal);
   } else if (!retVal && F.getReturnType()->getTypeID()) {
     retVal = builder.CreateAlloca(F.getReturnType(), nullptr);
-    Value *loadedRet = builder.CreateLoad(retVal->getType()->getPointerElementType(), retVal);
+    Value *loadedRet = builder.CreateLoad(F.getReturnType(), retVal);
     builder.CreateRet(loadedRet);
   }
 }

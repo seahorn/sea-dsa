@@ -27,23 +27,11 @@ static bool isConstantNoPtr(const llvm::Value *v) {
   if (v->hasName() && v->getName().startswith(".str."))
     return true;
 
-  if (!v->getType()->isPointerTy())
-    return false;
+  if (!v->getType()->isPointerTy()) return false;
 
-  auto *type = v->getType()->getPointerElementType();
-  if (type->isIntegerTy() || type->isFloatingPointTy())
-    return true;
-
-  // auto *compositeTy = llvm::dyn_cast<llvm::CompositeType>(type);
-  // Shaobo: LLVM 11 removes `CompositeType`, which was a union of ArrayType,
-  // StructType, and VectorType.
-  if (!type->isAggregateType() && !type->isVectorTy())
-    return false;
-
-  return std::all_of(type->subtype_begin(), type->subtype_end(),
-                     [](const llvm::Type *ty) {
-                       return ty->isIntegerTy() || ty->isFloatingPointTy();
-                     });
+  // TODO: Can infer pointer type by checking its uses. For now, not much
+  // can be done and precision will be lost to opaque pointers in LLVM 15.
+  return false;
 }
 
 Node &Cloner::clone(const Node &n, bool forceAddAlloca,

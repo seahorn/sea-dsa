@@ -100,7 +100,7 @@ Value *getUniqueScalar(LLVMContext &ctx, IRBuilder<> &B, const dsa::Cell &c) {
     // -- able to extend this to single-cell local pointers, but these
     // -- are probably not very common.
     if (auto *gv = dyn_cast_or_null<GlobalVariable>(v))
-      if (gv->getType()->getElementType()->isSingleValueType())
+      if (gv->getValueType()->isSingleValueType())
         return B.CreateBitCast(v, Type::getInt8PtrTy(ctx));
   }
   return ConstantPointerNull::get(Type::getInt8PtrTy(ctx));
@@ -496,7 +496,7 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
 
     auto *ci = mkShadowCall(B, c, m_memStoreFn,
                             {m_B->getInt32(getFieldId(c)),
-                             m_B->CreateLoad(v->getType()->getPointerElementType(), v),
+                             m_B->CreateLoad(m_Int32Ty, v),
                              getUniqueScalar(*m_llvmCtx, B, c)},
                             "sm");
     markDefCall(ci, bytes);
