@@ -1,7 +1,11 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 
-// clang -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone atomic_add.c -o ../atomic_add.ll
+// clang-format off
+
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
+
+// clang-format on
 
 #define Atomic_Add(ptr, val) __atomic_fetch_add(ptr, val, memory_order_relaxed)
 

@@ -89,14 +89,6 @@ public:
     return FieldType(PtrTy);
   }
 
-  FieldType elemOf() const {
-    assert(!isUnknown());
-    assert(isPointer());
-
-    auto *NewTy = m_ty->getPointerElementType();
-    return FieldType(NewTy);
-  }
-
   void dump(llvm::raw_ostream &OS = llvm::errs()) const {
     if (m_NOT_IMPLEMENTED) {
       OS << "TODO<" << m_whereNotImpl << ">";

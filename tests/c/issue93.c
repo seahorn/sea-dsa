@@ -1,3 +1,9 @@
+// clang-format off
+
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
+
+// clang-format on
+
 int __incr(int x) { return ++x; }
 
 int __decr(int x) { return --x; }
@@ -23,4 +29,3 @@ int main(void) {
 
   return (x == 2);
 }
-

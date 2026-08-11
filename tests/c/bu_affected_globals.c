@@ -1,5 +1,9 @@
-// clang-5.0 bu_affected_globals.c -S -emit-llvm -O1 -Xclang -disable-llvm-optzns -o bu_affected_globals.ll
-// opt-5.0 bu_affected_globals.ll -S -mem2reg -simplifycfg -instnamer -o bu_affected_globals.opt.ll
+// clang-format off
+
+// @COMPILE-CMD: $CLANG $THIS -S -emit-llvm -O1 -Xclang -disable-llvm-optzns -o $OUTPUT
+// @COMPILE-CMD: $OPT $OUTPUT -S -mem2reg -simplifycfg -instnamer -o bu_affected_globals.opt.ll
+
+// clang-format on
 
 static void *storage;
 

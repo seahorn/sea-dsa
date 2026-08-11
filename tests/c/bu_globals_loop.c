@@ -1,5 +1,9 @@
-// clang-5.0 bu_globals_loop.c -S -emit-llvm -O1 -Xclang -disable-llvm-optzns -o bu_globals_loop.ll
-// opt-5.0 bu_globals_loop.ll -S -mem2reg -simplifycfg -instnamer -o bu_globals_loop.opt.ll
+// clang-format off
+
+// @COMPILE-CMD: $CLANG $THIS -S -emit-llvm -O1 -Xclang -disable-llvm-optzns -o $OUTPUT_DIR/bu_globals_loop.ll
+// @COMPILE-CMD: $OPT $OUTPUT_DIR/bu_globals_loop.ll -S -mem2reg -simplifycfg -instnamer -o $OUTPUT
+
+// clang-format on
 
 static void *A;
 static void *B;

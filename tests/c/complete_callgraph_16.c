@@ -1,3 +1,9 @@
+// clang-format off
+
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
+
+// clang-format on
+
 #include "seahorn/seahorn.h"
 #include <stdint.h>
 #include <stdlib.h>

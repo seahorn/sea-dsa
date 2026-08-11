@@ -1,6 +1,6 @@
 // clang-format off
 
-// clang -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone test-ext-3.c -o ../test-ext-3.ll
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
 
 // clang-format on
 

@@ -168,8 +168,9 @@ Function *getCalledFunction(CallBase &CB) {
 
 namespace {
 // forward declaration
-std::pair<int64_t, uint64_t>
-computeGepOffset(Type *ptrTy, ArrayRef<Value *> Indicies, const DataLayout &dl);
+std::pair<int64_t, uint64_t> computeGepOffset(Type *srcElementTy,
+                                              ArrayRef<Value *> Indicies,
+                                              const DataLayout &dl);
 
 /*****************************************************************************/
 /* BlockBuilderBase */
@@ -316,32 +317,38 @@ class GlobalBuilder : public BlockBuilderBase {
     if (isa<ConstantDataSequential>(Init)) { return; }
 
     if (Init->getType()->isPointerTy() && !isa<ConstantPointerNull>(Init)) {
-      if (cast<PointerType>(Init->getType())
-              ->getElementType()
-              ->isFunctionTy()) {
-        seadsa::Node &n = m_graph.mkNode();
-        seadsa::Cell nc(n, 0);
-        seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*Init);
-        assert(site);
-        n.addAllocSite(*site);
+      // FIXME: This creates a node for a global function pointer. Needed by
+      // vtable in C++
+      // Disabled for now since in LLVM 15 there is no way to determine if the
+      // pointer is a function. May be inferenced by checking if the pointer is
+      // ever loaded as a function.
 
-        // connect c with nc
-        c.growSize(0, Init->getType());
-        c.addAccessedType(0, Init->getType());
-        c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
-        return;
-      }
+      // if (cast<PointerType>(Init->getType())
+      //         ->getElementType()
+      //         ->isFunctionTy()) {
+      //   seadsa::Node &n = m_graph.mkNode();
+      //   seadsa::Cell nc(n, 0);
+      //   seadsa::DsaAllocSite *site = m_graph.mkAllocSite(*Init);
+      //   assert(site);
+      //   n.addAllocSite(*site);
 
-      if (m_graph.hasCell(*Init)) {
-        // @g1 =  ...*
-        // @g2 =  ...** @g1
-        seadsa::Cell &nc = m_graph.mkCell(*Init, seadsa::Cell());
-        // connect c with nc
-        c.growSize(0, Init->getType());
-        c.addAccessedType(0, Init->getType());
-        c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
-        return;
-      }
+      //   // connect c with nc
+      //   c.growSize(0, Init->getType());
+      //   c.addAccessedType(0, Init->getType());
+      //   c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
+      //   return;
+      // }
+
+      // if (m_graph.hasCell(*Init)) {
+      //   // @g1 =  ...*
+      //   // @g2 =  ...** @g1
+      //   seadsa::Cell &nc = m_graph.mkCell(*Init, seadsa::Cell());
+      //   // connect c with nc
+      //   c.growSize(0, Init->getType());
+      //   c.addAccessedType(0, Init->getType());
+      //   c.addLink(seadsa::Field(0, seadsa::FieldType(Init->getType())), nc);
+      //   return;
+      // }
     }
   }
 
@@ -458,8 +465,7 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
   void visitIntToPtrInst(IntToPtrInst &I);
   void visitPtrToIntInst(PtrToIntInst &I);
   void visitBitCastInst(BitCastInst &I);
-  void visitCmpInst(CmpInst &I) { /* do nothing */
-  }
+  void visitCmpInst(CmpInst &I) { /* do nothing */ }
   void visitInsertValueInst(InsertValueInst &I);
   void visitExtractValueInst(ExtractValueInst &I);
   void visitShuffleVectorInst(ShuffleVectorInst &I);
@@ -478,7 +484,6 @@ class IntraBlockBuilder : public InstVisitor<IntraBlockBuilder>,
 
   void visitAllocWrapperCall(CallBase &I);
   void visitAllocationFnCall(CallBase &I);
-
 
   SeadsaFn getSeaDsaFn(const Function *fn) {
     if (!fn) return SeadsaFn::UNKNOWN;
@@ -786,10 +791,6 @@ void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
   }
 }
 
-static bool isBytePtrTy(const Type *ty) {
-  return ty->isPointerTy() && ty->getPointerElementType()->isIntegerTy(8);
-}
-
 void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
   using namespace seadsa;
 
@@ -837,14 +838,11 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
   Cell dest(val.getNode(), val.getRawOffset());
 
   // -- guess best type for the store. Use the type of the value being
-  // -- stored, unless it is i8*, in which case check if the store location
-  // -- has a better type
+  // -- stored
+  // Since LLVM 15, a loss of precision is incurred compared to past version for
+  // when omnichar pointers are being stored
   Type *ty = ValOp->getType();
-  if (isBytePtrTy(ty)) {
-    Type *opTy = SI.getPointerOperand()->stripPointerCasts()->getType();
-    if (opTy->isPointerTy() && opTy->getPointerElementType()->isPointerTy())
-      ty = opTy->getPointerElementType();
-  }
+
   base.addLink(Field(0, FieldType(ty)), dest);
 }
 
@@ -877,11 +875,11 @@ template <typename T> T gcd(T a, T b) {
    The first element of the pair is the fixed offset. The second is
    a gcd of the variable offset.
  */
-std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
+std::pair<int64_t, uint64_t> computeGepOffset(Type *srcElementTy,
                                               ArrayRef<Value *> Indicies,
                                               const DataLayout &dl) {
-  Type *Ty = ptrTy;
-  assert(Ty->isPointerTy());
+
+  Type *Ty = srcElementTy;
 
   // numeric offset
   int64_t noffset = 0;
@@ -889,9 +887,8 @@ std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
   // divisor
   uint64_t divisor = 0;
 
-  Type *srcElemTy = cast<PointerType>(ptrTy)->getElementType();
   generic_gep_type_iterator<Value *const *> TI =
-      gep_type_begin(srcElemTy, Indicies);
+      gep_type_begin(srcElementTy, Indicies);
 
   for (unsigned CurIDX = 0, EndIDX = Indicies.size(); CurIDX != EndIDX;
        ++CurIDX, ++TI) {
@@ -900,9 +897,8 @@ std::pair<int64_t, uint64_t> computeGepOffset(Type *ptrTy,
       noffset += dl.getStructLayout(STy)->getElementOffset(fieldNo);
       Ty = STy->getElementType(fieldNo);
     } else {
-      if (PointerType *ptrTy = dyn_cast<PointerType>(Ty))
-        Ty = ptrTy->getElementType();
-      else if (Ty->isArrayTy())
+      // We do nothing to pointer type now
+      if (Ty->isArrayTy())
         Ty = Ty->getArrayElementType();
       else if (auto vt = dyn_cast<VectorType>(Ty))
         Ty = vt->getElementType();
@@ -939,13 +935,11 @@ uint64_t computeIndexedOffset(Type *ty, ArrayRef<unsigned> indecies,
       offset += layout->getElementOffset(idx);
       ty = sty->getElementType(idx);
     } else {
-      if (PointerType *ptrTy = dyn_cast<PointerType>(ty))
-        ty = ptrTy->getElementType();
-      else if (ty->isArrayTy())
+      if (ty->isArrayTy())
         ty = ty->getArrayElementType();
       else if (auto vt = dyn_cast<VectorType>(ty))
         ty = vt->getElementType();
-      assert(ty && "Type is neither PointerType nor SequentialType");
+      assert(ty && "Type being indexed is not a SequentialType");
       offset += idx * dl.getTypeAllocSize(ty);
     }
   }
@@ -1006,7 +1000,21 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
     return;
   }
 
-  auto off = computeGepOffset(ptr.getType(), indicies, m_dl);
+  Type *srcElementType;
+
+  // We require a cast to GEPOperator first, since we can only acquire the
+  // source element type through GEPOperator.
+  if (auto *g = dyn_cast<GEPOperator>(&gep)) {
+    srcElementType = g->getSourceElementType();
+  } else {
+    errs() << "Attempted to cast following value into a GEP instruction: ";
+    gep.print(llvm::errs());
+    errs() << "\n";
+    assert(false && "Not a GEP instruction");
+    return;
+  }
+
+  auto off = computeGepOffset(srcElementType, indicies, m_dl);
   if (off.first < 0) {
     if (base.getOffset() + off.first >= 0) {
       m_graph.mkCell(gep,
@@ -1463,7 +1471,6 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
   // a function that does not return a pointer is a noop
   if (!I.getType()->isPointerTy()) return;
 
-
   // -- something unexpected. Keep an assert so that we know that something
   // -- unexpected happened.
 
@@ -1509,15 +1516,111 @@ bool hasNoPointerTy(const llvm::Type *t) {
   return true;
 }
 
+// Given a pointer value, yield all instructions/values that define or use it.
+static llvm::SmallVector<const Value *, 8>
+findPointerOrigins(const Value *ptr) {
+  llvm::SmallVector<const Value *, 8> origins;
+  origins.push_back(ptr);
+  for (const User *user : ptr->users()) {
+    origins.push_back(user);
+  }
+  return origins;
+}
+
+// Given an origin value, return the possible candidate pointee type for ptr.
+// - If analysis is inconclusive or ambiguous, return nullptr
+static SmallPtrSet<Type *, 2> getPointeeTypesFromOrigin(const Value *ptr,
+                                                        const Value *origin) {
+
+  SmallPtrSet<Type *, 2> results;
+
+  if (const Instruction *inst = dyn_cast<Instruction>(origin)) {
+    switch (inst->getOpcode()) {
+    case Instruction::Alloca: {
+      LOG("dsa", errs() << "Alloca pointee type inference\t" << "\n");
+
+      if (origin == ptr) {
+        results.insert(cast<AllocaInst>(inst)->getAllocatedType());
+      }
+      break;
+    }
+
+    case Instruction::BitCast:
+      LOG("dsa", errs() << "BitCast pointee type inference\t" << "\n");
+      break;
+
+    case Instruction::GetElementPtr: {
+      LOG("dsa", errs() << "GEP pointee type inference\t" << "\n");
+
+      auto gep = cast<GetElementPtrInst>(inst);
+      const Value *gepPtrOp = gep->getPointerOperand();
+      Type *gepSrcElemTy = gep->getSourceElementType();
+
+      // If the input pointer operand is the same as ptr, add its pointee type
+      if (gepPtrOp == ptr) { results.insert(gepSrcElemTy); }
+
+      // If the result value of the GEP is the same as ptr, compute the
+      // resulting type
+      if (origin == ptr) {
+        Type *ty = gepSrcElemTy;
+        for (gep_type_iterator GTI = gep_type_begin(gep),
+                               GTE = gep_type_end(gep);
+             GTI != GTE; ++GTI) {
+          ty = GTI.getIndexedType();
+        }
+        results.insert(ty);
+      }
+      break;
+    }
+
+    default:
+      LOG("dsa-warn",
+          errs() << "Unhandled instruction in getPointeeTypesFromOrigin: "
+                 << *inst << "\n");
+      break;
+    }
+  }
+
+  return results;
+}
+
+// Try to infer the pointee type of an opaque pointer.
+// - If analysis is inconclusive or ambiguous, return nullptr
+Type *inferPointee(const Value *ptr) {
+  SmallPtrSet<Type *, 3> pointeeTypes;
+  auto origins = findPointerOrigins(ptr);
+
+  for (const Value *origin : origins) {
+    auto originPointeeTypes = getPointeeTypesFromOrigin(ptr, origin);
+
+    if (originPointeeTypes.size() > 1) return nullptr;
+    if (originPointeeTypes.size() == 1) {
+      Type *type = *originPointeeTypes.begin();
+      pointeeTypes.insert(type);
+    }
+
+    if (pointeeTypes.size() > 1) {
+      // If we have more than one type, we cannot determine the pointee type
+      return nullptr;
+    }
+  }
+
+  if (pointeeTypes.size() == 1) return *pointeeTypes.begin();
+  return nullptr;
+}
+
 bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   Value *srcPtr = MI.getSource();
-  auto *srcTy = srcPtr->getType()->getPointerElementType();
+  auto *srcTy = inferPointee(srcPtr);
 
   ConstantInt *rawLength = dyn_cast<ConstantInt>(MI.getLength());
-  if (!rawLength) return false;
+  if (!rawLength)
+    return false; // Analysis is not possible if length is not constant
 
   const uint64_t length = rawLength->getZExtValue();
   LOG("dsa", errs() << "MemTransfer length:\t" << length << "\n");
+
+  if (!srcTy) return false; // Cannot determine the pointee type
 
   // opaque structs may transfer pointers
   if (!srcTy->isSized()) return false;
@@ -1589,9 +1692,10 @@ void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
   seadsa::Cell destCell = m_graph.mkCell(*I.getDest(), seadsa::Cell());
 
   if (TrustTypes &&
-      ((sourceCell.getNode()->links().size() == 0 &&
-        hasNoPointerTy(I.getSource()->getType()->getPointerElementType())) ||
-       transfersNoPointers(I, m_dl))) {
+      // FIXME: LLVM 15, Kevin: The removal of the pointer type means we can no
+      // longer avoid unification upon a memory operation by looking at its
+      // type.
+      (transfersNoPointers(I, m_dl))) {
     /* do nothing */
     // no pointers are copied from source to dest, so there is no
     // need to unify them

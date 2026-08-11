@@ -1,3 +1,9 @@
+// clang-format off
+
+// @COMPILE-CMD: $CLANG -O0 -c -emit-llvm -S -Xclang -disable-O0-optnone $THIS -o $OUTPUT
+
+// clang-format on
+
 // Similar to complete_callgraph_9.c
 
 int add(int a, int b){
