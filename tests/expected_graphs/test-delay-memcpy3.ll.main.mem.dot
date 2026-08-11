@@ -1,0 +1,41 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x62b8bd16d6a0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:SM}"];
+	Node0x62b8bd16d730 [shape=record,fillcolor=gray, style=filled,label="{\{0:%struct.A*,16:%struct.A*,8:i32*,24:i32*\}:SMR|{<s0>\<0, i32*\>|<s1>\<8, i32*\>|<s2>\<16, i32*\>|<s3>\<24, i32*\>}}"];
+	Node0x62b8bd16d7c0 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:SMR}"];
+	Node0x62b8bd169970 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32,8:i32*\}:HM|{<s0>\<8, i32*\>}}"];
+	Node0x62b8bd169a00 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:HM}"];
+	Node0x62b8bd16ad50 [shape=plaintext, label ="  %23 = getelementptr inbounds %struct.A, %struct.A* %22, i32 0, i32 1, !dbg !54"];
+	Node0x62b8bd16ad50 -> Node0x62b8bd169970[arrowtail=tee,label="8",fontsize=8,color=purple];
+	Node0x62b8bd16c660 [shape=plaintext, label ="  %30 = getelementptr inbounds %struct.Test, %struct.Test* %2, i32 0, i32 1, !dbg !62"];
+	Node0x62b8bd16c660 -> Node0x62b8bd16d730[arrowtail=tee,label="16",fontsize=8,color=purple];
+	Node0x62b8bd168490 [shape=plaintext, label ="  %11 = getelementptr inbounds %struct.Inner, %struct.Inner* %10, i32 0, i32 1, !dbg !42"];
+	Node0x62b8bd168490 -> Node0x62b8bd16d730[arrowtail=tee,label="8",fontsize=8,color=purple];
+	Node0x62b8bd168d30 [shape=plaintext, label ="  %15 = load i32*, i32** %14, align 8, !dbg !46"];
+	Node0x62b8bd168d30 -> Node0x62b8bd169a00[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x62b8bd1657d0 [shape=plaintext, label ="  %2 = alloca %struct.Test, align 8"];
+	Node0x62b8bd1657d0 -> Node0x62b8bd16d730[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x62b8bd167e80 [shape=plaintext, label ="  %8 = call noalias i8* @malloc(i64 noundef 4) #5, !dbg !39"];
+	Node0x62b8bd167e80 -> Node0x62b8bd169a00[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x62b8bd16b0e0 [shape=plaintext, label ="  %24 = getelementptr inbounds %struct.Test, %struct.Test* %2, i32 0, i32 1, !dbg !56"];
+	Node0x62b8bd16b0e0 -> Node0x62b8bd16d730[arrowtail=tee,label="16",fontsize=8,color=purple];
+	Node0x62b8bd169920 [shape=plaintext, label ="  %18 = load %struct.A*, %struct.A** %17, align 8, !dbg !49"];
+	Node0x62b8bd169920 -> Node0x62b8bd169970[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x62b8bd167500 [shape=plaintext, label ="  %4 = call noalias i8* @malloc(i64 noundef 16) #5, !dbg !34"];
+	Node0x62b8bd167500 -> Node0x62b8bd169970[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x62b8bd165870 [shape=plaintext, label ="  %3 = alloca i32, align 4"];
+	Node0x62b8bd165870 -> Node0x62b8bd16d7c0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x62b8bd165100 [shape=plaintext, label ="  %1 = alloca i32, align 4"];
+	Node0x62b8bd165100 -> Node0x62b8bd16d6a0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x62b8bd16a690 [shape=plaintext, label ="  %22 = load %struct.A*, %struct.A** %21, align 8, !dbg !53"];
+	Node0x62b8bd16a690 -> Node0x62b8bd169970[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x62b8bd168b90 [shape=plaintext, label ="  %14 = getelementptr inbounds %struct.Inner, %struct.Inner* %13, i32 0, i32 1, !dbg !46"];
+	Node0x62b8bd168b90 -> Node0x62b8bd16d730[arrowtail=tee,label="8",fontsize=8,color=purple];
+	Node0x62b8bd16d730:s0 -> Node0x62b8bd169970[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x62b8bd16d730:s1 -> Node0x62b8bd169a00[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x62b8bd16d730:s2 -> Node0x62b8bd169970[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x62b8bd16d730:s3 -> Node0x62b8bd169a00[arrowtail=tee,label="0, i32*",fontsize=8];
+	Node0x62b8bd169970:s0 -> Node0x62b8bd16d7c0[arrowtail=tee,label="0, i32*",fontsize=8];
+}
