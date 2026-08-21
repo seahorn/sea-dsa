@@ -39,6 +39,7 @@
 #include "seadsa/Graph.hh"
 #include "seadsa/TypeUtils.hh"
 #include "seadsa/support/Debug.h"
+#include "seadsa/support/Stats.hh"
 
 #include "boost/range/algorithm/reverse.hpp"
 
@@ -403,6 +404,7 @@ public:
 };
 
 void InterBlockBuilder::visitPHINode(PHINode &PHI) {
+  SEADSA_SCOPED_STATS("local.phi", 1);
   if (!PHI.getType()->isPointerTy()) return;
 
   assert(m_graph.hasCell(PHI));
@@ -656,6 +658,7 @@ seadsa::Cell BlockBuilderBase::valueCell(const Value &v) {
 }
 
 void IntraBlockBuilder::visitInstruction(Instruction &I) {
+  SEADSA_SCOPED_STATS("local.inst", 1);
   if (isSkip(I)) return;
 
   m_graph.mkCell(I, seadsa::Cell(m_graph.mkNode(), 0));
@@ -677,6 +680,7 @@ void IntraBlockBuilder::visitAllocaInst(AllocaInst &AI) {
 
 void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.sel", 1);
   if (isSkip(SI)) return;
 
   assert(!m_graph.hasCell(SI));
@@ -691,6 +695,7 @@ void IntraBlockBuilder::visitSelectInst(SelectInst &SI) {
 
 void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.load", 1);
 
   // -- skip read from NULL
   if (BlockBuilderBase::isNullConstant(*LI.getPointerOperand())) return;
@@ -759,6 +764,7 @@ void IntraBlockBuilder::visitLoadInst(LoadInst &LI) {
 /// return {OldVal, Success}
 void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.cmpxchg", 1);
 
   if (!m_graph.hasCell(*I.getPointerOperand()->stripPointerCasts())) { return; }
   Value *Ptr = I.getPointerOperand();
@@ -798,6 +804,7 @@ void IntraBlockBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
 /// *Ptr = op(OldVal, Val)
 /// return OldVal
 void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
+  SEADSA_SCOPED_STATS("local.rmw", 1);
   Value *Ptr = I.getPointerOperand();
 
   seadsa::Cell PtrC = valueCell(*Ptr);
@@ -817,6 +824,10 @@ void IntraBlockBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
 
 void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.store", 1);
+  LOG("dsa-store", errs() << "before: \n";
+      // m_graph.write(llvm::errs());
+      errs() << "Visiting STORE: " << SI << "\n";);
 
   // -- skip store into NULL
   if (BlockBuilderBase::isNullConstant(
@@ -870,6 +881,7 @@ void IntraBlockBuilder::visitStoreInst(StoreInst &SI) {
 }
 
 void IntraBlockBuilder::visitBitCastInst(BitCastInst &I) {
+  SEADSA_SCOPED_STATS("local.bitcast", 1);
   if (isSkip(I)) return;
 
   if (BlockBuilderBase::isNullConstant(*I.getOperand(0)))
@@ -1078,6 +1090,7 @@ void BlockBuilderBase::visitGep(const Value &gep, const Value &ptr,
 }
 
 void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
+  SEADSA_SCOPED_STATS("local.gep", 1);
   Value &ptr = *I.getPointerOperand();
 
   if (isa<ConstantExpr>(ptr)) {
@@ -1107,6 +1120,7 @@ void IntraBlockBuilder::visitGetElementPtrInst(GetElementPtrInst &I) {
 }
 
 void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
+  SEADSA_SCOPED_STATS("local.insv", 1);
   assert(I.getAggregateOperand()->getType() == I.getType());
   using namespace seadsa;
 
@@ -1146,6 +1160,7 @@ void IntraBlockBuilder::visitInsertValueInst(InsertValueInst &I) {
 
 void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.extv", 1);
   Cell op = valueCell(*I.getAggregateOperand()->stripPointerCasts());
   if (op.isNull()) {
     Node &n = m_graph.mkNode();
@@ -1188,6 +1203,7 @@ void IntraBlockBuilder::visitExtractValueInst(ExtractValueInst &I) {
 
 void IntraBlockBuilder::visitInlineAsmCall(CallBase &I) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.asm", 1);
   assert(I.isInlineAsm());
 
   if (isSkip(I)) return;
@@ -1202,6 +1218,7 @@ void IntraBlockBuilder::visitInlineAsmCall(CallBase &I) {
 
 void IntraBlockBuilder::visitExternalCall(CallBase &I) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.ext", 1);
   if (isSkip(I)) return;
 
   auto *callee = getCalledFunction(I);
@@ -1243,6 +1260,7 @@ void IntraBlockBuilder::visitExternalCall(CallBase &I) {
 
 void IntraBlockBuilder::visitIndirectCall(CallBase &I) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.icall", 1);
   if (!isSkip(I)) m_graph.mkCell(I, Cell(m_graph.mkNode(), 0));
 
   if (!m_track_callsites) return;
@@ -1261,6 +1279,7 @@ void IntraBlockBuilder::visitIndirectCall(CallBase &I) {
 void IntraBlockBuilder::visitSeaDsaFnCall(CallBase &I) {
   using namespace llvm::PatternMatch;
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.dsa_fn", 1);
   auto *callee = getCalledFunction(I);
   SeadsaFn fn = getSeaDsaFn(callee);
 
@@ -1449,11 +1468,13 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallBase &I) {
 }
 
 void IntraBlockBuilder::visitAllocWrapperCall(CallBase &I) {
+  SEADSA_SCOPED_STATS("local.awrap", 1);
   visitAllocationFnCall(I);
 }
 
 void IntraBlockBuilder::visitAllocationFnCall(CallBase &I) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.alloca", 1);
   Node &n = m_graph.mkNode();
   // -- record allocation site
   seadsa::DsaAllocSite *site = m_graph.mkAllocSite(I);
@@ -1467,6 +1488,7 @@ void IntraBlockBuilder::visitAllocationFnCall(CallBase &I) {
 
 void IntraBlockBuilder::visitCallBase(CallBase &I) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.call", 1);
 
   if (I.isInlineAsm()) {
     visitInlineAsmCall(I);
@@ -1518,6 +1540,7 @@ void IntraBlockBuilder::visitCallBase(CallBase &I) {
 
 void IntraBlockBuilder::visitShuffleVectorInst(ShuffleVectorInst &I) {
   using namespace seadsa;
+  SEADSA_SCOPED_STATS("local.shuf", 1);
 
   // XXX: TODO: handle properly.
   LOG("dsa-warn",
@@ -1527,6 +1550,7 @@ void IntraBlockBuilder::visitShuffleVectorInst(ShuffleVectorInst &I) {
 }
 
 void IntraBlockBuilder::visitMemSetInst(MemSetInst &I) {
+  SEADSA_SCOPED_STATS("local.mset", 1);
   seadsa::Cell dest = valueCell(*(I.getDest()));
   // assert (!dest.isNull ());
   if (!dest.isNull()) dest.setModified();
@@ -1607,6 +1631,7 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
 }
 
 void IntraBlockBuilder::visitMemTransferInst(MemTransferInst &I) {
+  SEADSA_SCOPED_STATS("local.memtrans", 1);
   // -- skip copy NULL
   if (isNullConstant(*I.getSource())) return;
 
@@ -1726,6 +1751,7 @@ bool BlockBuilderBase::isFixedOffset(const IntToPtrInst &inst, Value *&base,
 }
 
 void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
+  SEADSA_SCOPED_STATS("local.i2p.cast", 1);
   // -- only used as a compare. do not needs DSA node
   // if (dest.hasOneUse () && isa<CmpInst> (*(dest.use_begin ()))) return;
   // XXX: we create a new cell for the instruction even if
@@ -1772,10 +1798,12 @@ void BlockBuilderBase::visitCastIntToPtr(const Value &dest) {
 }
 
 void IntraBlockBuilder::visitIntToPtrInst(IntToPtrInst &I) {
+  SEADSA_SCOPED_STATS("local.i2p", 1);
   visitCastIntToPtr(I);
 }
 
 void IntraBlockBuilder::visitReturnInst(ReturnInst &RI) {
+  SEADSA_SCOPED_STATS("local.ret", 1);
   Value *v = RI.getReturnValue();
 
   // We don't skip the return value if its type contains a pointer.
@@ -1843,6 +1871,7 @@ bool isEscapingPtrToInt(const PtrToIntInst &def) {
 }
 
 void IntraBlockBuilder::visitPtrToIntInst(PtrToIntInst &I) {
+  SEADSA_SCOPED_STATS("local.p2i", 1);
   if (!isEscapingPtrToInt(I)) return;
 
   if (BlockBuilderBase::isNullConstant(*I.getOperand(0))) return;
@@ -1886,6 +1915,7 @@ namespace seadsa {
 void LocalAnalysis::runOnFunction(Function &F, Graph &g) {
   LOG("dsa-progress",
       errs() << "Running seadsa::Local on " << F.getName() << "\n");
+  SEADSA_SCOPED_STATS("local.function", 1);
 
   auto &tli = m_getTLI(F);
   // create cells and nodes for formal arguments
