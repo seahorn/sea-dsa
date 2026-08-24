@@ -5,6 +5,7 @@
 #include "boost/functional/hash.hpp"
 #include "boost/iterator/filter_iterator.hpp"
 #include "boost/iterator/indirect_iterator.hpp"
+#include "boost/optional/optional.hpp"
 
 // llvm 3.8: forward declarations not enough
 #include "llvm/IR/Argument.h"
@@ -37,8 +38,16 @@ using CellRef = std::unique_ptr<Cell>;
 class DsaCallSite;
 class DsaAllocator;
 extern bool g_IsTypeAware;
+/// Global flag controlling whether DSA uses partial offset collapse
+extern bool g_IsPartialCollapseEnabled;
 
-// Data structure graph traversal iterator
+/// True iff partial (interval) collapse is enabled AND usable: interval
+/// cells key fields at type granularity, so the feature relies on
+/// --sea-dsa-type-aware. If --sea-dsa-partial-collapse is set without it,
+/// this warns once and reports false (partial collapse stays off).
+bool IsPartialCollapseActive();
+
+/// Data structure graph traversal iterator
 template <typename T> class NodeIterator;
 
 struct DsaAllocatorDeleter {
@@ -84,12 +93,13 @@ protected:
   using ValueToAllocSite = llvm::DenseMap<const llvm::Value *, DsaAllocSite *>;
   ValueToAllocSite m_valueToAllocSite;
 
-  /// Indirect call sites owned by this graph
+  using CallSites =
+      std::vector<std::unique_ptr<DsaCallSite>>; /// Indirect call sites owned
+                                                 /// by this graph
   ///
   /// The call site can be defined in the current function or any
   /// direct or indirect callee. Call sites are copied from callees to
   /// callers during bottom-up propagation.
-  using CallSites = std::vector<std::unique_ptr<DsaCallSite>>;
   CallSites m_callSites;
 
   /// Map from instructions to call sites
@@ -284,8 +294,14 @@ public:
 };
 
 /**
- *  Graph with one single node
- **/
+ * @class FlatGraph
+ * @brief A graph with a single collapsed node (field-insensitive)
+ *
+ * FlatGraph represents the most conservative DSA analysis where all
+ * memory is collapsed into a single node. This loses all field sensitivity
+ * but is sound and fast. Useful for baseline comparisons or when precision
+ * is not required.
+ */
 class FlatGraph : public Graph {
 
 public:
@@ -334,28 +350,72 @@ public:
 };
 
 /**
-    A memory cell (or a field). An offset into a memory object.
-*/
+ * @class Cell
+ * @brief A memory cell representing an interval into a DSA node
+ *
+ * A Cell is essentially a triple (Node*, start, end) that references a
+ * location or an interval within a memory object. A singleton cell at offset
+ * N is represented as [N, N]. An absent end represents an infinite interval.
+ * Cells are the fundamental unit for tracking data flow and aliasing in DSA.
+ *
+ * Cells can be:
+ * - Null (pointing to no node)
+ * - Direct (pointing to a non-forwarding node)
+ * - Indirect (pointing to a forwarding node, resolved on access)
+ */
 class Cell {
-  /// memory object
-  mutable Node *m_node = nullptr;
-  /// field offset
-  mutable unsigned m_offset = 0;
+protected:
+  mutable Node *m_node =
+      nullptr; ///< The memory object (node) this cell refers to
+  mutable unsigned m_offset =
+      0; ///< Byte offset within the node, start of the interval
+  mutable boost::optional<unsigned> m_end =
+      0; ///< Inclusive interval end, none means infinity
 
-  constexpr std::tuple<Node *, unsigned> asTuple() const {
-    return std::make_tuple(m_node, m_offset);
+  std::tuple<Node *, unsigned, boost::optional<unsigned>> asTuple() const {
+    return std::make_tuple(m_node, m_offset, m_end);
   };
 
 public:
   Cell() = default;
   Cell(const Cell &) = default;
 
-  Cell(Node *node, unsigned offset) : m_node(node), m_offset(offset) {}
-  Cell(Node &node, unsigned offset) : m_node(&node), m_offset(offset) {}
+  /**
+   * @brief Construct a cell pointing to a node at given offset
+   * @param node Pointer to the node
+   * @param offset Byte offset into the node
+   */
+  Cell(Node *node, unsigned offset)
+      : m_node(node), m_offset(offset), m_end(offset) {}
+  Cell(Node *node, unsigned start, boost::optional<unsigned> end)
+      : m_node(node), m_offset(start), m_end(end) {}
+
+  /**
+   * @brief Construct a cell pointing to a node at given offset
+   * @param node Reference to the node
+   * @param offset Byte offset into the node
+   */
+  Cell(Node &node, unsigned offset)
+      : m_node(&node), m_offset(offset), m_end(offset) {}
+  Cell(Node &node, unsigned start, boost::optional<unsigned> end)
+      : m_node(&node), m_offset(start), m_end(end) {}
+
+  /**
+   * @brief Construct a cell from another cell with additional offset
+   * @param o Base cell
+   * @param offset Additional offset to add
+   */
   Cell(const Cell &o, unsigned offset)
-      : m_node(o.m_node), m_offset(o.m_offset + offset) {}
+      : m_node(o.m_node), m_offset(o.m_offset + offset) {
+    if (o.m_end)
+      m_end = o.m_end.get() + offset;
+    else
+      m_end = boost::none;
+  }
 
   Cell &operator=(const Cell &o) = default;
+
+  ~Cell() = default;
 
   bool operator==(const Cell &o) const { return asTuple() == o.asTuple(); }
   bool operator!=(const Cell &o) const { return !operator==(o); }
@@ -374,12 +434,74 @@ public:
   // for Dsa clients (offset is adjusted based on the node)
   unsigned getOffset() const;
 
+  /// @brief Get the raw inclusive interval end, if finite.
+  boost::optional<unsigned> getRawEndOffset() const;
+
+  /// @brief Get the adjusted inclusive interval end, if finite.
+  boost::optional<unsigned> getEndOffset() const;
+
+  /// Compatibility aliases for existing graph clients.
+  unsigned getRawStartOffset() const { return getRawOffset(); }
+  unsigned getStartOffset() const;
+
+  /// @brief True if the interval contains the given offset.
+  bool includes(unsigned o) const {
+    return m_offset <= o && (!m_end || o <= m_end.get());
+  }
+
+  /// @brief True if this interval contains the whole interval of another cell.
+  bool includes(const Cell &o) const {
+    if (m_node != o.m_node || o.m_offset < m_offset) return false;
+    if (!m_end) return true;
+    return o.m_end && o.m_end.get() <= m_end.get();
+  }
+
+  /// @brief True if two interval cells do not overlap.
+  bool isDisjoint(const Cell &o) const {
+    if (m_node != o.m_node) return true;
+    if (!m_end && !o.m_end) return false;
+    if (!m_end) return o.m_end && o.m_end.get() < m_offset;
+    if (!o.m_end) return m_end.get() < o.m_offset;
+    return m_end.get() < o.m_offset || o.m_end.get() < m_offset;
+  }
+
+  /// @brief Widen this interval to include another interval on the same node.
+  void mergeIntervalInPlace(const Cell &o) {
+    assert(m_node == o.m_node);
+    if (o.m_offset < m_offset) m_offset = o.m_offset;
+    if (!m_end || !o.m_end) {
+      m_end = boost::none;
+    } else if (o.m_end.get() > m_end.get()) {
+      m_end = o.m_end;
+    }
+  }
+
+  /**
+   * @brief Make this cell point to a node at given offset
+   * @param n The target node
+   * @param offset Byte offset into the target node
+   */
   void pointTo(Node &n, unsigned offset);
 
+  /**
+   * @brief Make this cell point to a node interval.
+   * @param n The target node
+   * @param start Start byte offset into the target node
+   * @param end Inclusive end byte offset, none means infinity
+   */
+  void pointTo(Node &n, unsigned start, boost::optional<unsigned> end);
+
+  /**
+   * @brief Make this cell point to the same location as another cell
+   * @param c The target cell
+   * @param offset Additional offset to add
+   */
   void pointTo(const Cell &c, unsigned offset = 0) {
     assert(!c.isNull());
     Node *n = c.getNode();
-    pointTo(*n, c.getRawOffset() + offset);
+    auto end = c.getRawEndOffset();
+    if (end) end = end.get() + offset;
+    pointTo(*n, c.getRawOffset() + offset, end);
   }
 
   inline bool hasLink(Field offset) const;
@@ -397,6 +519,7 @@ public:
   void swap(Cell &o) {
     std::swap(m_node, o.m_node);
     std::swap(m_offset, o.m_offset);
+    std::swap(m_end, o.m_end);
   }
 
   /// pretty-printer of a cell
@@ -510,6 +633,8 @@ public:
   // TODO: Investigate why flat_map is slower for accessed_types_type.
   using accessed_types_type = llvm::DenseMap<unsigned, Set>;
   using links_type = boost::container::flat_map<Field, CellRef>;
+  /// Set of collapsed interval cells.
+  using collapsed_cells_type = boost::container::flat_set<Cell>;
 
   // Iterator for graph interface... Defined in GraphTraits.h
   using iterator = NodeIterator<Node>;
@@ -523,6 +648,11 @@ public:
   NodeType getNodeType() const { return m_nodeType; }
 
   const links_type &getLinks() const { return m_links; }
+
+  const collapsed_cells_type &getCollapsedCells() const {
+    return m_collapsedCells;
+  }
+  const collapsed_cells_type &getChunks() const { return getCollapsedCells(); }
 
 private:
   links_type &getLinks() { return m_links; }
@@ -552,13 +682,22 @@ protected:
   };
 
 private:
-  /// known type of every offset/field
-  accessed_types_type m_accessedTypes;
-  /// destination of every offset/field
-  links_type m_links;
+  accessed_types_type
+      m_accessedTypes; ///< Map from offset to types accessed at that offset
+  links_type m_links;  ///< Map from field to cells pointed to by that field
+  /// Set of collapsed interval cells in this node.
+  ///
+  /// BU/TD invariant: Graph::import and the Cloner rebuild cells with
+  /// singleton offsets, so per-cell interval WIDTHS are intraprocedural;
+  /// only this node-level interval set survives cloning. Offset
+  /// canonicalization (Offset::getNumericOffset) therefore remains the
+  /// sole interprocedural consumer of these intervals.
+  collapsed_cells_type m_collapsedCells;
 
-  /// known size
-  unsigned m_size;
+  unsigned m_size; ///< Size of the memory object in bytes; array stride for
+                   ///< array nodes
+  boost::optional<unsigned>
+      m_arrayMaxSize; ///< Known upper bound for array extent in bytes
 
   /// allocation sites for the node
   using AllocaSet = boost::container::flat_set<const llvm::Value *>;
@@ -592,6 +731,30 @@ private:
   /// should use unifyAt() that has less stringent preconditions.
   void pointTo(Node &node, const Offset &offset);
 
+  void joinCollapsedCells(const Node &node, const Offset &offset);
+
+  /**
+   * @brief Partially collapse offsets in a given range
+   *
+   * Merges all fields in [start, end] into a single one.
+   *
+   * @param start Start byte offset (inclusive)
+   * @param end End byte offset (inclusive)
+   * @param tag Debug tag for tracking collapse reasons
+   */
+  void partialCollapseOffsets(unsigned start, boost::optional<unsigned> end,
+                              int tag /*= -2*/);
+
+  /**
+   * @brief Merge c into m_collapsedCells maintaining disjoint intervals
+   * @param c The interval cell to be added
+   */
+  void mergeCollapsedCellIntoSet(Cell &c);
+
+  /// True iff the collapsed-cell set denotes a fully collapsed node
+  /// (exactly one interval, starting at 0, unbounded).
+  bool areCollapsedCellsShownCollapsed() const;
+
   Cell &getLink_(const Field &_f);
 
   /// Adds a set of types for a field at a given offset
@@ -605,6 +768,9 @@ private:
   void growSize(const Offset &offset, const llvm::Type *t);
   Node &setArray(bool v = true) {
     m_nodeType.array = v;
+    if (!v) {
+      m_arrayMaxSize = boost::none;
+    }
     return *this;
   }
 
@@ -663,16 +829,34 @@ public:
   bool isIncomplete() const { return m_nodeType.incomplete; }
   bool isUnknown() const { return m_nodeType.unknown; }
 
-  Node &setArraySize(unsigned sz) {
+  Node &setArraySize(unsigned sz) { return setArraySize(sz, boost::none); }
+
+  /**
+   * @brief Set this node as an array with a stride and an optional extent
+   *
+   * The existing m_size value remains the array stride used for modulo offset
+   * adjustment. maxSize tracks a statically-known upper bound on the array
+   * extent in bytes when available (consumed by the interval-bounded
+   * unification in partial collapse).
+   *
+   * @param sz Array stride in bytes
+   * @param maxSize Known upper bound for array extent in bytes, if any
+   * @return Reference to this node
+   */
+  Node &setArraySize(unsigned sz, boost::optional<unsigned> maxSize) {
     assert(!isArray());
     assert(!isForwarding());
     assert(m_size <= sz);
 
     setArray(true);
     m_size = sz;
+    m_arrayMaxSize = maxSize;
     return *this;
   }
 
+  boost::optional<unsigned> getArrayMaxSize() const { return m_arrayMaxSize; }
+
+  /// @brief Check if this node represents an array
   bool isArray() const { return m_nodeType.array; }
 
   Node &setOffsetCollapsed(bool v = true) {
@@ -742,6 +926,15 @@ public:
 
   unsigned getNumLinks() const { return m_links.size(); }
 
+  /// @brief Get the total number of collapsed interval cells in this node
+  unsigned getNumCollapsedCells() const { return m_collapsedCells.size(); }
+  unsigned getNumChunks() const { return getNumCollapsedCells(); }
+
+  /**
+   * @brief Get the cell pointed to by a field
+   * @param f The field
+   * @return The target cell
+   */
   const Cell &getLink(Field f) const;
 
   void setLink(const Field _f, const Cell &c);
@@ -760,7 +953,15 @@ public:
   bool isVoid() const { return m_accessedTypes.empty(); }
   bool isEmtpyAccessedType() const;
 
-  /// Nodes that originate from operations on nullptr, e.g. gep(null, Offset).
+  bool isPartialCollapsed() const { return m_collapsedCells.size() >= 1; }
+
+  /**
+   * @brief Check if this node originates from null pointer operations
+   *
+   * E.g., gep(null, offset) creates a null allocation node.
+   *
+   * @return true if this is a null allocation
+   */
   bool isNullAlloc() const { return m_nodeType.null; }
   Node &setNullAlloc(bool v = true) {
     m_nodeType.null = v;
@@ -812,45 +1013,93 @@ public:
   void viewGraph();
 };
 
-bool Node::isForwarding() const { return !m_forward.isNull(); }
+/// @brief Check if node is forwarding (inline implementation)
+inline bool Node::isForwarding() const { return !m_forward.isNull(); }
 
-Cell &Node::getForwardDest() { return m_forward; }
-const Cell &Node::getForwardDest() const { return m_forward; }
+/// @brief Get forwarding destination (inline implementation)
+inline Cell &Node::getForwardDest() { return m_forward; }
 
-bool Cell::hasLink(Field offset) const {
+/// @brief Get forwarding destination const (inline implementation)
+inline const Cell &Node::getForwardDest() const { return m_forward; }
+
+/**
+ * @brief Check if cell has a link at offset (inline implementation)
+ * @param offset Field offset to check
+ * @return true if link exists
+ */
+inline bool Cell::hasLink(Field offset) const {
   return m_node && getNode()->hasLink(offset.addOffset(m_offset));
 }
 
-const Cell &Cell::getLink(Field offset) const {
+/**
+ * @brief Get link at offset (inline implementation)
+ * @param offset Field offset
+ * @return The target cell
+ */
+inline const Cell &Cell::getLink(Field offset) const {
   assert(m_node);
   // -- call Node::getLink() const
   return static_cast<const Node *>(getNode())->getLink(
       offset.addOffset(m_offset));
 }
 
-void Cell::setLink(Field offset, const Cell &c) {
+/**
+ * @brief Set link at offset (inline implementation)
+ * @param offset Field offset
+ * @param c Target cell
+ */
+inline void Cell::setLink(Field offset, const Cell &c) {
   getNode()->setLink(offset.addOffset(m_offset), c);
 }
 
-void Cell::addLink(Field offset, const Cell &c) {
+/**
+ * @brief Add link at offset (inline implementation)
+ * @param offset Field offset
+ * @param c Cell to add/unify
+ */
+inline void Cell::addLink(Field offset, const Cell &c) {
   getNode()->addLink(offset.addOffset(m_offset), c);
 }
 
-void Cell::addAccessedType(unsigned offset, llvm::Type *t) {
+/**
+ * @brief Add accessed type (inline implementation)
+ * @param offset Byte offset
+ * @param t Type accessed
+ */
+inline void Cell::addAccessedType(unsigned offset, llvm::Type *t) {
   getNode()->addAccessedType(m_offset + offset, t);
 }
 
-void Cell::growSize(unsigned o, llvm::Type *t) {
+/**
+ * @brief Grow cell size (inline implementation)
+ * @param o Offset
+ * @param t Type at offset
+ */
+inline void Cell::growSize(unsigned o, llvm::Type *t) {
   assert(!isNull());
   Node::Offset offset(*getNode(), m_offset + o);
   getNode()->growSize(offset, t);
 }
 
-Node *Node::getNode() { return isForwarding() ? m_forward.getNode() : this; }
-
-const Node *Node::getNode() const {
+/**
+ * @brief Get non-forwarding node (inline implementation)
+ *
+ * Follows forwarding chain to find actual node.
+ *
+ * @return Pointer to actual node
+ */
+inline Node *Node::getNode() {
   return isForwarding() ? m_forward.getNode() : this;
 }
+
+/**
+ * @brief Get non-forwarding node const (inline implementation)
+ * @return Pointer to actual node
+ */
+inline const Node *Node::getNode() const {
+  return isForwarding() ? m_forward.getNode() : this;
+}
+
 } // namespace seadsa
 
 namespace llvm {
@@ -870,6 +1119,9 @@ template <> struct hash<seadsa::Cell> {
     size_t seed = 0;
     boost::hash_combine(seed, c.getNode());
     boost::hash_combine(seed, c.getRawOffset());
+    const auto end = c.getRawEndOffset();
+    boost::hash_combine(seed, static_cast<bool>(end));
+    if (end) boost::hash_combine(seed, end.get());
     // boost::hash_combine(seed, c.getType().asTuple());
     return seed;
   }
