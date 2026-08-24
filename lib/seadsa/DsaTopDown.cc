@@ -20,6 +20,7 @@
 #include "seadsa/Local.hh"
 #include "seadsa/config.h"
 #include "seadsa/support/Debug.h"
+#include "seadsa/support/Stats.hh"
 
 using namespace llvm;
 
@@ -42,6 +43,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
                                                Graph &callerG, Graph &calleeG,
                                                bool flowSensitiveOpt,
                                                bool noescape) {
+  SEADSA_SCOPED_STATS("td.resolve_args", 1);
   CloningContext context(*cs.getInstruction(), CloningContext::TopDown);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(calleeG, context, options);
@@ -115,6 +117,7 @@ void TopDownAnalysis::cloneAndResolveArguments(const DsaCallSite &cs,
 }
 
 void TopDownAnalysis::removeForeignNodes(Graph &graph) {
+  SEADSA_SCOPED_STATS("td.remove_foreign", 1);
   if (!NoTDCopyingOpt) {
     graph.compress();
     graph.removeNodes([](const Node *n) { return n->isForeign(); });
@@ -122,6 +125,7 @@ void TopDownAnalysis::removeForeignNodes(Graph &graph) {
 }
 
 bool TopDownAnalysis::runOnModule(Module &M, GraphMap &graphs) {
+  SEADSA_SCOPED_STATS("td.module", 1);
   LOG("dsa-td", errs() << "Started top-down analysis ... \n");
 
   // The SCC iterator has the property that the graph is traversed in

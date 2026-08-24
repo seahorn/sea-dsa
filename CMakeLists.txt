@@ -30,6 +30,7 @@ endif()
 
 option (BUILD_SEA_DSA_LIBS_SHARED "Build all sea-dsa libraries shared." OFF)
 option (ENABLE_SANITY_CHECKS "Enable sea-dsa sanity checks." OFF)
+option (SEADSA_STATS "Enable SeaDsa scoped statistics (SEADSA_SCOPED_STATS macros)." OFF)
 
 if (ENABLE_SANITY_CHECKS)
   message (STATUS "Compiling sea-dsa with sanity checks")
@@ -167,11 +168,11 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 endif ()
 
 configure_file(include/seadsa/config.h.cmake
-  ${CMAKE_BINARY_DIR}/include/seadsa/config.h)
+  ${CMAKE_CURRENT_BINARY_DIR}/include/seadsa/config.h)
 
 include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_BINARY_DIR}/include)
+  ${CMAKE_CURRENT_BINARY_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 add_subdirectory(lib/seadsa)
 add_subdirectory(units)

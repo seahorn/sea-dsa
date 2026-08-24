@@ -1,6 +1,7 @@
 #include "seadsa/Cloner.hh"
 #include "seadsa/CallSite.hh"
 #include "seadsa/support/Debug.h"
+#include "seadsa/support/Stats.hh"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/CommandLine.h"
 using namespace seadsa;
@@ -39,6 +40,12 @@ Node &Cloner::clone(const Node &n, bool forceAddAlloca,
   // -- don't clone nodes that are already in the graph
   if (n.getGraph() == &m_graph)
     return *const_cast<Node *>(&n);
+
+  // Count-only: clone() recurses through node links, so a scoped timer
+  // with a single name would under-account nested calls. The time is
+  // captured by the callers (bu.resolve_args, td.resolve_args,
+  // graph.import.*.clone).
+  SEADSA_COUNT_STATS("cloner.clone_node", 1);
 
   if (NoAllocSiteOpt)
     onlyAllocSite = nullptr;

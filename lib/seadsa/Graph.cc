@@ -16,6 +16,7 @@
 #include "seadsa/Graph.hh"
 #include "seadsa/Mapper.hh"
 #include "seadsa/support/Debug.h"
+#include "seadsa/support/Stats.hh"
 
 #include "boost/range/algorithm/set_algorithm.hpp"
 #include "boost/range/iterator_range.hpp"
@@ -1335,35 +1336,71 @@ void Graph::import(const Graph &g, bool withFormals) {
   Cloner C(*this, CloningContext::mkNoContext(), Cloner::Options::Basic);
   for (auto &kv : g.m_values) {
     // -- clone node
-    Node &n = C.clone(*kv.second->getNode());
+    Node *n = nullptr;
+    {
+      SEADSA_SCOPED_STATS("graph.import.values.clone", 1);
+      n = &C.clone(*kv.second->getNode());
+    }
 
     // -- re-create the cell
-    Cell c(n, kv.second->getRawOffset());
+    Cell c(*n, kv.second->getRawOffset());
 
     // -- insert value
-    Cell &nc = mkCell(*kv.first, Cell());
+    Cell *nc = nullptr;
+    {
+      SEADSA_SCOPED_STATS("graph.import.values.mkcell", 1);
+      nc = &mkCell(*kv.first, Cell());
+    }
 
     // -- unify the old and new cells
-    nc.unify(c);
+    {
+      SEADSA_SCOPED_STATS("graph.import.values.unify", 1);
+      nc->unify(c);
+    }
   }
 
   if (withFormals) {
     for (auto &kv : g.m_formals) {
-      Node &n = C.clone(*kv.second->getNode());
-      Cell c(n, kv.second->getRawOffset());
-      Cell &nc = mkCell(*kv.first, Cell());
-      nc.unify(c);
+      Node *n = nullptr;
+      {
+        SEADSA_SCOPED_STATS("graph.import.formals.clone", 1);
+        n = &C.clone(*kv.second->getNode());
+      }
+      Cell c(*n, kv.second->getRawOffset());
+      Cell *nc = nullptr;
+      {
+        SEADSA_SCOPED_STATS("graph.import.formals.mkcell", 1);
+        nc = &mkCell(*kv.first, Cell());
+      }
+      {
+        SEADSA_SCOPED_STATS("graph.import.formals.unify", 1);
+        nc->unify(c);
+      }
     }
     for (auto &kv : g.m_returns) {
-      Node &n = C.clone(*kv.second->getNode());
-      Cell c(n, kv.second->getRawOffset());
-      Cell &nc = mkRetCell(*kv.first, Cell());
-      nc.unify(c);
+      Node *n = nullptr;
+      {
+        SEADSA_SCOPED_STATS("graph.import.returns.clone", 1);
+        n = &C.clone(*kv.second->getNode());
+      }
+      Cell c(*n, kv.second->getRawOffset());
+      Cell *nc = nullptr;
+      {
+        SEADSA_SCOPED_STATS("graph.import.returns.mkretcell", 1);
+        nc = &mkRetCell(*kv.first, Cell());
+      }
+      {
+        SEADSA_SCOPED_STATS("graph.import.returns.unify", 1);
+        nc->unify(c);
+      }
     }
   }
 
   // possibly created many indirect links, compress
-  compress();
+  {
+    SEADSA_SCOPED_STATS("graph.import.compress", 1);
+    compress();
+  }
 }
 
 void Graph::write(raw_ostream &o) const {

@@ -28,6 +28,7 @@
 #include "seadsa/config.h"
 
 #include "seadsa/support/Debug.h"
+#include "seadsa/support/Stats.hh"
 
 #include <queue>
 
@@ -94,6 +95,8 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
   LOG("dsa-global",
       errs() << "Started context-insensitive global analysis ... \n");
 
+  SEADSA_SCOPED_STATS("ci.global.module", 1);
+
   // ufo::Stats::resume ("CI-DsaAnalysis");
 
   if (kind() == GlobalAnalysisKind::FLAT_MEMORY)
@@ -126,10 +129,13 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
       else
         fGraph.reset(new Graph(m_dl, m_setFactory));
 
-      la.runOnFunction(*spec, *fGraph);
+      { SEADSA_SCOPED_STATS("ci.global.local_run", 1);
+        la.runOnFunction(*spec, *fGraph); }
 
       m_fns.insert(spec);
-      m_graph->import(*fGraph, true);
+
+      { SEADSA_SCOPED_STATS("ci.global.import", 1);
+        m_graph->import(*fGraph, true); }
     }
 
     // --- resolve callsites
@@ -151,12 +157,15 @@ bool ContextInsensitiveGlobalAnalysis::runOnModule(Module &M) {
             call_graph_utils::getDsaCallSite(callRecord, &m_dsaLibFuncInfo);
         if ((!dsaCS.has_value())) { continue; }
         assert(fn == dsaCS.value().getCaller());
-        resolveArguments(dsaCS.value(), *m_graph, m_dsaLibFuncInfo);
+        { SEADSA_SCOPED_STATS("ci.global.resolve_args", 1);
+          resolveArguments(dsaCS.value(), *m_graph, m_dsaLibFuncInfo); }
       }
     }
-    m_graph->compress();
+    { SEADSA_SCOPED_STATS("ci.global.compress", 1);
+      m_graph->compress(); }
   }
-  m_graph->remove_dead();
+  { SEADSA_SCOPED_STATS("ci.global.remove_dead", 1);
+    m_graph->remove_dead(); }
 
   // ufo::Stats::stop ("CI-DsaAnalysis");
 
