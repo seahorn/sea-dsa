@@ -8,6 +8,8 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
+#include <limits>
 #include <set>
 #include <string>
 
@@ -27,12 +29,35 @@ using namespace llvm;
 
 namespace seadsa {
 bool g_IsTypeAware;
+bool g_IsPartialCollapseEnabled;
 }
 
 static llvm::cl::opt<bool, true> XTypeAware(
     "sea-dsa-type-aware", llvm::cl::desc("Enable SeaDsa type awareness"),
     llvm::cl::location(seadsa::g_IsTypeAware), llvm::cl::init(false));
 
+static llvm::cl::opt<bool, true>
+    XPartialCollapse(
+        "sea-dsa-partial-collapse",
+        llvm::cl::desc("Enable SeaDsa partial offset collapse (interval "
+                       "cells); requires --sea-dsa-type-aware, otherwise "
+                       "ignored with a warning"),
+        llvm::cl::location(seadsa::g_IsPartialCollapseEnabled),
+        llvm::cl::init(false));
+
+bool seadsa::IsPartialCollapseActive() {
+  if (!g_IsPartialCollapseEnabled) return false;
+  if (!g_IsTypeAware) {
+    static bool warned = false;
+    if (!warned) {
+      warned = true;
+      llvm::errs() << "sea-dsa WARNING: --sea-dsa-partial-collapse requires "
+                      "--sea-dsa-type-aware; partial collapse is disabled.\n";
+    }
+    return false;
+  }
+  return true;
+}
 namespace seadsa {
 
 class DsaAllocator {
@@ -86,12 +111,14 @@ Graph::Graph(const llvm::DataLayout &dl, SetFactory &sf, bool is_flat)
 Graph::~Graph() = default;
 Node::Node(Graph &g)
     : m_graph(&g), m_unique_scalar(nullptr), m_has_once_unique_scalar(false),
-      m_size(0), m_id(++m_id_factory) {
+      m_size(0), m_arrayMaxSize(boost::none),
+      m_id(++m_id_factory) {
   setTypeCollapsed(!g_IsTypeAware);
 }
 
 Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
-    : m_graph(&g), m_unique_scalar(n.m_unique_scalar), m_size(n.m_size) {
+    : m_graph(&g), m_unique_scalar(n.m_unique_scalar), m_size(n.m_size),
+      m_arrayMaxSize(n.m_arrayMaxSize) {
   assert(!n.isForwarding());
 
   // -- fresh id
@@ -102,6 +129,12 @@ Node::Node(Graph &g, const Node &n, bool cpLinks, bool cpAllocSites)
 
   // -- copy types
   joinAccessedTypes(0, n);
+
+  // -- copy collapsed interval cells
+  for (auto &ck : n.m_collapsedCells) {
+    m_collapsedCells.insert(
+        Cell(this, ck.getRawStartOffset(), ck.getRawEndOffset()));
+  }
 
   // -- copy allocation sites
   if (cpAllocSites) joinAllocSites(n.m_alloca_sites);
@@ -127,6 +160,9 @@ unsigned Node::Offset::getNumericOffset() const {
   assert(!n->isForwarding());
   if (n->isOffsetCollapsed()) return 0;
   if (n->isArray()) return offset % n->size();
+  for (auto &ck : n->getCollapsedCells()) {
+    if (ck.includes(offset)) { return ck.getStartOffset(); }
+  }
   return offset;
 }
 
@@ -187,6 +223,9 @@ void Node::addAccessedType(unsigned off, llvm::Type *type) {
     Offset offset(*this, o);
     growSize(offset, t);
     if (isOffsetCollapsed()) return;
+    for (auto &ck : getCollapsedCells()) {
+      if (ck.includes(offset.getNumericOffset())) { return; }
+    }
 
     // -- recursively expand structures
     if (const StructType *sty = dyn_cast<const StructType>(t)) {
@@ -320,12 +359,38 @@ void Node::collapseTypes(int tag) {
   pointTo(n, Offset(n, 0));
 }
 
+void Node::joinCollapsedCells(const Node &node, const Offset &offset) {
+  LOG("dsa-collapse", errs() << "Joining collapsed cells between " << &node
+                             << " and " << this << " at offset "
+                             << offset.getNumericOffset() << "\n";);
+  // precondition, each node has disjoint interval cells
+  for (auto &ck : node.m_collapsedCells) {
+    LOG("dsa-collapse",
+        errs() << "Found collapsed cell [" << ck.getOffset() << ", ";
+        auto end = ck.getEndOffset(); if (end) errs() << end.get();
+        else errs() << "+oo"; errs() << "] at node " << ck.getNode() << "\n";);
+    unsigned newStart = offset.getNumericOffset() + ck.getOffset();
+    boost::optional<unsigned> endOffset = ck.getEndOffset();
+    if (endOffset) { endOffset = offset.getNumericOffset() + endOffset.get(); }
+    // unsigned newEnd = offset.getNumericOffset() + ;
+    partialCollapseOffsets(newStart, endOffset, __LINE__);
+  }
+}
+
+/// @brief redirect edges from current node to another node
+///        in paper, this is the redirectEdges function
+/// @param node the target node
+/// @param offset Byte offset into the target node
 void Node::pointTo(Node &node, const Offset &offset) {
   // -- possible under flat dsa graph
   if (&node == this) return;
   assert(&node == &offset.node());
   assert(&node != this);
   assert(!isForwarding());
+
+  LOG("dsa-forward", errs() << "Forwarding links from " << this << " to "
+                            << &node << " at offset "
+                            << offset.getNumericOffset() << "\n";);
 
   // -- reset unique scalar at the destination
   if (offset.getNumericOffset() != 0) node.setUniqueScalar(nullptr);
@@ -363,17 +428,29 @@ void Node::pointTo(Node &node, const Offset &offset) {
   // -- merge allocation sites
   node.joinAllocSites(m_alloca_sites);
 
+  // -- merge all the collapsed interval cells
+  if (seadsa::IsPartialCollapseActive()) {
+    node.joinCollapsedCells(*this, offset);
+  }
+
   // -- move all the links
+  LOG("dsa-forward", errs() << "Moving links\n";);
   for (auto &kv : m_links) {
     if (kv.second->isNull()) continue;
+    LOG("dsa-forward",
+        errs() << "link: " << kv.first << " -> " << *kv.second << "\n";);
 
     m_forward.addLink(kv.first, *kv.second);
   }
 
+  LOG("dsa-forward", errs() << "after add node: " << node << "\n";);
+
   // reset current node
   m_alloca_sites.clear();
   m_size = 0;
+  m_arrayMaxSize = boost::none;
   m_links.clear();
+  m_collapsedCells.clear();
   m_accessedTypes.clear();
   m_unique_scalar = nullptr;
   m_nodeType.reset();
@@ -474,8 +551,11 @@ void Node::addLink(Field _f, const Cell &c) {
 /// Unify a given node into the current node at a specified offset.
 /// Might cause collapse.
 void Node::unifyAt(Node &n, unsigned o) {
-  assert(!isForwarding());
-  assert(!n.isForwarding());
+  assert(!isForwarding());   // current node is not forwarding node
+  assert(!n.isForwarding()); // unfied node is not forwarding node
+  // NOTE: above two assertions indicate two nodes are representative nodes
+  LOG("dsa-unify", errs() << "Unifying " << n << " into " << *this
+                          << " at offset " << o << "\n";);
 
   // collapse before merging with a collapsed node
   if (!isOffsetCollapsed() && n.isOffsetCollapsed()) {
@@ -484,7 +564,9 @@ void Node::unifyAt(Node &n, unsigned o) {
     return;
   }
 
-  Offset offset(*this, o);
+  Offset offset(*this, o); // o' = o \circleplus_*this 0
+  LOG("dsa-unify",
+      errs() << "Adjusted offset: " << offset.getNumericOffset() << "\n";);
 
   if (!isOffsetCollapsed() && !n.isOffsetCollapsed() && n.isArray() &&
       !isArray()) {
@@ -495,9 +577,41 @@ void Node::unifyAt(Node &n, unsigned o) {
     }
     // -- cannot merge array at non-zero offset
     else {
-      collapseOffsets(__LINE__);
-      getNode()->unifyAt(*n.getNode(), o);
-      return;
+      if (seadsa::IsPartialCollapseActive()) {
+        const unsigned start = offset.getNumericOffset();
+        boost::optional<unsigned> end = boost::none;
+        LOG("dsa-array-bound",
+            errs() << "partial-collapse array merge: start=" << start
+                   << ", seq-stride=" << n.size() << ", seq-array-size=";
+            if (auto arrayMaxSize = n.getArrayMaxSize())
+              errs() << arrayMaxSize.get();
+            else
+              errs() << "none";
+            errs() << "\n";);
+        if (auto arrayMaxSize = n.getArrayMaxSize()) {
+          const unsigned stride = n.size();
+          uint64_t arrayLastOffset =
+              arrayMaxSize.get() >= stride ? arrayMaxSize.get() - stride : 0;
+          uint64_t upper = static_cast<uint64_t>(start) + arrayLastOffset;
+          if (upper <= std::numeric_limits<unsigned>::max())
+            end = static_cast<unsigned>(upper);
+        }
+        LOG("dsa-array-bound",
+            errs() << "partial-collapse computed interval: [" << start << ",";
+            if (end)
+              errs() << end.get();
+            else
+              errs() << "+oo";
+            errs() << "]\n";);
+        partialCollapseOffsets(start, end, __LINE__);
+        n.setArray(false);
+        LOG("dsa-unify",
+            errs() << "<" << offset.getNumericOffset() << ", " << n << "\n";);
+      } else {
+        collapseOffsets(__LINE__);
+        getNode()->unifyAt(*n.getNode(), o);
+        return;
+      }
     }
   } else if (isArray() && n.isArray()) {
     // merge larger sized array into 0 offset of the smaller array
@@ -542,7 +656,7 @@ void Node::unifyAt(Node &n, unsigned o) {
 
   if (&n == this) {
     // -- merging the node into itself at a different offset
-    if (offset.getNumericOffset() > 0) collapseOffsets(__LINE__);
+    if (offset.getNumericOffset() > 0) { collapseOffsets(__LINE__); }
     return;
   }
 
@@ -550,6 +664,113 @@ void Node::unifyAt(Node &n, unsigned o) {
   assert(!n.isForwarding());
   // -- move everything from n to this node
   n.pointTo(*this, offset);
+}
+
+void Node::mergeCollapsedCellIntoSet(Cell &ck) {
+  auto it = m_collapsedCells.begin();
+  auto end_it = m_collapsedCells.end();
+
+  // Single pass: merge and collect iterators to erase
+  std::vector<typename collapsed_cells_type::iterator> toErase;
+
+  for (it = m_collapsedCells.begin(); it != end_it; ++it) {
+    if (!it->isDisjoint(ck)) {
+      ck.mergeIntervalInPlace(*it);
+      toErase.push_back(it);
+    }
+  }
+
+  // Erase in reverse order to maintain iterator validity
+  for (auto rit = toErase.rbegin(); rit != toErase.rend(); ++rit) {
+    m_collapsedCells.erase(*rit);
+  }
+
+  m_collapsedCells.insert(ck);
+}
+
+bool Node::areCollapsedCellsShownCollapsed() const {
+  if (m_collapsedCells.size() != 1) return false;
+  const auto &ck = *m_collapsedCells.begin();
+  if (ck.getStartOffset() != 0) return false;
+
+  auto end = ck.getEndOffset();
+  return !end;
+}
+
+void Node::partialCollapseOffsets(unsigned start, boost::optional<unsigned> end,
+                                  int tag) {
+  if (isOffsetCollapsed()) return;
+  Offset ostart(*this, start);
+  start = ostart.getNumericOffset();
+  if (end) {
+    Offset oend(*this, end.get());
+    end = oend.getNumericOffset();
+  }
+  if (end && start >= end.get()) return;
+  if (start == 0 && end && m_size < end.get()) {
+    collapseOffsets(tag);
+    return;
+  }
+  assert(!FieldType::IsNotTypeAware());
+
+  LOG("dsa-collapse", errs() << "Partial-Offset-Collapse at Line " << tag
+                             << " with offset range [" << start << ", "
+                             << (end ? std::to_string(end.get()) : "+oo")
+                             << "]\n");
+
+  Node::links_type new_links; // remain links that excluded in [start, end)
+                              // unify links within [start, end)
+  SmallVector<std::pair<Field, CellRef>, 16> links_inrange;
+  Cell tmpCell(this, start, end);
+  // -- find collapsed cells if already exists
+  // -- if no collapsed cell exists, collect links to be collapsed
+  // To find a collapsed cell, we need to either create one or extend an
+  // existing one
+  // E.g.
+  //   ck: |----|          ck: |----------|     ck:   |------|    ck: |------|
+  //         |------|            |------|           |------|     |------------|
+  //       start   end         start   end        start   end  start         end
+  //          (a)                 (b)                 (c)              (d)
+  mergeCollapsedCellIntoSet(tmpCell);
+  if (areCollapsedCellsShownCollapsed()) {
+    collapseOffsets(tag);
+    return;
+  }
+  // -- find links within [start, end] to be collapsed
+  // -- find links outside [start, end] and keep them as is
+  for (auto &kv : m_links) {
+    const Field &key = kv.first;
+    const CellRef &c = kv.second;
+    unsigned foff = key.getOffset();
+    if (c->isNull()) { continue; }
+    if (foff >= start && (!end || foff <= end.get())) {
+      // -- field offset is within [start, end], collapse
+      links_inrange.push_back({kv.first, std::move(kv.second)});
+    } else {
+      new_links[kv.first] = std::move(kv.second);
+    }
+  }
+  m_links = std::move(new_links);
+
+  // -- update access types for collapsed cells
+  Node::accessed_types_type new_accessed_types;
+  for (auto &kv : m_accessedTypes) {
+    unsigned toff = kv.first;
+    if (toff < start || (end && toff > end.get())) {
+      new_accessed_types.insert(std::make_pair(toff, std::move(kv.second)));
+    }
+  }
+  m_accessedTypes = std::move(new_accessed_types);
+
+  // -- unify all links within [start, end] into one
+  for (auto &kv : links_inrange) {
+    // The exact byte within the collapsed interval is no longer known.
+    // Canonicalize every in-range link to the collapsed interval start while
+    // preserving its field type.
+    tmpCell.addLink(Field(0, kv.first.getType()), *kv.second);
+  }
+  LOG("dsa-collapse", errs()
+                          << "After partial collapse node: " << *this << "\n";);
 }
 
 /// pre: this simulated by n
@@ -710,6 +931,24 @@ void Node::write(raw_ostream &o) const {
         << "(" << kv.second->getOffset() << "," << kv.second->getNode() << ")";
     }
     o << "] ";
+    if (seadsa::IsPartialCollapseActive()) {
+      first = true;
+      o << " collapsed-cells=[";
+      for (auto &ck : m_collapsedCells) {
+        if (!first)
+          o << ",";
+        else
+          first = false;
+        o << "<" << ck.getOffset() << ",";
+        auto end = ck.getEndOffset();
+        if (end)
+          o << end.get();
+        else
+          o << "+oo";
+        o << ">";
+      }
+      o << "] ";
+    }
     first = true;
     o << " alloca sites=[";
     for (const Value *a : getAllocSites()) {
@@ -728,6 +967,27 @@ void Node::write(raw_ostream &o) const {
   }
 }
 
+/*******************************************************************************
+ ******************         methods for cell            ************************
+ ******************************************************************************/
+void Cell::write(raw_ostream &o) const {
+  getNode();
+  o << "<" << m_offset;
+  if (!m_end || m_end.get() != m_offset) {
+    o << ", ";
+    if (m_end)
+      o << m_end.get();
+    else
+      o << "+oo";
+  }
+  o << ", ";
+  if (m_node)
+    m_node->write(o);
+  else
+    o << "null";
+  o << ">";
+}
+
 void Cell::dump() const {
   write(errs());
   errs() << "\n";
@@ -740,18 +1000,33 @@ bool Cell::isRead() const { return getNode()->isRead(); }
 bool Cell::isModified() const { return getNode()->isModified(); }
 
 void Cell::unify(Cell &c) {
+  LOG("dsa-unify",
+      errs() << "Unifying cell " << c << " into cell " << *this << "\n";);
   if (isNull()) {
     assert(!c.isNull());
     Node *n = c.getNode();
-    pointTo(*n, c.getRawOffset());
-  } else if (c.isNull())
+    pointTo(*n, c.getRawOffset(), c.getRawEndOffset());
+  } else if (c.isNull()) {
     c.unify(*this);
-  else {
+  } else {
     Node &n1 = *getNode();
     unsigned o1 = getRawOffset();
+    boost::optional<unsigned> e1 = getRawEndOffset();
 
     Node &n2 = *c.getNode();
     unsigned o2 = c.getRawOffset();
+    boost::optional<unsigned> e2 = c.getRawEndOffset();
+    if (seadsa::IsPartialCollapseActive() && (&n1) == (&n2)) {
+      unsigned start = std::min(o1, o2);
+      boost::optional<unsigned> end;
+      if (!e1 || !e2)
+        end = boost::none;
+      else
+        end = std::max(e1.get(), e2.get());
+      if (!end || start != end.get())
+        n1.partialCollapseOffsets(start, end, __LINE__);
+      return;
+    }
 
     if (o1 < o2)
       n2.unifyAt(n1, o2 - o1);
@@ -770,7 +1045,9 @@ Node *Cell::getNode() const {
   assert((n == m_node && !m_node->isForwarding()) || m_node->isForwarding());
   if (n != m_node) {
     assert(m_node->isForwarding());
-    m_offset += m_node->getRawOffset();
+    unsigned offset = m_node->getRawOffset();
+    m_offset += offset;
+    if (m_end) m_end = m_end.get() + offset;
     m_node = n;
   }
 
@@ -784,33 +1061,77 @@ unsigned Cell::getRawOffset() const {
   return m_offset;
 }
 
+boost::optional<unsigned> Cell::getRawEndOffset() const {
+  // -- resolve forwarding
+  getNode();
+  // -- return current interval end
+  return m_end;
+}
+
 unsigned Cell::getOffset() const {
   // -- adjust the offset based on the kind of node
   if (isNull() || getNode()->isOffsetCollapsed())
     return 0;
   else if (getNode()->isArray())
     return (getRawOffset() % getNode()->size());
-  else
-    return getRawOffset();
-}
-
-void Cell::pointTo(Node &n, unsigned offset) {
-  assert(!n.isForwarding());
-  // n.viewGraph();
-  m_node = &n;
-  // errs() << "dsads\n";
-  if (n.isOffsetCollapsed())
-    m_offset = 0;
-  else if (n.isArray()) {
-    assert(n.size() > 0);
-    m_offset = offset % n.size();
-  } else {
-    /// grow size as needed. allow offset to go one byte past size
-    if (offset < n.size()) n.growSize(offset);
-    m_offset = offset;
+  else {
+    unsigned offset = getRawOffset();
+    auto &cells = m_node->getCollapsedCells();
+    auto it =
+        std::find_if(cells.begin(), cells.end(),
+                     [offset](const auto &ck) { return ck.includes(offset); });
+    return (it != cells.end()) ? it->getStartOffset() : offset;
   }
 }
 
+unsigned Cell::getStartOffset() const {
+  // This is the collapsed-interval equivalent of the old Chunk start accessor:
+  // adjust for forwarding/collapse/arrays, but do not canonicalize through
+  // the node's collapsed-cell set. Otherwise a collapsed cell can find itself
+  // and recurse forever.
+  if (isNull() || getNode()->isOffsetCollapsed()) return 0;
+  if (getNode()->isArray()) return getRawOffset() % getNode()->size();
+  return getRawOffset();
+}
+
+boost::optional<unsigned> Cell::getEndOffset() const {
+  // -- adjust the interval end based on the kind of node
+  if (isNull() || getNode()->isOffsetCollapsed()) return 0;
+  auto end = getRawEndOffset();
+  if (end && getNode()->isArray()) return end.get() % getNode()->size();
+  return end;
+}
+
+void Cell::pointTo(Node &n, unsigned offset) { pointTo(n, offset, offset); }
+
+void Cell::pointTo(Node &n, unsigned start, boost::optional<unsigned> end) {
+  assert(!n.isForwarding());
+  m_node = &n;
+  if (n.isOffsetCollapsed()) {
+    m_offset = 0;
+    m_end = 0;
+  } else if (n.isArray()) {
+    assert(n.size() > 0);
+    m_offset = start % n.size();
+    m_end = end ? boost::optional<unsigned>(end.get() % n.size()) : boost::none;
+  } else {
+    /// grow size as needed. allow offset to go one byte past size
+    if (start < n.size()) n.growSize(start);
+    // a bounded interval must be covered by the node so later accesses
+    // within it stay in range
+    if (end && end.get() < n.size()) n.growSize(end.get());
+    auto &cells = m_node->getCollapsedCells();
+    auto it = std::find_if(cells.begin(), cells.end(), [start](const auto &c) {
+      return c.includes(start);
+    });
+    m_offset = (it != cells.end()) ? it->getStartOffset() : start;
+    m_end = end;
+  }
+}
+
+/*******************************************************************************
+ ******************         methods for node            ************************
+ ******************************************************************************/
 unsigned Node::getRawOffset() const {
   if (!isForwarding()) return 0;
   m_forward.getNode();
@@ -1209,16 +1530,6 @@ void Graph::clearCallSites() {
   m_callSites.clear();
 }
 
-void Cell::write(raw_ostream &o) const {
-  getNode();
-  o << "<" << m_offset << ", ";
-  if (m_node)
-    m_node->write(o);
-  else
-    o << "null";
-  o << ">";
-}
-
 void Node::dump() const {
   write(errs());
   errs() << "\n";
@@ -1231,6 +1542,33 @@ bool Graph::computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
                                        const bool reportIfSanityCheckFailed) {
   // XXX: to be removed
   const bool onlyModified = false;
+
+  DsaCallSite::const_actual_iterator AI = cs.actual_begin(),
+                                     AE = cs.actual_end();
+  for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(),
+                                          FE = cs.formal_end();
+       FI != FE && AI != AE; ++FI, ++AI) {
+    const Value *fml = &*FI;
+    const Value *arg = (*AI).get();
+
+    if (calleeG.hasCell(*fml) && callerG.hasCell(*arg)) {
+      Cell &c = calleeG.mkCell(*fml, Cell());
+      if (!onlyModified || c.isModified()) {
+        Cell &nc = callerG.mkCell(*arg, Cell());
+        if (!simMap.insert(c, nc)) {
+          if (reportIfSanityCheckFailed) {
+            errs() << "ERROR 3: callee is not simulated by caller at "
+                   << *cs.getInstruction() << "\n"
+                   << "\tFormal param " << *fml << "\n"
+                   << "\tActual param " << *arg << "\n"
+                   << "\tCallee cell=" << c << "\n"
+                   << "\tCaller cell=" << nc << "\n";
+          }
+          return false;
+        }
+      }
+    }
+  }
 
   for (auto &kv : boost::make_iterator_range(calleeG.globals_begin(),
                                              calleeG.globals_end())) {
@@ -1267,41 +1605,14 @@ bool Graph::computeCalleeCallerMapping(const DsaCallSite &cs, Graph &calleeG,
       }
     }
   }
-
-  DsaCallSite::const_actual_iterator AI = cs.actual_begin(),
-                                     AE = cs.actual_end();
-  for (DsaCallSite::const_formal_iterator FI = cs.formal_begin(),
-                                          FE = cs.formal_end();
-       FI != FE && AI != AE; ++FI, ++AI) {
-    const Value *fml = &*FI;
-    const Value *arg = (*AI).get();
-
-    if (calleeG.hasCell(*fml) && callerG.hasCell(*arg)) {
-      Cell &c = calleeG.mkCell(*fml, Cell());
-      if (!onlyModified || c.isModified()) {
-        Cell &nc = callerG.mkCell(*arg, Cell());
-        if (!simMap.insert(c, nc)) {
-          if (reportIfSanityCheckFailed) {
-            errs() << "ERROR 3: callee is not simulated by caller at "
-                   << *cs.getInstruction() << "\n"
-                   << "\tFormal param " << *fml << "\n"
-                   << "\tActual param " << *arg << "\n"
-                   << "\tCallee cell=" << c << "\n"
-                   << "\tCaller cell=" << nc << "\n";
-          }
-          return false;
-        }
-      }
-    }
-  }
   return true;
 }
 
 bool Graph::computeSimulationMapping(Graph &fromG, Graph &toG,
                                      SimulationMapper &simMap,
                                      bool onlyModified) {
-  // Find a simulation relation for all globals
-  for (auto &kv : fromG.globals()) {
+  // Find a simulation relation for all function formal parameters
+  for (auto &kv : fromG.formals()) {
     Cell &c = *kv.second;
     if (!onlyModified || c.isModified()) {
       Cell &nc = toG.mkCell(*kv.first, Cell());
@@ -1309,8 +1620,8 @@ bool Graph::computeSimulationMapping(Graph &fromG, Graph &toG,
     }
   }
 
-  // Find a simulation relation for all function formal parameters
-  for (auto &kv : fromG.formals()) {
+  // Find a simulation relation for all globals
+  for (auto &kv : fromG.globals()) {
     Cell &c = *kv.second;
     if (!onlyModified || c.isModified()) {
       Cell &nc = toG.mkCell(*kv.first, Cell());
@@ -1432,7 +1743,13 @@ void Graph::write(raw_ostream &o) const {
   for (auto &kv : scalarCells) {
     const Cell *C = kv.first;
     if (kv.second.begin() != kv.second.end()) {
-      o << "cell=(" << C->getNode() << "," << C->getRawOffset() << ")\n";
+      o << "cell=(" << C->getNode() << "," << C->getRawOffset();
+      auto end = C->getRawEndOffset();
+      if (!end)
+        o << ",+oo";
+      else if (end.get() != C->getRawOffset())
+        o << "," << end.get();
+      o << ")\n";
       for (const Value *V : kv.second) {
         if (const Function *F = dyn_cast<const Function>(V)) {
           o << "\t" << F->getName() << ":" << *(F->getType()) << "\n";
@@ -1445,7 +1762,13 @@ void Graph::write(raw_ostream &o) const {
   for (auto &kv : argCells) {
     const Cell *C = kv.first;
     if (kv.second.begin() != kv.second.end()) {
-      o << "cell=(" << C->getNode() << "," << C->getRawOffset() << ")\n";
+      o << "cell=(" << C->getNode() << "," << C->getRawOffset();
+      auto end = C->getRawEndOffset();
+      if (!end)
+        o << ",+oo";
+      else if (end.get() != C->getRawOffset())
+        o << "," << end.get();
+      o << ")\n";
       for (const Argument *A : kv.second) {
         o << "\t" << *A << "\n";
       }
@@ -1454,7 +1777,13 @@ void Graph::write(raw_ostream &o) const {
   for (auto &kv : retCells) {
     const Cell *C = kv.first;
     if (kv.second.begin() != kv.second.end()) {
-      o << "cell=(" << C->getNode() << "," << C->getRawOffset() << ")\n";
+      o << "cell=(" << C->getNode() << "," << C->getRawOffset();
+      auto end = C->getRawEndOffset();
+      if (!end)
+        o << ",+oo";
+      else if (end.get() != C->getRawOffset())
+        o << "," << end.get();
+      o << ")\n";
       for (const Function *F : kv.second) {
         o << "\tret(" << F->getName() << ")\n";
       }
