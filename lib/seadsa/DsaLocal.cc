@@ -1563,6 +1563,45 @@ static Type *allocatedObjectType(const Value *V) {
   return nullptr;
 }
 
+/// True when \p Ty is built only from i8: an i8, or an array, vector or struct
+/// of such types. A declared type like this is untyped storage and says
+/// nothing about what is kept in it. rustc (since 1.79) declares every alloca
+/// as `[N x i8]`, including ones holding a Vec or a Box, and C code keeps
+/// pointers in char buffers too.
+static bool isByteStorage(const Type *Ty) {
+  if (Ty->isIntegerTy(8)) return true;
+  if (auto *ATy = dyn_cast<ArrayType>(Ty))
+    return isByteStorage(ATy->getElementType());
+  if (auto *VTy = dyn_cast<VectorType>(Ty))
+    return isByteStorage(VTy->getElementType());
+  if (auto *STy = dyn_cast<StructType>(Ty))
+    return STy->getNumElements() > 0 &&
+           llvm::all_of(STy->elements(),
+                        [](const Type *E) { return isByteStorage(E); });
+  return false;
+}
+
+/// True when the constant \p C is plain data: built only from integers,
+/// floats, zero, undef and data arrays, with no global address or constant
+/// expression that could put a pointer into its bytes.
+static bool isPlainData(const Constant *C) {
+  if (isa<ConstantData>(C)) return true;
+  if (isa<ConstantAggregate>(C))
+    return llvm::all_of(C->operands(), [](const Use &U) {
+      return isPlainData(cast<Constant>(U.get()));
+    });
+  return false;
+}
+
+/// True when \p V is a constant global initialized with plain data. Nothing
+/// can store into it, so it never holds a pointer whatever its declared type.
+/// clang copies a local `char s[] = "..."` out of such a global.
+static bool isPlainDataConstant(const Value *V) {
+  auto *GV = dyn_cast<const GlobalVariable>(V->stripPointerCasts());
+  return GV && GV->isConstant() && GV->hasDefinitiveInitializer() &&
+         isPlainData(GV->getInitializer());
+}
+
 bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   ConstantInt *rawLength = dyn_cast<ConstantInt>(MI.getLength());
   if (!rawLength)
@@ -1577,6 +1616,11 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
   // is being copied and must assume pointers are.
   Type *srcTy = allocatedObjectType(MI.getSource());
   if (!srcTy) return false;
+
+  // byte storage may hold anything, pointers included, unless it is a
+  // constant whose initializer shows that it does not
+  if (isByteStorage(srcTy) && !isPlainDataConstant(MI.getSource()))
+    return false;
 
   // opaque structs may transfer pointers
   if (!srcTy->isSized()) return false;
