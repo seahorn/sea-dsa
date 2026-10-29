@@ -2164,7 +2164,11 @@ seadsa::ShadowMemNewPmPass::run(llvm::Module &M,
       },
       SplitFields, LocalReadMod, ShadowMemOptimize, ShadowMemUseTBAA,
       ShadowMemUseSNAAA);
+  LOG("shadow_verbose", errs() << "Module before shadow insertion:\n"
+                               << M << "\n";);
   sm->runOnModule(M);
+  LOG("shadow_verbose", errs() << "Module after shadow insertion:\n"
+                               << M << "\n";);
   if (m_keep) *m_keep = std::move(sm);
   // The instrumentation invalidates everything else, but not DsaInfoAnalysis:
   // its result owns the GlobalAnalysis that the ShadowMem we just handed to
