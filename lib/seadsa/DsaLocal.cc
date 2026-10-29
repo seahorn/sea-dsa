@@ -53,6 +53,12 @@ static llvm::cl::opt<bool> AssumeExternalFunctonsAllocators(
     llvm::cl::desc(
         "Treat all external functions as potential memory allocators"),
     llvm::cl::init(false));
+static llvm::cl::opt<bool> TrustByteStorage(
+    "sea-dsa-trust-byte-storage",
+    llvm::cl::desc("Assume memcpy out of storage declared as i8 transfers no "
+                   "pointers (unsound for Rust and for C code that keeps "
+                   "pointers in char buffers)"),
+    llvm::cl::init(false));
 
 /*****************************************************************************/
 /* HELPERS                                                                   */
@@ -1619,7 +1625,8 @@ bool transfersNoPointers(MemTransferInst &MI, const DataLayout &DL) {
 
   // byte storage may hold anything, pointers included, unless it is a
   // constant whose initializer shows that it does not
-  if (isByteStorage(srcTy) && !isPlainDataConstant(MI.getSource()))
+  if (!TrustByteStorage && isByteStorage(srcTy) &&
+      !isPlainDataConstant(MI.getSource()))
     return false;
 
   // opaque structs may transfer pointers

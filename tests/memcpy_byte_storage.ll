@@ -1,5 +1,7 @@
 ; RUN: %seadsa %s --sea-dsa-dot --sea-dsa-dot-outdir=%T/memcpy_byte_storage.ll
 ; RUN: %cmp-graphs %tests/memcpy_byte_storage.entry.mem.dot %T/memcpy_byte_storage.ll/entry.mem.dot both | OutputCheck %s -d --comment=";"
+; RUN: %seadsa %s --sea-dsa-trust-byte-storage --sea-dsa-dot --sea-dsa-dot-outdir=%T/memcpy_byte_storage.trust.ll
+; RUN: %cmp-graphs %tests/memcpy_byte_storage.trust.entry.mem.dot %T/memcpy_byte_storage.trust.ll/entry.mem.dot both | OutputCheck %s -d --comment=";"
 ; CHECK: ^OK$
 
 ; A memcpy out of untyped byte storage may carry pointers.
@@ -15,6 +17,10 @@
 ; %a -> %b, because [6 x i32] is a real type with no pointer member, and
 ; @str -> %s, because @str is a constant holding plain bytes (clang's copy of
 ; a local `char s[] = "aeiou"`).
+;
+; --sea-dsa-trust-byte-storage restores the old, unsound behavior: the
+; [24 x i8] copy is assumed to carry no pointers, so %v/%w and %p/%q stay
+; in separate nodes.
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
