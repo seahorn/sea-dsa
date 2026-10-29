@@ -1,0 +1,35 @@
+digraph unnamed {
+	graph [center=true, ratio=true, bgcolor=lightgray, fontname=Helvetica];
+	node  [fontname=Helvetica, fontsize=11];
+
+	Node0x644ec1037a80 [shape=record,fillcolor=gray, style=filled,label="{\{0:ptr,16:i64,8:i64\}:SMR|{<s0>\<0, unknown\>}}"];
+	Node0x644ec10383e0 [shape=record,fillcolor=gray, style=filled,label="{\{0:ptr\}:SMR|{<s0>\<0, unknown\>}}"];
+	Node0x644ec103e920 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:H}"];
+	Node0x644ec1040830 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:M}"];
+	Node0x644ec1040d40 [shape=record,fillcolor=gray, style=filled,label="{\{0:i32\}:SMR}"];
+	Node0x644ec1040ed0 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:SM}"];
+	Node0x644ec10413e0 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:SM}"];
+	Node0x644ec10414b0 [shape=record,fillcolor=gray, style=filled,label="{\{void\}:R}"];
+	Node0x644ec1027730 [shape=plaintext, label ="v"];
+	Node0x644ec1027730 -> Node0x644ec1037a80[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x644ec1029050 [shape=plaintext, label ="b"];
+	Node0x644ec1029050 -> Node0x644ec1040ed0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x644ec1028550 [shape=plaintext, label ="cap"];
+	Node0x644ec1028550 -> Node0x644ec1037a80[arrowtail=tee,label="8",fontsize=8,color=purple];
+	Node0x644ec1028eb0 [shape=plaintext, label ="q"];
+	Node0x644ec1028eb0 -> Node0x644ec1040830[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x644ec1028710 [shape=plaintext, label ="len"];
+	Node0x644ec1028710 -> Node0x644ec1037a80[arrowtail=tee,label="16",fontsize=8,color=purple];
+	Node0x644ec1026860 [shape=plaintext, label ="str"];
+	Node0x644ec1026860 -> Node0x644ec10414b0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x644ec1027ca0 [shape=plaintext, label ="w"];
+	Node0x644ec1027ca0 -> Node0x644ec10383e0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x644ec10293c0 [shape=plaintext, label ="s"];
+	Node0x644ec10293c0 -> Node0x644ec10413e0[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x644ec1028390 [shape=plaintext, label ="p"];
+	Node0x644ec1028390 -> Node0x644ec103e920[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x644ec1028fd0 [shape=plaintext, label ="a"];
+	Node0x644ec1028fd0 -> Node0x644ec1040d40[arrowtail=tee,label="0",fontsize=8,color=purple];
+	Node0x644ec1037a80:s0 -> Node0x644ec103e920[arrowtail=tee,label="0",fontsize=8];
+	Node0x644ec10383e0:s0 -> Node0x644ec1040830[arrowtail=tee,label="0",fontsize=8];
+}
