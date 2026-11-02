@@ -51,6 +51,22 @@ using namespace llvm;
 
 namespace seadsa {
 
+static bool hasNonSingletonCollapsedCell(const Node &node) {
+  for (const auto &cell : node.getCollapsedCells()) {
+    auto end = cell.getEndOffset();
+    if (!end || cell.getStartOffset() != end.get()) return true;
+  }
+  return false;
+}
+
+template <typename CollapsedCell>
+static void writeCollapsedCellAsField(const CollapsedCell &cell,
+                                      raw_ostream &o) {
+  auto end = cell.getEndOffset();
+  o << "[" << cell.getStartOffset() << "-"
+    << (end ? std::to_string(end.get()) : "+oo") << "]:raw";
+}
+
 namespace internals {
 
 /* XXX: The API of llvm::GraphWriter is not flexible enough.
@@ -315,6 +331,10 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
         OS << "fillcolor=chocolate1, style=filled";
       } else if (N->isTypeCollapsed() && seadsa::g_IsTypeAware) {
         OS << "fillcolor=darkorchid2, style=filled";
+      } else if (seadsa::hasNonSingletonCollapsedCell(*N)) {
+        OS << "fillcolor=gold2, style=filled";
+      } else if (N->isPartialCollapsed()) {
+        OS << "fillcolor=palegreen2, style=filled";
       } else {
         OS << "fillcolor=gray, style=filled";
       }
@@ -352,10 +372,19 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
       } else {
         // Go through all the types, and just print them.
         const auto &ts = N->types();
+        const auto &collapsedCells = N->getCollapsedCells();
+        auto cellIt = collapsedCells.begin();
+        auto cellEnd = collapsedCells.end();
         bool firstType = true;
         OS << "{";
-        if (ts.begin() != ts.end()) {
+        if (ts.begin() != ts.end() || cellIt != cellEnd) {
           for (auto ii = ts.begin(), ee = ts.end(); ii != ee; ++ii) {
+            while (cellIt != cellEnd && cellIt->getStartOffset() <= ii->first) {
+              if (!firstType) OS << ",";
+              firstType = false;
+              seadsa::writeCollapsedCellAsField(*cellIt, OS);
+              ++cellIt;
+            }
             if (!firstType) OS << ",";
             firstType = false;
             OS << ii->first << ":"; // offset
@@ -368,6 +397,12 @@ struct DOTGraphTraits<seadsa::Graph *> : public DefaultDOTGraphTraits {
               }
             } else
               OS << "void";
+          }
+          while (cellIt != cellEnd) {
+            if (!firstType) OS << ",";
+            firstType = false;
+            seadsa::writeCollapsedCellAsField(*cellIt, OS);
+            ++cellIt;
           }
         } else {
           OS << "void";
