@@ -39,6 +39,20 @@ class SeaMemorySSA;
 } // namespace seadsa
 
 namespace seadsa {
+/// How often the MemSSA optimizer (--horn-shadow-mem-optimize) relied on
+/// TypeBasedAA (--horn-shadow-mem-use-tbaa) alone, summed over every
+/// ShadowMem run in the process. A def is skipped "by TBAA" when TBAA
+/// answers NoAlias for it and the use, and neither ScopedNoAliasAA, nor
+/// BasicAA, nor the allocation-site check would have skipped it.
+struct ShadowMemTBAAStats {
+  /// (use, def) pairs: defs a use walk moved past because of TBAA alone
+  unsigned noAliasSkips = 0;
+  /// uses whose final def differs from the def they get without TBAA
+  /// (the first def skipped by TBAA alone)
+  unsigned movedUses = 0;
+};
+const ShadowMemTBAAStats &getShadowMemTBAAStats();
+
 enum class ShadowMemInstOp {
   LOAD,        /* load */
   TRSFR_LOAD,  /* memory transfer load */

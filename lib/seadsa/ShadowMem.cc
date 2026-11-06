@@ -23,6 +23,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
@@ -50,10 +51,14 @@ llvm::cl::opt<bool> ShadowMemOptimize(
     llvm::cl::desc("Use the solved form for ShadowMem (MemSSA)"),
     llvm::cl::init(true));
 
-llvm::cl::opt<bool>
-    ShadowMemUseTBAA("horn-shadow-mem-use-tbaa",
-                     llvm::cl::desc("Use TypeBasedAA in the MemSSA optimizer"),
-                     llvm::cl::init(true));
+llvm::cl::opt<bool> ShadowMemUseTBAA(
+    "horn-shadow-mem-use-tbaa",
+    llvm::cl::desc("Use TypeBasedAA in the MemSSA optimizer: trust the "
+                   "front end's strict-aliasing (TBAA) metadata, so a "
+                   "load may skip a store through another type. "
+                   "Reliance is counted (shadow.mem.tbaa-moved-uses) "
+                   "and logged (--log=shadow-mem-tbaa)"),
+    llvm::cl::init(true));
 
 llvm::cl::opt<bool> ShadowMemUseSNAAA(
     "horn-shadow-mem-use-snaaa",
@@ -186,6 +191,10 @@ void argReachableNodes(const Function &fn, dsa::Graph &g, Set1 &inReach,
 /// TODO: Investigate crashes in llvm::AAResultsWrapperPass.
 class LocalAAResultsWrapper {
   llvm::AAResults *m_results = nullptr;
+  // the same analyses without TBAA (set only when TBAA is used): BasicAA
+  // recurses through its query's AAResults, so a reliance check must not
+  // reach TBAA that way
+  llvm::AAResults *m_resultsNoTBAA = nullptr;
   llvm::BasicAAResult *m_baa = nullptr;
   llvm::TypeBasedAAResult *m_tbaa = nullptr;
   llvm::ScopedNoAliasAAResult *m_snaaa = nullptr;
@@ -203,31 +212,65 @@ class LocalAAResultsWrapper {
     return loc;
   }
 
+  bool isNoAliasWithoutTBAA(const MemoryLocation &A, const MemoryLocation &B,
+                            AAResults &results) {
+    SimpleAAQueryInfo AAQI(results);
+    if (m_snaaa && m_snaaa->alias(A, B, AAQI, nullptr) == AliasResult::NoAlias)
+      return true;
+    return m_baa && m_baa->alias(A, B, AAQI, nullptr) == AliasResult::NoAlias;
+  }
+
 public:
+  /// Why two locations do not alias.
+  enum class NoAliasBy { None, TBAAOnly, Other };
+
   LocalAAResultsWrapper() = default;
-  LocalAAResultsWrapper(AAResults *results, BasicAAResult *baa,
-                        TypeBasedAAResult *tbaa, ScopedNoAliasAAResult *snaaa)
-      : m_results(results), m_baa(baa), m_tbaa(tbaa), m_snaaa(snaaa) {}
+  LocalAAResultsWrapper(AAResults *results, AAResults *resultsNoTBAA,
+                        BasicAAResult *baa, TypeBasedAAResult *tbaa,
+                        ScopedNoAliasAAResult *snaaa)
+      : m_results(results), m_resultsNoTBAA(resultsNoTBAA), m_baa(baa),
+        m_tbaa(tbaa), m_snaaa(snaaa) {}
   LocalAAResultsWrapper(const LocalAAResultsWrapper &) = default;
   LocalAAResultsWrapper &operator=(const LocalAAResultsWrapper &) = default;
 
-  bool isNoAlias(Value &ptrA, Value *instA, std::optional<unsigned> sizeA,
-                 Value &ptrB, Value *instB, std::optional<unsigned> sizeB) {
-    if (!m_baa && !m_tbaa && !m_snaaa) return false;
+  /// NoAlias if any analysis says so; TBAAOnly when TBAA does and neither
+  /// ScopedNoAliasAA nor BasicAA (queried without TBAA) does.
+  NoAliasBy noAlias(Value &ptrA, Value *instA, std::optional<unsigned> sizeA,
+                    Value &ptrB, Value *instB, std::optional<unsigned> sizeB) {
+    if (!m_baa && !m_tbaa && !m_snaaa) return NoAliasBy::None;
 
     MemoryLocation A = getMemLoc(ptrA, instA, sizeA);
     MemoryLocation B = getMemLoc(ptrB, instB, sizeB);
 
     SimpleAAQueryInfo AAQI(*m_results);
-    if (m_tbaa && m_tbaa->alias(A, B, AAQI, nullptr) == AliasResult::NoAlias)
-      return true;
+    if (m_tbaa && m_tbaa->alias(A, B, AAQI, nullptr) == AliasResult::NoAlias) {
+      assert(m_resultsNoTBAA);
+      return isNoAliasWithoutTBAA(A, B, *m_resultsNoTBAA) ? NoAliasBy::Other
+                                                          : NoAliasBy::TBAAOnly;
+    }
 
-    if (m_snaaa && m_snaaa->alias(A, B, AAQI, nullptr) == AliasResult::NoAlias)
-      return true;
-
-    return m_baa && m_baa->alias(A, B, AAQI, nullptr) == AliasResult::NoAlias;
+    // TBAA's answer depends on the tags only, so BasicAA's recursive queries
+    // (same tags) cannot get NoAlias from it here
+    return isNoAliasWithoutTBAA(A, B, *m_results) ? NoAliasBy::Other
+                                                  : NoAliasBy::None;
   }
 };
+
+/// --log=shadow-mem-tbaa: " (file:line:col)" for \p v, if it has one
+std::string dbgLocSuffix(const Value *v) {
+  auto *I = dyn_cast_or_null<Instruction>(v);
+  if (!I || !I->getDebugLoc()) return "";
+  const DebugLoc &dl = I->getDebugLoc();
+  std::string s;
+  raw_string_ostream os(s);
+  os << " (";
+  if (auto *scope = dyn_cast_or_null<DIScope>(dl.getScope()))
+    os << scope->getFilename();
+  os << ":" << dl.getLine() << ":" << dl.getCol() << ")";
+  return os.str();
+}
+
+seadsa::ShadowMemTBAAStats TBAAStats;
 } // end namespace
 
 namespace seadsa {
@@ -670,7 +713,9 @@ class ShadowMemImpl : public InstVisitor<ShadowMemImpl> {
   using AllocSitesCache = DenseMap<Value *, MaybeAllocSites>;
   bool isMemInit(const CallInst &memOp);
   const MaybeAllocSites &getAllAllocSites(Value &ptr, AllocSitesCache &cache);
-  bool mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache);
+  /// Sets \p byTBAA when the answer is false only because of TBAA.
+  bool mayClobber(CallInst &memDef, CallInst &memUse, AllocSitesCache &cache,
+                  bool &byTBAA);
 
 public:
   ShadowMemImpl(dsa::GlobalAnalysis &dsa, 
@@ -895,7 +940,17 @@ bool ShadowMemImpl::runOnFunction(Function &F) {
     results.addAAResult(*snaaa);
   }
 
-  m_localAAResults = LocalAAResultsWrapper(&results, &baa, tbaa.get(), snaaa.get());
+  // -- the same analyses without TBAA, to tell when TBAA alone decides a
+  // -- NoAlias (only built when TBAA is used)
+  std::unique_ptr<AAResults> resultsNoTBAA = nullptr;
+  if (tbaa) {
+    resultsNoTBAA = std::make_unique<AAResults>(tli);
+    resultsNoTBAA->addAAResult(baa);
+    if (snaaa) resultsNoTBAA->addAAResult(*snaaa);
+  }
+
+  m_localAAResults = LocalAAResultsWrapper(&results, resultsNoTBAA.get(), &baa,
+                                           tbaa.get(), snaaa.get());
 
   // -- instrument function F with pseudo-instructions
   m_llvmCtx = &F.getContext();
@@ -1812,7 +1867,8 @@ ShadowMemImpl::getAllAllocSites(Value &ptr, AllocSitesCache &cache) {
 }
 
 bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
-                               AllocSitesCache &cache) {
+                               AllocSitesCache &cache, bool &byTBAA) {
+  byTBAA = false;
   LOG("shadow_optimizer", llvm::errs() << "\tmayClobber(" << memDef << ",\n"
                                        << "\t           " << memUse << ")?\n");
 
@@ -1871,36 +1927,47 @@ bool ShadowMemImpl::mayClobber(CallInst &memDef, CallInst &memUse,
   }
   LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[4]\n");
 
+  // The allocation-site check: false if the pointers have disjoint
+  // allocation sites.
+  auto allocSitesMayClobber = [&]() {
+    LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[6]\n");
+
+    auto useAllocSites = getAllAllocSites(*usePtr, cache);
+    if (!useAllocSites.has_value()) return true;
+
+    LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[7]\n");
+
+    auto defAllocSites = getAllAllocSites(*defPtr, cache);
+    if (!defAllocSites.has_value()) return true;
+
+    LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[8]\n");
+
+    for (auto *as : *useAllocSites)
+      if (defAllocSites->count(as) > 0) return true;
+
+    LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[9]\n");
+
+    return false;
+  };
+
   {
     Value *concreteInstUse = getAssociatedConcreteInst(memUse);
     Value *concreteInstDef = getAssociatedConcreteInst(memDef);
-    if (m_localAAResults.isNoAlias(*usePtr, concreteInstUse, usedBytes, *defPtr,
-                                   concreteInstDef, defdBytes)) {
+    auto by = m_localAAResults.noAlias(*usePtr, concreteInstUse, usedBytes,
+                                       *defPtr, concreteInstDef, defdBytes);
+    if (by != LocalAAResultsWrapper::NoAliasBy::None) {
       LOG("shadow_optimizer",
           llvm::errs() << "\tisNoAlias(use: " << *concreteInstUse << "\n"
                        << "\t          def: " << *concreteInstDef << ")\n";);
+      // -- TBAA alone: did it decide, or would the allocation sites skip
+      // -- this def anyway?
+      if (by == LocalAAResultsWrapper::NoAliasBy::TBAAOnly)
+        byTBAA = allocSitesMayClobber();
       return false;
     }
   }
 
-  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[6]\n");
-
-  auto useAllocSites = getAllAllocSites(*usePtr, cache);
-  if (!useAllocSites.has_value()) return true;
-
-  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[7]\n");
-
-  auto defAllocSites = getAllAllocSites(*defPtr, cache);
-  if (!defAllocSites.has_value()) return true;
-
-  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[8]\n");
-
-  for (auto *as : *useAllocSites)
-    if (defAllocSites->count(as) > 0) return true;
-
-  LOG("shadow_optimizer", llvm::errs() << "\tmayClobber[9]\n");
-
-  return false;
+  return allocSitesMayClobber();
 }
 
 void ShadowMemImpl::solveUses(Function &F) {
@@ -1920,14 +1987,42 @@ void ShadowMemImpl::solveUses(Function &F) {
         // Find the first potentially clobbering memDef (shadow store or
         // shadow init).
         CallInst *prevDef = nullptr;
+        // -- the first def skipped because of TBAA alone: without TBAA the
+        // -- walk stops there
+        CallInst *firstTBAADef = nullptr;
         auto duPair = getShadowMemVars(*call);
         CallInst *def = dyn_cast_or_null<CallInst>(duPair.second);
-        while (def && !mayClobber(*def, *call, ptrToAllocSitesCache)) {
+        bool byTBAA = false;
+        while (def && !mayClobber(*def, *call, ptrToAllocSitesCache, byTBAA)) {
+          if (byTBAA) {
+            ++TBAAStats.noAliasSkips;
+            if (!firstTBAADef) firstTBAADef = def;
+          }
           prevDef = def;
           auto dup = getShadowMemVars(*def);
           def = dyn_cast_or_null<CallInst>(dup.second);
         }
         if (!def) def = prevDef;
+
+        if (firstTBAADef && firstTBAADef != def) {
+          ++TBAAStats.movedUses;
+          LOG("shadow-mem-tbaa", {
+            Value *use = getAssociatedConcreteInst(*call);
+            Value *skipped = getAssociatedConcreteInst(*firstTBAADef);
+            llvm::errs() << "shadow-mem-tbaa: in " << F.getName()
+                         << ", TBAA moved the use of ";
+            if (use)
+              llvm::errs() << *use << dbgLocSuffix(use);
+            else
+              llvm::errs() << *call;
+            llvm::errs() << "\n  past ";
+            if (skipped)
+              llvm::errs() << *skipped << dbgLocSuffix(skipped);
+            else
+              llvm::errs() << *firstTBAADef;
+            llvm::errs() << "\n";
+          });
+        }
 
         LOG("shadow_optimizer", {
           if (def)
@@ -1944,6 +2039,8 @@ void ShadowMemImpl::solveUses(Function &F) {
   LOG("shadow_optimizer", llvm::errs() << "MemSSA optimizer: " << numOptimized
                                        << " use(s) solved.\n");
 }
+
+const ShadowMemTBAAStats &getShadowMemTBAAStats() { return TBAAStats; }
 
 /** ShadowMem class **/
 ShadowMem::ShadowMem(GlobalAnalysis &dsa, AllocSiteInfo &asi/*unused*/,
