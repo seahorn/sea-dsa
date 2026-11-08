@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /*****
 ** Print the sea-dsa call graph to dot format.
 *****/

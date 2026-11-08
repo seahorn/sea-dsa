@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-FileCopyrightText: 2003-2013 University of Illinois at Urbana-Champaign
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception AND NCSA
+
 #include "seadsa/AllocWrapInfo.hh"
 #include "seadsa/InitializePasses.hh"
 

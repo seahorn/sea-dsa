@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef SEADSA_SEA_DSA_ANALYSIS_HH
 #define SEADSA_SEA_DSA_ANALYSIS_HH
 /// New-pass-manager analyses for sea-dsa.

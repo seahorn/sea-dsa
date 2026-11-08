@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_LIMIT_MACROS)
 find_program(CLANG-FORMAT NAMES clang-format clang-format-mp-14 clang-format-14)

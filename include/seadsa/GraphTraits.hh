@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef __DSA_GRAPH_TRAITS_H
 #define __DSA_GRAPH_TRAITS_H
 
