@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 add_llvm_library (SeaDsaAnalysis DISABLE_LLVM_LINK_LLVM_DYLIB
   Graph.cc
   FieldType.cc

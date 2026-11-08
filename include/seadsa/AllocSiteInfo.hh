@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 /**
    A pass to identify allocations sites and their sizes (if known). The
    information is exposed metadata attached to allocation sites.

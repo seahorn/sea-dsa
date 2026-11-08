@@ -1,10 +1,13 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "doctest.h"
 
 #include "seadsa/FieldType.hh"
 #include "seadsa/TypeUtils.hh"
 
 #include "llvm/IR/LLVMContext.h"
-//#include "llvm/IR/TypeBuilder.h"
+// #include "llvm/IR/TypeBuilder.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;

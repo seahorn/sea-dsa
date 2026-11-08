@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #ifndef SEADSA_REMOVE_PTR_TO_INT
 #define SEADSA_REMOVE_PTR_TO_INT
 

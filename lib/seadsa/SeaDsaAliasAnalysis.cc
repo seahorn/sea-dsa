@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seadsa/SeaDsaAliasAnalysis.hh"
 #include "seadsa/SeaDsaAnalysis.hh"
 #include "llvm/Analysis/TargetLibraryInfo.h"

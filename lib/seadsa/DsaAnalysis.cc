@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 #include "seadsa/DsaAnalysis.hh"
 
 #include "llvm/Analysis/CallGraph.h"

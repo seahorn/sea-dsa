@@ -1,7 +1,9 @@
+// SPDX-FileCopyrightText: 2026 The sea-dsa Authors
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 //===- Local Alias Analysis
 //
-// Part of the SeaHorn Project, under the modified BSD Licence with SeaHorn
-// exceptions.
+// Part of the SeaHorn Project, under Apache-2.0 WITH LLVM-exception.
 //
 // See LICENSE.txt for license information.
 //
