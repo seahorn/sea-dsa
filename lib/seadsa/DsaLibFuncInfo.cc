@@ -218,21 +218,22 @@ void DsaLibFuncInfo::generateSpec(const llvm::Function &F,
 
   auto getOrInsertAccessFnTy = [](const ModuleRef &specM,
                                   Type *ty) -> Function * {
-    if (!ty) return specM->getFunction("sea_dsa_access");
-
+    assert(ty && "Access types must be scalar or pointer types");
     std::string tyStr;
     llvm::raw_string_ostream rso(tyStr);
-    ty->print(rso);
-
-    auto str = rso.str();
+    if (auto *ptrTy = dyn_cast<PointerType>(ty)) {
+      if (ptrTy->getAddressSpace() == 0)
+        rso << "ptr";
+      else
+        rso << "p" << ptrTy->getAddressSpace();
+    } else {
+      ty->print(rso);
+    }
     Function *baseFn = specM->getFunction("sea_dsa_access");
-
-    auto baseFnTy = baseFn->getFunctionType();
-    llvm::FunctionType *derivedFnTy = llvm::FunctionType::get(
-        baseFnTy->getReturnType(), {ty, baseFnTy->getParamType(1)}, false);
-
-    return llvm::dyn_cast<Function, Value>(
-        specM->getOrInsertFunction("sea_dsa_access_" + str, derivedFnTy)
+    return cast<Function>(
+        specM
+            ->getOrInsertFunction("sea_dsa_access_" + rso.str(),
+                                  baseFn->getFunctionType())
             .getCallee());
   };
 
@@ -335,13 +336,10 @@ void DsaLibFuncInfo::generateSpec(const llvm::Function &F,
             uIntTy, llvm::APInt(uIntTy->getIntegerBitWidth(), offset, false));
 
         for (auto type : typeSet) {
-          if (!type->isPointerTy()) continue;
-
           auto mutTy = const_cast<Type *>(type);
           Function *accessFn = getOrInsertAccessFnTy(m_specModule, mutTy);
 
-          auto castVal = builder.CreateBitCast(specVal, mutTy);
-          builder.CreateCall(accessFn, {castVal, llvmOffset});
+          builder.CreateCall(accessFn, {specVal, llvmOffset});
         }
       }
 
