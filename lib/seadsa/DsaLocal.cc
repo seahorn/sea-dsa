@@ -1418,9 +1418,9 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallBase &I) {
     if (isSkip(*arg0) || isSkip(*arg2)) return;
     if (!m_graph.hasCell(*arg0) || !m_graph.hasCell(*arg2)) return;
 
-    seadsa::Node *n = m_graph.getCell(*arg0).getNode();
+    seadsa::Cell cell = m_graph.getCell(*arg0);
     seadsa::Cell c2 = m_graph.getCell(*arg2);
-    n->addLink(Field(arg1->getZExtValue(), FieldType(arg2->getType())), c2);
+    cell.addLink(Field(arg1->getZExtValue(), FieldType(arg2->getType())), c2);
 
     return;
   }
@@ -1433,19 +1433,51 @@ void IntraBlockBuilder::visitSeaDsaFnCall(CallBase &I) {
   }
 
   case SeadsaFn::ACCESS: {
-    // seadsa_access_<type>(<type> *p, unsigned o) -- node accesses <type> at o
-    Value *arg0 = nullptr;
-    ConstantInt *arg1 = nullptr;
+    // The hook name carries the accessed type across C ABI lowering.
+    StringRef name = callee->getName();
+    if (I.arg_size() != 2) return;
+    Value *arg0 = I.getArgOperand(0);
+    auto *offset = dyn_cast<ConstantInt>(I.getArgOperand(1));
+    if (!arg0->getType()->isPointerTy() || !offset) return;
+    if (isSkip(*arg0) || !m_graph.hasCell(*arg0)) return;
 
-    if (!(match(I.getArgOperand(0), m_Value(arg0)) &&
-          arg0->getType()->isPointerTy()))
-      return;
-    if (!match(I.getArgOperand(1), m_ConstantInt(arg1))) return;
-    if (isSkip(*arg0)) return;
-    if (!m_graph.hasCell(*arg0)) return;
+    Type *type = nullptr;
+    if (name == "sea_dsa_access") {
+      // Preserve the untyped legacy hook's pointer-access interpretation.
+      type = arg0->getType();
+    } else if (name.consume_front("sea_dsa_access_")) {
+      // A deliberately small compatibility grammar for handwritten hooks.
+      // Arbitrary LLVM type spellings (especially named structs) are not an
+      // API.
+      LLVMContext &ctx = I.getContext();
+      type = StringSwitch<Type *>(name)
+                 .Case("ptr", PointerType::getUnqual(ctx))
+                 .Case("half", Type::getHalfTy(ctx))
+                 .Case("bfloat", Type::getBFloatTy(ctx))
+                 .Case("float", Type::getFloatTy(ctx))
+                 .Case("double", Type::getDoubleTy(ctx))
+                 .Case("fp128", Type::getFP128Ty(ctx))
+                 .Case("x86_fp80", Type::getX86_FP80Ty(ctx))
+                 .Case("ppc_fp128", Type::getPPC_FP128Ty(ctx))
+                 .Default(nullptr);
+      if (!type && name.size() > 1 &&
+          (name.front() == 'i' || name.front() == 'p')) {
+        bool integer = name.front() == 'i';
+        name = name.drop_front();
+        unsigned number;
+        if (name.find_first_not_of("0123456789") == StringRef::npos &&
+            !name.getAsInteger(10, number)) {
+          if (integer && number > 0 && number <= IntegerType::MAX_INT_BITS)
+            type = IntegerType::get(ctx, number);
+          else if (!integer && number <= 0xffffff)
+            type = PointerType::get(ctx, number);
+        }
+      }
+    }
+    if (!type) return;
 
-    seadsa::Node *n = m_graph.getCell(*arg0).getNode();
-    n->addAccessedType(arg1->getZExtValue(), arg0->getType());
+    Cell cell = m_graph.getCell(*arg0);
+    cell.addAccessedType(offset->getZExtValue(), type);
     return;
   }
 
