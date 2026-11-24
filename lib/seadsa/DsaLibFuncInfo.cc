@@ -1,4 +1,9 @@
 
+// LLVM 14's SmallVector.h uses uint64_t without including <cstdint>, which
+// libstdc++ 13 and later no longer provide through other headers. Keep this
+// ahead of the LLVM includes.
+#include <cstdint>
+
 #include "llvm/ADT/Twine.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Function.h"
