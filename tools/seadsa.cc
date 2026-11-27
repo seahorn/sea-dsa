@@ -37,6 +37,7 @@
 #include "seadsa/ShadowMem.hh"
 #include "seadsa/support/Debug.h"
 #include "seadsa/support/RemovePtrToInt.hh"
+#include "seadsa/support/Stats.hh"
 
 static llvm::cl::opt<std::string>
     InputFilename(llvm::cl::Positional,
@@ -69,6 +70,12 @@ static llvm::cl::opt<bool> MemViewer(
 static llvm::cl::opt<bool> CallGraphDot(
     "sea-dsa-callgraph-dot",
     llvm::cl::desc("Print SeaDsa complete call graph to dot format"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> ScopedStats(
+    "sea-dsa-scoped-stats",
+    llvm::cl::desc(
+        "Print scoped statistics (requires a -DSEADSA_STATS=ON build)"),
     llvm::cl::init(false));
 
 static llvm::cl::opt<bool> RunShadowMem("sea-dsa-shadow-mem",
@@ -242,6 +249,11 @@ int main(int argc, char **argv) {
   if (!AsmOutputFilename.empty())
     pass_manager.add(createPrintModulePass(asmOutput->os()));
 
+  if (ScopedStats) {
+    seadsa::SeaDsaEnableStats();
+    seadsa::SeaDsaStatsBeginAnalysis();
+  }
+
   pass_manager.run(*module.get());
 
   if (AAEval && !RunShadowMem) {
@@ -275,6 +287,8 @@ int main(int argc, char **argv) {
     MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::AAEvaluator()));
     MPM.run(*module, MAM);
   }
+
+  if (ScopedStats) { seadsa::SeaDsaStatsEndAnalysis(llvm::errs()); }
 
   if (!AsmOutputFilename.empty()) asmOutput->keep();
 

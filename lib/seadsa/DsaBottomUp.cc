@@ -26,6 +26,7 @@
 #include "seadsa/Local.hh"
 #include "seadsa/config.h"
 #include "seadsa/support/Debug.h"
+#include "seadsa/support/Stats.hh"
 
 using namespace llvm;
 
@@ -62,6 +63,7 @@ static const Value *findUniqueReturnValue(const Function &F) {
 void BottomUpAnalysis::cloneAndResolveArguments(
     const DsaCallSite &CS, Graph &calleeG, Graph &callerG,
     const DsaLibFuncInfo &dsaLibFuncInfo, bool flowSensitiveOpt) {
+  SEADSA_SCOPED_STATS("bu.resolve_args", 1);
   CloningContext context(*CS.getInstruction(), CloningContext::BottomUp);
   auto options = Cloner::BuildOptions(Cloner::StripAllocas);
   Cloner C(callerG, context, options);
@@ -137,6 +139,7 @@ void BottomUpAnalysis::cloneAndResolveArguments(
 }
 
 bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
+  SEADSA_SCOPED_STATS("bu.module", 1);
 
   LOG("dsa-bu", errs() << "Started bottom-up analysis ... \n");
 
@@ -159,9 +162,11 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       }
       if (m_dsaLibFuncInfo.hasSpecFunc(*fn)) {
         Function &spec_fn = *m_dsaLibFuncInfo.getSpecFunc(*fn);
+        SEADSA_SCOPED_STATS("bu.local_run", 1);
         la.runOnFunction(spec_fn, *fGraph);
 
       } else {
+        SEADSA_SCOPED_STATS("bu.local_run", 1);
         la.runOnFunction(*fn, *fGraph);
       }
 
@@ -211,7 +216,10 @@ bool BottomUpAnalysis::runOnModule(Module &M, GraphMap &graphs) {
       }
     }
 
-    if (fGraph) fGraph->compress();
+    if (fGraph) {
+      SEADSA_SCOPED_STATS("bu.compress", 1);
+      fGraph->compress();
+    }
   }
 
   if (m_dsaLibFuncInfo.genSpecs()) {

@@ -18,6 +18,7 @@ add_executable(units_sea_dsa EXCLUDE_FROM_ALL
     units_sea_dsa.cpp
     FieldTypeTests.cpp
     ShadowMemNewPmTests.cpp
+    StatsTests.cpp
   )
 llvm_config (units_sea_dsa ${LLVM_LINK_COMPONENTS})
 
